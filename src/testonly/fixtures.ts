@@ -171,7 +171,7 @@ export function u64List(v: readonly string[]): bigint[] {
 	return v.map(u64);
 }
 
-const textDecoder = new TextDecoder("utf-8", { fatal: true });
+const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const textEncoder = new TextEncoder();
 
 /**
