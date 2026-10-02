@@ -7,6 +7,7 @@ rules, and [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the workflow.
 | Path | What it is |
 | --- | --- |
 | [`PORTING-MAP.md`](PORTING-MAP.md) | The file-by-file status of the port: one row per upstream Go file. |
+| [`compatibility.md`](compatibility.md) | How byte compatibility with Tessera is proven, per backend and in both directions, and how to reproduce it. |
 | [`REVIEW-PROTOCOL.md`](REVIEW-PROTOCOL.md) | What a reviewer checks, in priority order, for ports, ADRs and pull requests. |
 | [`decisions/`](decisions/) | Architecture decision records (ADRs): every divergence from Go and every file not ported. |
 | [`notes/`](notes/) | Free-form analysis that is not (yet) a decision. |

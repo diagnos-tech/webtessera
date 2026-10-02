@@ -87,6 +87,15 @@ type logFixture struct {
 	// sorted by path.
 	Tiles        []tileFile   `json:"tiles"`
 	EntryBundles []bundleFile `json:"entryBundles"`
+	// State is every file the driver keeps in its private .state directory
+	// (version and treeState; gcState too, were garbage collection enabled),
+	// keyed by path relative to the log root and sorted by path. These are not
+	// part of the tlog-tiles surface, but a port whose storage is meant to be
+	// interchangeable with a POSIX log directory must read and write them in
+	// exactly this format, and recording the bytes Go wrote is the only honest
+	// evidence of what that format is. The *.lock files are left out: they are
+	// empty flock(2) targets, which carry no state.
+	State []resourceFile `json:"state"`
 }
 
 // genLogs builds a real Tessera log for each size in logFixtureSizes using the
@@ -201,6 +210,12 @@ func dumpLog(dir string, size uint64) (*logFixture, error) {
 		EntryBundles: []bundleFile{},
 	}
 
+	state, err := dumpState(dir)
+	if err != nil {
+		return nil, err
+	}
+	f.State = state
+
 	cpRaw, err := os.ReadFile(filepath.Join(dir, layout.CheckpointPath))
 	if err != nil {
 		return nil, fmt.Errorf("read checkpoint: %w", err)
@@ -224,8 +239,8 @@ func dumpLog(dir string, size uint64) (*logFixture, error) {
 		}
 		if d.IsDir() {
 			// .state holds the driver's private bookkeeping, which is not part
-			// of the tlog-tiles surface a client sees and not something the
-			// port has to reproduce.
+			// of the tlog-tiles surface a client sees; dumpState records it
+			// separately.
 			if d.Name() == ".state" {
 				return fs.SkipDir
 			}
@@ -288,6 +303,32 @@ func dumpLog(dir string, size uint64) (*logFixture, error) {
 	}
 
 	return f, nil
+}
+
+// dumpState reads back the files the driver left in the log's .state
+// directory, apart from its lock files.
+func dumpState(dir string) ([]resourceFile, error) {
+	const stateDir = ".state"
+	des, err := os.ReadDir(filepath.Join(dir, stateDir))
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", stateDir, err)
+	}
+	state := []resourceFile{}
+	// os.ReadDir returns entries sorted by name, so the output order is stable.
+	for _, de := range des {
+		if !de.Type().IsRegular() {
+			return nil, fmt.Errorf("unexpected non-regular file %s/%s", stateDir, de.Name())
+		}
+		if strings.HasSuffix(de.Name(), ".lock") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, stateDir, de.Name()))
+		if err != nil {
+			return nil, err
+		}
+		state = append(state, resourceFile{Path: stateDir + "/" + de.Name(), Raw: Hex(raw)})
+	}
+	return state, nil
 }
 
 // parseResourcePath splits an entry-bundle path suffix into its index and
