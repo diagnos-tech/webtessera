@@ -1,0 +1,20 @@
+{
+  "name": "webtessera-example-browser",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm --filter webtessera build",
+    "dev": "vite",
+    "prebuild": "pnpm --filter webtessera build",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "webtessera": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "8.3.2"
+  }
+}
