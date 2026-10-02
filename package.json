@@ -55,7 +55,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.workers.json",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -75,6 +75,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20261002.1",
     "@vitest/browser": "4.1.11",
     "@vitest/browser-playwright": "4.1.11",
     "fake-indexeddb": "6.2.5",

@@ -1,0 +1,12 @@
+{
+  // Type-checks the code that only ever runs inside workerd: the Durable Object
+  // driver's tests and their test-only Worker. These need the Workers runtime
+  // types, which conflict with the DOM lib used by tsconfig.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"]
+  },
+  "include": ["src/storage/durableobject/**/*_test.ts", "src/storage/durableobject/testing/**/*.ts"],
+  "exclude": []
+}
