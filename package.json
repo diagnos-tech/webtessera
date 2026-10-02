@@ -1,7 +1,7 @@
 {
   "name": "webtessera",
   "version": "0.1.0",
-  "description": "A faithful TypeScript port of Tessera, the tile-based transparency log, for browsers and Cloudflare Durable Objects.",
+  "description": "A faithful TypeScript port of Tessera, the tile-based transparency log, for browsers, edge runtimes and servers, with IndexedDB and SQLite storage.",
   "keywords": [
     "transparency-log",
     "tessera",
@@ -9,9 +9,9 @@
     "c2sp",
     "merkle-tree",
     "certificate-transparency",
+    "witness",
     "indexeddb",
-    "durable-objects",
-    "cloudflare-workers"
+    "sqlite"
   ],
   "license": "Apache-2.0",
   "author": "MedDeck",
@@ -26,7 +26,7 @@
   "type": "module",
   "sideEffects": false,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "packageManager": "pnpm@10.28.0",
   "files": [
@@ -69,9 +69,11 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:workers": "vitest run --config vitest.workers.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:services": "vitest run --config vitest.services.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "upstream": "node scripts/fetch-upstream.mjs",
     "fixtures": "node scripts/fetch-upstream.mjs && cd fixtures/gen && go run . -out ../data",
+    "interop": "node scripts/interop.mjs",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "prepack": "pnpm run clean && pnpm run build"
   },
@@ -83,8 +85,11 @@
     "@biomejs/biome": "2.5.15",
     "@cloudflare/vitest-pool-workers": "0.22.0",
     "@cloudflare/workers-types": "5.20261002.1",
+    "@libsql/client": "0.18.0",
+    "@sqlite.org/sqlite-wasm": "3.53.4-build2",
     "@vitest/browser": "4.1.11",
     "@vitest/browser-playwright": "4.1.11",
+    "aws4fetch": "1.0.20",
     "fake-indexeddb": "6.2.5",
     "playwright": "1.56.1",
     "typescript": "5.9.3",
