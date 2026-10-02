@@ -206,7 +206,9 @@ original:
 ## Runtime support
 
 Node.js 20 or later, current browsers (IndexedDB and Web Locks for the IndexedDB driver), Cloudflare
-Workers and Durable Objects, Deno and Bun. The published build is ES2022.
+Workers and Durable Objects, Deno 2 and Bun. CI runs the test suites on Node 20, 22 and 24, in Chromium
+and in workerd, and an end-to-end smoke test of the built package on Node, Bun and Deno. The
+published build is ES2022.
 
 ## Contributing
 
