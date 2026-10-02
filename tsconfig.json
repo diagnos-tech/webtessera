@@ -45,7 +45,10 @@
       "webtessera/storage/objectstore": ["./src/storage/objectstore/index.ts"],
       "webtessera/storage/memory": ["./src/storage/memory/index.ts"],
       "webtessera/storage/indexeddb": ["./src/storage/indexeddb/index.ts"],
-      "webtessera/storage/durableobject": ["./src/storage/durableobject/index.ts"],
+      "webtessera/storage/sqlite": ["./src/storage/sqlite/index.ts"],
+      "webtessera/http": ["./src/http/index.ts"],
+      "webtessera/witness": ["./src/witness/index.ts"],
+      "webtessera/mirror": ["./src/mirror/index.ts"],
       "webtessera/testonly": ["./src/testonly/index.ts"]
     }
   },
