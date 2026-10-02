@@ -1,0 +1,22 @@
+{
+  "name": "webtessera-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The webtessera landing page, generated from the library's own sources at build time and published to GitHub Pages.",
+  "scripts": {
+    "prebuild": "pnpm --workspace-root build",
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "ci": "pnpm run build"
+  },
+  "dependencies": {
+    "webtessera": "workspace:*"
+  },
+  "devDependencies": {
+    "shiki": "4.5.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.2"
+  }
+}
