@@ -61,7 +61,7 @@ export function isSpace(r: number): boolean {
 	);
 }
 
-const strictUTF8Decoder = new TextDecoder("utf-8", { fatal: true });
+const strictUTF8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /**
  * validUTF8 reports whether p consists entirely of valid UTF-8-encoded runes
