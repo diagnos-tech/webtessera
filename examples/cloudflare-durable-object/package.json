@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "pnpm --filter webtessera build",
+    "predev": "pnpm --workspace-root build",
     "dev": "wrangler dev",
+    "predeploy": "pnpm --workspace-root build",
     "deploy": "wrangler deploy",
-    "pretest": "pnpm --filter webtessera build",
+    "pretest": "pnpm --workspace-root build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prekeygen": "pnpm --workspace-root build",
+    "keygen": "node scripts/generate-key.mjs"
   },
   "dependencies": {
     "webtessera": "workspace:*"
