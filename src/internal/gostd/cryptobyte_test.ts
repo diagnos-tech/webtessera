@@ -2,7 +2,7 @@
 // Copyright 2026 MedDeck. All Rights Reserved.
 //
 // Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
 // Ported from golang.org/x/crypto@v0.46.0/cryptobyte/cryptobyte_test.go
 //

@@ -19,7 +19,7 @@
 // docs/decisions/0004-errors-context-and-concurrency.md. It moves from the first
 // Go parameter to the last TypeScript one both on this function and on the
 // callback it takes, which is the convention docs/decisions/0060-fetcher-signal-parameter-order.md
-// establishes for every fetcher-shaped function in this work package.
+// establishes for every fetcher-shaped function in this port.
 
 import { ErrNotExist, errorIs, wrapError } from "../gostd/errors.ts";
 

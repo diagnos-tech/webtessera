@@ -17,9 +17,9 @@
 //
 // Port note: every OpenTelemetry span/attribute and every klog debug log line from the Go
 // source is dropped. Neither has any TypeScript counterpart anywhere in this port (no
-// other file imports an OTel or klog shim), storage/internal/otel.go itself is out of
-// scope for this work package, and AGENTS.md §7 restricts donatable dependencies to
-// `@noble/*`. See docs/decisions/0051-storage-internal-drops-otel-and-klog.md.
+// other file imports an OTel or klog shim), storage/internal/otel.go itself is not
+// ported, and AGENTS.md §7 restricts runtime dependencies to `@noble/*`. See
+// docs/decisions/0051-storage-internal-drops-otel-and-klog.md.
 
 import { nodeCoordsToTileAddress, partialTileSize, TileWidth, tilePath } from "../../api/layout/index.ts";
 import { HashTile } from "../../api/state.ts";
@@ -111,12 +111,12 @@ type getPopulatedTileFunc = (tileID: TileID, treeSize: bigint) => populatedTile 
  * is responsible for integrating entries for a number of contiguous trees), the lifetime should be bounded so as not
  * to leak memory.
  *
- * Port note: Go's `compact.VisitFn` (src/vendor/merkle/compact/range.ts, landed and
- * reviewed in Wave 1) is synchronous — `(id: NodeID, hash: Uint8Array) => void`, no
- * Promise — because Go's goroutines can block on I/O mid-callback where JavaScript
- * cannot. `tileWriteCache`'s Visitor (below) sometimes needs to fetch a tile that already
- * exists on disk (when integration extends a partial tile from a previous run), and in Go
- * that fetch happens synchronously inside the callback via `tileReadCache.Get`.
+ * Port note: Go's `compact.VisitFn` (src/vendor/merkle/compact/range.ts) is synchronous —
+ * `(id: NodeID, hash: Uint8Array) => void`, no Promise — because Go's goroutines can block
+ * on I/O mid-callback where JavaScript cannot. `tileWriteCache`'s Visitor (below)
+ * sometimes needs to fetch a tile that already exists on disk (when integration extends
+ * a partial tile from a previous run), and in Go that fetch happens synchronously inside
+ * the callback via `tileReadCache.Get`.
  *
  * This port instead relies on an invariant that already holds in Go's own data flow:
  * `integrate()` always calls `newRange(fromSize)` — which fully warms `readCache` for
@@ -414,7 +414,7 @@ export class tileWriteCache {
 	 * `Set` never reached, and `api.HashTile{Nodes: t.leaves}` copies that nil-tolerant
 	 * slice straight into a `HashTile`; Go's `bytes.Buffer.Write(nil)` then writes zero
 	 * bytes for it, silently producing an undersized tile. `HashTile.nodes` is typed
-	 * `Uint8Array[]` here (Wave 1, api/state.ts) with no such escape hatch, so a genuine
+	 * `Uint8Array[]` here (api/state.ts) with no such escape hatch, so a genuine
 	 * gap is rejected loudly instead of silently mis-sized. In practice this is
 	 * unreachable: `compact.Range.append`/`appendRange` only ever visit leaf indices in
 	 * sequential order starting from the tile's first unset slot, so `leaves` has no

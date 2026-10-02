@@ -16,8 +16,8 @@
 // Ported from tessera/client/stream.go @ 4a6d9f9
 //
 // Port note: `iter.Seq2[T, error]` becomes `AsyncGenerator<T>` (errors thrown, not
-// yielded — AGENTS.md §3.6), per the mission brief for this work package: these
-// generators do real I/O, unlike the synchronous `iter.Seq` generators in api/layout.
+// yielded — AGENTS.md §3.6): these generators do real I/O, unlike the synchronous
+// `iter.Seq` generators in api/layout.
 //
 // Port note: upstream's OpenTelemetry spans are dropped along with client/otel.go; see
 // docs/decisions/0061-otel-tracing-dropped.md.

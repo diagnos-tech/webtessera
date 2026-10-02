@@ -412,6 +412,13 @@ change brings in code from a new origin, add its licence text to `LICENSES/` and
 in the same pull request. Never "tidy" a BSD header into an Apache one: relicensing someone else's
 code is not ours to do.
 
+**Mixed files.** When only part of a file is translated from third-party code (for example
+`src/internal/gostd/bytes.ts`, whose base64 decoder transcribes Go's `encoding/base64`), the header
+carries both copyright lines, a sentence naming the derived declarations, the Apache-2.0 notice for
+the rest of the file, and the third-party licence text; each derived declaration also says what it is
+derived from. Upstream notices embedded in a file (such as Sunlight's ISC notice in
+`src/ctonly/ct.ts`) are carried over verbatim.
+
 ---
 
 ## 10. Definition of done, per pull request

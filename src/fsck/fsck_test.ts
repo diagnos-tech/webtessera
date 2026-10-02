@@ -19,12 +19,12 @@
 // covering only resourceCheckWorker -- Fsck.Check/New have no direct Go unit test
 // anywhere upstream (the real end-to-end coverage lives in storage/{posix,gcp,aws}'s own
 // *_test.go files and integration/fault/posix/fault_test.go, none of which are in this
-// port's scope). Given Check is this package's central, donation-defining behaviour ("our
-// port can audit a whole log and catch corruption" -- see the mission brief), two
-// additional fixture-backed cases are added below, following the same pattern those
-// upstream driver tests use (`fsck.New(vk.Name(), vk, lr, defaultMerkleLeafHasher,
-// fsck.Opts{N: ...})` against a real log), reusing the same `client_log` fixture
-// client_test.ts already established (docs/decisions/0065-client-log-fixture-reads-static-testdata.md).
+// port's scope). Given Check is this package's central behaviour (auditing a whole log and
+// catching corruption), two additional fixture-backed cases are added below, following
+// the same pattern those upstream driver tests use (`fsck.New(vk.Name(), vk, lr,
+// defaultMerkleLeafHasher, fsck.Opts{N: ...})` against a real log), reusing the same
+// `client_log` fixture client_test.ts already established
+// (docs/decisions/0065-client-log-fixture-reads-static-testdata.md).
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
@@ -267,9 +267,9 @@ it("visit enqueues a full 256-node tile with partial 0, not 256 (uint8(256) wrap
 // check()'s own bundle loop, the one place in the pipeline that can. These three cases
 // prove, directly against the primitive rather than through the full Fsck.check()
 // plumbing, that it: (a) doesn't block when there's already room, (b) genuinely blocks
-// and later unblocks once a consumer pulls, and (c) -- the deadlock hazard the reviewer
-// flagged -- unblocks via signal abort even when nothing ever pulls, so a producer
-// waiting here can never hang forever against a fully-dead consumer pool.
+// and later unblocks once a consumer pulls, and (c) -- the deadlock hazard -- unblocks
+// via signal abort even when nothing ever pulls, so a producer waiting here can never
+// hang forever against a fully-dead consumer pool.
 describe("ResourceQueue.waitUntilBelow", () => {
 	it("resolves immediately when already below the threshold", async () => {
 		const q = new ResourceQueue();
@@ -332,13 +332,13 @@ describe("ResourceQueue.waitUntilBelow", () => {
 	});
 });
 
-// Not part of upstream fsck_test.go. Proves the OOM hazard a reviewer identified in
-// ADR-0091 §1 is actually closed: drives fsckTree.appendBundle/visit -- the same
-// producer check() drives -- through far more full tiles than the backpressure
-// threshold, awaiting ResourceQueue.waitUntilBelow between pushes exactly as check()'s
-// bundle loop now does, against a consumer that is deliberately much slower than the
-// producer. If waitUntilBelow were a no-op (the pre-fix behaviour), the queue would grow
-// to roughly the full tile count; with it, size is capped at the threshold throughout.
+// Not part of upstream fsck_test.go. Proves the OOM hazard described in ADR-0091 §1 is
+// actually closed: drives fsckTree.appendBundle/visit -- the same producer check()
+// drives -- through far more full tiles than the backpressure threshold, awaiting
+// ResourceQueue.waitUntilBelow between pushes exactly as check()'s bundle loop does,
+// against a consumer that is deliberately much slower than the producer. If
+// waitUntilBelow were a no-op, the queue would grow to roughly the full tile count; with
+// it, size is capped at the threshold throughout.
 it("check()'s backpressure caps buffered resources regardless of log size (ADR-0091 §1)", async () => {
 	const n = 2;
 	const threshold = resourceBackpressureThreshold(n);

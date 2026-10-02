@@ -42,7 +42,7 @@
 // dependencies -- merkle, note, formats/log).
 //
 // Port note: Go's `Value any` becomes a type parameter `T` here rather than
-// TypeScript's `any`, which AGENTS.md §7 bans in donatable code. `container/list`
+// TypeScript's `any`, which AGENTS.md §7 bans in library code. `container/list`
 // predates Go generics; its `any` plays exactly the role a type parameter plays in
 // a generic container, so `List<T>`/`Element<T>` is the faithful rendering of "a
 // list that holds values of a caller-chosen type", not an invented API. See

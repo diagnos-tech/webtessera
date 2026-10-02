@@ -1,17 +1,23 @@
 // Copyright 2023 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck. All Rights Reserved.
 // Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
 // Ported from github.com/transparency-dev/formats/note/note_cosigv1.go
 // @ v0.0.0-20251017110053-404c0d5b696c
+//
+// Licence note: upstream carries the Go Authors' BSD-style notice above on this file even
+// though the rest of transparency-dev/formats is Apache-2.0, and the file does reproduce
+// code from golang.org/x/mod/sumdb/note (`isValidName`, and the key-hash computation in
+// `keyHashEd25519`). The notice is kept as upstream has it; do not replace it with the
+// Apache header.
 //
 // Port note: this is a narrow port of `formats/note`, covering only the two functions
 // `src/witness.ts` (`newWitness`) and its tests actually call:
 // `NewVerifierForCosignatureV1` and `NewSignerForCosignatureV1`, plus the private
 // machinery they need (`formatCosignatureV1`, `verifyCosigV1`, `keyHashEd25519`,
-// `isValidName`, the `Signer`/`verifier` structs). NOT ported, because nothing in the
-// witness/migrate work package calls them: `VKeyToCosignatureV1`, `CoSigV1Timestamp`, and
+// `isValidName`, the `Signer`/`verifier` structs). NOT ported, because nothing in this
+// port calls them: `VKeyToCosignatureV1`, `CoSigV1Timestamp`, and
 // the whole of `note_verifier.go` (`NewVerifier`'s algorithm-dispatching, ECDSA,
 // RFC6962 STH verifiers) and `note_rfc6962.go`. See
 // docs/decisions/0071-formats-note-cosigv1-partial-port.md.
