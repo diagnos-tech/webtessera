@@ -10,6 +10,8 @@ import { defineConfig } from "vitest/config";
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 
 export default defineConfig({
+	// Pre-bundle noble up front: discovering it mid-run makes Vite reload the test page.
+	optimizeDeps: { include: ["@noble/curves/ed25519.js", "@noble/hashes/sha2.js"] },
 	test: {
 		include: ["src/**/*_browser_test.ts"],
 		testTimeout: 30_000,
