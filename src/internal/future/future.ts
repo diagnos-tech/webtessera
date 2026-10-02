@@ -70,6 +70,12 @@ export function newFutureErr<T>(): readonly [FutureErr<T>, (t: T, err: unknown) 
 		resolveFn = resolve;
 		rejectFn = reject;
 	});
+	// Port note: a Go future set with an error that nobody ever reads is simply garbage.
+	// A rejected Promise that nobody awaits is instead reported as an unhandled rejection
+	// (and fails the process under some runtimes' defaults), which is what happens to every
+	// queued entry whose future was never called when a batch fails, e.g. during shutdown.
+	// Marking the promise handled here keeps Go's semantics; get() still rethrows the error.
+	promise.catch(() => undefined);
 
 	// Port note: Go guards the setter with `sync.Once` so only the first call takes
 	// effect. That critical section is synchronous (no `await` inside it), so per

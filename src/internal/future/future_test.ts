@@ -72,4 +72,13 @@ describe("internal/future/FutureErr", () => {
 		set(99, undefined);
 		await expect(f.get()).rejects.toThrow("first");
 	});
+
+	// Port addition: Vitest fails the run on an unhandled rejection, so this case fails if a
+	// future set with an error that nobody reads is reported as one (see the port note in
+	// newFutureErr).
+	it("does not report an error nobody reads as an unhandled rejection", async () => {
+		const [, set] = newFutureErr<number>();
+		set(0, new Error("never read"));
+		await new Promise((r) => setTimeout(r, 10));
+	});
 });
