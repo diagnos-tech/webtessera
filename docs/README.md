@@ -40,7 +40,9 @@ How to read them:
 - **Numbers group by area**, because they were allocated in blocks during the initial port: roughly
   0001–0006 foundations, 0010s Merkle, 0020s `note` and the Go standard-library stand-ins, 0030s API
   and test conventions, 0040s CT, 0050s `storage/internal`, 0060s `client`, 0070s witness and
-  migrate, 0080s append lifecycle, 0090s `list` and `fsck`, 0100s the web storage drivers. New ADRs
+  migrate, 0080s append lifecycle, 0090s `list` and `fsck`, 0100s the ObjectStore storage engine and
+  memory driver, 0110s IndexedDB, 0120s Durable Objects, 0130s the remaining root-package ports and
+  the package barrel, 0140s testonly, the README check, scope disposition and shared locks. New ADRs
   take the next unused number.
 - **"Work package" and "wave"** in the older ADRs refer to the initial port's work plan, an internal
   coordination document that is not part of this repository. Read them as "the files this change
