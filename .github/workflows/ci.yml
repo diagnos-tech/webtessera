@@ -110,6 +110,36 @@ jobs:
       - name: Check the types resolve for consumers (Are the Types Wrong?)
         run: pnpm dlx @arethetypeswrong/cli@latest --pack . --profile esm-only
 
+  runtimes:
+    name: Runtime smoke test (${{ matrix.runtime }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [node, bun, deno]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - if: matrix.runtime == 'bun'
+        uses: oven-sh/setup-bun@v2
+      - if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@v2.0.5
+        with:
+          deno-version: v2.x
+      # Appends to a log, waits for publication and verifies an inclusion proof using
+      # the built package, which backs the README's runtime-support claims.
+      - name: Run the smoke test
+        run: |
+          case "${{ matrix.runtime }}" in
+            node) node scripts/smoke-runtimes.mjs ;;
+            bun) bun scripts/smoke-runtimes.mjs ;;
+            deno) deno run --allow-read scripts/smoke-runtimes.mjs ;;
+          esac
+
   examples:
     name: Examples
     runs-on: ubuntu-latest
@@ -165,7 +195,7 @@ jobs:
   ci:
     name: CI passed
     if: always()
-    needs: [lint, typecheck, test-unit, test-browser, test-workers, build, examples, fixtures]
+    needs: [lint, typecheck, test-unit, test-browser, test-workers, build, runtimes, examples, fixtures]
     runs-on: ubuntu-latest
     steps:
       - name: Check every job succeeded
