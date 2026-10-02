@@ -45,8 +45,8 @@ The Merkle layer stays synchronous, exactly as upstream.
   where WebCrypto's per-call promise overhead would dominate anyway. If a future profile shows entry
   hashing of large payloads is hot, an *optional* async fast path can be added at the entry boundary
   only — that would be a new ADR, and it must not make the tree code async.
-- Two dependencies to vet for a donated library. Both are already used elsewhere in this monorepo
-  (`@repo/core`), and both are widely used in the wider transparency/crypto ecosystem.
+- Two dependencies to vet for a published library. Both are widely used in the wider
+  transparency/crypto ecosystem.
 - Constant-time properties for Ed25519 come from `@noble/curves`, which is audited for it. We do not
   hand-roll any curve arithmetic.
 

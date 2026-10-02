@@ -50,8 +50,8 @@ plus CLI-flag-driven configuration (storage URL, bearer token, worker count, QPS
 public key file).
 
 **What replaces it:** nothing directly, and nothing needs to — the capability that matters
-for this codebase's actual consumers (`src/adapters/**`, a future diagnos debug UI, or a
-transparency-dev reviewer evaluating the library) is `Fsck.check()`/`Fsck.status()`
+for this codebase's actual consumers (applications embedding the library, a debug UI, or a
+transparency-dev reviewer evaluating it) is `Fsck.check()`/`Fsck.status()`
 themselves, which are fully ported, tested, and exported from `src/fsck/index.ts`. Anyone
 wanting a terminal or browser dashboard over fsck's progress can poll `status()` (it returns
 a `Status` object with `entryRanges`/`tileRanges`/`bytesFetched`/`resourcesFetched`/
@@ -76,7 +76,7 @@ is no environment left to build a *replacement* TUI for.
   can wrap its own `Fetcher` implementation, exactly as `main.go`'s `rateLimitedSrc` wraps
   `fsck.Fetcher` in Go — that wrapping pattern needs no help from this library either way.
 - If a future work package wants a debug UI over `fsck`'s progress (the kind of thing
-  `AGENTS.md` §8 gestures at for `src/adapters/**`), it would poll `Fsck.status()` from
+  an application built on the library would add), it would poll `Fsck.status()` from
   scratch, not port anything from this exclusion — there is nothing in the excluded Go
   files that transfers to a DOM-rendered progress view; the two rendering models (a
   terminal's fixed-width character grid vs. a web page) do not share implementation, only
@@ -90,7 +90,7 @@ is no environment left to build a *replacement* TUI for.
   `cmd/*` has been ported, and the ones still `pending` in ADR-0001 are pending for the same
   reason). Introducing exactly one CLI entry point for this single command would be
   inconsistent with every other `cmd/` exclusion and is not something any current consumer
-  (`src/adapters/**`) needs.
+  (an application built on the library) needs.
 - **Port the Bubbletea views as inert data-shaping code, dropping only the actual
   `tea.NewProgram` rendering.** Rejected: `layerbar.go`'s whole job is mapping a `Range` to
   a fixed terminal-column width and a `lipgloss` style/colour — there is no part of it that

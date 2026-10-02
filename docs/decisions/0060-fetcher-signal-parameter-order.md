@@ -57,7 +57,7 @@ of a throw per `docs/decisions/0004-errors-context-and-concurrency.md`.
 - `client/otel.go`'s `context.Context`-derived span attributes are irrelevant here since
   that file is not ported at all; see `docs/decisions/0061-otel-tracing-dropped.md`.
 - This sets the convention every later work package that defines a fetcher-shaped
-  callback (storage drivers, adapters) should follow for consistency, though this ADR
+  callback (storage drivers, application code) should follow for consistency, though this ADR
   only binds the five files in this work package.
 
 ## Alternatives considered

@@ -19,7 +19,7 @@ export LOG_PRIVATE_KEY="PRIVATE+KEY+example.com/log/testdata+33d7b496+AeymY/SZAX
 export LOG_PUBLIC_KEY="example.com/log/testdata+33d7b496+AeHTu4Q3hEIMHNqc6fASMsq3rKNx280NI+oO5xCFkkSx"
 ```
 
-That directory has no counterpart anywhere in `packages/webtessera` — TypeScript has no
+That directory has no counterpart anywhere in this repository — TypeScript has no
 `os.ReadFile`-against-a-relative-testdata-directory equivalent that would run identically
 in a browser tab, and `AGENTS.md` §5's fixture pipeline exists precisely to turn real
 upstream byte output into something a TypeScript test can load. Every other `log_<N>.json`
@@ -29,7 +29,7 @@ in, at the pinned commit, and the whole point of `client_test.go`'s design is th
 exact log, exactly as built once by a human running `build_log.sh`, is what a port must
 reproduce fetching against.
 
-Separately, the mission brief for this work package (`docs/notes/ORCHESTRATION.md`'s
+Separately, the mission brief for this work package (the original work plan's
 Wave 2 client row) requires "`LogStateTracker`'s consistency-rejection path has an
 explicit test — not just the happy path" (also stated directly in `AGENTS.md`'s spirit of
 testing error branches, per `docs/REVIEW-PROTOCOL.md` §2.1). Upstream's own
@@ -43,9 +43,9 @@ checkpoint to reach `ErrInconsistency` requires the log's actual private key, wh
 ## Decision
 
 - `fixtures/gen/client.go` is a new generator, added to this work package, that reads
-  `testdata/log` back from the pinned upstream checkout (the same absolute path already
-  baked into `fixtures/gen/go.mod`'s `replace github.com/transparency-dev/tessera =>
-  /home/gg/dev/Maravi/_future/tessera` directive) and dumps it verbatim into
+  `testdata/log` back from the pinned upstream checkout (the same checkout
+  `fixtures/gen/go.mod`'s `replace github.com/transparency-dev/tessera =>
+  ../../.upstream/tessera` directive points at) and dumps it verbatim into
   `fixtures/data/client_log.json`: all 16 checkpoint snapshots, and every tile/entry-bundle
   file present. Nothing is computed or invented; every byte is read straight off disk,
   matching `AGENTS.md` §5's "nothing in this program computes a hash, a path, or an
@@ -65,7 +65,7 @@ checkpoint to reach `ErrInconsistency` requires the log's actual private key, wh
 
 ## Consequences
 
-- `packages/webtessera/fixtures/gen/client.go` is a generator with no `genLogs`-style
+- `fixtures/gen/client.go` is a generator with no `genLogs`-style
   sibling anywhere else in this codebase yet — it is the first generator that *reads* a
   static upstream fixture rather than *building* one. A future reviewer comparing
   generators should expect this one kind of file to differ in structure (no

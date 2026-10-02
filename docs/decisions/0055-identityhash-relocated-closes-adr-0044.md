@@ -11,7 +11,7 @@
 of `identityHash`, because `src/lifecycle.ts` — the file that owns it in Go (`lifecycle.go:102`)
 — did not exist yet:
 
-> Duplicate `identityHash` in `src/ct_only.ts` for now, marked with a `TODO(gustavo):` that names
+> Duplicate `identityHash` in `src/ct_only.ts` for now, marked with a `TODO(<owner>):` that names
 > `lifecycle.go:102`, says the copy must be deleted, and records that the shared definition will
 > have to be exported from `src/lifecycle.ts` because TypeScript cannot express Go's
 > package-private visibility.
@@ -35,7 +35,7 @@ export function identityHash(data: Uint8Array): Uint8Array {
 
 byte-identical to both the deleted `ct_only.ts` copy and Go's `sha256.Sum256(data)`.
 `src/entry.ts` (this work package's own file, `entry.go:68`: `h := identityHash(e.internal.Data)`)
-imports it from `./lifecycle`. `src/ct_only.ts`'s local copy and its `TODO(gustavo):` doc comment
+imports it from `./lifecycle`. `src/ct_only.ts`'s local copy and its `TODO(<owner>):` doc comment
 are deleted; its two call sites (`ctBundleIDHasher`'s x509 and precert branches) now import
 `identityHash` from `./lifecycle` instead. The file's top-of-file comment, which described the
 duplication, is updated to record that it has been resolved and by which ADR.

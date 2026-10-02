@@ -2,8 +2,8 @@
 
 - **Status:** proposed | accepted | rejected | superseded by ADR-NNNN
 - **Date:** YYYY-MM-DD
-- **Author:** <agent name / role>
-- **Upstream reference:** <path(s) in /home/gg/dev/Maravi/_future/tessera, or "n/a">
+- **Author:** <name or GitHub handle>
+- **Upstream reference:** <path(s) in the upstream checkout (`.upstream/tessera`, from `pnpm upstream`), or "n/a">
 
 ## Context
 
@@ -17,7 +17,7 @@ What we do. Be specific enough that someone can check the code against it.
 ## Consequences
 
 What this costs us. What it makes harder. What a future maintainer needs to know. If this decision
-makes the eventual donation to transparency-dev harder, say so here.
+makes the port harder to review against Tessera, or harder for upstream to adopt, say so here.
 
 ## Alternatives considered
 
@@ -25,9 +25,9 @@ At least one, with the reason it lost. "None" is almost never an honest answer.
 
 ## Review
 
-- **Reviewer:** <reviewer agent name>
+- **Reviewer:** <reviewer name or GitHub handle; not the author>
 - **Verdict:** approved | changes requested | disputed
 - **Notes:** what the reviewer checked against the Go source, and anything they pushed back on.
 
-> An ADR without a signed review is not in force. If implementer and reviewer disagree, record both
-> positions here and escalate to the human — do not silently settle it.
+> An ADR without a signed review is not in force. If author and reviewer disagree, record both
+> positions here and escalate to the maintainers — do not silently settle it.

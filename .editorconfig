@@ -1,0 +1,32 @@
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+
+# Biome (biome.json) formats these with tabs; Go uses tabs by convention too.
+[*.{ts,tsx,js,mjs,cjs,go}]
+indent_style = tab
+
+# Data and prose files use two spaces.
+[*.{json,jsonc,yml,yaml,md}]
+indent_style = space
+indent_size = 2
+
+# Two trailing spaces are a hard line break in Markdown.
+[*.md]
+trim_trailing_whitespace = false
+
+# go.mod and go.sum are written by the Go tool.
+[go.{mod,sum}]
+indent_style = tab
+
+# Verbatim third-party texts: never reflow or "fix" them.
+[LICENSES/**]
+trim_trailing_whitespace = unset
+insert_final_newline = unset
+end_of_line = unset

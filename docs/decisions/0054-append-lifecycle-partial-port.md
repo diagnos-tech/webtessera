@@ -22,7 +22,7 @@ type Index struct {
 `append_lifecycle.go` as a whole (850 lines: OpenTelemetry metric setup, `Appender`,
 `NewAppender`, `AppendOptions` and its functional options, `terminator`, `integrationStats`, …)
 belongs to the Wave 3 append-lifecycle work package
-(`docs/notes/ORCHESTRATION.md`), which does not exist yet. But `queue.go` and `lifecycle.go` are
+(in the original work plan), which does not exist yet. But `queue.go` and `lifecycle.go` are
 squarely in *this* work package's mission, and neither can compile without `Index`/`IndexFuture`
 (`queue.go`'s `Add` returns one, `notify` constructs one) or `AddFn` (`lifecycle.go`'s `Antispam`
 interface names it in `Decorator() func(AddFn) AddFn`).
@@ -30,7 +30,7 @@ interface names it in `Decorator() func(AddFn) AddFn`).
 This is not a new problem in this codebase: `ct_only.go` hit the identical situation with
 `Appender`/`IndexFuture`/`AppendOptions`/the root `Entry`, and `docs/decisions/0044-ct-only-partial-port.md`
 resolved it by porting the self-contained two-thirds of the file and leaving the
-append-lifecycle-dependent third as `TODO(gustavo):` comments naming the exact upstream symbol,
+append-lifecycle-dependent third as `TODO(<owner>):` comments naming the exact upstream symbol,
 line, and future file — no placeholder types, no stub interfaces.
 
 ## Decision
@@ -39,7 +39,7 @@ line, and future file — no placeholder types, no stub interfaces.
 position they occupy in the Go file (immediately after the OpenTelemetry metric `init()` block,
 which is dropped per the same reasoning as
 `docs/decisions/0051-storage-internal-drops-otel-and-klog.md`, and immediately before `Appender`,
-which is not ported). A `TODO(gustavo):` block at the top of the file names everything else in
+which is not ported). A `TODO(<owner>):` block at the top of the file names everything else in
 `append_lifecycle.go` that Wave 3 still owns: the metric setup, `Appender`, `NewAppender`,
 `memoizeFuture`, `followerStats`, `idxAt`, `integrationStats`, `terminator`,
 `NewAppendOptions`/`AppendOptions` and its functional options, `WitnessOptions`.
@@ -94,7 +94,7 @@ naming this ADR, mirroring exactly how `ct_only.go`'s row reads today.
 - **Verdict:** approved
 - **Notes:** Confirmed `append_lifecycle.ts` ports exactly `AddFn`, `IndexFuture`, and
   `Index` (with `index`/`isDup`) and nothing else, in the Go declaration position, matching
-  the `append_lifecycle.go` shapes. The `TODO(gustavo):` block enumerates every deferred
+  the `append_lifecycle.go` shapes. The `TODO(<owner>):` block enumerates every deferred
   symbol; no placeholder/stub `Appender` was invented, consistent with the ADR-0044
   precedent. `AddFn`'s `ctx`→trailing `signal` and `import type { Entry }` (erased) are both
   correct. This is a genuinely minimal partial port and does not overreach — the queue and

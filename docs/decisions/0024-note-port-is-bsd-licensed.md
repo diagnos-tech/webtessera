@@ -58,7 +58,7 @@ headers point at. Before this package is published or donated, it needs:
   BSD-3-Clause while the rest is Apache-2.0.
 
 That is a repository-level decision about layout and packaging metadata, not one this work package
-should make unilaterally, so it is recorded here as a `TODO(gustavo)` in `docs/PORTING-MAP.md`
+should make unilaterally, so it is recorded here as a `TODO(<owner>)` in `docs/PORTING-MAP.md`
 rather than guessed at.
 
 ## Consequences
@@ -96,6 +96,13 @@ rather than guessed at.
   - The outstanding obligation is real and correctly deferred: there is no
     `src/vendor/note/LICENSE`, and a verbatim copy of
     `~/go/pkg/mod/golang.org/x/mod@v0.31.0/LICENSE` plus `package.json`/README SPDX metadata is
-    needed before donation. The `TODO(gustavo)` is present in `docs/PORTING-MAP.md` (shared with
+    needed before donation. The `TODO(<owner>)` is present in `docs/PORTING-MAP.md` (shared with
     cryptobyte's ADR-0040). This is a genuine legal-hygiene item, not busywork; leaving it as a
     repository-level decision is the right call for this work package.
+
+## Update (2026-10-02)
+
+The outstanding obligation is resolved at the repository level, as anticipated above. The verbatim
+Go licence text is `LICENSES/BSD-3-Clause-Go.txt`, `NOTICE` lists every Go-derived file group
+(including `src/vendor/note/`), and `AGENTS.md` §9 prescribes the header form. None of the decisions
+above changed.

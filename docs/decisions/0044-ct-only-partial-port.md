@@ -62,7 +62,7 @@ Finally, `ct_only_test.go` is an in-package test. It calls `ctEntriesPath`, `ctB
 `copyBytes`, `copyUint16LengthPrefixed`, `copyUint24LengthPrefixed` and `ctMerkleLeafHasher`, in
 upstream's declaration order, with `ct_only_test.go` ported in full.
 
-**Leave the append-lifecycle half as three `TODO(gustavo):` comments and no code**, each naming the
+**Leave the append-lifecycle half as three `TODO(<owner>):` comments and no code**, each naming the
 upstream symbol, its line, and the file that will provide it. No placeholder types, no stub
 interfaces: an invented `AppendOptions` would be worse than an absence, because it would compile.
 The comments sit at the top of the file in the position their Go declarations occupy, so the file
@@ -72,7 +72,7 @@ Note that the two `WithCTLayout` methods need nothing new from this package — 
 they install are all present — so the Wave 3 agent's remaining work is to add the option structs and
 wire them up.
 
-**Duplicate `identityHash` in `src/ct_only.ts` for now**, marked with a `TODO(gustavo):` that names
+**Duplicate `identityHash` in `src/ct_only.ts` for now**, marked with a `TODO(<owner>):` that names
 `lifecycle.go:102`, says the copy must be deleted, and records that the shared definition will have
 to be **exported** from `src/lifecycle.ts` because TypeScript cannot express Go's package-private
 visibility. It is three lines and behaviourally unambiguous (`sha256` of the input), so the
@@ -106,7 +106,7 @@ and Merkle leaf hashes Go recorded.
 ## Consequences
 
 - `src/ct_only.ts` is incomplete and must not be marked `done` in `docs/PORTING-MAP.md` until the
-  three `TODO(gustavo):` blocks are resolved. Its row says `in progress` and names this ADR.
+  three `TODO(<owner>):` blocks are resolved. Its row says `in progress` and names this ADR.
 - The Wave 3 append-lifecycle agent inherits four jobs: port the three deferred declarations, export
   `identityHash` from `src/lifecycle.ts`, delete the copy in `ct_only.ts`, and port the
   `WithCTLayout` methods onto their option structs.
@@ -118,13 +118,13 @@ and Merkle leaf hashes Go recorded.
 
 - **Wait for Wave 3 and port `ct_only.go` in one piece.** Rejected: it would leave `ctonly/ct.ts`,
   `cryptobyte.ts` and both bundle parsers unported and unreviewed for the duration, and those are
-  the parts with the byte-level risk. The orchestration plan explicitly lists this package as
+  the parts with the byte-level risk. The original work plan explicitly lists this package as
   runnable at any time.
 - **Stub `AppendOptions`, `Appender` and `Entry` so the file compiles whole.** Rejected, and
   explicitly forbidden by the work package. A stub that compiles is a stub that gets built on, and
   the real `Entry` has unexported fields whose shape cannot be guessed.
 - **Import `identityHash` from a not-yet-existing `./lifecycle`.** Rejected: it fails at module
-  resolution, breaking `bunx vitest run` for every agent working in the repository concurrently.
+  resolution, breaking the test run for everyone working in the repository concurrently.
 - **Inline `sha256(data)` at both call sites and drop the helper.** Rejected: it erases the name
   `identityHash`, which is what makes the Wave 3 substitution a one-line change and what tells a
   reader that these two hashes are the antispam identity and not some other digest.
@@ -140,13 +140,13 @@ and Merkle leaf hashes Go recorded.
   decision was executed correctly:
   - No fake/placeholder type was invented. `Appender`, `IndexFuture`, root `Entry`,
     `AppendOptions`, `MigrationOptions` are absent, not stubbed — the file compiles because
-    the deferred declarations are `TODO(gustavo):` comments, not code.
-  - Each `TODO(gustavo):` names the exact upstream symbol, its line
+    the deferred declarations are `TODO(<owner>):` comments, not code.
+  - Each `TODO(<owner>):` names the exact upstream symbol, its line
     (`ct_only.go:38/47/60/67`), and the future file that will provide it
     (`append_lifecycle.ts`, `entry.ts`, `migrate.ts`) — precise enough to grep and wire up.
   - `identityHash` duplication is genuinely necessary (importing a non-existent
     `./lifecycle` would break module resolution for every concurrent agent), is clearly
-    marked temporary with a `TODO(gustavo):` naming `lifecycle.go:102`, and is byte-correct:
+    marked temporary with a `TODO(<owner>):` naming `lifecycle.go:102`, and is byte-correct:
     verified `lifecycle.go:102` is `sha256.Sum256(data)`, and the TS is `sha256(data)`.
   - `copyBytes`, `copyUint16LengthPrefixed`, `copyUint24LengthPrefixed` all return `boolean`
     for success (not throwing) — the Go parser-loop shape is preserved.

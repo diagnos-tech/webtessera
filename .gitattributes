@@ -1,0 +1,20 @@
+# Normalise line endings in the repository; fixtures embed byte-exact data and
+# the Go generator reads upstream files, so LF everywhere keeps them reproducible.
+* text=auto eol=lf
+
+# Golden fixtures are produced by `pnpm fixtures` and must never be edited by
+# hand. GitHub collapses generated files in pull-request diffs; the diffs are
+# deliberately NOT suppressed (no `-diff`), because a changed fixture is a
+# change to the compatibility evidence and a reviewer must be able to read it.
+fixtures/data/** linguist-generated=true
+
+# Lockfile: generated, but dependency changes are security-relevant, so keep
+# its diffs readable too.
+pnpm-lock.yaml linguist-generated=true
+fixtures/gen/go.sum linguist-generated=true
+
+# The fixture generator is a Go module inside a TypeScript repository.
+fixtures/gen/** linguist-language=Go
+
+# Verbatim third-party licence texts: keep their bytes exactly as shipped.
+LICENSES/** -text

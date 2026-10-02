@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege: no job needs to write to the repository. The release workflow
+# asks for more, separately.
+permissions:
+  contents: read
+
+# A new push to a pull request supersedes the run in flight. Runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  test-unit:
+    name: Unit tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm test:unit
+
+  test-browser:
+    name: Browser tests (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser
+
+  test-workers:
+    name: Workers tests (workerd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm test:workers
+
+  build:
+    name: Build and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - run: pnpm build
+
+      - name: Show what would be published
+        run: pnpm pack --dry-run
+
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+
+      - name: Smoke-test the packed tarball
+        run: node scripts/smoke-pack.mjs "$RUNNER_TEMP"/pack/webtessera-*.tgz
+
+      # Both tools run straight from the registry; nothing is added to package.json.
+      - name: Check the package shape (publint)
+        run: pnpm dlx publint@latest --strict
+
+      - name: Check the types resolve for consumers (Are the Types Wrong?)
+        run: pnpm dlx @arethetypeswrong/cli@latest --pack . --profile esm-only
+
+  examples:
+    name: Examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      # Each example's build/test script builds the library first.
+      - name: Build the browser example
+        run: pnpm --filter webtessera-example-browser build
+
+      - name: Typecheck the Cloudflare Durable Object example
+        run: pnpm --filter webtessera-example-cloudflare-durable-object typecheck
+
+      - name: Test the Cloudflare Durable Object example
+        run: pnpm --filter webtessera-example-cloudflare-durable-object test
+
+  fixtures:
+    name: Fixtures are reproducible
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # Only the pnpm CLI and Node are needed: `pnpm fixtures` runs a zero-dependency
+      # script and then the Go generator.
+      - uses: ./.github/actions/setup
+        with:
+          install: "false"
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.24"
+          cache-dependency-path: fixtures/gen/go.sum
+
+      - name: Regenerate the fixtures from upstream Tessera
+        run: pnpm fixtures
+
+      # `git status` rather than `git diff` so that added and removed files count too.
+      - name: Fail if the committed fixtures differ
+        run: |
+          if [ -n "$(git status --porcelain -- fixtures/data)" ]; then
+            echo "::error title=Fixtures are not reproducible::fixtures/data differs from what the generator produces at the pinned upstream commit"
+            git status --porcelain -- fixtures/data
+            git --no-pager diff --stat -- fixtures/data
+            exit 1
+          fi
+
+  # One stable check to require in branch protection, whatever the matrix looks like.
+  ci:
+    name: CI passed
+    if: always()
+    needs: [lint, typecheck, test-unit, test-browser, test-workers, build, examples, fixtures]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "::error::at least one job did not succeed"
+              exit 1
+            fi
+          done

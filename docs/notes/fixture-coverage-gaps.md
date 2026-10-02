@@ -113,7 +113,7 @@ declined on the merits (see below).
 
 `internal/parse` sits under `github.com/transparency-dev/tessera/internal/`, and Go only lets
 packages under `github.com/transparency-dev/tessera/` import it. The generator's module path is
-`github.com/meddeck/webtessera/fixtures/gen`, so the compiler rejects a direct import outright:
+`github.com/diagnos-tech/webtessera/fixtures/gen`, so the compiler rejects a direct import outright:
 
 ```
 probe_internal.go:3:8: use of internal package github.com/transparency-dev/tessera/internal/parse not allowed
