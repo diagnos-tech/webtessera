@@ -50,6 +50,10 @@
     "./merkle/proof": "./dist/vendor/merkle/proof/index.js",
     "./note": "./dist/vendor/note/note.js",
     "./formats/log": "./dist/vendor/formats/log/index.js",
+    "./storage/objectstore": "./dist/storage/objectstore/index.js",
+    "./storage/memory": "./dist/storage/memory/index.js",
+    "./storage/indexeddb": "./dist/storage/indexeddb/index.js",
+    "./storage/durableobject": "./dist/storage/durableobject/index.js",
     "./package.json": "./package.json"
   },
   "scripts": {
