@@ -22,9 +22,7 @@
 // This file reuses that fixture instead of standing up a driver/appender: both a fixture
 // tile fetcher and a real reader ultimately serve the identical bytes for the identical
 // 15-entry log, and this package does not depend on (and must not depend on) a storage
-// driver -- see the mission brief in docs/notes/ORCHESTRATION.md, and the identical
-// judgement call src/client/stream_test.ts's header comment already documents for the
-// same reason.
+// driver -- the same judgement call src/client/stream_test.ts's header comment documents.
 
 import { beforeAll, describe, expect, it } from "vitest";
 import { tilePath } from "../../api/layout/index.ts";
@@ -191,6 +189,20 @@ describe("TestWitnessGateway_Update", () => {
 			expect((n.sigs?.length ?? 0) - 1).toBeGreaterThanOrEqual(tC.wantSigs);
 		});
 	}
+
+	// Port addition: browsers and workerd throw "Illegal invocation" when the global fetch
+	// is called as a method of another object, which Node tolerates. Pin that the witness
+	// calls its FetchFn without a receiver (docs/decisions/0131).
+	it("calls fetch without a receiver", async () => {
+		const receivers: unknown[] = [];
+		const recordingFetch = function (this: unknown, input: string): Promise<Response> {
+			receivers.push(this);
+			return fakeFetch(input);
+		};
+		const g = newWitnessGateway(newWitnessGroup(1, wit1), recordingFetch, 0n, testLogTileFetcher);
+		await g.witness(logSignedCheckpoint);
+		expect(receivers).toEqual([undefined]);
+	});
 });
 
 describe("TestWitness_UpdateRequest", () => {

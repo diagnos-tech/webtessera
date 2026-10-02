@@ -643,9 +643,18 @@ export class AppendOptions {
 					(level: bigint, index: bigint, p: number, s?: AbortSignal) => lr.readTile(level, index, p, s),
 				);
 
-				// context.WithTimeout(ctx, o.witnessOpts.Timeout)
-				const timeoutSignal = AbortSignal.timeout(this.#witnessOpts.timeout);
-				const witnessSignal = signal === undefined ? timeoutSignal : AbortSignal.any([signal, timeoutSignal]);
+				// context.WithTimeout(ctx, o.witnessOpts.Timeout) with `defer cancel()`.
+				//
+				// Port note: AbortSignal.timeout would be the one-line equivalent, but its timer
+				// cannot be cancelled, so every checkpoint publication would leave one pending
+				// for the full timeout. That keeps a Durable Object or a test runner busy long
+				// after the work is done; clearing the timer in `finally` is what `cancel()` does.
+				const timeout = new AbortController();
+				const timer = setTimeout(
+					() => timeout.abort(new DOMException("signal timed out", "TimeoutError")),
+					this.#witnessOpts.timeout,
+				);
+				const witnessSignal = signal === undefined ? timeout.signal : AbortSignal.any([signal, timeout.signal]);
 
 				try {
 					cp = await wg.witness(cp, witnessSignal);
@@ -661,6 +670,8 @@ export class AppendOptions {
 					// checkpoint where the error carries one, else fall back to an empty checkpoint as
 					// Go's nil return would (see ADR-0082).
 					cp = err instanceof PolicyNotSatisfiedError ? err.checkpoint : new Uint8Array(0);
+				} finally {
+					clearTimeout(timer);
 				}
 				// appenderWitnessRequests / appenderWitnessedSize / appenderWitnessHistogram emission dropped per ADR-0080.
 			}
