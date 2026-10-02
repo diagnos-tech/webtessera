@@ -21,9 +21,9 @@
 // (PORTING.md §7); `retryWithBackoff` below reproduces the shape of its default policy
 // without being a byte-for-byte port -- see docs/decisions/0073-migrate-retry-backoff.md.
 // There is no `migrate_test.go` upstream (this file's coverage comes from Tessera's
-// `integration/` end-to-end suite, which needs a real storage `Driver` -- none exists in
-// this codebase yet, Wave 4). `migrate_test.ts` here is new, covering exactly the pure
-// logic reachable without a driver: `populateWork`'s chunking arithmetic. See
+// `integration/` end-to-end suite, which needs a real storage `Driver`). `migrate_test.ts`
+// here is new, covering exactly the pure logic reachable without a driver:
+// `populateWork`'s chunking arithmetic. See
 // docs/decisions/0074-migrate-untestable-without-driver.md.
 
 import { range } from "./api/layout/index.ts";
@@ -93,8 +93,8 @@ export interface Bundle {
  *
  * @internal Go's `populateWork` is unexported and has no direct upstream test (there is
  * no migrate_test.go); exported here specifically so `migrate_test.ts` can pin the
- * chunking arithmetic this package's mission brief calls out as high-risk for an
- * off-by-one. Not re-exported from `src/index.ts`.
+ * chunking arithmetic, where an off-by-one would duplicate or skip entries during a real
+ * migration. Not re-exported from `src/index.ts`.
  */
 export function* populateWork(from: bigint, treeSize: bigint): Generator<Bundle> {
 	for (const ri of range(from, treeSize - from, treeSize)) {

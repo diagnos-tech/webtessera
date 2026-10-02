@@ -16,7 +16,7 @@
 // behaviour of its own), but its fidelity matters a lot: every tile persisted by this
 // package is addressed by a TileID, so these tests exist specifically to pin
 // tileIDKey's collision-freedom, which the rest of this package's Map-keyed caches rely
-// on. See PORTING.md's mission brief for storage/internal.
+// on.
 
 import { describe, expect, it } from "vitest";
 import { TileID, tileIDKey } from "./tileid.ts";

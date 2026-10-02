@@ -1,4 +1,3 @@
-// Copyright 2022 Google LLC. All Rights Reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

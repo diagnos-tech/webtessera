@@ -15,6 +15,9 @@
 //
 // Ported from tessera/witness_test.go @ 4a6d9f9
 //
+// Copyright note: upstream's witness_test.go has no copyright header of its own. The
+// Tessera-authors line above follows witness.go, the file it tests.
+//
 // Port note: BenchmarkWitnessGroupSatisfaction is not ported -- see
 // docs/decisions/0034-go-benchmarks-not-ported.md.
 

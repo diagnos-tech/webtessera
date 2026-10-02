@@ -1,4 +1,3 @@
-// Copyright 2024 Google LLC. All Rights Reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package layout contains routines for specifying the path layout of Tessera logs,
-// which is really to say that it provides functions to calculate paths used by the
-// [tlog-tiles API].
-//
-// [tlog-tiles API]: https://c2sp.org/tlog-tiles
+// Barrel for the `layout` package, which calculates the paths used by the tlog-tiles API
+// (https://c2sp.org/tlog-tiles). The upstream package comment is carried by paths.ts.
 //
 // This barrel is the TypeScript stand-in for Go's package clause: a Go consumer writes
 // `layout.TilePath(...)` after importing the directory, so the directory needs a single

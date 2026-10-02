@@ -15,15 +15,13 @@
 //
 // Ported from tessera/internal/migrate/migrate.go @ 4a6d9f9
 //
-// Port note: this file is not part of the witness/migrate work package's assigned file
-// list, but src/migrate_lifecycle.ts (which is) cannot compile without it -- Go's
+// Port note: src/migrate_lifecycle.ts cannot compile without this file -- Go's
 // `migrate_lifecycle.go` imports `internal/migrate` directly for the `MigrationWriter`
 // interface a storage `Driver` must implement to support `NewMigrationTarget`. It is a
 // three-method interface with no logic of its own and no upstream test file, so it is
-// ported alongside the rest of this package rather than left as a placeholder -- the same
-// judgement call docs/decisions/0056-future-ported-ahead-of-schedule.md made for
-// `internal/future/future.go` when a different work package needed it early. See
-// docs/decisions/0076-internal-migrate-ported-ahead-of-schedule.md.
+// ported in full rather than left as a placeholder -- the same judgement call
+// docs/decisions/0056-future-ported-ahead-of-schedule.md made for
+// `internal/future/future.go`. See docs/decisions/0076-internal-migrate-ported-ahead-of-schedule.md.
 
 // Package migrate contains internal implementations for migration.
 

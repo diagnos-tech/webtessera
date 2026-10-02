@@ -1,8 +1,8 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
-// Use of this source code is governed by a BSD-style license; see list.ts's
-// file header for the full text and why it applies here.
+// Use of this source code is governed by a BSD-style
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
 // Ported from container/list/list_test.go (Go standard library) @ Go 1.25.5
 

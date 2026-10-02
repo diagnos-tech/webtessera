@@ -16,13 +16,11 @@
 // Ported from tessera/client/stream_test.go @ 4a6d9f9
 //
 // Port note: upstream's TestEntryBundles and TestEntries drive a real, live
-// testonly.NewTestLog (full storage/append-lifecycle machinery) -- a Wave 2/3
-// dependency this package does not and must not depend on (see the mission brief in
-// docs/notes/ORCHESTRATION.md). This file instead drives entryBundles/entries against
-// the log_1000 and log_5000 fixtures (fixtures/gen/log.go), which are real,
-// byte-identical logs built by the actual Tessera POSIX driver -- the same fixtures the
-// storage-internal package's own integration tests use, per the mission brief's
-// encouragement to cross-check client-level code against log_<N>.json.
+// testonly.NewTestLog (full storage/append-lifecycle machinery), which would make the
+// client package's tests depend on the write path. This file instead drives
+// entryBundles/entries against the log_1000 and log_5000 fixtures (fixtures/gen/log.go),
+// which are real, byte-identical logs built by the actual Tessera POSIX driver -- the
+// same fixtures the storage-internal package's own integration tests use.
 //
 // This also means the cases below are not the same cases as upstream's: an equivalent
 // coverage was built for what these fixtures make possible. In particular, a single

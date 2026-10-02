@@ -1,10 +1,11 @@
 // Copyright 2023 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 // Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
 // Ported from github.com/transparency-dev/formats/note/note_cosigv1_test.go
 // @ v0.0.0-20251017110053-404c0d5b696c
+// (see note_cosigv1.ts for why this file carries the Go Authors' notice)
 //
 // Port note: only the 4 upstream cases that exercise newSignerForCosignatureV1 /
 // newVerifierForCosignatureV1 directly are ported here. Not ported, because the
@@ -67,7 +68,7 @@ describe("TestSigCoversExtensionLines", () => {
 	});
 });
 
-// Port addition (review): the four upstream cases above prove acceptance (a valid
+// Port addition: the four upstream cases above prove acceptance (a valid
 // cosignature/v1 signature opens) and reject two *malformed* inputs -- TestVerifierInvalidSig
 // opens "nobbled" (not a note at all), and TestSigCoversExtensionLines modifies the note's
 // final byte, which lands on the signature's base64 padding, so open() fails at base64

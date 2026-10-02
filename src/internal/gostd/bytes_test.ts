@@ -1,10 +1,23 @@
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import { sha256 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
 import { bytesEqual, fromBase64, fromHex, fromUTF8, splitN, toBase64, toHex, toUTF8 } from "./bytes.ts";
 
-// Smoke test for the toolchain itself: @noble resolves, `*_test.ts` is picked up,
-// and the hex helpers round-trip. Real coverage of this file lands with the
-// modules that depend on it.
+// Hex and UTF-8 basics: hex round-trips against a known SHA-256 vector, and the UTF-8
+// conversions behave like Go's string(b) on a leading byte-order mark and on invalid input.
 describe("gostd/bytes", () => {
 	it("hex round-trips and matches a known SHA-256 vector", () => {
 		const empty = sha256(new Uint8Array());
@@ -48,7 +61,7 @@ describe("gostd/bytes splitN", () => {
 
 // Go's base64.StdEncoding.DecodeString is strict about padding, which is what
 // `internal/parse` relies on to reject a malformed checkpoint hash. The platform's
-// atob() is not: it accepts unpadded input, so fromBase64 validates first.
+// atob() is not: it accepts unpadded input, so fromBase64 does not delegate to it.
 describe("gostd/bytes base64", () => {
 	it("round-trips", () => {
 		const b = sha256(toUTF8("tessera"));

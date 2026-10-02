@@ -77,6 +77,17 @@ Copyright 2009 The Go Authors
   Go's Encoding.Decode and decodeQuantum)
 
 --------------------------------------------------------------------------------
+ISC sources
+--------------------------------------------------------------------------------
+
+Sunlight - https://github.com/FiloSottile/sunlight
+Copyright 2023 The Sunlight Authors
+Licensed under the ISC License, reproduced in LICENSES/ISC-Sunlight.txt.
+Tessera's ctonly package adapts Sunlight's tile.go and carries its notice; the
+translation keeps it:
+  src/ctonly/ct.ts
+
+--------------------------------------------------------------------------------
 Runtime dependencies
 --------------------------------------------------------------------------------
 

@@ -1,4 +1,3 @@
-// Copyright 2024 The Tessera authors. All Rights Reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// There is no migrate_lifecycle_test.go upstream: migrate_lifecycle.go's coverage comes
-// from Tessera's integration/ end-to-end suite, which drives a real storage Driver -- none
-// exists yet in this codebase (Wave 4). See docs/decisions/0074-migrate-untestable-without-driver.md
-// for exactly what that leaves untested here: `MigrationTarget.migrate`'s full
-// copy+integrate+follower orchestration against a *real* MigrationWriter, and
-// `newMigrationTarget`'s success path through a real driver's `migrationWriter` lifecycle
-// method. Per this package's mission brief, this file covers what does not need one:
-// `MigrationOptions`'s pure accessors, `progress()`'s formatting, `awaitFollower`'s
-// follower-catch-up polling loop (driven by a minimal fake Follower -- an interface with
-// three methods, not a storage driver), and `newMigrationTarget`'s driver-rejection path
-// (which only needs a driver *without* a migrationWriter method to prove the type guard
-// itself is correct -- not a working fake driver).
+// Tests for migrate_lifecycle.ts. There is no migrate_lifecycle_test.go upstream:
+// migrate_lifecycle.go's coverage comes from Tessera's integration/ end-to-end suite,
+// which needs a real storage Driver. See
+// docs/decisions/0074-migrate-untestable-without-driver.md for exactly what that leaves
+// untested here: `MigrationTarget.migrate`'s full copy+integrate+follower orchestration
+// against a *real* MigrationWriter, and `newMigrationTarget`'s success path through a real
+// driver's `migrationWriter` lifecycle method. This file is original to this project and
+// covers what does not need one: `MigrationOptions`'s pure accessors, `progress()`'s
+// formatting, `awaitFollower`'s follower-catch-up polling loop (driven by a minimal fake
+// Follower -- an interface with three methods, not a storage driver), and
+// `newMigrationTarget`'s driver-rejection path (which only needs a driver *without* a
+// migrationWriter method to prove the type guard itself is correct -- not a working fake
+// driver).
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AddFn } from "./append_lifecycle.ts";

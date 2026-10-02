@@ -1,4 +1,3 @@
-// Copyright 2024 The Tessera authors. All Rights Reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// There is no migrate_test.go upstream: migrate.go's coverage comes from Tessera's
-// integration/ end-to-end suite, which drives a real storage Driver -- none exists yet in
-// this codebase (Wave 4, see docs/decisions/0074-migrate-untestable-without-driver.md).
-// This file is new, covering exactly the logic reachable without one: populateWork's
-// chunking arithmetic (the mission brief for this work package calls out an off-by-one
-// here as duplicating or skipping entries during a real migration) and Copier.copy's
-// worker orchestration against in-memory fakes standing in for
-// EntryBundleFetcherFunc/setEntryBundleFunc.
+// Tests for migrate.ts. There is no migrate_test.go upstream: migrate.go's coverage comes
+// from Tessera's integration/ end-to-end suite, which needs a real storage Driver (see
+// docs/decisions/0074-migrate-untestable-without-driver.md). This file is original to this
+// project and covers exactly the logic reachable without one: populateWork's chunking
+// arithmetic (an off-by-one there would duplicate or skip entries during a real
+// migration) and Copier.copy's worker orchestration against in-memory fakes standing in
+// for EntryBundleFetcherFunc/setEntryBundleFunc.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EntryBundleFetcherFunc } from "./client/index.ts";

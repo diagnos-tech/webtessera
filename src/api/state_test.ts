@@ -24,9 +24,11 @@ import { EntryBundle, HashTile } from "./state.ts";
 // by https://c2sp.org/tlog-tiles: a big-endian uint16 length prefix, then the data.
 //
 // Port note: upstream's test calls `tessera.NewEntry(data).MarshalBundleData(i)` from
-// the root package, which is a separate work package. Rather than depend on it, the
-// test inlines the same two lines of encoding that `NewEntry`'s default
-// `marshalForBundle` performs. See docs/decisions/0036-state-test-inlines-bundle-encoding.md.
+// the root package. Go tolerates that upward dependency because `api_test` is a separate
+// external test package; TypeScript's module graph has no equivalent, so importing it
+// would make `src/api` depend on the root. Instead the test inlines the same two lines of
+// encoding that `NewEntry`'s default `marshalForBundle` performs. See
+// docs/decisions/0036-state-test-inlines-bundle-encoding.md.
 function marshalBundleData(data: Uint8Array): Uint8Array {
 	return concatBytes(appendUint16BE(new Uint8Array(0), data.length), data);
 }

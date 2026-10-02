@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// There is no future_test.go upstream. These tests pin the contract queue.ts (and
-// eventually the client work package) depends on: get() blocks until set() is called,
-// the first set() wins, and an error passed to set() is thrown rather than returned.
+// There is no future_test.go upstream. These tests pin the contract its callers (queue.ts
+// and internal/migrate) depend on: get() blocks until set() is called, the first set()
+// wins, and an error passed to set() is thrown rather than returned.
 
 import { describe, expect, it } from "vitest";
 import { newFutureErr } from "./future.ts";

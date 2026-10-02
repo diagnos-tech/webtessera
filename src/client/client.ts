@@ -429,9 +429,8 @@ export class LogStateTracker {
  *
  * Port note: Go returns `(*LogStateTracker, error)`, and on the checkpoint-parsing or
  * proof-builder failure paths it returns the *partially populated* tracker alongside the
- * error. No caller in this work package's scope (client_test.go's
- * TestCheckLogStateTracker) inspects that partial value, and every other port in this
- * codebase throws rather than returning a value alongside an error (PORTING.md §3.6), so
+ * error. No caller in this port (client_test.go's TestCheckLogStateTracker) inspects that
+ * partial value, and every other port in this codebase throws rather than returning a value alongside an error (PORTING.md §3.6), so
  * this throws and the partial tracker is discarded.
  */
 export async function newLogStateTracker(

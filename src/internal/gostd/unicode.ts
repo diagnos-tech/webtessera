@@ -34,7 +34,8 @@
  * implementation, so the set is written out.
  */
 export function isSpace(r: number): boolean {
-	// This property isn't the same as Z; special-case it, exactly as Go does.
+	// White_Space is not the same set as the Unicode category Z (it also contains the
+	// controls U+0009-U+000D and U+0085), so the Latin-1 range is enumerated.
 	if (r <= 0xff) {
 		switch (r) {
 			case 0x09: // '\t'
