@@ -368,7 +368,11 @@ class witness {
 			if (signal !== undefined) {
 				init.signal = signal;
 			}
-			httpResp = await this.#c(this.#url, init);
+			// Port note: called through a local so that `fetch` has no receiver; browsers and
+			// workerd reject the global `fetch` invoked as a method of another object with
+			// "Illegal invocation". See docs/decisions/0131-httpfetcher-fetch-runtime-fidelity.md.
+			const c = this.#c;
+			httpResp = await c(this.#url, init);
 		} catch (err) {
 			throw new Error(`failed to post to witness at ${quote(this.#url)}: ${errText(err)}`);
 		}
