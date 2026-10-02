@@ -135,8 +135,10 @@ export class TransparencyLog extends DurableObject<Env> {
 			}
 			throw err;
 		}
-		// JSON.stringify cannot encode a bigint, but a JSON number holds the index exactly.
-		return new Response(`{"index":${index}}\n`, { headers: { "Content-Type": "application/json" } });
+		// The body is the bare decimal index, as Tessera's own personalities answer
+		// (`fmt.Fprintf(w, "%d", idx.Index)`), so upstream's hammer and integration test
+		// can drive this Worker unmodified.
+		return new Response(index.toString(), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 	}
 
 	async #serve(r: resource, head: boolean): Promise<Response> {

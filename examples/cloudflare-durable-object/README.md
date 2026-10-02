@@ -9,7 +9,7 @@ it. The Worker needs no `nodejs_compat` flag.
 
 | Method      | Path                           | Response                                                                                                                     |
 | ----------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `POST`      | `/add`                         | The request body is the entry, at most 65535 bytes. Answers `{"index":N}` once a published checkpoint commits to the entry. |
+| `POST`      | `/add`                         | The request body is the entry, at most 65535 bytes. Answers with the entry's index as a bare decimal (`text/plain`), as Tessera's own personalities do, once a published checkpoint commits to the entry. |
 | `GET` `HEAD` | `/checkpoint`                  | The latest signed checkpoint, `text/plain; charset=utf-8`, `Cache-Control: no-cache`.                                       |
 | `GET` `HEAD` | `/tile/<L>/<N>[.p/<W>]`        | A hash tile, `application/octet-stream`.                                                                                     |
 | `GET` `HEAD` | `/tile/entries/<N>[.p/<W>]`    | An entry bundle, `application/octet-stream`.                                                                                 |
@@ -38,10 +38,10 @@ pnpm dev                          # builds webtessera, then starts wrangler dev
 Then, in another terminal:
 
 ```console
-$ curl -X POST --data-binary 'hello, log' http://localhost:8787/add
-{"index":0}
-$ curl -X POST --data-binary 'second entry' http://localhost:8787/add
-{"index":1}
+$ curl -X POST --data-binary 'hello, log' http://localhost:8787/add; echo
+0
+$ curl -X POST --data-binary 'second entry' http://localhost:8787/add; echo
+1
 $ curl http://localhost:8787/checkpoint
 localhost/my-log
 2
