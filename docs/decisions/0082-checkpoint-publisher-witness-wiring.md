@@ -26,7 +26,7 @@ the `witness.WitnessGroup` *interface* (`internal/witness/witness.go`), which th
 structurally. Both of those, and `NewWitnessGateway`/`WitnessGateway`, belong to a **parallel work
 package** porting `witness.go` and `internal/witness/witness.go`. The work package instructed me to
 check whether `src/internal/witness/witness.ts` exists on disk before wiring, and to leave a precise
-`TODO(gustavo):` if it did not — without inventing a fake `WitnessGroup`/`WitnessGateway`.
+`TODO(<owner>):` if it did not — without inventing a fake `WitnessGroup`/`WitnessGateway`.
 
 ## Decision
 
@@ -78,7 +78,7 @@ arguably an upstream bug worth reporting, not something the port should quietly 
 
 ## Alternatives considered
 
-- **Leave the gateway a `TODO(gustavo):` even though witness.ts exists.** Rejected: the file was on
+- **Leave the gateway a `TODO(<owner>):` even though witness.ts exists.** Rejected: the file was on
   disk and importable, so the work package's own instruction was to wire it.
 - **Invent a local `WitnessGroup`/`WitnessGateway`.** Rejected and explicitly forbidden by the work
   package; a stub that compiles is a stub that gets built on.

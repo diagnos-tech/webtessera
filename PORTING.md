@@ -1,30 +1,41 @@
 # PORTING.md — webtessera
 
-**Read this file completely before writing a single line of code.** It is the contract that
-lets many contributors produce one coherent codebase.
+**Read this file completely before writing a single line of code.** It is the contract that keeps
+this port coherent no matter who contributes to it. [CONTRIBUTING.md](CONTRIBUTING.md) covers
+the practical workflow and defers to this file on every rule about the code.
 
 ---
 
 ## 1. What this project is
 
 `webtessera` is a **faithful TypeScript port of [Tessera](https://github.com/transparency-dev/tessera)**,
-Google/transparency-dev's tile-based transparency log framework, targeting **browsers and edge
-runtimes** (Cloudflare Workers / Durable Objects) instead of servers and cloud object stores.
+the tile-based transparency log framework from Google and the transparency-dev community, targeting
+**browsers and edge runtimes** (Cloudflare Workers / Durable Objects) instead of servers and cloud
+object stores. It is a port, not the upstream project.
 
-**The upstream Go source of truth lives at `/home/gg/dev/Maravi/_future/tessera`.**
-Pinned at commit `4a6d9f9`. Its vendored dependencies live in the Go module cache:
+**The upstream Go source of truth is Tessera at commit `4a6d9f9`.** The pin lives in one file,
+[`scripts/upstream.json`](scripts/upstream.json). Fetch the source with:
 
-| Go import path | Local path |
-| --- | --- |
-| `github.com/transparency-dev/tessera` | `/home/gg/dev/Maravi/_future/tessera` |
-| `github.com/transparency-dev/merkle` | `~/go/pkg/mod/github.com/transparency-dev/merkle@v0.0.2` |
-| `github.com/transparency-dev/formats` | `~/go/pkg/mod/github.com/transparency-dev/formats@v0.0.0-20251017110053-404c0d5b696c` |
-| `golang.org/x/mod/sumdb/note` | `~/go/pkg/mod/golang.org/x/mod@v0.31.0/sumdb/note` |
+```sh
+pnpm upstream        # clones into .upstream/tessera (gitignored) and checks out the pin
+```
+
+Tessera's own dependencies, which this repository also ports, are read from the Go module cache once
+`pnpm fixtures` (or `cd fixtures/gen && go mod download`) has populated it. `go list -m -f '{{.Dir}}'
+<module>` run inside `fixtures/gen` prints each directory.
+
+| Go import path | Version | Where to read it |
+| --- | --- | --- |
+| `github.com/transparency-dev/tessera` | commit `4a6d9f9` | `.upstream/tessera` |
+| `github.com/transparency-dev/merkle` | `v0.0.2` | Go module cache |
+| `github.com/transparency-dev/formats` | `v0.0.0-20251017110053-404c0d5b696c` | Go module cache |
+| `golang.org/x/mod/sumdb/note` | `golang.org/x/mod@v0.31.0` | Go module cache |
+| `golang.org/x/crypto/cryptobyte` | `golang.org/x/crypto@v0.46.0` | Go module cache |
 
 ### The goal that overrides every other goal
 
-This codebase is **intended to be donated to the transparency-dev / C2SP community**. It will be
-read by the people who wrote the original. That means:
+This codebase is written to be read by the people who wrote the original, and to be trusted by
+people who depend on transparency logs being correct. That means:
 
 - **Fidelity beats cleverness.** If Go does something in a way that looks odd, port it that way and
   find out *why* before changing it. The Tessera authors already learned the lessons of Trillian v1;
@@ -33,48 +44,70 @@ read by the people who wrote the original. That means:
   specification. Port them. Do not summarise them. Do not "improve" them.
 - **No invention.** You are not designing a transparency log. You are translating one.
 
+Code with no upstream counterpart is limited to what the target runtimes force on us: the Go
+standard-library stand-ins (§3.5.1), the web storage drivers (§8), barrel files and test tooling.
+Everything else is a translation, and every divergence from it is recorded in an ADR (§6).
+
 ---
 
 ## 2. Directory layout
 
 ```
-packages/webtessera/
+webtessera/
 ├── PORTING.md                  ← this file
+├── CONTRIBUTING.md            ← how to contribute: setup, scripts, workflow
+├── SECURITY.md                ← how to report a vulnerability
+├── CHANGELOG.md               ← user-visible changes (Keep a Changelog)
+├── LICENSE, NOTICE            ← Apache-2.0, and the attribution it requires
+├── LICENSES/                  ← verbatim third-party licence texts (BSD-3-Clause for Go-derived code)
 ├── docs/
+│   ├── README.md              ← index of this folder
 │   ├── PORTING-MAP.md         ← file-by-file Go→TS status table (KEEP UPDATED)
+│   ├── REVIEW-PROTOCOL.md     ← how ports, ADRs and pull requests are reviewed
 │   ├── decisions/             ← ADRs. Every divergence from Go lives here.
 │   │   └── 0000-template.md
 │   └── notes/                 ← free-form design discussion, scratch analysis
+├── examples/
+│   ├── browser/               ← Vite demo: a log in IndexedDB, in a tab
+│   └── cloudflare-durable-object/  ← Worker + Durable Object log
 ├── fixtures/
 │   ├── gen/                   ← Go program that emits golden fixtures from real Tessera
 │   └── data/                  ← generated fixtures, COMMITTED to the repo
+├── scripts/
+│   ├── fetch-upstream.mjs     ← `pnpm upstream`: checks out Tessera at the pin
+│   └── upstream.json          ← the pin: repository URL + commit
+├── .upstream/                 ← gitignored; the upstream checkout (`pnpm upstream`)
 └── src/
     ├── vendor/                ← ports of Go deps that have no TypeScript equivalent
     │   ├── merkle/{rfc6962,compact,proof,testonly}/
-    │   ├── note/              ← golang.org/x/mod/sumdb/note
-    │   └── formats/log/       ← github.com/transparency-dev/formats/log
+    │   ├── note/              ← golang.org/x/mod/sumdb/note (BSD-3-Clause)
+    │   └── formats/{log,note}/ ← github.com/transparency-dev/formats (note: cosignature/v1 only)
     ├── api/                   ← mirrors tessera/api
     ├── internal/              ← mirrors tessera/internal
+    │   └── gostd/             ← Go standard-library stand-ins (§3.5.1)
     ├── storage/
     │   ├── internal/          ← mirrors tessera/storage/internal
-    │   ├── memory/            ← NEW (web): in-memory driver, the `posix` of the browser
+    │   ├── objectstore/       ← NEW (web): the ObjectStore contract + the driver that runs on it (§8)
+    │   ├── memory/            ← NEW (web): in-memory backend, the `posix` of the browser
     │   ├── indexeddb/         ← NEW (web): browser persistence
-    │   ├── durableobject/     ← NEW (edge): Cloudflare DO persistence
-    │   └── s3/                ← NEW (web): S3-compatible object store via @repo/magic-files
+    │   └── durableobject/     ← NEW (edge): Cloudflare Durable Object persistence
     ├── client/                ← mirrors tessera/client
     ├── fsck/                  ← mirrors tessera/fsck
     ├── ctonly/                ← mirrors tessera/ctonly
-    ├── testonly/              ← mirrors tessera/testonly
-    ├── *.ts                   ← mirrors tessera root package (entry.ts, append_lifecycle.ts, …)
-    └── adapters/              ← OURS. NOT donated. See §8.
+    ├── testonly/              ← mirrors tessera/testonly (+ the fixture loader)
+    ├── index.ts               ← package root barrel: what Go's `tessera` package exports (ADR-0133)
+    └── *.ts                   ← mirrors tessera root package (entry.ts, append_lifecycle.ts, …)
 ```
 
-### The donation boundary
+### Public surface
 
-Everything **except `src/adapters/`** is donatable. `src/adapters/` is diagnos-specific glue and
-must never be imported by anything outside it. Enforced by review: if a file under `src/api`,
-`src/storage/internal`, `src/client`, `src/vendor` or the root imports from `src/adapters/`, that is
-a **blocking** review finding.
+The package entry points are the `exports` map in `package.json`. A directory that is a Go package
+gets a barrel `index.ts` (it has no Go counterpart, because in Go the package itself is the unit of
+import) that re-exports **exactly what the Go package exports**; `src/index.ts` plays that part for
+Tessera's root package (ADR-0133). Symbols that are unexported in Go stay reachable only by importing
+their file directly, which is what the ported tests do — see
+`docs/decisions/0010-package-private-members.md`. Never widen a barrel to make something convenient
+to import; that is added API, and added API needs an ADR (§6).
 
 ---
 
@@ -88,7 +121,7 @@ the original trivial for a reviewer, which is the single most valuable property 
 have. Directory names are identical too.
 
 Test files: `paths_test.go` → `paths_test.ts` (**not** `paths.test.ts`). Vitest is configured to
-pick up `*_test.ts`.
+pick up `*_test.ts`. Tests that need a real browser are `*_browser_test.ts` (§8).
 
 ### 3.2 Identifier names — mechanical mapping, documented once
 
@@ -103,10 +136,11 @@ pick up `*_test.ts`.
 | sentinel error var | same name | `ErrPushback` |
 
 Functions are camelCase because Go's PascalCase is a *visibility* mechanism, not a naming style —
-TypeScript expresses visibility with `export`. A donated TS library with `NewEntry()` reads as a
+TypeScript expresses visibility with `export`. A TypeScript library with `NewEntry()` reads as a
 bad transliteration; `newEntry()` is the faithful rendering of the same intent. Types and constants
 keep their exact Go spelling because PascalCase/SCREAMING_CASE means the same thing in both
 languages. **This mapping is mechanical: never rename beyond it, never "improve" a name.**
+ADR-0002 records the reasoning.
 
 ### 3.3 Declaration order — identical to Go
 
@@ -115,17 +149,15 @@ both files in parallel.
 
 ### 3.4 Comments
 
-- **Ports (everything outside `src/adapters/`): comments in English.**
-  Copy the upstream comment verbatim when it still applies. Adjust only the parts that are
-  language-specific (`[]byte` → `Uint8Array`, `os.ErrNotExist` → `ErrNotExist`). Keep the Go
-  doc-comment convention of starting with the identifier name.
+- **Comments are in English.** Copy the upstream comment verbatim when it still applies. Adjust
+  only the parts that are language-specific (`[]byte` → `Uint8Array`, `os.ErrNotExist` →
+  `ErrNotExist`). Keep the Go doc-comment convention of starting with the identifier name.
 - Where the port diverges from Go, add a short `// Port note:` paragraph explaining *why*, and link
   the ADR: `// Port note: see docs/decisions/0003-uint64-as-bigint.md`.
-- **`src/adapters/`: comments in Portuguese (pt-BR), senior level** — matching the rest of the
-  diagnos monorepo.
 - Do not write comments that restate the code. Do not write phase/plan/TODO-list narration in code.
-  Pending work is `TODO(gustavo):` and nothing else.
-- Every file keeps the upstream Apache-2.0 header when it is a port of an upstream file, with the
+  Pending work is `TODO(<github-username>):` and nothing else — name the person who will do it, and
+  keep it specific enough that someone else could.
+- Every file keeps the upstream licence header when it is a port of an upstream file, with the
   original copyright line intact, plus our own line. See §9.
 
 ### 3.5 Types — the mapping table
@@ -157,6 +189,8 @@ tested, and shared across the whole port:
   `throwIfAborted`. Covers `errors.Is`/`As`, `%w` wrapping, `os.ErrNotExist`.
 - **`sync.ts`** — `Mutex`, `WaitGroup`, `ErrGroup`, `Once`, `sleep`, `ticker`. Covers `sync`,
   `sync/atomic`, `time.Ticker`, `x/sync/errgroup`.
+- Further single-purpose shims sit beside them (`bits.ts`, `strconv.ts`, `strings.ts`, `unicode.ts`,
+  `io.ts`, `list.ts`, `cryptobyte.ts`, `rand.ts`); `docs/PORTING-MAP.md` lists what each covers.
 
 If one of them is missing something you need, **add it there with tests**. Do not write a local copy;
 four private `bytesEqual`s is exactly the incoherence this directory prevents.
@@ -175,7 +209,7 @@ with the **same message text**, because upstream tests assert on message content
   named subclass, so `errorIs(e, ErrPushback)` can walk the `cause` chain the way `errors.Is` walks
   the wrap chain.
 - `fmt.Errorf("...: %w", err)` becomes `new Error("...", { cause: err })`.
-- Use the helpers in `src/internal/errors.ts`. Do not hand-roll error identity checks.
+- Use the helpers in `src/internal/gostd/errors.ts`. Do not hand-roll error identity checks.
 - `os.ErrNotExist` maps to the exported `ErrNotExist` sentinel — several upstream interfaces are
   specified in terms of it (`LogReader.readCheckpoint`).
 
@@ -183,7 +217,21 @@ with the **same message text**, because upstream tests assert on message content
 
 Everything that takes a `context.Context` in Go returns a `Promise` in TypeScript. Everything that
 does not, stays synchronous — in particular **the Merkle hashing and proof code is synchronous**
-(that is why we use `@noble/hashes` and not WebCrypto's async `subtle.digest`).
+(that is why we use `@noble/hashes` and not WebCrypto's async `subtle.digest`; ADR-0005).
+
+### 3.8 Source style
+
+Biome is the formatter and linter; `pnpm lint:fix` settles every style question. The conventions it
+cannot enforce on its own:
+
+- Relative imports carry an explicit `.ts` extension (`import { x } from "./paths.ts"`); `tsc`
+  rewrites them to `.js` on emit. Type-only imports use `import type`.
+- Erasable syntax only (`erasableSyntaxOnly`): no `enum`, no `namespace`, no constructor parameter
+  properties. The sources must run unmodified under Node's type stripping.
+- `#field` is for genuinely private state. A Go identifier that is unexported but used across files
+  or by the ported tests becomes a `_`-prefixed member marked `@internal` (ADR-0010).
+- ESM only. The compiler is strict, including `exactOptionalPropertyTypes` and
+  `noUncheckedIndexedAccess`; do not loosen either to make a port compile.
 
 ---
 
@@ -203,8 +251,8 @@ For every file you port, in this order:
 6. **Write an ADR** for every divergence, and for every upstream file you decided *not* to port.
 
 Never skip step 2. Never mark work complete with a failing or skipped test. If you cannot make a
-test pass, say so explicitly in your report — do not delete it, do not `.skip` it, do not weaken
-the assertion.
+test pass, say so explicitly in your pull request — do not delete it, do not `.skip` it, do not
+weaken the assertion.
 
 ### Table-driven tests
 
@@ -218,17 +266,20 @@ case names identical to Go's so a reviewer can grep both suites.
 `fixtures/gen/` is a **Go program that imports the real Tessera** and emits its outputs as JSON into
 `fixtures/data/`. Those files are committed. TypeScript tests load them and assert byte-equality.
 
-This is the primary evidence of compatibility, and it is auditable: a reviewer can regenerate the
-fixtures and diff them.
+This is the primary evidence of compatibility, and it is auditable: anyone can run `pnpm fixtures`
+(which first runs `pnpm upstream`) and confirm `git status --porcelain fixtures/data` stays empty. CI
+does exactly that on every push. `fixtures/README.md` explains the corpus and how to audit it.
 
 - Fixtures are JSON. Byte arrays are lower-case hex strings. `uint64` values are JSON **strings**
   (they must survive round-tripping without precision loss).
 - Never hand-edit a file in `fixtures/data/`. If a fixture is wrong, fix the generator and re-run
-  `bun run fixtures`.
+  `pnpm fixtures`.
 - Never change a fixture to make a TypeScript test pass. **The fixture is right and your port is
-  wrong.** If you genuinely believe the fixture is wrong, stop and escalate in your report.
-- Add a new generator case whenever you port something byte-producing. Generator code is Go and its
-  comments are English.
+  wrong.** If you genuinely believe the fixture is wrong, stop and raise it in the pull request or
+  an issue — do not quietly regenerate or adjust it.
+- Add a generator case whenever you port something byte-producing. Generator code is Go and its
+  comments are English. The generator calls upstream and records what came back; it must never
+  compute a hash, path or encoding itself.
 
 ---
 
@@ -240,58 +291,91 @@ Every one of these requires an ADR in `docs/decisions/NNNN-kebab-title.md`, copi
 - Not porting an upstream file, package, or function.
 - Any behavioural divergence from Go, however small.
 - Any added API that upstream does not have.
-- Any dependency added to `package.json`.
+- Any dependency added to `package.json` that ships (`dependencies`); a tooling `devDependency`
+  needs a one-sentence justification in its pull request instead.
 - Any choice where you found yourself thinking "I'll just do it the TypeScript way".
 
-**An ADR is not valid until a reviewer has signed it.** The template has a `## Review` section
-with `Reviewer:` and `Verdict:` fields. Implementing contributor proposes; reviewer challenges,
-requests changes, or approves. If they disagree, both positions get written down and it escalates to
-the maintainers — do not silently settle it.
+**An ADR is not in force until someone other than its author has reviewed it.** The template has a
+`## Review` section with `Reviewer:` and `Verdict:` fields. The author proposes; the reviewer
+challenges, requests changes, or approves. If they disagree, both positions get written down and the
+maintainers decide — do not silently settle it. `docs/REVIEW-PROTOCOL.md` describes what a reviewer
+checks.
+
+ADRs are historical records. Do not rewrite an accepted one to match later thinking: supersede it
+with a new ADR and mark the old one's status accordingly. Take the next unused number; if two pull
+requests collide, the later one renumbers.
 
 `docs/notes/` is for free-form thinking that is not yet a decision. Use it liberally; it keeps
 speculation out of the code comments.
 
 ---
 
-## 7. Dependencies
+## 7. Dependencies and runtime constraints
 
-Allowed in donatable code: **`@noble/hashes`, `@noble/curves`, and nothing else.** They are audited,
-zero-dependency, synchronous, and run identically in Node, browsers, and workerd.
+Runtime dependencies of the library (`dependencies` in `package.json`): **`@noble/hashes`,
+`@noble/curves`, and nothing else.** They are audited, zero-dependency, synchronous, and run
+identically in Node, browsers, and workerd.
 
 > noble v2 exports carry an explicit `.js` extension. Import
 > `from "@noble/hashes/sha2.js"` and `from "@noble/curves/ed25519.js"`. Without the extension the
-> import fails to resolve — this has already cost one debugging round, do not repeat it.
+> import fails to resolve.
 
-- No Node built-ins (`node:crypto`, `node:buffer`, `node:fs`). This code runs on the edge.
+- No Node built-ins (`node:crypto`, `node:buffer`, `node:fs`) in code under `src/` that ships. This
+  code runs on the edge and in a browser tab.
 - No `Buffer`. No `process`. No `setTimeout`-based control flow that assumes Node timers.
 - Anything else requires an ADR, and the bar is "there is no other way".
-- `src/adapters/` may depend on `@repo/*` workspace packages (`magic-files`, `security-module`,
-  `core`, `editor`). Donatable code may not.
+- No `any` anywhere in library code (§3.8, §10). Go's `any` becomes a type parameter or `unknown`.
+- Test-only code (`*_test.ts`, `testing/`, `src/testonly/`) is excluded from the published build and
+  may use test tooling, but must not leak into the exports map.
 
 ---
 
-## 8. `src/adapters/` — ours, not donated
+## 8. Web storage drivers
 
-Comments in Portuguese. This is where diagnos-specific behaviour lives:
+Upstream ships storage drivers for POSIX, GCP, AWS and MySQL. None of them runs in a browser tab or
+a Worker, so this repository ships its own. They are the one place where the code is new rather than
+translated, and they are held to the same standard: a driver bolts onto the *upstream* interfaces
+(`Driver`, `LogReader`, `Antispam`, `Follower`) from the outside. If a driver needs an upstream
+interface to change, that is an ADR and probably a design smell — say so.
 
-- **`session/`** — every server API call becomes an immutable entry in a per-session log. The server
-  countersigns each append against the previous hash, so the user holds a tamper-evident receipt of
-  their whole session and cannot forge it.
-- **`magic-files/`** — level-2 sync: pushes tiles/bundles/checkpoints into the workspace vault
-  through `@repo/magic-files`.
-- **`firestore/`** — Firestore as a backup for IndexedDB, and the leader election that decides which
-  tab/client flushes, via `@repo/security-module`'s election primitives.
-- **`editor/`** — exports a session's commits into a read-only `@repo/editor` document, for the
-  "export session" debug affordance.
+The design (ADR-0100) has three layers:
 
-Adapters bolt onto the *upstream* interfaces (`LogReader`, `Driver`, `Antispam`, `Follower`). If an
-adapter needs an upstream change to work, that is an ADR and probably a design smell — say so.
+- **The `ObjectStore` contract** — `src/storage/objectstore/objectstore.ts`. Six operations: `get`,
+  `stat`, `put`, `create` (create-if-absent, the counterpart of `O_CREAT|O_EXCL`), `deletePrefix`
+  and `lock`. Keys are slash-separated tlog-tiles paths (`checkpoint`, `tile/0/x001/234`,
+  `tile/entries/000.p/7`), with the driver's private state under `.state/`, so a backend holds a
+  byte-for-byte copy of a static tlog-tiles log. Every operation is atomic per key and resolves only
+  once durable for that backend; `lock` excludes every holder that can reach the same data and
+  honours an `AbortSignal`. Read the file; its doc comments are the specification.
+- **The driver** — a port of `storage/posix/files.go`, parametrised by an `ObjectStore` instead of a
+  filesystem. It lives next to the contract in `src/storage/objectstore/` and is the only place
+  that knows how a Tessera log maps onto keys. Fidelity rules apply to it exactly as to any other
+  port: the golden `log_<N>` fixtures were produced by the real POSIX driver, and what this driver
+  writes for the same entries is judged against them.
+- **The backends** — one directory each, each implementing nothing but `ObjectStore`:
+  - `src/storage/memory/` — in memory; the reference backend, for tests and for offline or
+    ephemeral logs.
+  - `src/storage/indexeddb/` — IndexedDB for persistence; cross-tab exclusion through Web Locks.
+    Tested in real Chromium (`pnpm test:browser`, `*_browser_test.ts`).
+  - `src/storage/durableobject/` — Durable Object transactional storage, relying on its
+    input/output gates. Tested inside workerd (`pnpm test:workers`).
+
+Adding or changing a backend:
+
+1. Implement `ObjectStore`; do not add operations to the contract without an ADR.
+2. Call `describeObjectStoreConformance` from `src/storage/objectstore/testing/conformance.ts` in
+   the backend's test file, with a factory for fresh empty stores. Every backend is held to the same
+   behaviour by that one suite; fix the backend, not the suite, when they disagree.
+3. Put runtime-specific tests where the right runner picks them up (`*_browser_test.ts` for the
+   browser config, `src/storage/durableobject/**` for the workers config) and keep `testing/`
+   helpers out of the published build.
+4. Update `examples/` if the backend is something a user would reach for.
 
 ---
 
 ## 9. File header
 
-Ports of upstream files:
+Ports of upstream Apache-2.0 files (Tessera, `transparency-dev/merkle`, `transparency-dev/formats`):
 
 ```ts
 // Copyright 2024 The Tessera authors. All Rights Reserved.
@@ -304,23 +388,51 @@ Ports of upstream files:
 ```
 
 Keep the upstream copyright year and holder exactly as the original file has it (some are
-"Google LLC", some are "The Tessera authors"). New files that are ours carry only the MedDeck line.
+"Google LLC", some are "The Tessera authors"). New files that are ours carry only the MedDeck line
+and the Apache-2.0 header.
+
+**Derivatives of Go-licensed code are BSD-3-Clause, not Apache-2.0.** `golang.org/x/mod/sumdb/note`,
+`golang.org/x/crypto/cryptobyte`, the Go standard library (`container/list`) and
+`transparency-dev/formats/note`'s cosignature code carry "The Go Authors" copyright and a BSD-style
+notice upstream. Their ports keep the Go Authors line and the BSD notice, add the MedDeck line, and
+do **not** get the Apache header (ADR-0024, ADR-0040):
+
+```ts
+// Copyright 2019 The Go Authors. All rights reserved.
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
+//
+// Ported from golang.org/x/mod/sumdb/note/note.go @ v0.31.0
+```
+
+The licence text itself lives in `LICENSES/`, and `NOTICE` attributes each third-party source. If a
+change brings in code from a new origin, add its licence text to `LICENSES/` and an entry to `NOTICE`
+in the same pull request. Never "tidy" a BSD header into an Apache one: relicensing someone else's
+code is not ours to do.
 
 ---
 
-## 10. Definition of done, per assignment
+## 10. Definition of done, per pull request
 
-Do not report success unless all of these are true. State each one explicitly in your report.
+Do not report success unless all of these are true. State each one explicitly in the pull request.
 
-- [ ] Every assigned Go file has a TS counterpart at the mirrored path, or an ADR saying why not.
-- [ ] Every assigned Go **test** file has a TS counterpart with the same cases.
-- [ ] `bun run test:unit` passes from `packages/webtessera`. Paste the real summary line.
-- [ ] `bun run typecheck` passes with zero errors. Paste the real output.
-- [ ] Golden fixtures asserted for everything byte-producing.
+- [ ] Every Go file in scope has a TS counterpart at the mirrored path, or an ADR saying why not.
+- [ ] Every Go **test** file in scope has a TS counterpart with the same cases.
+- [ ] `pnpm lint` is clean.
+- [ ] `pnpm typecheck` passes with zero errors.
+- [ ] `pnpm test:unit` passes. Paste the real summary line.
+- [ ] `pnpm test:browser` and `pnpm test:workers` pass when you touched `src/storage/` or anything
+      runtime-sensitive (CI runs both regardless).
+- [ ] Golden fixtures asserted for everything byte-producing, and `pnpm fixtures` leaves
+      `git status --porcelain fixtures/data` empty.
 - [ ] `docs/PORTING-MAP.md` updated.
 - [ ] ADRs written for every divergence and every omission.
 - [ ] No `any`, no `@ts-expect-error`, no `.skip`, no commented-out code, no `console.log`.
-- [ ] Nothing outside `src/adapters/` imports from `src/adapters/`.
+- [ ] No Node built-ins or `Buffer` in library code; no new runtime dependency without an ADR.
+- [ ] File headers follow §9; `NOTICE` and `LICENSES/` updated if the change brings in code from a
+      new origin.
+- [ ] `CHANGELOG.md` has an entry under `## [Unreleased]` for any user-visible change.
 
 If something is incomplete, **say so plainly and list what is missing**. A precise report of partial
 work is far more useful than a confident claim that turns out to be wrong. Do not describe a test as

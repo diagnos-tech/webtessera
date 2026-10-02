@@ -1,0 +1,88 @@
+name: Release
+
+# Publishes to npm when a maintainer pushes a version tag (vX.Y.Z or vX.Y.Z-rc.N).
+#
+# Before tagging: rename `## [Unreleased]` in CHANGELOG.md to the new version and
+# date, bump "version" in package.json, merge, and make sure CI is green on that
+# commit. This workflow re-runs the fast checks but not the browser or workerd suites.
+#
+# One-time setup (repository settings):
+#   - an `npm` environment, ideally with required reviewers, so that nothing is
+#     published without a human approving the run;
+#   - an npm automation token as the `NPM_TOKEN` secret of that environment. If the
+#     package is configured for npm trusted publishing (OIDC), the token and the
+#     NODE_AUTH_TOKEN line can be dropped; `id-token: write` already allows it.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    if: github.repository == 'diagnos-tech/webtessera'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm provenance (sigstore) attestation
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check the tag matches package.json and CHANGELOG.md
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+
+      - name: Pack
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+
+      - name: Smoke-test the packed tarball
+        run: node scripts/smoke-pack.mjs "$RUNNER_TEMP/pack/webtessera-$VERSION.tgz"
+
+      # `npm publish` rather than `pnpm publish`: provenance is an npm feature, and the
+      # tarball that was just smoke-tested is exactly what gets published.
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          case "$VERSION" in
+            *-*) tag=next ;;
+            *)   tag=latest ;;
+          esac
+          npm publish "$RUNNER_TEMP/pack/webtessera-$VERSION.tgz" --provenance --access public --tag "$tag"

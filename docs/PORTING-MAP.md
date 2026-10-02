@@ -1,14 +1,18 @@
 # Porting map — Go → TypeScript
 
 This is the file-by-file status of the port, and a reviewer's first stop. It covers **every one of
-the 107 `.go` files** in upstream Tessera @ `4a6d9f9` (`/home/gg/dev/Maravi/_future/tessera`), whether
-or not anyone has started on it, so that an omission is visible as a row rather than as an absence.
+the 106 `.go` files** in upstream Tessera @ `4a6d9f9` (see `scripts/upstream.json`), whether or not
+anyone has started on it, so that an omission is visible as a row rather than as an absence.
 
-Regenerate the upstream list with:
+Regenerate the upstream list from the pinned checkout:
 
+```sh
+pnpm upstream
+(cd .upstream/tessera && find . -name '*.go' -not -path './.git/*' | sort)
 ```
-cd /home/gg/dev/Maravi/_future/tessera && find . -name '*.go' -not -path './.git/*' | sort
-```
+
+When the pin moves, diff that list against the first column below and add a row for every new file
+as `not started`.
 
 ## Status vocabulary
 
@@ -27,14 +31,14 @@ TypeScript `it()` each count as one — so `48 / 48` means every upstream case h
 ## Rules for editing this file
 
 - Add a row, never delete one. If upstream gains a file, the row appears here as `not started`.
-- Only change a row you own. Do not guess at another contributor's progress.
+- Only change a row for work you are doing. Do not guess at someone else's progress.
 - A row is `done` only if you ran the suite and watched it pass.
-- Any status other than `done`/`not started` needs either an ADR reference or a contributor's name in
-  `notes`.
+- Any status other than `done`/`not started` needs either an ADR reference or the claiming
+  contributor's GitHub handle (or an issue link) in `notes`.
 
 ---
 
-## The 107 upstream Go files
+## The upstream Go files
 
 | Go path | TS path | status | tests (TS/Go) | notes |
 | --- | --- | --- | --- | --- |
@@ -89,7 +93,7 @@ TypeScript `it()` each count as one — so `48 / 48` means every upstream case h
 | `integration/integration_test.go` | — | pending ADR | — | ADR-0001 `integration/` row |
 | `internal/fetcher/fallback.go` | `src/internal/fetcher/fallback.ts` | done | — | `ctx` → trailing `signal` on `f` too — ADR-0060 |
 | `internal/fetcher/fallback_test.go` | `src/internal/fetcher/fallback_test.ts` | done | 5 / 5 | |
-| `internal/future/future.go` | `src/internal/future/future.ts` | done | — | belongs to the `client` work package per ORCHESTRATION.md, but ported ahead of schedule by the storage-internal contributor because `storage/internal/queue.ts` needs it directly; self-contained, nothing for `client` to reconcile. Native `Promise` instead of `WaitGroup`+fields — ADR-0056 |
+| `internal/future/future.go` | `src/internal/future/future.ts` | done | — | ported ahead of the `client` package because `storage/internal/queue.ts` needs it directly; self-contained, nothing for `client` to reconcile. Native `Promise` instead of `WaitGroup`+fields — ADR-0056 |
 | `internal/hammer/hammer.go` | — | pending ADR | — | ADR-0001 `internal/hammer/` row |
 | `internal/hammer/hammer_test.go` | — | pending ADR | — | ADR-0001 `internal/hammer/` row |
 | `internal/hammer/loadtest/analysis.go` | — | pending ADR | — | ADR-0001 `internal/hammer/` row |
@@ -107,7 +111,7 @@ TypeScript `it()` each count as one — so `48 / 48` means every upstream case h
 | `internal/witness/otel.go` | — | not ported | — | metrics dropped, extending ADR-0051's precedent to this package — ADR-0070 |
 | `internal/witness/witness.go` | `src/internal/witness/witness.ts` | done | — | `WitnessGateway`/`newWitnessGateway`, `ErrPolicyNotSatisfied`, `sharedConsistencyProofFetcher`, `witness`/`update` (HTTP via `FetchFn`, the same stand-in `client/fetcher.ts` uses for `*http.Client`). OTel/klog dropped — ADR-0070. Channel-based result fan-in becomes promise racing (no goroutine-leak equivalent) — ADR-0072. The `errors.Join(ErrPolicyNotSatisfied, err)` + partial-checkpoint return becomes `PolicyNotSatisfiedError` — ADR-0075 |
 | `internal/witness/witness_test.go` | `src/internal/witness/witness_test.ts` | done | 22 / 22 | all 6 Go test functions (`TestWitnessGateway_Update` ×8, `TestWitness_UpdateRequest` ×2, `TestWitness_UpdateResponse` ×6, `TestWitnessConflict` ×4, `TestWitnessStateEvolution`, `TestWitnessReusesProofs`) reusing the `client_log` fixture instead of a real posix driver/appender for tile/checkpoint data — same judgement call as `client/stream_test.ts` — ADR-0065's sibling reasoning |
-| `keygen/main.go` | — | pending ADR | — | ADR-0001 `keygen/` row |
+| `keygen/main.go` | — | not ported | — | **No such file in upstream @ `4a6d9f9`** (`git ls-tree` finds none; the pinned tree has 106 `.go` files). Kept only because rows are never deleted; it, and ADR-0001's `keygen/` row, should go when ADR-0001 is next revised |
 | `lifecycle.go` | `src/lifecycle.ts` | done | 9 / 0 | root package; `LogReader`/`Follower`/`Antispam` interfaces ported faithfully, the concrete `Appender`/antispam wiring is Wave 3's job. `identityHash` exported here, closing ADR-0044's `ct_only.ts` TODO — ADR-0055. `defaultIDHasher`/`defaultMerkleLeafHasher` exported (Go-unexported, no upstream test) so `lifecycle_test.ts` can reach them directly; no upstream `lifecycle_test.go` |
 | `log.go` | `src/log.ts` | done | 8 / 0 | root package; `ErrPushbackAntispam`/`ErrPushbackIntegration` built directly with `new Error(..., {cause})` rather than `wrapError`, since Go's `fmt.Errorf("antispam %w", ...)` has no colon before `%w` (Port note in-file). No upstream `log_test.go` |
 | `migrate.go` | `src/migrate.ts` | done | 13 / 0 | root package; `copier`/`newCopier`/`Bundle`/`populateWork` exported per ADR-0010's pattern. No upstream `migrate_test.go` (Wave 4 `integration/` needs a real driver — ADR-0074); 13 new cases cover `populateWork`'s chunking arithmetic and `Copier.copy`'s worker orchestration/retry against in-memory fakes. `todo` channel + producer goroutine become a shared generator — ADR-0077. `cenkalti/backoff` retry policy hand-rolled — ADR-0073. OTel/klog dropped — ADR-0070 |
@@ -148,13 +152,13 @@ TypeScript `it()` each count as one — so `48 / 48` means every upstream case h
 
 ---
 
-## Beyond the 107
+## Beyond the upstream files
 
-Two categories of file exist in `src/` with no row above, because they have no counterpart in the
-Tessera repository. Each is tracked by the work package that owns it; add tables here as they land.
+Categories of file exist in `src/` with no row above, because they have no counterpart in the
+Tessera repository. Add tables here as they land.
 
 - **`src/vendor/`** — ports of Tessera's Go dependencies (`transparency-dev/merkle`,
-  `transparency-dev/formats`, `golang.org/x/mod/sumdb/note`). Their upstreams and commits are listed
+  `transparency-dev/formats`, `golang.org/x/mod/sumdb/note`). Their upstreams and versions are listed
   in `PORTING.md` §1. ADR-0002 explains why they live under `src/vendor/`.
 
   | Go path | TS path | status | tests (TS/Go) | notes |
@@ -168,7 +172,7 @@ Tessera repository. Each is tracked by the work package that owns it; add tables
   | `github.com/transparency-dev/formats/log/identifier_test.go` | `src/vendor/formats/log/identifier_test.ts` | done | 7 / 6 | 6 upstream cases + 1 pinning UTF-8 hashing of a non-ASCII origin |
   | `github.com/transparency-dev/formats/log/note.go` | `src/vendor/formats/log/note.ts` | done | — | `parseCheckpoint` returns a result object and throws `ParseCheckpointError`, which carries the note — ADR-0022 |
   | `github.com/transparency-dev/formats/log/note_test.go` | `src/vendor/formats/log/note_test.ts` | done | 14 / 14 | includes a real `sum.golang.org` checkpoint. `BenchmarkParse`/`BenchmarkLotsOfIDs` not ported — ADR-0034 |
-  | — | `src/vendor/formats/log/index.ts` | done | — | barrel for `@repo/webtessera/formats/log`; no Go counterpart, the package is the unit of import in Go |
+  | — | `src/vendor/formats/log/index.ts` | done | — | barrel for `webtessera/formats/log`; no Go counterpart, the package is the unit of import in Go |
 
   ### `github.com/transparency-dev/formats/note` @ `v0.0.0-20251017110053-404c0d5b696c`
 
@@ -232,7 +236,6 @@ Tessera repository. Each is tracked by the work package that owns it; add tables
   | `math/bits` (uint64 intrinsics) | `src/internal/gostd/bits.ts` | done | 22 / — | `trailingZeros64`, `len64`, `onesCount64` plus `asUint64`/`shiftLeft64`/`shiftRight64` for Go's uint64 wrapping and shift saturation — ADR-0014. Every compact/proof bit operation goes through it |
   | `math/rand` (test use only) | `src/internal/gostd/rand.ts` | done | — | seeded splitmix64, deliberately not bit-compatible with Go — ADR-0012. No production code imports it |
   | `container/list` | `src/internal/gostd/list.ts` | done | 10 / 10 | BSD-3-Clause, not Apache-2.0 (Go standard library itself, not just a dependency — same open item as `cryptobyte.ts`). `Element<T>`/`List<T>` generic instead of Go's pre-generics `any`; `New` → `newList` (reserved word); `_root`/`_next`/`_prev`/`_list` are `_`-prefixed per ADR-0010 (cross-class access + `list_test.ts`'s direct field reads), `#len` stays genuinely private — ADR-0090. Added for `fsck/status.go`'s `rangeTracker` |
-- **`src/adapters/`** — diagnos-specific, explicitly not donated (`PORTING.md` §8).
 
 ## Golden fixtures
 
@@ -289,10 +292,10 @@ fixture byte-for-byte. A future storage driver (Wave 4) can reuse the same fixtu
 
 ## Open items
 
-- ~~`TODO(gustavo):` there is no fixture generated from `internal/parse.CheckpointUnsafe`.~~
+- ~~There is no fixture generated from `internal/parse.CheckpointUnsafe`.~~
   **Cannot be generated.** `internal/parse` is under Tessera's `internal/`, so only packages under
   `github.com/transparency-dev/tessera/` may import it; the generator's module path is
-  `github.com/meddeck/webtessera/fixtures/gen` and the compiler rejects the import. Nothing exported
+  `github.com/diagnos-tech/webtessera/fixtures/gen` and the compiler rejects the import. Nothing exported
   by Tessera reaches `CheckpointUnsafe`. The three ways around it (squatting on upstream's module
   namespace, patching the pinned checkout, or copying the function into the generator) each destroy
   something the fixtures depend on. Reasoning and mitigation in
@@ -300,7 +303,7 @@ fixture byte-for-byte. A future storage driver (Wave 4) can reuse the same fixtu
   on the accepted path, plus the ported `parse_test.go` table on the rejection path, is as far as
   this can go while the generator lives outside the Tessera tree.
 
-- `TODO(gustavo):` `compact_range.json`'s six `errors` rows with `op: "appendRange"` cannot be driven
+- **Open:** `compact_range.json`'s six `errors` rows with `op: "appendRange"` cannot be driven
   from the fixture. `fixtures/gen/compact.go`'s `addAppendRangeErr(desc, lBegin, lEnd, rBegin, rEnd, …)`
   records only the **right** range's `begin`/`end`/`hashes`; the left range's bounds — which differ
   between cases (`0,3` for most, `0,5` for "overlapping ranges") and which the expected message text
@@ -310,12 +313,10 @@ fixture byte-for-byte. A future storage driver (Wave 4) can reuse the same fixtu
   assertion is missing; the fixture rows are simply unusable. Fix belongs in the fixtures work
   package: add `leftBegin`/`leftEnd` to `errorCase` and regenerate.
 
-- `TODO(gustavo):` `src/vendor/note/` is BSD-3-Clause (ADR-0024) and its file headers point at a
-  `LICENSE` file that this package does not contain. Before webtessera is published or donated it
-  needs a verbatim copy of `~/go/pkg/mod/golang.org/x/mod@v0.31.0/LICENSE` at
-  `src/vendor/note/LICENSE`, and `package.json`/README must record that one directory is
-  BSD-3-Clause while the rest is Apache-2.0. `src/internal/gostd/cryptobyte.ts` is in the same
-  position (ADR-0040), so this is one repository-level decision covering both, not two.
-  `src/vendor/formats/note/note_cosigv1.ts` (ADR-0071) is a third: its upstream file header is also
-  `// Copyright 2023 The Go Authors. All rights reserved. Use of this source code is governed by a
-  BSD-style license`, so it needs the same `LICENSE` file at `src/vendor/formats/note/LICENSE`.
+- ~~`src/vendor/note/` is BSD-3-Clause (ADR-0024) and its file headers point at a `LICENSE` file the
+  package does not contain.~~ **Resolved at the repository level**, as ADR-0024 and ADR-0040
+  anticipated: the verbatim Go licence text is `LICENSES/BSD-3-Clause-Go.txt` (with the Go patent
+  grant beside it), and `NOTICE` lists every Go-derived file group — `src/vendor/note/`,
+  `src/vendor/formats/note/` (ADR-0071) and the `cryptobyte.ts` / `list.ts` shims. What remains is
+  mechanical: the older file headers still say "the LICENSE file", and should say
+  `LICENSES/BSD-3-Clause-Go.txt`, as `PORTING.md` §9 now prescribes.

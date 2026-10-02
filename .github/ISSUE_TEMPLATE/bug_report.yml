@@ -1,0 +1,101 @@
+name: Bug report
+description: Something behaves differently from Tessera, or does not work.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. A discrepancy with Tessera's behaviour is a bug here, and the most useful report includes **what the Go code does**.
+
+        **Security problems do not belong in a public issue.** If a note, proof, checkpoint or path is accepted or rejected differently from Tessera, or a storage driver can lose or fork data, report it privately: see [SECURITY.md](https://github.com/diagnos-tech/webtessera/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what you saw instead of what you expected. Include the full error message and stack if there is one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: >-
+        If this is a divergence from Tessera, say what the Go implementation does (file and function, and its output if you ran it) and link to the commit you compared against.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: A failing test is ideal (a `*_test.ts` that fails on `main`). A short script or a repository link is fine.
+      render: ts
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - api / api/layout (paths, tiles, entry bundles)
+        - merkle (rfc6962, compact, proof)
+        - note / checkpoint formats
+        - client
+        - fsck
+        - append lifecycle / appender
+        - witness / migrate
+        - CT (ctonly)
+        - storage - memory
+        - storage - IndexedDB
+        - storage - Durable Objects
+        - fixtures / generator
+        - documentation
+        - build / packaging / CI
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: webtessera version
+      description: The version from package.json, or the commit if you are on `main`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Browser (Chromium)
+        - Browser (Firefox)
+        - Browser (Safari / WebKit)
+        - Cloudflare Workers / Durable Objects
+        - Node.js
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: runtime-version
+    attributes:
+      label: Runtime version
+      description: Browser version, `wrangler --version` / compatibility date, or `node --version`.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I checked `docs/PORTING-MAP.md` and the ADRs in `docs/decisions/`, and this is not a documented divergence from Tessera.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true

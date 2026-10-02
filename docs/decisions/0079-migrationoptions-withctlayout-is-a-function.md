@@ -8,7 +8,7 @@
 ## Context
 
 `docs/decisions/0044-ct-only-partial-port.md` left two declarations in `ct_only.go` as
-`TODO(gustavo):` blocks, waiting on dependencies that did not exist yet:
+`TODO(<owner>):` blocks, waiting on dependencies that did not exist yet:
 
 ```go
 // WithCTLayout instructs the underlying storage to use a Static CT API compatible scheme for layout.
@@ -28,7 +28,7 @@ this work package has ported `migrate_lifecycle.ts`'s `MigrationOptions` (with i
 fields grouped under a public `internal` object, exactly as `Entry.internal` groups `Entry`'s), this
 TODO's blocking dependency exists and the second of `ct_only.go`'s two deferred declarations can be
 closed. (`(*AppendOptions).WithCTLayout`, the other `WithCTLayout` method in the same Go file, still
-awaits Wave 3's `AppendOptions` and remains a `TODO(gustavo):`.)
+awaits Wave 3's `AppendOptions` and remains a `TODO(<owner>):`.)
 
 ## Decision
 

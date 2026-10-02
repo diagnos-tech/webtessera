@@ -1,9 +1,11 @@
 # Review protocol
 
-Every work package in this port is reviewed by a contributor that did **not** write it. This file is the
-reviewer's job description. Read it together with `PORTING.md`.
+How ports, ADRs and pull requests are reviewed in this repository. Every change is reviewed by
+someone who did **not** write it. This file is the reviewer's checklist; read it together with
+[`PORTING.md`](../PORTING.md), which holds the rules being checked. A reviewer may be a maintainer or a
+contributor — the checklist is the same.
 
-The people who will eventually read this code wrote the original. Review accordingly.
+The people who wrote the original may well read this code. Review accordingly.
 
 ---
 
@@ -15,8 +17,11 @@ Open the Go file and the TypeScript file side by side and go through them line b
 yourself reviewing the TypeScript on its own merits — "this could be a `map`", "this name is a bit
 long" — you have drifted off the job. The question is only ever: *does this do what the Go does?*
 
-Assume the implementer was competent and hurried. The bugs you are looking for are not sloppy ones;
+Assume the contributor was competent and hurried. The bugs you are looking for are not sloppy ones;
 they are the ones that come from translating an idiom without noticing it carried meaning.
+
+Upstream Tessera is available at the pinned commit with `pnpm upstream` (`.upstream/tessera`); the Go
+dependencies it needs are in the Go module cache once `pnpm fixtures` has run once.
 
 ## 2. What to check, in priority order
 
@@ -51,19 +56,21 @@ they are the ones that come from translating an idiom without noticing it carrie
   `// Port note:` justifying it is actually true.
 - **UTF-8.** Go's `[]byte(s)` is UTF-8. A port using `charCodeAt` corrupts anything non-ASCII.
 - **Map iteration order.** Go's is randomised, JavaScript's is insertion-ordered. If upstream sorts
-  before emitting, the port must sort too — even though its map "happens to" be ordered. Relying on
-  that accident is a latent bug.
+  before emitting, the port must sort too — even though its map "happens to" be ordered. Relying
+  on that accident is a latent bug.
 
 ### 2.3 Tests (blocking)
 
 - Every Go test file has a TypeScript counterpart, with the same cases and the same values.
-- **Run the suite yourself.** Do not trust the implementer's report.
+- **Run the suite yourself** (`pnpm test:unit`, plus `pnpm test:browser` / `pnpm test:workers` for
+  storage changes). Do not trust the author's report.
 - Look for tests that pass vacuously: an assertion on a value the test itself computed with the code
   under test, a `try/catch` that swallows, a table with an empty case list, a loop with no iterations.
 - Any `.skip`, `.only`, `@ts-expect-error`, `any`, or commented-out test is a blocking finding.
 - Golden fixtures: confirm the fixture is actually asserted against, and that **the port was changed
   to match the fixture, not the fixture changed to match the port**. Check `git log`/`git diff` on
-  `fixtures/data/` if anything looks convenient.
+  `fixtures/data/` if anything looks convenient, and confirm `pnpm fixtures` leaves
+  `git status --porcelain fixtures/data` empty.
 
 ### 2.4 ADRs (blocking)
 
@@ -72,26 +79,43 @@ they are the ones that come from translating an idiom without noticing it carrie
   record. Push back where the reasoning is thin, especially on omissions.
 - Sign the `## Review` section: `Reviewer:`, `Verdict:` (approved / changes requested / disputed),
   and `Notes:` saying **what you actually checked against the Go source**.
-- If you and the implementer disagree, **write both positions into the ADR and escalate to the
-  human**. Do not quietly settle it, and do not defer to the implementer because they know the code
-  better — the whole point of a second reader is that they are not invested in the first answer.
+- If you and the author disagree, **write both positions into the ADR and escalate to the
+  maintainers**. Do not quietly settle it, and do not defer to the author because they know the
+  code better — the whole point of a second reader is that they are not invested in the first
+  answer.
 
 ### 2.5 Hygiene (non-blocking unless egregious)
 
-Nothing outside `src/adapters/` may import from `src/adapters/`. No `console.log`. No Node built-ins
-or `Buffer` in donatable code. Dependencies limited to `@noble/*` (PORTING.md §7). Comments in English
-outside `src/adapters/`, Portuguese inside it.
+No `console.log`. No Node built-ins or `Buffer` in library code. Runtime dependencies limited to
+`@noble/*` (`PORTING.md` §7). Comments in English. File headers follow `PORTING.md` §9, and code from a
+new third-party origin comes with its licence text in `LICENSES/` and an entry in `NOTICE`. A
+user-visible change has a `CHANGELOG.md` entry.
+
+### 2.6 Web storage drivers (no Go original)
+
+The `ObjectStore` contract, the driver and the memory, IndexedDB and Durable Object backends
+(`PORTING.md` §8) have no Go file to be compared with, so the questions change:
+
+- Does the backend honour every sentence of the contract in `src/storage/objectstore/objectstore.ts`
+  — atomicity per key, durability before a promise resolves, `create` as create-if-absent, `lock`
+  excluding every holder that can reach the data and honouring its `AbortSignal`?
+- Does it run the shared `describeObjectStoreConformance` suite unmodified, in the runtime it
+  targets (real Chromium, workerd), not only against a Node fake?
+- Does the driver stay a faithful port of `storage/posix/files.go` where it can, with every
+  departure explained in an ADR, and does it write what the golden `log_<N>` fixtures say a log
+  contains?
 
 ## 3. Fix what you find
 
-You are not writing a memo. **Fix the defects you find**, then re-run the suite and the typecheck.
+You are not writing a memo. Where you can, **fix the defects you find** — push to the branch if you
+are allowed to, otherwise propose the exact change — then re-run the checks.
 
 Two exceptions, which you escalate instead of fixing:
 
 - A disagreement about a *decision* (an ADR). Write both positions down; the maintainers resolve it.
-- A defect whose fix would change an interface other work packages depend on. Report it clearly with
-  the proposed change so it can be sequenced, rather than breaking someone else's build underneath
-  them.
+- A defect whose fix would change an interface other work depends on (published API, or another
+  pull request in flight). Report it clearly with the proposed change so it can be sequenced,
+  rather than breaking someone else's build underneath them.
 
 ## 4. Your report
 
@@ -100,8 +124,8 @@ State plainly, with real pasted command output:
 1. **Verdict:** approved / changes requested / disputed.
 2. Files reviewed, and for each, whether you read the Go original **in full**.
 3. Defects found, with severity, and for each: fixed by you, or escalated and why.
-4. Test suite result **after** your fixes. Paste the summary line.
-5. Typecheck result after your fixes. Paste the output.
+4. `pnpm test:unit` result **after** any fixes. Paste the summary line.
+5. `pnpm lint` and `pnpm typecheck` results after any fixes. Paste the output.
 6. ADRs signed, and any you disputed.
 7. **Anything you could not verify**, and why.
 

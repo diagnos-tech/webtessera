@@ -90,7 +90,7 @@ that same shape.
   package, it is documented at each declaration, and the alternative was worse.
 - Anyone donating this upstream will see a field name that is not in the Go source. The reason is a
   JavaScript language constraint and is written at the declaration, so it should survive review.
-- Nine sentinels appear on the public surface of `@repo/webtessera/note` that are not on Go's. They
+- Nine sentinels appear on the public surface of `webtessera/note` that are not on Go's. They
   are marked `@internal`; a documentation generator will hide them, a TypeScript compiler will not.
 - Catching `UnknownVerifierError` by `instanceof` means a custom `Verifiers` implementation that
   wraps the error — say, with `wrapError` — will *not* be treated as "unknown key" and will abort

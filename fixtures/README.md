@@ -13,15 +13,25 @@ Two rules, from PORTING.md §5:
 ## Regenerating
 
 ```sh
-cd fixtures/gen && go run ./... -out ../data
-# or, from packages/webtessera:
-bun run fixtures
+pnpm fixtures
 ```
 
-Requires Go (developed against 1.25.5) and the pinned upstream checkout at
-`/home/gg/dev/Maravi/_future/tessera` (commit `4a6d9f9`), which `fixtures/gen/go.mod` points at with
-a `replace` directive. Point that directive at your own checkout of the same commit if your path
-differs.
+That runs `pnpm upstream` first, which clones Tessera into `.upstream/tessera` (gitignored) and checks
+out the pinned commit, and then `go run . -out ../data` inside `fixtures/gen`. The repository URL and
+the commit live in one place, `scripts/upstream.json`; `fixtures/gen/go.mod` points its `replace`
+directive at the same checkout (`../../.upstream/tessera`), and `fixtures/gen/client.go` reads
+upstream's static `testdata/log` from it.
+
+Requirements: Go 1.24 or newer (CI uses 1.24; the committed data was first produced with 1.25.5 and
+regenerates byte-identically under 1.24.7), `git`, and Node >= 20 for the checkout script.
+
+`pnpm upstream` is idempotent: when `.upstream/tessera` is already at the pin it does nothing, and it
+refuses to run over local modifications, because fixtures generated from a patched upstream are not
+evidence of anything. `node scripts/fetch-upstream.mjs --force` discards them.
+
+To move the pin, edit `scripts/upstream.json`, run `pnpm fixtures`, and review the resulting
+`git diff -- fixtures/data` like any other change to the compatibility evidence. A pin bump belongs in
+its own pull request, together with a review of upstream's diff against the port.
 
 Regeneration is **deterministic**: running it twice must leave `fixtures/data/` byte-identical. That
 is the property that makes the fixtures auditable, so it is not negotiable. Concretely, the generator
@@ -38,9 +48,9 @@ generator case cannot leave an orphaned fixture behind.
 You do not have to trust this repository. A reviewer can check the fixtures three ways, in
 increasing order of effort:
 
-1. **Regenerate and diff.** Check out Tessera at `4a6d9f9`, point the `replace` directive at it, run
-   the generator, and confirm `git diff -- fixtures/data` is empty. This proves the committed files
-   are what upstream produces today.
+1. **Regenerate and diff.** Run `pnpm fixtures` and confirm `git status --porcelain fixtures/data` is
+   empty. This proves the committed files are what upstream at the pinned commit produces. CI runs
+   exactly this check on every push.
 
 2. **Cross-check within the corpus.** Several fixtures are produced by *different* upstream code
    paths that must agree, so they check each other:
@@ -101,15 +111,15 @@ data and protect nothing.
 ## Using the fixtures from TypeScript
 
 ```ts
-import { loadFixture, hexToBytes, u64 } from "@/testonly/fixtures";
+import { loadFixture, u64 } from "../../testonly/fixtures.ts";
 
 interface LayoutPaths {
-  readonly tilePath: readonly { level: string; index: string; p: number; want: string }[];
+  readonly tilePath: readonly { tileLevel: string; tileIndex: string; p: number; want: string }[];
 }
 
 const f = await loadFixture<LayoutPaths>("layout_paths");
 for (const tc of f.tilePath) {
-  expect(tilePath(u64(tc.level), u64(tc.index), tc.p)).toBe(tc.want);
+  expect(tilePath(u64(tc.tileLevel), u64(tc.tileIndex), tc.p)).toBe(tc.want);
 }
 ```
 

@@ -59,7 +59,7 @@ These are ours and each needs its own ADR before implementation, arguing that it
 | `storage/indexeddb/` | Level-1 persistence in a tab. | pending |
 | `storage/durableobject/` | Level-1 persistence on the edge. | pending |
 | `storage/s3/` | Level-2 sync to an S3-compatible object store. | pending |
-| `src/adapters/**` | diagnos-specific, explicitly **not** donated (PORTING.md §8). | accepted |
+| Application code outside the library (originally `src/adapters/**`) | Not part of this repository: the library never imports it, and it bolts onto the upstream interfaces from the outside. | accepted |
 
 ## Consequences
 

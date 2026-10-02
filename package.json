@@ -68,7 +68,8 @@
     "test:workers": "vitest run --config vitest.workers.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
-    "fixtures": "cd fixtures/gen && go run . -out ../data",
+    "upstream": "node scripts/fetch-upstream.mjs",
+    "fixtures": "node scripts/fetch-upstream.mjs && cd fixtures/gen && go run . -out ../data",
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "prepack": "pnpm run clean && pnpm run build"
   },

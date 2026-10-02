@@ -8,7 +8,7 @@
 ## Context
 
 `docs/decisions/0044-ct-only-partial-port.md` deferred four declarations in `ct_only.go` as
-`TODO(gustavo):` comments because each needed a file that did not exist yet. Its Consequences
+`TODO(<owner>):` comments because each needed a file that did not exist yet. Its Consequences
 section named the hand-off: "The Wave 3 append-lifecycle contributor inherits four jobs: port the three
 deferred declarations, export `identityHash` from `src/lifecycle.ts`, …". The mission brief for
 this work package explicitly asked for one of those four — `identityHash` — closed out now

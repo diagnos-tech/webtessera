@@ -65,8 +65,8 @@ Following ADR-0051's precedent directly:
   argues against; ADR-0051 rejected the same option for the same reason.
 - **Write to `console.log` instead of klog.** Rejected outright: `PORTING.md`'s Definition of Done
   explicitly forbids `console.log` in this codebase.
-- **Port a minimal event-emitter hook so `src/adapters/` could wire in real observability later.**
-  Rejected as invented API surface upstream does not have; `src/adapters/` can add its own
+- **Port a minimal event-emitter hook so application code could wire in real observability later.**
+  Rejected as invented API surface upstream does not have; application code can add its own
   instrumentation around these functions without this package needing to anticipate it.
 
 ## Review

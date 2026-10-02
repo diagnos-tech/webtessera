@@ -32,7 +32,7 @@ var tracer = otel.Tracer(name)
 ```
 
 `client/otel.go` is **not** one of the five files this work package is scoped to port
-(`docs/notes/ORCHESTRATION.md`'s Wave 2 client row lists `client/{client,fetcher,stream}.go`
+(the original work plan's Wave 2 client row lists `client/{client,fetcher,stream}.go`
 and `internal/{future,fetcher}`, not `client/otel.go`). `PORTING.md` §7 also caps
 donatable-code dependencies at `@noble/hashes` and `@noble/curves`, "and nothing else",
 with the bar for adding anything else being "there is no other way" — a real OpenTelemetry
@@ -97,6 +97,6 @@ simply the original `signal` parameter, used as-is, in the corresponding TypeScr
   that is otherwise the same `ctx`, and `span.SetAttributes`/`span.End` have no effect on returned
   values or control flow. Walked each Go function and confirmed the port carries over the real
   logic with `signal` used exactly where Go re-used the `tracer.Start`-derived `ctx`, so nothing
-  functional was lost with the spans. `client/otel.go` is correctly out of scope per ORCHESTRATION
+  functional was lost with the spans. `client/otel.go` is correctly out of scope per the original work plan's
   Wave 2, and adding an OpenTelemetry-JS dependency would violate PORTING.md §7. Agree tracing is
   purely additive to restore later.

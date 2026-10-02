@@ -140,7 +140,7 @@ triggers it.
 - No change to `src/vendor/merkle/compact/range.ts` (Wave 1, already reviewed) was needed or
   made. This was a hard constraint, not a preference: `VisitFn`'s signature is shared with the
   `client` and `fsck` work packages (both list `compact` as a dependency in
-  `docs/notes/ORCHESTRATION.md`), so changing it here would be exactly the kind of
+  the original work plan), so changing it here would be exactly the kind of
   cross-work-package interface break `docs/REVIEW-PROTOCOL.md` §3 says to escalate rather than do
   unilaterally.
 
