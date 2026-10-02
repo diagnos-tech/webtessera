@@ -26,7 +26,28 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
 
-    "noEmit": true
+    "noEmit": true,
+
+    // Lets tests import the package by its published name, resolved to src/. It mirrors
+    // package.json "exports" (dist/X.js -> src/X.ts), as vitest.config.ts does at runtime.
+    "paths": {
+      "webtessera": ["./src/index.ts"],
+      "webtessera/api": ["./src/api/state.ts"],
+      "webtessera/api/layout": ["./src/api/layout/index.ts"],
+      "webtessera/client": ["./src/client/index.ts"],
+      "webtessera/fsck": ["./src/fsck/index.ts"],
+      "webtessera/ctonly": ["./src/ctonly/ct.ts"],
+      "webtessera/merkle/rfc6962": ["./src/vendor/merkle/rfc6962/rfc6962.ts"],
+      "webtessera/merkle/compact": ["./src/vendor/merkle/compact/index.ts"],
+      "webtessera/merkle/proof": ["./src/vendor/merkle/proof/index.ts"],
+      "webtessera/note": ["./src/vendor/note/note.ts"],
+      "webtessera/formats/log": ["./src/vendor/formats/log/index.ts"],
+      "webtessera/storage/objectstore": ["./src/storage/objectstore/index.ts"],
+      "webtessera/storage/memory": ["./src/storage/memory/index.ts"],
+      "webtessera/storage/indexeddb": ["./src/storage/indexeddb/index.ts"],
+      "webtessera/storage/durableobject": ["./src/storage/durableobject/index.ts"],
+      "webtessera/testonly": ["./src/testonly/index.ts"]
+    }
   },
   "include": ["src"],
   // workerd-only code is checked by tsconfig.workers.json instead.

@@ -55,6 +55,7 @@
     "./storage/memory": "./dist/storage/memory/index.js",
     "./storage/indexeddb": "./dist/storage/indexeddb/index.js",
     "./storage/durableobject": "./dist/storage/durableobject/index.js",
+    "./testonly": "./dist/testonly/index.js",
     "./package.json": "./package.json"
   },
   "scripts": {
