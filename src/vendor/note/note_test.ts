@@ -1,7 +1,7 @@
 // Copyright 2019 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck. All Rights Reserved.
 // Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
 // Ported from golang.org/x/mod/sumdb/note/note_test.go @ v0.31.0
 

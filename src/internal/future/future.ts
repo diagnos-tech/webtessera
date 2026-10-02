@@ -15,11 +15,9 @@
 //
 // Ported from tessera/internal/future/future.go @ 4a6d9f9
 //
-// Port note: this file belongs to the Wave 2 "client" work package per
-// docs/notes/ORCHESTRATION.md, not to this one — but storage/internal/queue.go needs it
-// directly (`future.NewFutureErr[tessera.Index]()`), so it is ported here, in full, ahead
-// of that package's turn. It is self-contained (no dependency on anything Wave-3-only),
-// so there is nothing for the client work package to reconcile beyond importing it.
+// Port note: storage/internal/queue.go needs this package directly
+// (`future.NewFutureErr[tessera.Index]()`), so it is ported here in full. It is
+// self-contained: it imports nothing else from this port.
 // See docs/decisions/0056-future-ported-ahead-of-schedule.md.
 
 /**

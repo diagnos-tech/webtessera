@@ -1,4 +1,12 @@
+// Copyright 2009 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck. All Rights Reserved.
+//
+// This file has mixed provenance. The base64 decoder (BASE64_STD_DECODE_MAP,
+// corruptInputError, fromBase64 and decodeQuantum, each marked below) is a derivative
+// work of Go's standard library package `encoding/base64` and remains subject to the Go
+// project's BSD-style licence, which is reproduced further down and in
+// LICENSES/BSD-3-Clause-Go.txt. Everything else in this file is original to this
+// project and is licensed under the Apache License, Version 2.0:
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,10 +19,43 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// The following terms apply to the portions of this file derived from Go:
+//
+// Copyright 2009 The Go Authors.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//    * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//    * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//    * Neither the name of Google LLC nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Ported from encoding/base64/base64.go (Go standard library) @ Go 1.25.5 (the decoder only)
 
 // This file is not a port of a Tessera file. It stands in for Go's `bytes`,
 // `encoding/hex`, `encoding/base64` and `encoding/binary` packages, which the port
-// uses pervasively and TypeScript does not provide.
+// uses pervasively and TypeScript does not provide. Apart from the base64 decoder, which
+// transcribes Go's, the code here is our own.
 //
 // Everything here is deliberately dependency-free and allocation-conscious: it sits
 // underneath the Merkle layer, which is the hottest code in the package.
@@ -283,12 +324,19 @@ export function toBase64(b: Uint8Array): string {
 	return btoa(binary);
 }
 
+// The base64 decoder below (BASE64_STD_DECODE_MAP, corruptInputError, fromBase64 and
+// decodeQuantum) is derived from Go's `encoding/base64` (Copyright 2009 The Go Authors,
+// BSD-3-Clause; see the file header and LICENSES/BSD-3-Clause-Go.txt). `toBase64` above
+// is not.
 const BASE64_STD_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const PAD_CHAR = 0x3d; // '='
 const CR = 0x0d;
 const LF = 0x0a;
 
-/** BASE64_STD_DECODE_MAP is Go's `Encoding.decodeMap`: 0xff marks a character not in the alphabet. */
+/**
+ * BASE64_STD_DECODE_MAP is Go's `Encoding.decodeMap`: 0xff marks a character not in the
+ * alphabet. Derived from encoding/base64 (`NewEncoding`).
+ */
 const BASE64_STD_DECODE_MAP = ((): Uint8Array => {
 	const m = new Uint8Array(256).fill(0xff);
 	for (let i = 0; i < BASE64_STD_ALPHABET.length; i++) {
@@ -297,13 +345,16 @@ const BASE64_STD_DECODE_MAP = ((): Uint8Array => {
 	return m;
 })();
 
-/** corruptInputError is the port of `base64.CorruptInputError`. */
+/** corruptInputError is the port of `base64.CorruptInputError`. Derived from encoding/base64. */
 function corruptInputError(offset: number): Error {
 	return new Error(`illegal base64 data at input byte ${offset}`);
 }
 
 /**
  * fromBase64 decodes standard base64 with padding (`base64.StdEncoding.DecodeString`).
+ *
+ * Derived from encoding/base64: `Encoding.DecodeString` and the quantum loop of
+ * `Encoding.Decode` (base64.go).
  *
  * Port note: this is a transcription of Go's `Encoding.Decode`/`decodeQuantum` rather
  * than a wrapper around `atob`, for two reasons.
@@ -341,7 +392,10 @@ export function fromBase64(s: string): Uint8Array {
 	return dst.subarray(0, n);
 }
 
-/** decodeQuantum decodes one 4-character group, mirroring Go's `Encoding.decodeQuantum`. */
+/**
+ * decodeQuantum decodes one 4-character group, mirroring Go's `Encoding.decodeQuantum`.
+ * Derived from encoding/base64 (base64.go).
+ */
 function decodeQuantum(dst: Uint8Array, di: number, src: string, si0: number): { si: number; n: number; err?: Error } {
 	// Decode quantum using the base64 alphabet
 	const dbuf = new Uint8Array(4);

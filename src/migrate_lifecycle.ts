@@ -256,8 +256,8 @@ export class MigrationTarget {
  *
  * @internal Go's `awaitFollower` is unexported and has no direct upstream test (there is
  * no migrate_lifecycle_test.go); exported here (ADR-0010's pattern) specifically so
- * `migrate_lifecycle_test.ts` can exercise the follower-catch-up polling loop directly,
- * per this package's mission brief. Not re-exported from `src/index.ts`.
+ * `migrate_lifecycle_test.ts` can exercise the follower-catch-up polling loop directly.
+ * Not re-exported from `src/index.ts`.
  */
 export function awaitFollower(f: Follower, i: bigint, signal: AbortSignal): () => Promise<void> {
 	return async (): Promise<void> => {
@@ -288,7 +288,7 @@ export function awaitFollower(f: Follower, i: bigint, signal: AbortSignal): () =
  * Port note: ported and tested directly even though nothing in this file currently calls
  * it (the printer loop that did is dropped -- this file's own header comment says why):
  * its exact output format may be relied on by tooling that scrapes a real Tessera binary's
- * logs, and this package's mission brief calls it out by name for that reason.
+ * logs, which is why it is kept and pinned by a test.
  */
 export function progress(n: string, p: bigint, total: bigint): string {
 	const pct = Number(p * 100n) / Number(total);
