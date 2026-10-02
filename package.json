@@ -33,6 +33,7 @@
     "dist",
     "!dist/**/*_test.*",
     "LICENSE",
+    "LICENSES",
     "NOTICE",
     "README.md"
   ],
