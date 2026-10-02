@@ -1,0 +1,34 @@
+# Throwaway backing services for `pnpm test:services`: an rqlite node (the SQLite driver's
+# network mode) and an S3-compatible object store (the mirror). CI starts them through
+# action.yml; developers can run the same file:
+#
+#   docker compose --file .github/actions/services/compose.yaml \
+#     --env-file .github/actions/services/services.env up --detach
+#
+# Images are pinned by tag and by digest, so a run today and a run in a year talk to the same
+# bits; Dependabot's docker-compose ecosystem proposes the bumps.
+#
+# The object store is the `pgsty/minio` community fork, not `minio/minio`: when this was
+# written (2026-10-02) minio/minio and minio/mc could no longer be pulled anonymously from
+# Docker Hub. The fork keeps the original image's entrypoint and release tags, so
+# `server /data` is unchanged. To switch back, or to another S3 server, change the image line
+# and nothing else.
+#
+# No container health checks: they would need a client inside every image. action.yml polls
+# both services from the runner instead.
+name: webtessera-test-services
+
+services:
+  rqlite:
+    image: rqlite/rqlite:10.5.1@sha256:dd1b7904befd8ac499d2d5e65833435a42cf77cd2cb292cd9877ec48f42866db
+    ports:
+      - "127.0.0.1:4001:4001"
+
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID, see services.env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY, see services.env}
+    ports:
+      - "127.0.0.1:9000:9000"

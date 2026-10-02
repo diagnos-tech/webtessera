@@ -1,0 +1,55 @@
+# Compatibility with upstream Go Tessera, which is this project's reason to exist: the golden
+# fixtures must be reproducible from the pinned upstream commit, and Go and TypeScript must
+# read each other's logs.
+#
+# Reusable workflow, called by ci.yml.
+name: Compatibility
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  fixtures:
+    name: Fixtures are reproducible
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # `pnpm fixtures` runs a zero-dependency script and then the Go generator, so the
+      # workspace dependencies are not needed.
+      - uses: ./.github/actions/setup
+        with:
+          install: "false"
+      - uses: ./.github/actions/setup-go-upstream
+
+      - name: Regenerate the fixtures from upstream Tessera
+        run: pnpm fixtures
+
+      # `git status` rather than `git diff`, so that added and removed files count too.
+      - name: Fail if the committed fixtures differ
+        run: |
+          if [ -n "$(git status --porcelain -- fixtures/data)" ]; then
+            echo "::error title=Fixtures are not reproducible::fixtures/data differs from what the generator produces at the pinned upstream commit"
+            git status --porcelain -- fixtures/data
+            git --no-pager diff --stat -- fixtures/data
+            exit 1
+          fi
+
+  # Bidirectional: Go reads what TypeScript wrote and TypeScript reads what Go wrote.
+  interop:
+    name: Go and TypeScript interoperate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup-go-upstream
+      - run: pnpm build
+      - run: pnpm interop

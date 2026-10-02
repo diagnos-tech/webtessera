@@ -1,0 +1,35 @@
+# Installs the Chromium that Playwright drives (browser tests and the site smoke test).
+#
+# Browsers are cached by Playwright version, because that version decides which Chromium
+# build is downloaded. The system libraries are not part of the cache, so they are installed on
+# every run (`install-deps` is an apt call); only the browser download is skipped.
+#
+# Requires dependencies to be installed already (`./.github/actions/setup`), since the pinned
+# Playwright CLI comes from node_modules.
+name: Set up browsers
+description: Install Playwright's Chromium and its system libraries, with the browser download cached.
+
+runs:
+  using: composite
+  steps:
+    - name: Read the Playwright version
+      id: playwright
+      shell: bash
+      run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Chromium
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}-chromium
+
+    - name: Install Chromium and system libraries
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm exec playwright install --with-deps chromium
+
+    - name: Install system libraries for the cached Chromium
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: pnpm exec playwright install-deps chromium
