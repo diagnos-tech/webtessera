@@ -1,0 +1,1127 @@
+{
+  "description": "sumdb/note: key encoding, key hashing, signing and opening, including every rejection upstream performs.",
+  "upstream": "golang.org/x/mod/sumdb/note",
+  "commit": "4a6d9f9",
+  "keys": [
+    {
+      "name": "webtessera.fixture.log",
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+dc00151b+AcwDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "vkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "keyHash": "3690992923",
+      "keyHashHex": "dc00151b",
+      "publicKey": "478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "algPublicKey": "01478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "seed": "cc034a3b425a1b1cef1347458b9f4dea8aebf380ef719a1ff182c324f5c6cbcf"
+    },
+    {
+      "name": "webtessera.fixture.log",
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+0b346a02+AatB/ryTC6yx/z9mfSFOpckaIj8rtUCMq5fJQCkqKqcS",
+      "vkey": "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA",
+      "keyHash": "187984386",
+      "keyHashHex": "0b346a02",
+      "publicKey": "225eaa012ffdc9db6a99017390ba4db7b84db604b03e75e1757e5fef6baaa0c0",
+      "algPublicKey": "01225eaa012ffdc9db6a99017390ba4db7b84db604b03e75e1757e5fef6baaa0c0",
+      "seed": "ab41febc930bacb1ff3f667d214ea5c91a223f2bb5408cab97c940292a2aa712"
+    },
+    {
+      "name": "webtessera.fixture.witness",
+      "skey": "PRIVATE+KEY+webtessera.fixture.witness+18f977d3+AWJLz5U03Pi3k4VdC8bTygn0Fp9s0JwfaD4tvnYM4ClS",
+      "vkey": "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2",
+      "keyHash": "419002323",
+      "keyHashHex": "18f977d3",
+      "publicKey": "67c82489fcfc8280c2a9222c269320fe99f030a46b955b4724137b0cb59c89f6",
+      "algPublicKey": "0167c82489fcfc8280c2a9222c269320fe99f030a46b955b4724137b0cb59c89f6",
+      "seed": "624bcf9534dcf8b793855d0bc6d3ca09f4169f6cd09c1f683e2dbe760ce02952"
+    },
+    {
+      "name": "webtessera.fixture.second",
+      "skey": "PRIVATE+KEY+webtessera.fixture.second+cb63cb3e+AacD49pY1MTETLoyc+lMyXbDyMyM44R4ayC4JTt5z+qM",
+      "vkey": "webtessera.fixture.second+cb63cb3e+AVUZuaiqKiGx0bQJhXhgv1V9wwvWtD/Q9zQIjrlHGqoM",
+      "keyHash": "3412314942",
+      "keyHashHex": "cb63cb3e",
+      "publicKey": "5519b9a8aa2a21b1d1b409857860bf557dc30bd6b43fd0f734088eb9471aaa0c",
+      "algPublicKey": "015519b9a8aa2a21b1d1b409857860bf557dc30bd6b43fd0f734088eb9471aaa0c",
+      "seed": "a703e3da58d4c4c44cba3273e94cc976c3c8cc8ce384786b20b8253b79cfea8c"
+    }
+  ],
+  "algEd25519": 1,
+  "sigSplit": "0a0a",
+  "sigPrefix": "e2809420",
+  "maxSignatures": 100,
+  "keyHash": [
+    {
+      "name": "webtessera.fixture.log",
+      "key": "01478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "want": "3690992923",
+      "hex": "dc00151b"
+    },
+    {
+      "name": "webtessera.fixture.log",
+      "key": "01225eaa012ffdc9db6a99017390ba4db7b84db604b03e75e1757e5fef6baaa0c0",
+      "want": "187984386",
+      "hex": "0b346a02"
+    },
+    {
+      "name": "webtessera.fixture.witness",
+      "key": "0167c82489fcfc8280c2a9222c269320fe99f030a46b955b4724137b0cb59c89f6",
+      "want": "419002323",
+      "hex": "18f977d3"
+    },
+    {
+      "name": "webtessera.fixture.second",
+      "key": "015519b9a8aa2a21b1d1b409857860bf557dc30bd6b43fd0f734088eb9471aaa0c",
+      "want": "3412314942",
+      "hex": "cb63cb3e"
+    }
+  ],
+  "newEd25519VerifierKey": [
+    {
+      "name": "webtessera.fixture.log",
+      "publicKey": "478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "want": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "webtessera.fixture.log",
+      "publicKey": "225eaa012ffdc9db6a99017390ba4db7b84db604b03e75e1757e5fef6baaa0c0",
+      "want": "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "webtessera.fixture.witness",
+      "publicKey": "67c82489fcfc8280c2a9222c269320fe99f030a46b955b4724137b0cb59c89f6",
+      "want": "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "webtessera.fixture.second",
+      "publicKey": "5519b9a8aa2a21b1d1b409857860bf557dc30bd6b43fd0f734088eb9471aaa0c",
+      "want": "webtessera.fixture.second+cb63cb3e+AVUZuaiqKiGx0bQJhXhgv1V9wwvWtD/Q9zQIjrlHGqoM",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "a",
+      "publicKey": "478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "want": "a+1ec07d7e+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "example.com/log",
+      "publicKey": "478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "want": "example.com/log+8543cad1+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "log+",
+      "publicKey": "478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "want": "log++469d6061+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "unicode.log.ünïcodé",
+      "publicKey": "478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "want": "unicode.log.ünïcodé+ecc7f200+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "publicKey": "478818a9762b140d90868a418a198994f731b2fcfc6077437628ddf4f0015dbe",
+      "want": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx+e5111f12+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "name": "short-key",
+      "publicKey": "0102",
+      "want": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid public key size 2, expected 32"
+    },
+    {
+      "name": "empty-key",
+      "publicKey": "",
+      "want": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid public key size 0, expected 32"
+    },
+    {
+      "name": "33-byte-key",
+      "publicKey": "ababababababababababababababababababababababababababababababababab",
+      "want": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid public key size 33, expected 32"
+    }
+  ],
+  "newVerifier": [
+    {
+      "vkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "webtessera.fixture.log",
+      "wantHash": "3690992923",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "vkey": "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA",
+      "wantName": "webtessera.fixture.log",
+      "wantHash": "187984386",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "vkey": "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2",
+      "wantName": "webtessera.fixture.witness",
+      "wantHash": "419002323",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "vkey": "webtessera.fixture.second+cb63cb3e+AVUZuaiqKiGx0bQJhXhgv1V9wwvWtD/Q9zQIjrlHGqoM",
+      "wantName": "webtessera.fixture.second",
+      "wantHash": "3412314942",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "vkey": "",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "nohash",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "name+dc00151b",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "na me+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "webtessera.fixture.log+dc0015+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "webtessera.fixture.log+dc00151b1+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "webtessera.fixture.log+zzzzzzzz+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "webtessera.fixture.log+00000000+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "invalid verifier hash"
+    },
+    {
+      "vkey": "webtessera.fixture.log+dc00151b+not-base64!!",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "webtessera.fixture.log+dc00151b+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "vkey": "webtessera.fixture.log+dc00151b+AkeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "invalid verifier hash"
+    },
+    {
+      "vkey": "other.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "invalid verifier hash"
+    },
+    {
+      "vkey": "webtessera.fixture.unknownalg+1d950fd6+AkeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "unknown verifier algorithm"
+    },
+    {
+      "vkey": "webtessera.fixture.shortkey+183cea33+Ac3Nzc3Nzc3Nzc3Nzc3Nzc0=",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    }
+  ],
+  "newSigner": [
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+dc00151b+AcwDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "wantName": "webtessera.fixture.log",
+      "wantHash": "3690992923",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+0b346a02+AatB/ryTC6yx/z9mfSFOpckaIj8rtUCMq5fJQCkqKqcS",
+      "wantName": "webtessera.fixture.log",
+      "wantHash": "187984386",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.witness+18f977d3+AWJLz5U03Pi3k4VdC8bTygn0Fp9s0JwfaD4tvnYM4ClS",
+      "wantName": "webtessera.fixture.witness",
+      "wantHash": "419002323",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.second+cb63cb3e+AacD49pY1MTETLoyc+lMyXbDyMyM44R4ayC4JTt5z+qM",
+      "wantName": "webtessera.fixture.second",
+      "wantHash": "3412314942",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "skey": "",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "PRIVATE+KEY",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "PUBLIC+KEY+webtessera.fixture.log+dc00151b+AcwDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "PRIVATE+NOTKEY+webtessera.fixture.log+dc00151b+AcwDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+00000000+AcwDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "invalid verifier hash"
+    },
+    {
+      "skey": "PRIVATE+KEY++dc00151b+AcwDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+dc00151b+not-base64!!",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+dc0015+AcwDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+dc00151b+AswDSjtCWhsc7xNHRYufTeqK6/OA73GaH/GCwyT1xsvP",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "unknown verifier algorithm"
+    },
+    {
+      "skey": "PRIVATE+KEY+webtessera.fixture.log+dc00151b+AQID",
+      "wantName": "",
+      "wantHash": "0",
+      "wantErr": true,
+      "wantErrMsg": "malformed verifier id"
+    }
+  ],
+  "sign": [
+    {
+      "desc": "single signer",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "two signers, same name different keys",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA"
+      ],
+      "existingSigs": [],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n— webtessera.fixture.log CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "log plus witness",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "existingSigs": [],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n— webtessera.fixture.witness GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "three signers",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA",
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "existingSigs": [],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n— webtessera.fixture.log CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU=\n— webtessera.fixture.witness GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "newline-only text",
+      "text": "\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [],
+      "want": "0a0ae2809420776562746573736572612e666978747572652e6c6f6720334141564732796139612f5641737a63723644313255364775767a746c37383758494f5446614f32477757564e374a3976594b464b385a55303049495a45484e457a6a696545335377587749304573783478796955637a6c4a77413d0a",
+      "wantText": "\n\n— webtessera.fixture.log 3AAVG2ya9a/VAszcr6D12U6Guvztl787XIOTFaO2GwWVN7J9vYKFK8ZU00IIZEHNEzjieE3SwXwI0Esx4xyiUczlJwA=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "checkpoint with trailing other data",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\nextra data line\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a65787472612064617461206c696e650a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647306b42586e5033683571704c632f797476756d6f586d554c57583939534a774d4856724e6c41695a32757554633643626b316176434d783249422f2b646866692f766959312f4e6e6157574e5946443338445a4877633d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\nextra data line\n\n— webtessera.fixture.log 3AAVG0kBXnP3h5qpLc/ytvumoXmULWX99SJwMHVrNlAiZ2uuTc6Cbk1avCMx2IB/+dhfi/viY1/NnaWWNYFD38DZHwc=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "text with trailing blank line",
+      "text": "hello\n\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [],
+      "want": "68656c6c6f0a0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334d6636683862514872794756784674464f416232433068484538484d3579517048394359557a526349642b6343704b6a61336776645049314b3934362b476465496f644a374678426c72322f6b6b47462b726351383d0a",
+      "wantText": "hello\n\n\n— webtessera.fixture.log 3AAVG3Mf6h8bQHryGVxFtFOAb2C0hHE8HM5yQpH9CYUzRcId+cCpKja3gvdPI1K946+GdeIodJ7FxBlr2/kkGF+rcQ8=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "unicode text",
+      "text": "unicode ünïcodé — em dash\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [],
+      "want": "756e69636f646520c3bc6ec3af636f64c3a920e2809420656d20646173680a0ae2809420776562746573736572612e666978747572652e6c6f6720334141564738444876454b787a77553554713033436771706f58576852326d5551316d362b4c7947777a484a664a396d6d734562674542625a4973464e4b584d457858424e5a386248633269775845326c4b7268574743415677343d0a",
+      "wantText": "unicode ünïcodé — em dash\n\n— webtessera.fixture.log 3AAVG8DHvEKxzwU5Tq03CgqpoXWhR2mUQ1m6+LyGwzHJfJ9mmsEbgEBbZIsFNKXMExXBNZ8bHc2iwXE2lKrhWGCAVw4=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "no signers",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [],
+      "existingSigs": [],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "text without trailing newline",
+      "text": "no newline",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [],
+      "want": "",
+      "wantText": "",
+      "wantErr": true,
+      "wantErrMsg": "malformed note"
+    },
+    {
+      "desc": "empty text",
+      "text": "",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [],
+      "want": "",
+      "wantText": "",
+      "wantErr": true,
+      "wantErrMsg": "malformed note"
+    },
+    {
+      "desc": "preserve existing signature",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "existingSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n— webtessera.fixture.witness GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "replace existing signature",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "existingSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "preserve two, replace one",
+      "text": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "signers": [
+        "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA"
+      ],
+      "existingSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        },
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "187984386",
+          "base64": "CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU="
+        },
+        {
+          "name": "webtessera.fixture.witness",
+          "hash": "419002323",
+          "base64": "GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI="
+        }
+      ],
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n— webtessera.fixture.witness GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI=\n— webtessera.fixture.log CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU=\n",
+      "wantErr": false,
+      "wantErrMsg": ""
+    }
+  ],
+  "open": [
+    {
+      "desc": "single signature, known verifier",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantUnverifiedSigs": [],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "single signature, no verifiers",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": true,
+      "wantErrMsg": "note has no verifiable signatures",
+      "wantErrKind": "UnverifiedNoteError"
+    },
+    {
+      "desc": "single signature, unrelated verifier",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": true,
+      "wantErrMsg": "note has no verifiable signatures",
+      "wantErrKind": "UnverifiedNoteError"
+    },
+    {
+      "desc": "two signatures, both known",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        },
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "187984386",
+          "base64": "CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU="
+        }
+      ],
+      "wantUnverifiedSigs": [],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "two signatures, one known",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantUnverifiedSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "187984386",
+          "base64": "CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "log plus witness, both known",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        },
+        {
+          "name": "webtessera.fixture.witness",
+          "hash": "419002323",
+          "base64": "GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI="
+        }
+      ],
+      "wantUnverifiedSigs": [],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "log plus witness, only witness known",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "verifiers": [
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.witness",
+          "hash": "419002323",
+          "base64": "GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI="
+        }
+      ],
+      "wantUnverifiedSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "three signatures, all known",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA",
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        },
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "187984386",
+          "base64": "CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU="
+        },
+        {
+          "name": "webtessera.fixture.witness",
+          "hash": "419002323",
+          "base64": "GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI="
+        }
+      ],
+      "wantUnverifiedSigs": [],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "three signatures, none known",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "verifiers": [
+        "webtessera.fixture.second+cb63cb3e+AVUZuaiqKiGx0bQJhXhgv1V9wwvWtD/Q9zQIjrlHGqoM"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        },
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "187984386",
+          "base64": "CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU="
+        },
+        {
+          "name": "webtessera.fixture.witness",
+          "hash": "419002323",
+          "base64": "GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI="
+        }
+      ],
+      "wantErr": true,
+      "wantErrMsg": "note has no verifiable signatures",
+      "wantErrKind": "UnverifiedNoteError"
+    },
+    {
+      "desc": "ambiguous verifier list",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "ambiguous key webtessera.fixture.log+dc00151b",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "duplicate signature lines",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantUnverifiedSigs": [],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "100 identical signature lines",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantUnverifiedSigs": [],
+      "wantErr": false,
+      "wantErrMsg": "",
+      "wantErrKind": ""
+    },
+    {
+      "desc": "101 identical signature lines",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "empty message",
+      "msg": "",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "text only, no signature block",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "no blank line before sigs",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature block not newline terminated",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature line missing the em-dash prefix",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0a776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature line with ascii dash",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0a2d20776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature line with em-dash but no space",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae28094776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature base64 corrupted",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517841424344396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "invalid signature for key webtessera.fixture.log+dc00151b",
+      "wantErrKind": "InvalidSignatureError"
+    },
+    {
+      "desc": "signature truncated below 5 bytes",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647773d3d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature bytes flipped",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334b6d712b7875724757434b5a76754164447859576351537a4c31496b6356757761666f536a79516862612f5235706d64436b4e4b69366358466f304a74487265634a6f412b7a436345614a7a3441484e526733516f3d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "invalid signature for key webtessera.fixture.log+dc00151b",
+      "wantErrKind": "InvalidSignatureError"
+    },
+    {
+      "desc": "text mutated after signing",
+      "msg": "776562746573736572612e666978747572652e6c6f670a390a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "invalid signature for key webtessera.fixture.log+dc00151b",
+      "wantErrKind": "InvalidSignatureError"
+    },
+    {
+      "desc": "ascii control character in text",
+      "msg": "776562746573736572612e666978747572652e6c6f67090a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "invalid utf8 in text",
+      "msg": "77656274806573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature name contains a space",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae28094207765627465737365726120666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature name contains a plus",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612b666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "signature name empty",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "empty base64 signature",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67200a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "malformed note",
+      "wantErrKind": "error"
+    },
+    {
+      "desc": "key hash prefix does not match verifier",
+      "msg": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67204977415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "verifiers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n",
+      "wantSigs": [],
+      "wantUnverifiedSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "587207963",
+          "base64": "IwAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": true,
+      "wantErrMsg": "note has no verifiable signatures",
+      "wantErrKind": "UnverifiedNoteError"
+    }
+  ]
+}

@@ -1,0 +1,651 @@
+{
+  "description": "formats/log Checkpoint: marshalling, parsing, and signature-verified parsing.",
+  "upstream": "github.com/transparency-dev/formats/log",
+  "commit": "4a6d9f9",
+  "marshal": [
+    {
+      "desc": "empty log",
+      "origin": "webtessera.fixture.log",
+      "size": "0",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "want": "776562746573736572612e666978747572652e6c6f670a300a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantText": "webtessera.fixture.log\n0\n47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=\n"
+    },
+    {
+      "desc": "size 1",
+      "origin": "webtessera.fixture.log",
+      "size": "1",
+      "hash": "40766b2033429026f53d54502679a839706b4741f8dcaf3a8bba5f41b5ffe075",
+      "want": "776562746573736572612e666978747572652e6c6f670a310a51485a7249444e436b436231505652514a6e6d6f4f58427252304834334b3836693770665162582f3448553d0a",
+      "wantText": "webtessera.fixture.log\n1\nQHZrIDNCkCb1PVRQJnmoOXBrR0H43K86i7pfQbX/4HU=\n"
+    },
+    {
+      "desc": "size 2",
+      "origin": "webtessera.fixture.log",
+      "size": "2",
+      "hash": "2f27a5082c1d42afa488ac350a9fc4390c084f54f71ecdff859e98db8429b479",
+      "want": "776562746573736572612e666978747572652e6c6f670a320a4c79656c4343776451712b6b694b773143702f454f517749543154334873332f685a36593234517074486b3d0a",
+      "wantText": "webtessera.fixture.log\n2\nLyelCCwdQq+kiKw1Cp/EOQwIT1T3Hs3/hZ6Y24QptHk=\n"
+    },
+    {
+      "desc": "size 8",
+      "origin": "webtessera.fixture.log",
+      "size": "8",
+      "hash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n"
+    },
+    {
+      "desc": "size 255",
+      "origin": "webtessera.fixture.log",
+      "size": "255",
+      "hash": "45da9f374748e17a372f71c00422b12e2bf96842f1f61c5740fe494e4becff0f",
+      "want": "776562746573736572612e666978747572652e6c6f670a3235350a526471664e30644934586f334c33484142434b784c69763561454c78396878585150354a546b76732f77383d0a",
+      "wantText": "webtessera.fixture.log\n255\nRdqfN0dI4Xo3L3HABCKxLiv5aELx9hxXQP5JTkvs/w8=\n"
+    },
+    {
+      "desc": "size 256",
+      "origin": "webtessera.fixture.log",
+      "size": "256",
+      "hash": "f85f4ead34080710b4d1e808301543aaab81aa04deb88599350dc26a4f2f58de",
+      "want": "776562746573736572612e666978747572652e6c6f670a3235360a2b46394f7254514942784330306567494d42564471717542716754657549575a4e513343616b3876574e343d0a",
+      "wantText": "webtessera.fixture.log\n256\n+F9OrTQIBxC00egIMBVDqquBqgTeuIWZNQ3Cak8vWN4=\n"
+    },
+    {
+      "desc": "size 257",
+      "origin": "webtessera.fixture.log",
+      "size": "257",
+      "hash": "918b1cec64f317c76e3cf55c0536841c039eff06772ebb8828ce7c176028b5ac",
+      "want": "776562746573736572612e666978747572652e6c6f670a3235370a6b5973633747547a46386475505056634254614548414f652f775a334c7275494b4d35384632416f7461773d0a",
+      "wantText": "webtessera.fixture.log\n257\nkYsc7GTzF8duPPVcBTaEHAOe/wZ3LruIKM58F2Aotaw=\n"
+    },
+    {
+      "desc": "nil hash",
+      "origin": "webtessera.fixture.log",
+      "size": "3",
+      "hash": "",
+      "want": "776562746573736572612e666978747572652e6c6f670a330a0a",
+      "wantText": "webtessera.fixture.log\n3\n\n"
+    },
+    {
+      "desc": "empty hash",
+      "origin": "webtessera.fixture.log",
+      "size": "3",
+      "hash": "",
+      "want": "776562746573736572612e666978747572652e6c6f670a330a0a",
+      "wantText": "webtessera.fixture.log\n3\n\n"
+    },
+    {
+      "desc": "short hash",
+      "origin": "webtessera.fixture.log",
+      "size": "3",
+      "hash": "010203",
+      "want": "776562746573736572612e666978747572652e6c6f670a330a415149440a",
+      "wantText": "webtessera.fixture.log\n3\nAQID\n"
+    },
+    {
+      "desc": "max uint64 size",
+      "origin": "webtessera.fixture.log",
+      "size": "18446744073709551615",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "want": "776562746573736572612e666978747572652e6c6f670a31383434363734343037333730393535313631350a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantText": "webtessera.fixture.log\n18446744073709551615\n47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=\n"
+    },
+    {
+      "desc": "origin with slash",
+      "origin": "example.com/log",
+      "size": "4",
+      "hash": "256b9e8825e5d370a4ae005d0901ea291977e2927f5cf8e3e72660dd09519edb",
+      "want": "6578616d706c652e636f6d2f6c6f670a340a4a5775656943586c3033436b72674264435148714b526c3334704a2f58506a6a35795a6733516c526e74733d0a",
+      "wantText": "example.com/log\n4\nJWueiCXl03CkrgBdCQHqKRl34pJ/XPjj5yZg3QlRnts=\n"
+    },
+    {
+      "desc": "origin with unicode",
+      "origin": "ünïcodé.log",
+      "size": "4",
+      "hash": "256b9e8825e5d370a4ae005d0901ea291977e2927f5cf8e3e72660dd09519edb",
+      "want": "c3bc6ec3af636f64c3a92e6c6f670a340a4a5775656943586c3033436b72674264435148714b526c3334704a2f58506a6a35795a6733516c526e74733d0a",
+      "wantText": "ünïcodé.log\n4\nJWueiCXl03CkrgBdCQHqKRl34pJ/XPjj5yZg3QlRnts=\n"
+    },
+    {
+      "desc": "empty origin",
+      "origin": "",
+      "size": "4",
+      "hash": "256b9e8825e5d370a4ae005d0901ea291977e2927f5cf8e3e72660dd09519edb",
+      "want": "0a340a4a5775656943586c3033436b72674264435148714b526c3334704a2f58506a6a35795a6733516c526e74733d0a",
+      "wantText": "\n4\nJWueiCXl03CkrgBdCQHqKRl34pJ/XPjj5yZg3QlRnts=\n"
+    }
+  ],
+  "unmarshal": [
+    {
+      "desc": "round trip size 8",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a",
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantRest": "",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "round trip empty log",
+      "raw": "776562746573736572612e666978747572652e6c6f670a300a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "0",
+      "wantHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "wantRest": "",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "with trailing other data",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a736f6d65206f7468657220646174610a",
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantRest": "736f6d65206f7468657220646174610a",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "with trailing data lacking newline",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a6e6f206e65776c696e65",
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantRest": "6e6f206e65776c696e65",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "max uint64 size",
+      "raw": "776562746573736572612e666978747572652e6c6f670a31383434363734343037333730393535313631350a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "18446744073709551615",
+      "wantHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "wantRest": "",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "empty input",
+      "raw": "",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - too few newlines"
+    },
+    {
+      "desc": "only origin",
+      "raw": "776562746573736572612e666978747572652e6c6f670a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - too few newlines"
+    },
+    {
+      "desc": "two lines only",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - too few newlines"
+    },
+    {
+      "desc": "three lines, no trailing newline",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a61616161",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - too few newlines"
+    },
+    {
+      "desc": "empty origin",
+      "raw": "0a380a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - empty origin"
+    },
+    {
+      "desc": "size not a number",
+      "raw": "776562746573736572612e666978747572652e6c6f670a6162630a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - size invalid: strconv.ParseUint: parsing \"abc\": invalid syntax"
+    },
+    {
+      "desc": "size negative",
+      "raw": "776562746573736572612e666978747572652e6c6f670a2d310a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - size invalid: strconv.ParseUint: parsing \"-1\": invalid syntax"
+    },
+    {
+      "desc": "size overflows uint64",
+      "raw": "776562746573736572612e666978747572652e6c6f670a31383434363734343037333730393535313631360a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - size invalid: strconv.ParseUint: parsing \"18446744073709551616\": value out of range"
+    },
+    {
+      "desc": "size with leading plus",
+      "raw": "776562746573736572612e666978747572652e6c6f670a2b380a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - size invalid: strconv.ParseUint: parsing \"+8\": invalid syntax"
+    },
+    {
+      "desc": "size empty",
+      "raw": "776562746573736572612e666978747572652e6c6f670a0a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - size invalid: strconv.ParseUint: parsing \"\": invalid syntax"
+    },
+    {
+      "desc": "hash not base64",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a6e6f742062617365363421210a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - invalid hash: illegal base64 data at input byte 3"
+    },
+    {
+      "desc": "hash empty",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a0a",
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "hash base64url instead of std",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a356479616561634757616d74565a79334164375a6f717564752d4f71306b6c677a5f4e77370a",
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantRest": "",
+      "wantErr": true,
+      "wantErrMsg": "invalid checkpoint - invalid hash: illegal base64 data at input byte 25"
+    }
+  ],
+  "signed": [
+    {
+      "desc": "empty log, log signature",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "origin": "webtessera.fixture.log",
+      "size": "0",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "want": "776562746573736572612e666978747572652e6c6f670a300a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647796d61546a4a51626f34396b646238312b6750627a436f316a5857737137654938397a5a447359417367766568555659325562562b696e72345565612f6e587236494f6e342f2b4b6161437061394f6e33434c5741673d0a",
+      "wantText": "webtessera.fixture.log\n0\n47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=\n\n— webtessera.fixture.log 3AAVGymaTjJQbo49kdb81+gPbzCo1jXWsq7eI89zZDsYAsgvehUVY2UbV+inr4Uea/nXr6IOn4/+KaaCpa9On3CLWAg=\n"
+    },
+    {
+      "desc": "size 8, log signature",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "origin": "webtessera.fixture.log",
+      "size": "8",
+      "hash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n"
+    },
+    {
+      "desc": "size 8, two log keys",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA"
+      ],
+      "origin": "webtessera.fixture.log",
+      "size": "8",
+      "hash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n— webtessera.fixture.log CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU=\n"
+    },
+    {
+      "desc": "size 8, log and witness",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "origin": "webtessera.fixture.log",
+      "size": "8",
+      "hash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.log 3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As=\n— webtessera.fixture.witness GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI=\n"
+    },
+    {
+      "desc": "size 256, log signature",
+      "signers": [
+        "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+"
+      ],
+      "origin": "webtessera.fixture.log",
+      "size": "256",
+      "hash": "f85f4ead34080710b4d1e808301543aaab81aa04deb88599350dc26a4f2f58de",
+      "want": "776562746573736572612e666978747572652e6c6f670a3235360a2b46394f7254514942784330306567494d42564471717542716754657549575a4e513343616b3876574e343d0a0ae2809420776562746573736572612e666978747572652e6c6f6720334141564736464b596d5657577357767a716476452f536c6a5434527978525937666e66796b65576666306365647165516b6553614a6f567132716969596d7464317368626f787471676c796e752f634f7a5335466367545641553d0a",
+      "wantText": "webtessera.fixture.log\n256\n+F9OrTQIBxC00egIMBVDqquBqgTeuIWZNQ3Cak8vWN4=\n\n— webtessera.fixture.log 3AAVG6FKYmVWWsWvzqdvE/SljT4RyxRY7fnfykeWff0cedqeQkeSaJoVq2qiiYmtd1shboxtqglynu/cOzS5FcgTVAU=\n"
+    },
+    {
+      "desc": "size 8, witness signature only",
+      "signers": [
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "origin": "webtessera.fixture.log",
+      "size": "8",
+      "hash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "want": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "wantText": "webtessera.fixture.log\n8\n38wTubDKkyxo3j1Z6qqP4mapyAkcAwDoQF6/6w0OWDI=\n\n— webtessera.fixture.witness GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI=\n"
+    }
+  ],
+  "parseCheckpoint": [
+    {
+      "desc": "empty log",
+      "raw": "776562746573736572612e666978747572652e6c6f670a300a3437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647796d61546a4a51626f34396b646238312b6750627a436f316a5857737137654938397a5a447359417367766568555659325562562b696e72345565612f6e587236494f6e342f2b4b6161437061394f6e33434c5741673d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "0",
+      "wantHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVGymaTjJQbo49kdb81+gPbzCo1jXWsq7eI89zZDsYAsgvehUVY2UbV+inr4Uea/nXr6IOn4/+KaaCpa9On3CLWAg="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "size 8",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "size 8, two log keys, both supplied",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [
+        "webtessera.fixture.log+0b346a02+ASJeqgEv/cnbapkBc5C6Tbe4TbYEsD514XV+X+9rqqDA"
+      ],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        },
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "187984386",
+          "base64": "CzRqAuJUjdYQPy7AYcAGVrAwsTjbVl1C1B1+Vg1vVDIz7FoRhhjoG9QhMGRa8Woaz+BAeT6ktWIJ/e163TTc21CXxQU="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "size 8, two log keys, only primary supplied",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e6c6f6720437a527141754a556a64595150793741596341475672417773546a62566c31433142312b566731765644497a37466f5268686a6f473951684d47526138576f617a2b42416554366b7457494a2f65313633545463323143587851553d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "size 8, log and witness, both supplied",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        },
+        {
+          "name": "webtessera.fixture.witness",
+          "hash": "419002323",
+          "base64": "GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "size 8, log and witness, only log supplied",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "size 256",
+      "raw": "776562746573736572612e666978747572652e6c6f670a3235360a2b46394f7254514942784330306567494d42564471717542716754657549575a4e513343616b3876574e343d0a0ae2809420776562746573736572612e666978747572652e6c6f6720334141564736464b596d5657577357767a716476452f536c6a5434527978525937666e66796b65576666306365647165516b6553614a6f567132716969596d7464317368626f787471676c796e752f634f7a5335466367545641553d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "256",
+      "wantHash": "f85f4ead34080710b4d1e808301543aaab81aa04deb88599350dc26a4f2f58de",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG6FKYmVWWsWvzqdvE/SljT4RyxRY7fnfykeWff0cedqeQkeSaJoVq2qiiYmtd1shboxtqglynu/cOzS5FcgTVAU="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "with trailing other data",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0a65787472610a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647325569624c63456c4d6f573231644c42672b5a732b74495954662f767565684737752b3762374a532b555279367155522b37525052737832734559344f73544165367163467a46616c53594b56725263366f475377673d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "webtessera.fixture.log",
+      "wantSize": "8",
+      "wantHash": "dfcc13b9b0ca932c68de3d59eaaa8fe266a9c8091c0300e8405ebfeb0d0e5832",
+      "wantOtherData": "0a65787472610a",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG2UibLcElMoW21dLBg+Zs+tIYTf/vuehG7u+7b7JS+URy6qUR+7RPRsx2sEY4OsTAe6qcFzFalSYKVrRc6oGSwg="
+        }
+      ],
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "desc": "wrong origin demanded",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334f6e71753176725753444b4a7276414e487759475952536a503049305955756765656f436e7a517866622f42396f6d4e476c4e616d3763484270305a7047724f59496f513679434d41624a6a3842486456683341733d0a",
+      "origin": "some.other.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG3Onqu1vrWSDKJrvANHwYGYRSjP0I0YUugeeoCnzQxfb/B9omNGlNam7cHBp0ZpGrOYIoQ6yCMAbJj8BHdVh3As="
+        }
+      ],
+      "wantErr": true,
+      "wantErrMsg": "got Origin \"webtessera.fixture.log\" but expected \"some.other.log\""
+    },
+    {
+      "desc": "witness signature only",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e7769746e6573732047506c3330314a754b71386a6e37325576337775654f684c7258546a532f61324857487651522b6d36726c2f655a45735648707775794d43517a705235774b6437694a6e4241623546546f594b6f3642673875316a3637596767493d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [
+        "webtessera.fixture.witness+18f977d3+AWfIJIn8/IKAwqkiLCaTIP6Z8DCka5VbRyQTewy1nIn2"
+      ],
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.witness",
+          "hash": "419002323",
+          "base64": "GPl301JuKq8jn72Uv3wueOhLrXTjS/a2HWHvQR+m6rl/eZEsVHpwuyMCQzpR5wKd7iJnBAb5FToYKo6Bg8u1j67YggI="
+        }
+      ],
+      "wantErr": true,
+      "wantErrMsg": "no log signature found on note"
+    },
+    {
+      "desc": "unsigned checkpoint body",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantOtherData": "",
+      "wantSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "failed to verify signatures on checkpoint: malformed note"
+    },
+    {
+      "desc": "empty input",
+      "raw": "",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantOtherData": "",
+      "wantSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "failed to verify signatures on checkpoint: malformed note"
+    },
+    {
+      "desc": "signature does not verify",
+      "raw": "776562746573736572612e666978747572652e6c6f670a380a333877547562444b6b79786f336a315a36717150346d617079416b634177446f5146362f3677304f5744493d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647334b6d712b7875724757434b5a76754164447859576351537a4c31496b6356757761666f536a79516862612f5235706d64436b4e4b69366358466f304a74487265634a6f412b7a436345614a7a3441484e526733516f3d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantOtherData": "",
+      "wantSigs": [],
+      "wantErr": true,
+      "wantErrMsg": "failed to verify signatures on checkpoint: invalid signature for key webtessera.fixture.log+dc00151b"
+    },
+    {
+      "desc": "body is not a checkpoint",
+      "raw": "68656c6c6f20776f726c640a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647356d51492f4b71315a726430344162384f513731712f2f6269526b5a30534a364c744864553479474f6a484a594554766234734a6d676d7946367838554e7463376d342f72656871437750576f4f6d5a39305a4c67633d0a",
+      "origin": "webtessera.fixture.log",
+      "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+      "otherVkeys": [],
+      "wantOrigin": "",
+      "wantSize": "0",
+      "wantHash": "",
+      "wantOtherData": "",
+      "wantSigs": [
+        {
+          "name": "webtessera.fixture.log",
+          "hash": "3690992923",
+          "base64": "3AAVG5mQI/Kq1Zrd04Ab8OQ71q//biRkZ0SJ6LtHdU4yGOjHJYETvb4sJmgmyF6x8UNtc7m4/rehqCwPWoOmZ90ZLgc="
+        }
+      ],
+      "wantErr": true,
+      "wantErrMsg": "failed to unmarshal checkpoint: invalid checkpoint - too few newlines"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+	// Wrangler configuration for the workerd test harness only; it is not a
+	// deployable example (see examples/cloudflare-durable-object for that).
+	"name": "webtessera-durableobject-test",
+	"main": "./worker.ts",
+	"compatibility_date": "2026-08-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"durable_objects": {
+		"bindings": [{ "name": "TEST_LOG", "class_name": "TestLog" }]
+	},
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["TestLog"] }]
+}
