@@ -1,0 +1,241 @@
+:root {
+	--bg: #f7f7f5;
+	--panel: #ffffff;
+	--text: #1d1d1f;
+	--muted: #5f6368;
+	--border: #dadce0;
+	--accent: #1a73e8;
+	--ok: #188038;
+	--error: #c5221f;
+	--warn-bg: #fef7e0;
+	--warn-border: #f9ab00;
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	line-height: 1.5;
+	color: var(--text);
+	background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #18191b;
+		--panel: #222326;
+		--text: #e8eaed;
+		--muted: #9aa0a6;
+		--border: #3c4043;
+		--accent: #8ab4f8;
+		--ok: #81c995;
+		--error: #f28b82;
+		--warn-bg: #3b3220;
+		--warn-border: #fdd663;
+	}
+}
+
+body {
+	margin: 0;
+}
+
+main {
+	max-width: 46rem;
+	margin: 0 auto;
+	padding: 2rem 1rem 4rem;
+}
+
+h1 {
+	margin: 0 0 0.25rem;
+	font-size: 2rem;
+	letter-spacing: -0.02em;
+}
+
+h2 {
+	margin: 0 0 0.75rem;
+	font-size: 1.05rem;
+}
+
+a {
+	color: var(--accent);
+}
+
+.lede {
+	margin-top: 0;
+	color: var(--muted);
+}
+
+section {
+	margin-top: 1.25rem;
+	padding: 1.25rem;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+}
+
+code,
+pre {
+	font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	font-size: 0.85rem;
+}
+
+code {
+	overflow-wrap: anywhere;
+}
+
+pre {
+	margin: 0;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.warning,
+.banner {
+	padding: 0.75rem 1rem;
+	border-radius: 8px;
+}
+
+.warning {
+	background: var(--warn-bg);
+	border: 1px solid var(--warn-border);
+}
+
+.banner {
+	border: 1px solid var(--error);
+	color: var(--error);
+}
+
+.add {
+	display: flex;
+	gap: 0.5rem;
+}
+
+input {
+	flex: 1;
+	min-width: 0;
+	padding: 0.6rem 0.75rem;
+	font: inherit;
+	color: inherit;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+}
+
+input:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+button {
+	padding: 0.6rem 1rem;
+	font: inherit;
+	font-weight: 600;
+	color: #fff;
+	background: var(--accent);
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+	button {
+		color: #18191b;
+	}
+}
+
+button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+button.secondary {
+	margin-left: 0.5rem;
+	padding: 0.2rem 0.6rem;
+	font-size: 0.85rem;
+	color: var(--accent);
+	background: transparent;
+	border: 1px solid var(--border);
+}
+
+button.danger {
+	margin-top: 1rem;
+	color: var(--error);
+	background: transparent;
+	border: 1px solid var(--error);
+}
+
+.result {
+	margin-top: 1rem;
+	padding: 0.75rem 1rem;
+	border-left: 4px solid var(--border);
+	border-radius: 4px;
+}
+
+.result p {
+	margin: 0;
+}
+
+.result.ok {
+	border-left-color: var(--ok);
+}
+
+.result.error {
+	border-left-color: var(--error);
+	color: var(--error);
+}
+
+.result details {
+	margin-top: 0.5rem;
+}
+
+.result summary {
+	color: var(--muted);
+	cursor: pointer;
+}
+
+.note {
+	padding: 0.75rem;
+	background: var(--bg);
+	border-radius: 8px;
+}
+
+.meta {
+	margin: 0.75rem 0 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.entries {
+	margin: 0;
+	padding-left: 3rem;
+}
+
+.entries li {
+	padding: 0.2rem 0;
+	overflow-wrap: anywhere;
+}
+
+.entries li::marker {
+	color: var(--muted);
+	font-family: ui-monospace, monospace;
+}
+
+.facts {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 0.4rem 1rem;
+	margin: 0;
+}
+
+.facts dt {
+	color: var(--muted);
+}
+
+.facts dd {
+	margin: 0;
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "pnpm --filter webtessera build",
+    "predev": "pnpm --workspace-root build",
     "dev": "vite",
-    "prebuild": "pnpm --filter webtessera build",
+    "prebuild": "pnpm --workspace-root build",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
