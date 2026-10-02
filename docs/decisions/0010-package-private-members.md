@@ -1,0 +1,151 @@
+# ADR-0010: Render Go package-private struct fields and functions as `_`-prefixed `@internal` members
+
+- **Status:** proposed
+- **Date:** 2026-08-19
+- **Author:** merkle contributor
+- **Upstream reference:** `merkle/compact/range.go`, `merkle/compact/range_internal_test.go`, `merkle/proof/proof.go`, `merkle/proof/proof_test.go`, `merkle/testonly/tree.go`, `merkle/testonly/tree_test.go`
+
+## Context
+
+Three of the types in this work package pair an unexported field with an exported method of the
+same name. Go allows it because case *is* the visibility mechanism:
+
+```go
+type Range struct {
+	f      *RangeFactory
+	begin  uint64
+	end    uint64
+	hashes [][]byte
+}
+
+func (r *Range) Begin() uint64    { return r.begin }
+func (r *Range) End() uint64      { return r.end }
+func (r *Range) Hashes() [][]byte { return r.hashes }
+```
+
+`proof.Nodes` does the same (`ephem` field, `Ephem()` method) and `testonly.Tree` does the same
+(`size` field, `Size()` method). ADR-0002 maps exported methods to camelCase, which collapses
+`Begin()` onto `begin` — a hard collision in TypeScript, where a class cannot have a property and a
+method with the same name.
+
+The second half of the problem is that upstream's *in-package* tests read and write those fields.
+This is not incidental; it is where several of the assertions live:
+
+```go
+// range_internal_test.go
+corrupt := func(rng *Range, dBegin, dEnd int64) *Range {
+	rng.begin = uint64(int64(rng.begin) + dBegin)
+	rng.end = uint64(int64(rng.end) + dEnd)
+	return rng
+}
+lhs: &Range{f: factory, begin: 17, end: 23, hashes: [][]byte{...}}
+
+// proof_test.go
+proof.ephem = compact.NodeID{}   // Ignore the ephemeral node, it is tested separately.
+
+// tree_test.go
+want := refRootHash(entries[:size], mt.hasher)
+cmp.Diff(mt1, mt2, cmp.AllowUnexported(Tree{}))
+```
+
+TypeScript's `private` is checked at compile time and would reject every one of those lines from a
+sibling `*_test.ts` file. ECMAScript `#private` would reject them at runtime too, and would
+additionally break `cmp.AllowUnexported`'s TypeScript equivalent: `expect(mt1).toEqual(mt2)` compares
+own enumerable properties, so a `Tree` whose entire state is `#private` compares equal to *any*
+other `Tree`, turning `TestTreeAppend` into a test that cannot fail.
+
+TypeScript has no package-private visibility, and no file-pair visibility either. The unit of
+encapsulation available to us is the **module**.
+
+## Decision
+
+A Go struct field or function that is unexported, and that upstream's own tests touch, becomes a
+**public TypeScript member prefixed with `_` and marked `/** @internal */`**:
+
+| Go | TypeScript |
+| --- | --- |
+| `Range.f`, `.begin`, `.end`, `.hashes` | `Range._f`, `._begin`, `._end`, `._hashes` |
+| `Nodes.begin`, `.end`, `.ephem` | `Nodes._begin`, `._end`, `._ephem` |
+| `Tree.hasher`, `.size`, `.hashes` | `Tree._hasher`, `._size`, `._hashes` |
+| `&Range{...}` composite literal | `new Range(f, begin, end, hashes)`, marked `@internal` |
+| `getMergePath` | exported from `range.ts`, marked `@internal` |
+| `Nodes.skipFirst` | public method, marked `@internal` |
+
+The `_` prefix exists only to break the collision with the exported accessor; it is not a general
+renaming rule and does not apply to fields that have no same-named method.
+
+**The visibility boundary is the package barrel.** `compact/index.ts` and `proof/index.ts` re-export
+exactly what Go exports. `package.json`'s `exports` map points at those barrels, so a consumer of
+`@repo/webtessera/merkle/compact` sees the Go-exported surface and nothing else. Reaching `_begin`
+requires importing the module path directly, which is what the ported `*_test.ts` files do and what
+a reviewer can grep for in one command:
+
+```
+grep -rn 'from "\.\./compact/range"' src --include='*.ts' | grep -v _test.ts
+```
+
+Unexported helpers that upstream's tests do *not* touch stay genuinely private: `Range.#appendImpl`,
+`Tree.#appendImpl`/`#getNodes`, and `proof/verify.ts`'s `verifyMatch`, `decompInclProof`,
+`innerProofSize`, `chainInner`, `chainInnerRight`, `chainBorderRight` are module-local or `#private`.
+
+### Test helpers shared between test files
+
+The same missing package scope bites once more, in the other direction. `reference_test.go` defines
+`refRootHash`, `refInclusionProof`, `refConsistencyProof` and `downToPowerOfTwo` and *also* tests
+them; `tree_test.go`, in the same package, uses them as its oracle. TypeScript can express the
+sharing — `tree_test.ts` can import from `reference_test.ts` — but Vitest registers a suite when the
+module is evaluated, so importing one test file from another runs its 12 tests twice and reports
+every failure twice.
+
+So the file is split: `testonly/reference.ts` holds the four reference implementations, and
+`testonly/reference_test.ts` holds the three test functions that cover them. Both carry a header
+saying which half of `reference_test.go` they are. This is the only file in the work package that
+does not map 1:1 onto an upstream file.
+
+`compact/range_test.ts` and `compact/range_internal_test.ts` need no such treatment: they mirror
+Go's `compact_test` and `compact` packages respectively and share nothing.
+
+## Consequences
+
+- **The encapsulation is weaker than Go's.** Nothing stops application code from writing
+  `range._end = 0n` and corrupting a compact range. In Go that is a compile error. This is a real
+  loss and the reason the `@internal` tag and the barrel exist: the tag is what an API-extractor or
+  a reviewer keys on, and the barrel is what the published entry points expose.
+- **Reviewability is preserved, which is the point.** Every upstream in-package test survives with
+  its assertions intact — including `TestEqual`'s six hand-built `Range` values, `corrupt()`, and
+  `TestTreeAppend`'s whole-struct comparison. Weakening any of those to satisfy TypeScript's
+  visibility model would have been a silent reduction in coverage, which PORTING.md §4 forbids.
+- **The `_` prefix is visible in the donated code.** A transparency-dev reviewer will see
+  `this._begin` where Go has `r.begin` and needs this ADR to know why. It is the smallest diff that
+  makes the accessor methods portable at all.
+- **`testonly/` has one more file than upstream.** `ls src/vendor/merkle/testonly` no longer diffs
+  clean against `ls merkle/testonly`, which ADR-0002 lists as the port's main reviewability asset.
+  The alternative was a test file that reports 12 phantom passes and duplicates every failure, which
+  is a worse thing to hand a reviewer.
+- If TypeScript ever gains package-level visibility, this becomes a mechanical rename.
+
+## Alternatives considered
+
+- **ECMAScript `#private` fields throughout.** True encapsulation, matching Go's intent most
+  closely. Rejected: it makes `range_internal_test.ts` unwritable, and it silently guts
+  `TestTreeAppend` and `TestTreeAppendAssociativity`, because `toEqual` cannot see `#` fields and
+  would report two arbitrary trees as equal. A test that cannot fail is worse than weak
+  encapsulation.
+- **TypeScript `private` fields.** Visible to `toEqual`, so the Tree tests would still work, but
+  still a compile error from a sibling test file, so `range_internal_test.ts` and `proof_test.ts`
+  remain unwritable without `as any` or `@ts-expect-error` — both banned.
+- **Keep the fields private and export a test-only construction/mutation API** (e.g.
+  `newRangeInternal`, `setBounds`). Rejected: it is *more* invented surface than the `_` prefix, not
+  less, and it is API that upstream does not have (which itself needs an ADR under PORTING.md §6).
+- **Rename the accessors instead** (`getBegin()`, `getEnd()`). Rejected: it breaks ADR-0002's
+  mechanical mapping at the *exported* surface, which is the surface that matters most for donation.
+  Better to bend an unexported name than an exported one.
+- **Drop the accessors and expose the fields directly** (`range.begin` as a property). Rejected: it
+  changes the exported API shape — `r.Begin()` is a call in Go — and would diverge from every other
+  ported method.
+
+## Review
+
+- **Reviewer:** _pending_
+- **Verdict:** _pending_
+- **Notes:**

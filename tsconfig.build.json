@@ -1,0 +1,16 @@
+{
+  // Emits the published ESM build into dist/: one .js + .d.ts (+ maps) per source
+  // file, mirroring src/ so the Go-parallel layout survives into the package.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "resolveJsonModule": false
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*_test.ts", "src/**/testing/**", "src/testonly/fixtures.ts", "src/vendor/merkle/testonly/**"]
+}

@@ -1,0 +1,62 @@
+// Copyright 2024 The Tessera authors. All Rights Reserved.
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// Ported from tessera/log.go @ 4a6d9f9
+
+import { SentinelError } from "./internal/gostd/errors.ts";
+
+/**
+ * ErrPushback is returned by underlying storage implementations when a new entry cannot be accepted
+ * due to overload in the system. This could be because there are too many entries with indices assigned
+ * but which have not yet been integrated into the tree, or it could be because the antispam mechanism
+ * is not able to keep up with recently added entries. It should always be wrapped with a more
+ * specific error to provide context to clients.
+ *
+ * Personalities encountering this error should apply back-pressure to the source of new entries
+ * in an appropriate manner (e.g. for HTTP services, return a 503 with a Retry-After header).
+ *
+ * Personalities should check for this error (wrapped or not) using `errorIs(e, ErrPushback)`.
+ */
+export const ErrPushback = new SentinelError("pushback");
+
+// Port note: Go wraps ErrPushback with `fmt.Errorf("antispam %w", ErrPushback)` and
+// `fmt.Errorf("integration %w", ErrPushback)` — note the format strings have no colon
+// before %w, unlike the "...: %w" shape gostd/errors.ts's wrapError renders. To keep the
+// message text byte-identical to Go's ("antispam pushback", not "antispam: pushback"),
+// these are built directly with `new Error(...)` rather than through wrapError, while
+// still setting `cause` so errorIs(e, ErrPushback) walks the chain correctly.
+
+/**
+ * ErrPushbackAntispam is a wrapped ErrPushback. It is returned by underlying storage implementations
+ * when an entry cannot be accepted becasue the antispam follower has fallen too far behind the size
+ * of the integrated tree.
+ */
+export const ErrPushbackAntispam = new Error(`antispam ${ErrPushback.message}`, { cause: ErrPushback });
+
+/**
+ * ErrPushbackIntegration is a wrapped ErrPushback. It is returned by underlying storage implementations
+ * when an entry cannot be accepted becasue there are too many "in-flight" add requests - i.e. entries
+ * with sequence numbers assigned, but which are not yet integrated into the log.
+ */
+export const ErrPushbackIntegration = new Error(`integration ${ErrPushback.message}`, { cause: ErrPushback });
+
+/**
+ * Driver is the implementation-specific parts of Tessera. No methods are on here as this is not for public use.
+ *
+ * Port note: Go's `any` is the empty interface — TypeScript's structural equivalent is
+ * `unknown`, which, like Go's `any` used this way, forces every consumer to narrow before
+ * doing anything with it.
+ */
+export type Driver = unknown;

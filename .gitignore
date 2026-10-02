@@ -111,3 +111,11 @@ dist
 
 # TernJS port file
 .tern-port
+
+# Cloudflare Wrangler / Miniflare local state
+.wrangler/
+.dev.vars*
+
+# Vitest browser mode artifacts
+__screenshots__/
+.vitest-attachments/

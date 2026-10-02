@@ -1,0 +1,33 @@
+{
+  "description": "A complete tlog-tiles log of 1 entries, built by the real Tessera POSIX driver.",
+  "upstream": "github.com/transparency-dev/tessera/storage/posix",
+  "commit": "4a6d9f9",
+  "origin": "webtessera.fixture.log",
+  "logVkey": "webtessera.fixture.log+dc00151b+AUeIGKl2KxQNkIaKQYoZiZT3MbL8/GB3Q3Yo3fTwAV2+",
+  "entryScheme": "entry i is the UTF-8 bytes of \"entry-<i>\"",
+  "size": "1",
+  "checkpoint": "776562746573736572612e666978747572652e6c6f670a310a51485a7249444e436b436231505652514a6e6d6f4f58427252304834334b3836693770665162582f3448553d0a0ae2809420776562746573736572612e666978747572652e6c6f67203341415647786c482b4c386631386c516354747a71757a3262735537796e4642746c7274734775616c636b307a50536a626b714d583656655a6f535256784c48613745487664527456783557516e444a69304967363775716541343d0a",
+  "checkpointText": "webtessera.fixture.log\n1\nQHZrIDNCkCb1PVRQJnmoOXBrR0H43K86i7pfQbX/4HU=\n\n— webtessera.fixture.log 3AAVGxlH+L8f18lQcTtzquz2bsU7ynFBtlrtsGualck0zPSjbkqMX6VeZoSRVxLHa7EHvdRtVx5WQnDJi0Ig67uqeA4=\n",
+  "checkpointOrigin": "webtessera.fixture.log",
+  "checkpointSize": "1",
+  "checkpointHash": "40766b2033429026f53d54502679a839706b4741f8dcaf3a8bba5f41b5ffe075",
+  "tiles": [
+    {
+      "path": "tile/0/000.p/1",
+      "raw": "40766b2033429026f53d54502679a839706b4741f8dcaf3a8bba5f41b5ffe075",
+      "level": "0",
+      "index": "0",
+      "partial": 1,
+      "nodes": 1
+    }
+  ],
+  "entryBundles": [
+    {
+      "path": "tile/entries/000.p/1",
+      "raw": "0007656e7472792d30",
+      "index": "0",
+      "partial": 1,
+      "entries": 1
+    }
+  ]
+}

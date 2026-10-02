@@ -1,0 +1,2 @@
+# Built by "go build"; the generator is always run with "go run".
+/gen

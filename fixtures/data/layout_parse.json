@@ -1,0 +1,771 @@
+{
+  "description": "Parsing of tlog-tiles level/index/partial path components, including every rejection upstream performs.",
+  "upstream": "github.com/transparency-dev/tessera/api/layout",
+  "commit": "4a6d9f9",
+  "parseTileLevelIndexPartial": [
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067",
+      "wantLevel": "0",
+      "wantIndex": "1234067",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067.p/89",
+      "wantLevel": "0",
+      "wantIndex": "1234067",
+      "wantP": 89,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "63",
+      "pathIndex": "x999/x999/x999/x999/x999/999.p/255",
+      "wantLevel": "63",
+      "wantIndex": "999999999999999999",
+      "wantP": 255,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "001",
+      "wantLevel": "0",
+      "wantIndex": "1",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "000",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "255",
+      "wantLevel": "0",
+      "wantIndex": "255",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "000.p/1",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 1,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "000.p/255",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 255,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "1",
+      "pathIndex": "x000/000",
+      "wantLevel": "1",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "8",
+      "pathIndex": "x001/002",
+      "wantLevel": "8",
+      "wantIndex": "1002",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "63",
+      "pathIndex": "x184/x467/x440/x737/x095/x516/615",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "63",
+      "pathIndex": "x018/x446/x744/x073/x709/x551/615",
+      "wantLevel": "63",
+      "wantIndex": "18446744073709551615",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067.p/",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067.p",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067.p/0",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067.p/256",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067.p/-1",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/067.p/abc",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "1",
+      "pathIndex": "x001/.p/abc",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "8",
+      "pathIndex": "x001/002.p/256",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "8",
+      "pathIndex": "x001/002.p/0",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234/",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/x234",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001/",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x001",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "1",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "01",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "0001",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "8",
+      "pathIndex": "001/002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "8",
+      "pathIndex": "x001/0002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "8",
+      "pathIndex": "x001/-002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "8",
+      "pathIndex": "x001/x002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "0",
+      "pathIndex": "x1/002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "64",
+      "pathIndex": "x001/002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "-1",
+      "pathIndex": "x001/002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "abc",
+      "pathIndex": "x001/002",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "",
+      "pathIndex": "000",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "00",
+      "pathIndex": "000",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "063",
+      "pathIndex": "000",
+      "wantLevel": "63",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "18446744073709551616",
+      "pathIndex": "000",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "63",
+      "pathIndex": "x018/x446/x744/x073/x709/x551/616",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "63",
+      "pathIndex": "x999/x999/x999/x999/x999/x999/999.p/255",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathLevel": "63",
+      "pathIndex": "x184/x467/x440/x737/x095/x516/x150/000",
+      "wantLevel": "0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    }
+  ],
+  "parseTileLevel": [
+    {
+      "pathLevel": "0",
+      "wantLevel": "0",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "1",
+      "wantLevel": "1",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "8",
+      "wantLevel": "8",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "15",
+      "wantLevel": "15",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "31",
+      "wantLevel": "31",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "62",
+      "wantLevel": "62",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "63",
+      "wantLevel": "63",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "64",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "65",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "255",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "-1",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "abc",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": " 0",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "0 ",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "+0",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "00",
+      "wantLevel": "0",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "007",
+      "wantLevel": "7",
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathLevel": "18446744073709551615",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "18446744073709551616",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    },
+    {
+      "pathLevel": "0x10",
+      "wantLevel": "0",
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile level"
+    }
+  ],
+  "parseTileIndexPartial": [
+    {
+      "pathIndex": "000",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "001",
+      "wantIndex": "1",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "255",
+      "wantIndex": "255",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "999",
+      "wantIndex": "999",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "x001/x234/067",
+      "wantIndex": "1234067",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "x001/x234/067.p/89",
+      "wantIndex": "1234067",
+      "wantP": 89,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "x000/000",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "x999/x999/x999/x999/x999/999.p/255",
+      "wantIndex": "999999999999999999",
+      "wantP": 255,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "x018/x446/x744/x073/x709/x551/615",
+      "wantIndex": "18446744073709551615",
+      "wantP": 0,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "x018/x446/x744/x073/x709/x551/616",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x999/x999/x999/x999/x999/x999/999.p/255",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "1",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "01",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "0001",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x1",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x01",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x001",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x001/",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x001/x234",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x001/x234/",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "001/002",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x001/0002",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x001/-002",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "x001/x002",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile index"
+    },
+    {
+      "pathIndex": "000.p/0",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathIndex": "000.p/1",
+      "wantIndex": "0",
+      "wantP": 1,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "000.p/255",
+      "wantIndex": "0",
+      "wantP": 255,
+      "wantErr": false,
+      "wantErrMsg": ""
+    },
+    {
+      "pathIndex": "000.p/256",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathIndex": "000.p/",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathIndex": "000.p",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathIndex": "000.p/abc",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathIndex": "000.p/-1",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    },
+    {
+      "pathIndex": "000.p/+1",
+      "wantIndex": "0",
+      "wantP": 0,
+      "wantErr": true,
+      "wantErrMsg": "failed to parse tile width"
+    }
+  ]
+}

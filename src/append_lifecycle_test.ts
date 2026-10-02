@@ -1,0 +1,276 @@
+// Copyright 2025 The Tessera authors. All Rights Reserved.
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// Ported from tessera/append_lifecycle_test.go @ 4a6d9f9
+
+import { describe, expect, it } from "vitest";
+import {
+	type AddFn,
+	Appender,
+	type AppenderInit,
+	type AppendOptions,
+	type Index,
+	type IndexFuture,
+	memoizeFuture,
+	newAppender,
+	newAppendOptions,
+} from "./append_lifecycle.ts";
+import { type Entry, newEntry } from "./entry.ts";
+import { toUTF8 } from "./internal/gostd/bytes.ts";
+import { ErrNotExist } from "./internal/gostd/errors.ts";
+import type { LogReader } from "./lifecycle.ts";
+import { newSigner, type Signer } from "./vendor/note/note.ts";
+
+function messageOf(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
+}
+
+it("TestMemoize", async () => {
+	// Set up an AddFn which will increment a counter every time it's called, and return that in the Index.
+	let i = 0n;
+	const deleg: IndexFuture = async (): Promise<Index> => {
+		i++;
+		return { index: i, isDup: false };
+	};
+	let add = (_e: Entry | null, _signal?: AbortSignal): IndexFuture => {
+		return deleg;
+	};
+
+	// Create a single future (for a single Entry), and convince ourselves that the counter is being incremented
+	// each time the future is being invoked.
+	const f1 = add(null);
+	const a = await f1();
+	const b = await f1();
+	expect(a.index, `a(=${a.index}) == b(=${b.index})`).not.toBe(b.index);
+
+	// Now create an AddFn which memoizes the result of the delegate, like we do in newAppender, and assert that
+	// repeated calls to the future work as expected; only incrementing the counter once.
+	add = (_e: Entry | null, _signal?: AbortSignal): IndexFuture => {
+		return memoizeFuture(deleg);
+	};
+	const f2 = add(null);
+	const c = await f2();
+	const d = await f2();
+
+	expect(c.index, `c(=${c.index}) != d(=${d.index})`).toBe(d.index);
+});
+
+// Port addition: the memoization is a caching wrapper whose whole point is that repeated and
+// concurrent callers share a single resolution of the delegate. TestMemoize covers "called twice";
+// these pin the two properties the port note on memoizeFuture claims explicitly.
+describe("memoizeFuture (port additions)", () => {
+	it("calls the delegate at most once across repeated calls", async () => {
+		let calls = 0;
+		const delegate: IndexFuture = async (): Promise<Index> => {
+			calls++;
+			return { index: BigInt(calls), isDup: false };
+		};
+		const f = memoizeFuture(delegate);
+		await f();
+		await f();
+		await f();
+		expect(calls).toBe(1);
+	});
+
+	it("gives concurrent callers the same result and calls the delegate once", async () => {
+		let calls = 0;
+		const delegate: IndexFuture = async (): Promise<Index> => {
+			calls++;
+			// Yield so both callers are in-flight before the delegate resolves.
+			await Promise.resolve();
+			return { index: 42n, isDup: false };
+		};
+		const f = memoizeFuture(delegate);
+		const [a, b] = await Promise.all([f(), f()]);
+		expect(calls).toBe(1);
+		expect(a.index).toBe(42n);
+		expect(b.index).toBe(42n);
+	});
+});
+
+const testSignerKey = "PRIVATE+KEY+example.com/log/testdata+33d7b496+AeymY/SZAX0jZcJ8enZ5FY1Dz+wTML2yWSkK+9DSF3eg";
+
+describe("TestAppendOptionsValid", () => {
+	const tests: { name: string; opts: () => AppendOptions; wantErrContains: string }[] = [
+		{
+			name: "Valid",
+			opts: () => newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey)),
+			wantErrContains: "",
+		},
+		{
+			name: "Valid: CheckpointRepublishInterval == CheckpointInterval",
+			opts: () =>
+				newAppendOptions()
+					.withCheckpointSigner(mustCreateSigner(testSignerKey))
+					.withCheckpointInterval(10_000)
+					.withCheckpointRepublishInterval(10_000),
+			wantErrContains: "",
+		},
+		{
+			name: "Error: CheckpointRepublishInterval < CheckpointInterval",
+			opts: () =>
+				newAppendOptions()
+					.withCheckpointSigner(mustCreateSigner(testSignerKey))
+					.withCheckpointInterval(10_000)
+					.withCheckpointRepublishInterval(9_000),
+			wantErrContains: "WithCheckpointRepublishInterval",
+		},
+		{
+			name: "Error: No CheckpointSigner",
+			opts: () => newAppendOptions(),
+			wantErrContains: "WithCheckpointSigner",
+		},
+	];
+	for (const test of tests) {
+		it(test.name, () => {
+			let err: unknown;
+			try {
+				test.opts().valid();
+			} catch (e) {
+				err = e;
+			}
+			const gotErr = err !== undefined;
+			const wantErr = test.wantErrContains !== "";
+			if (gotErr && !wantErr) {
+				throw new Error(`Got unexpected error ${quoteish(err)}, want no error`);
+			}
+			if (!gotErr && wantErr) {
+				throw new Error("Got no error, expected error");
+			}
+			if (gotErr) {
+				expect(messageOf(err)).toContain(test.wantErrContains);
+			}
+		});
+	}
+});
+
+// Port addition: the accessors are the contract storage drivers rely on; pin the defaults from
+// newAppendOptions and that the with* setters change them.
+describe("AppendOptions accessors (port additions)", () => {
+	it("returns the documented defaults", () => {
+		const o = newAppendOptions();
+		expect(o.batchMaxSize()).toBe(256);
+		expect(o.batchMaxAge()).toBe(250);
+		expect(o.checkpointInterval()).toBe(10_000);
+		expect(o.checkpointRepublishInterval()).toBe(600_000);
+		expect(o.pushbackMaxOutstanding()).toBe(4096);
+		expect(o.garbageCollectionInterval()).toBe(60_000);
+	});
+
+	it("with* setters update the accessors", () => {
+		const o = newAppendOptions()
+			.withBatching(10, 20)
+			.withPushback(99)
+			.withCheckpointInterval(5_000)
+			.withCheckpointRepublishInterval(6_000)
+			.withGarbageCollectionInterval(0);
+		expect(o.batchMaxSize()).toBe(10);
+		expect(o.batchMaxAge()).toBe(20);
+		expect(o.pushbackMaxOutstanding()).toBe(99);
+		expect(o.checkpointInterval()).toBe(5_000);
+		expect(o.checkpointRepublishInterval()).toBe(6_000);
+		expect(o.garbageCollectionInterval()).toBe(0);
+	});
+});
+
+// Port addition: newAppender's decoration order is a stated sharp edge (Go applies addDecorators
+// in reverse so decorators[0] is the outermost wrapper). Verify it with a fake driver.
+describe("newAppender (port additions)", () => {
+	function fakeReader(cp?: Uint8Array): LogReader {
+		return {
+			readCheckpoint: async (): Promise<Uint8Array> => {
+				if (cp === undefined) {
+					throw ErrNotExist;
+				}
+				return cp;
+			},
+			readTile: async (): Promise<Uint8Array> => new Uint8Array(0),
+			readEntryBundle: async (): Promise<Uint8Array> => new Uint8Array(0),
+			nextIndex: async (): Promise<bigint> => 0n,
+			integratedSize: async (): Promise<bigint> => 0n,
+		};
+	}
+
+	function fakeDriver(
+		rawAdd: AddFn,
+		reader: LogReader,
+	): { appender(opts: AppendOptions, signal?: AbortSignal): Promise<AppenderInit> } {
+		return {
+			appender: async (): Promise<AppenderInit> => ({ appender: new Appender(rawAdd), reader }),
+		};
+	}
+
+	it("applies addDecorators in reverse so decorators[0] is outermost", async () => {
+		const order: string[] = [];
+		const mkDec =
+			(id: string) =>
+			(fn: AddFn): AddFn =>
+			(entry: Entry, signal?: AbortSignal): IndexFuture => {
+				order.push(id);
+				return fn(entry, signal);
+			};
+
+		const rawAdd: AddFn = (): IndexFuture => async (): Promise<Index> => ({ index: 1n, isDup: false });
+		const reader = fakeReader();
+		const opts = newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey));
+		opts.addDecorators = [mkDec("A"), mkDec("B")];
+
+		const ctrl = new AbortController();
+		try {
+			const { appender } = await newAppender(fakeDriver(rawAdd, reader), opts, ctrl.signal);
+			await appender.add(newEntry(toUTF8("data")))();
+			// A is decorators[0] -> outermost -> invoked before B.
+			expect(order).toEqual(["A", "B"]);
+		} finally {
+			ctrl.abort();
+		}
+	});
+
+	it("rejects adds after shutdown, and no-work shutdown returns promptly", async () => {
+		const rawAdd: AddFn = (): IndexFuture => async (): Promise<Index> => ({ index: 1n, isDup: false });
+		const opts = newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey));
+
+		const ctrl = new AbortController();
+		try {
+			const { appender, shutdown } = await newAppender(fakeDriver(rawAdd, fakeReader()), opts, ctrl.signal);
+			// No add has resolved, so largestIssued is 0 and shutdown returns via the special case.
+			await shutdown();
+			await expect(appender.add(newEntry(toUTF8("data")))()).rejects.toThrow("appender has been shut down");
+		} finally {
+			ctrl.abort();
+		}
+	});
+
+	it("throws when the driver does not implement the Appender lifecycle", async () => {
+		await expect(
+			newAppender({}, newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey))),
+		).rejects.toThrow("does not implement Appender lifecycle");
+	});
+
+	it("throws when opts is null", async () => {
+		const rawAdd: AddFn = (): IndexFuture => async (): Promise<Index> => ({ index: 1n, isDup: false });
+		await expect(newAppender(fakeDriver(rawAdd, fakeReader()), null)).rejects.toThrow("opts cannot be nil");
+	});
+});
+
+function mustCreateSigner(k: string): Signer {
+	// Port note: Go's t.Fatalf on error becomes newSigner's own throw, which fails the test.
+	return newSigner(k);
+}
+
+/** quoteish renders a caught value roughly the way Go's `%q` would for the test's own messages. */
+function quoteish(err: unknown): string {
+	return `"${messageOf(err)}"`;
+}

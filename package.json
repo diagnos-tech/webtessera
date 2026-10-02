@@ -1,0 +1,92 @@
+{
+  "name": "webtessera",
+  "version": "0.1.0",
+  "description": "A faithful TypeScript port of Tessera, the tile-based transparency log, for browsers and Cloudflare Durable Objects.",
+  "keywords": [
+    "transparency-log",
+    "tessera",
+    "tlog-tiles",
+    "c2sp",
+    "merkle-tree",
+    "certificate-transparency",
+    "indexeddb",
+    "durable-objects",
+    "cloudflare-workers"
+  ],
+  "license": "Apache-2.0",
+  "author": "MedDeck LTDA",
+  "homepage": "https://github.com/diagnos-tech/webtessera#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diagnos-tech/webtessera.git"
+  },
+  "bugs": {
+    "url": "https://github.com/diagnos-tech/webtessera/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "files": [
+    "dist",
+    "!dist/**/*_test.*",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./api": "./dist/api/state.js",
+    "./api/layout": "./dist/api/layout/index.js",
+    "./client": "./dist/client/index.js",
+    "./fsck": "./dist/fsck/index.js",
+    "./ctonly": "./dist/ctonly/ct.js",
+    "./merkle/rfc6962": "./dist/vendor/merkle/rfc6962/rfc6962.js",
+    "./merkle/compact": "./dist/vendor/merkle/compact/index.js",
+    "./merkle/proof": "./dist/vendor/merkle/proof/index.js",
+    "./note": "./dist/vendor/note/note.js",
+    "./formats/log": "./dist/vendor/formats/log/index.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "pnpm run test:unit && pnpm run test:workers && pnpm run test:browser",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:workers": "vitest run --config vitest.workers.config.ts",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "fixtures": "cd fixtures/gen && go run . -out ../data",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
+    "prepack": "pnpm run clean && pnpm run build"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.3.0",
+    "@noble/hashes": "^2.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@vitest/browser": "4.1.11",
+    "@vitest/browser-playwright": "4.1.11",
+    "fake-indexeddb": "6.2.5",
+    "playwright": "1.56.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.124.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}
