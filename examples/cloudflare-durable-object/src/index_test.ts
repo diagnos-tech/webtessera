@@ -43,10 +43,10 @@ async function add(data: Uint8Array): Promise<bigint> {
 	const res = await fetchLog("/add", { method: "POST", body: data });
 	const body = await res.text();
 	expect(res.status, body).toBe(200);
-	expect(res.headers.get("Content-Type")).toBe("application/json");
-	const m = /^\{"index":(\d+)\}\n$/.exec(body);
-	expect(m, body).not.toBeNull();
-	return BigInt(m?.[1] ?? "");
+	expect(res.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+	// Exactly the decimal index: upstream's integration test parses the whole body.
+	expect(body).toMatch(/^(0|[1-9][0-9]*)$/);
+	return BigInt(body);
 }
 
 async function checkpoint() {
