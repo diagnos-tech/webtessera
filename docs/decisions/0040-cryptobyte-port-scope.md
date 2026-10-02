@@ -76,7 +76,7 @@ alongside ours.
 - A future need for DER parsing (for instance, extracting a TBS certificate on the client rather
   than receiving one) means porting `asn1.go` then. That is a bounded, well-tested job, and doing it
   on demand is cheaper than carrying it unused.
-- `TODO(gustavo):` the BSD-3-Clause licence of `x/crypto` must appear in whatever third-party
+- `TODO(<owner>):` the BSD-3-Clause licence of `x/crypto` must appear in whatever third-party
   licence inventory this repository grows before donation. The per-file header is necessary but not
   by itself sufficient.
 - A transparency-dev reviewer diffing against `x/crypto` will find whole functions missing. This
@@ -111,5 +111,11 @@ alongside ours.
   `isASN1` parameter so it takes `(lenLen, f)` — is exactly what the code does; no other ported
   function is altered. `AddUint48`/`ReadUint48` are present despite being unused, as stated. The
   omitted upstream tests (`TestASN1*`, the fixed-builder tests) correspond to omitted code. BSD-3
-  header is reproduced verbatim with the Go Authors' copyright line intact. The `TODO(gustavo):`
+  header is reproduced verbatim with the Go Authors' copyright line intact. The `TODO(<owner>):`
   third-party-licence-inventory obligation (line 79) is real and remains open.
+
+## Update (2026-10-02)
+
+The third-party licence inventory this ADR called for now exists: `NOTICE` lists
+`golang.org/x/crypto/cryptobyte` among the Go-derived sources and `LICENSES/BSD-3-Clause-Go.txt`
+carries the licence text. None of the decisions above changed.

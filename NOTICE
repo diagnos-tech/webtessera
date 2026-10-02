@@ -1,0 +1,89 @@
+webtessera
+Copyright 2026 MedDeck
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+webtessera is a TypeScript port of Tessera and of the Go libraries Tessera is built
+on. It contains translations of their source code and uses their test material. The
+attributions below are required by those projects' licences; the per-file headers in
+src/ retain the original copyright lines and are authoritative for individual files.
+
+The texts of the third-party licences that are not Apache-2.0 are reproduced verbatim
+under LICENSES/.
+
+--------------------------------------------------------------------------------
+Apache-2.0 sources
+--------------------------------------------------------------------------------
+
+Tessera - https://github.com/transparency-dev/tessera
+Copyright The Tessera authors; Copyright Google LLC
+Licensed under the Apache License, Version 2.0.
+Ported at commit 4a6d9f9da21fe7d160d0ee5b800f78b60c3e5640 (scripts/upstream.json).
+Translated into: src/ (outside src/vendor/ and src/internal/gostd/). The golden
+fixtures in fixtures/data/ are produced by running Tessera (fixtures/gen/) and
+embed upstream test material (testdata/log).
+Tessera ships no NOTICE file at that commit.
+
+transparency-dev/merkle - https://github.com/transparency-dev/merkle
+Copyright Google LLC
+Licensed under the Apache License, Version 2.0.
+Ported at v0.0.2.
+Translated into: src/vendor/merkle/ (hasher, rfc6962, compact, proof, testonly).
+The module ships no NOTICE file at that version.
+
+transparency-dev/formats (package log) - https://github.com/transparency-dev/formats
+Copyright Google LLC
+Licensed under the Apache License, Version 2.0.
+Ported at v0.0.0-20251017110053-404c0d5b696c.
+Translated into: src/vendor/formats/log/.
+The module ships no NOTICE file at that version.
+
+--------------------------------------------------------------------------------
+BSD-3-Clause sources (The Go Authors)
+--------------------------------------------------------------------------------
+
+The following files are translations of code that is licensed under the BSD
+3-Clause licence of the Go project, not under the Apache License. They keep the
+Go Authors' copyright notice and the BSD notice in their headers. They are
+distributed under the terms of that licence, reproduced in
+LICENSES/BSD-3-Clause-Go.txt. The Go project's additional patent grant
+(LICENSES/Go-PATENTS.txt) accompanies it.
+
+golang.org/x/mod v0.31.0, package sumdb/note
+Copyright 2009 The Go Authors
+  src/vendor/note/note.ts
+  src/vendor/note/note_test.ts
+  src/vendor/note/example_test.ts
+
+golang.org/x/crypto v0.46.0, package cryptobyte
+Copyright 2009 The Go Authors
+  src/internal/gostd/cryptobyte.ts
+  src/internal/gostd/cryptobyte_test.ts
+
+transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c, package note
+(note_cosigv1.go and its test, which carry a Go Authors BSD-style header upstream)
+Copyright 2023 The Go Authors
+  src/vendor/formats/note/note_cosigv1.ts
+  src/vendor/formats/note/note_cosigv1_test.ts
+
+Go standard library, package container/list
+Copyright 2009 The Go Authors
+  src/internal/gostd/list.ts
+  src/internal/gostd/list_test.ts
+
+Go standard library, package encoding/base64 (the decoder)
+Copyright 2009 The Go Authors
+  src/internal/gostd/bytes.ts (fromBase64 and its helpers are a transcription of
+  Go's Encoding.Decode and decodeQuantum)
+
+--------------------------------------------------------------------------------
+Runtime dependencies
+--------------------------------------------------------------------------------
+
+These are installed from npm, not redistributed in this repository or in the
+webtessera package, and are listed for completeness.
+
+@noble/hashes and @noble/curves - https://github.com/paulmillr/noble-hashes,
+https://github.com/paulmillr/noble-curves
+Copyright Paul Miller (https://paulmillr.com)
+Licensed under the MIT License.

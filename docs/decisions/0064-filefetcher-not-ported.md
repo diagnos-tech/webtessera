@@ -61,10 +61,10 @@ portability `AGENTS.md` §1 asks this whole package for.
 
 ## Alternatives considered
 
-- **Port `FileFetcher` against `src/adapters/`'s allowed Node/`@repo/*` dependencies.**
-  Rejected: `client/fetcher.ts` is donatable code (outside `src/adapters/`), and
-  `AGENTS.md` §8 is explicit that adapters bolt onto upstream interfaces from the outside;
-  moving a whole upstream type into adapters would be the reverse of that, and it would
+- **Port `FileFetcher` against application-side Node dependencies.**
+  Rejected: `client/fetcher.ts` is library code, and application code bolts onto upstream
+  interfaces from the outside (`AGENTS.md` §8 says the same of the storage drivers);
+  moving a whole upstream type into application code would be the reverse of that, and it would
   still leave `client/fetcher.ts` itself missing the symbol relative to Go's actual
   export list, which is the thing a transparency-dev reviewer would notice.
 - **Port `FileFetcher` against an injected filesystem-like interface (e.g. `{ readFile(path):

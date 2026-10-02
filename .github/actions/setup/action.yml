@@ -1,0 +1,40 @@
+name: Set up toolchain
+description: >-
+  Install pnpm (the version pinned by "packageManager" in package.json) and Node.js with the pnpm
+  store cached, then install the workspace dependencies from the lockfile.
+
+inputs:
+  node-version:
+    description: Node.js version to use. Defaults to the version in .nvmrc.
+    required: false
+    default: ""
+  install:
+    description: Whether to run `pnpm install --frozen-lockfile`.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # pnpm must be on PATH before setup-node, whose `cache: pnpm` shells out to it.
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v6
+
+    - name: Set up Node.js ${{ inputs.node-version }}
+      if: inputs.node-version != ''
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    - name: Set up Node.js (from .nvmrc)
+      if: inputs.node-version == ''
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Install dependencies
+      if: inputs.install == 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile

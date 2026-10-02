@@ -76,7 +76,7 @@ renaming rule and does not apply to fields that have no same-named method.
 
 **The visibility boundary is the package barrel.** `compact/index.ts` and `proof/index.ts` re-export
 exactly what Go exports. `package.json`'s `exports` map points at those barrels, so a consumer of
-`@repo/webtessera/merkle/compact` sees the Go-exported surface and nothing else. Reaching `_begin`
+`webtessera/merkle/compact` sees the Go-exported surface and nothing else. Reaching `_begin`
 requires importing the module path directly, which is what the ported `*_test.ts` files do and what
 a reviewer can grep for in one command:
 

@@ -1,0 +1,44 @@
+version: 2
+
+updates:
+  # npm: the library, plus the workspace packages under examples/ (pnpm workspace).
+  # Minor and patch updates arrive as one grouped pull request per kind; majors come
+  # on their own so each can be reviewed. Runtime dependencies are @noble/* only
+  # (AGENTS.md §7): review those with extra care, since signature verification
+  # and hashing run through them.
+  - package-ecosystem: npm
+    directories:
+      - "/"
+      - "/examples/*"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+      prefix-development: build
+      include: scope
+    groups:
+      runtime-dependencies:
+        dependency-type: production
+        update-types: [minor, patch]
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+      - "/.github/actions/setup"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # Deliberately no `gomod` entry for fixtures/gen. Its `replace` directive points at
+  # the gitignored .upstream/ checkout, which Dependabot cannot see, so every run
+  # would fail; and merkle, formats and x/mod are not ordinary dependencies but the
+  # pinned sources of the port (AGENTS.md §1), which move only by deliberate,
+  # reviewed pin bumps (scripts/upstream.json, fixtures/gen/go.mod).

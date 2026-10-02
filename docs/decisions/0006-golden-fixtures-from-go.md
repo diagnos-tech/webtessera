@@ -155,7 +155,7 @@ every dependent value at once and shows up as a reviewable diff.
 - **Verdict:** approved
 - **Notes:**
 
-  Checked against the pinned upstream (`/home/gg/dev/Maravi/_future/tessera` @ `4a6d9f9`, Go 1.25.5).
+  Checked against the pinned upstream (upstream Tessera @ `4a6d9f9`, Go 1.25.5).
 
   - **Generator calls real upstream, never reimplements.** Read all 13 Go files in `fixtures/gen/`.
     Every expected value is produced by upstream: `merkle/rfc6962`, `merkle/compact`, `merkle/proof`,

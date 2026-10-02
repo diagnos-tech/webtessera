@@ -7,7 +7,7 @@
 
 ## Context
 
-`docs/notes/ORCHESTRATION.md` assigns `src/internal/future/future.ts` to the *other* Wave 2 work
+The original work plan assigns `src/internal/future/future.ts` to the *other* Wave 2 work
 package: "`src/client/{client,fetcher,stream}.ts` + `src/internal/{future,fetcher}` — needs Merkle
 `proof`, Note, Layout." But `storage/internal/queue.go` — squarely this work package's mission —
 calls it directly:

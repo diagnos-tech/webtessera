@@ -32,10 +32,12 @@ import (
 // real output from cmd/examples/posix-oneshot, built once by
 // testdata/build_log.sh and committed to the upstream repository at the
 // pinned commit -- this generator only reads it back, it does not build or
-// invent anything, matching the fixtures rule in AGENTS.md §5. The absolute
-// path mirrors the one already baked into go.mod's `replace` directive for
-// the same pinned checkout.
-const clientTestLogDir = "/home/gg/dev/Maravi/_future/tessera/testdata/log"
+// invent anything, matching the fixtures rule in AGENTS.md §5. The path is
+// relative to this module's directory (the generator is run from there, like
+// the `-out` default) and points into the pinned checkout that
+// scripts/fetch-upstream.mjs creates, the same one go.mod's `replace`
+// directive uses.
+const clientTestLogDir = "../../.upstream/tessera/testdata/log"
 
 // clientTestOrigin and clientTestVKey are the checkpoint origin and note
 // verifier key client_test.go hard-codes for this log (see its

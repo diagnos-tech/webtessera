@@ -1,4 +1,4 @@
-module github.com/meddeck/webtessera/fixtures/gen
+module github.com/diagnos-tech/webtessera/fixtures/gen
 
 go 1.24.0
 
@@ -26,5 +26,7 @@ require (
 )
 
 // The generator must build against the exact upstream checkout the port is
-// pinned to (commit 4a6d9f9), not against whatever is on the module proxy.
-replace github.com/transparency-dev/tessera => /home/gg/dev/Maravi/_future/tessera
+// pinned to (see scripts/upstream.json), not against whatever is on the module
+// proxy. `pnpm upstream` creates it at .upstream/tessera; `pnpm fixtures` does
+// that first and then runs the generator.
+replace github.com/transparency-dev/tessera => ../../.upstream/tessera

@@ -119,3 +119,6 @@ dist
 # Vitest browser mode artifacts
 __screenshots__/
 .vitest-attachments/
+
+# Upstream Tessera checkout made by `pnpm upstream` (see scripts/upstream.json)
+.upstream/
