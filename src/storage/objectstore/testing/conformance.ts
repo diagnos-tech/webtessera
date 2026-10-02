@@ -18,6 +18,7 @@
 // behaviour. Test-only: excluded from the published build.
 
 import { describe, expect, it } from "vitest";
+import { bytesEqual } from "../../../internal/gostd/bytes.ts";
 import type { ObjectStore } from "../objectstore.ts";
 
 /** NewStore returns a fresh, empty store. Each test calls it once. */
@@ -164,7 +165,9 @@ export function describeObjectStoreConformance(name: string, newStore: NewStore)
 				expect((await s.stat(key))?.size, key).toBe(size);
 				const got = await s.get(key);
 				expect(got?.length, key).toBe(size);
-				expect(got, key).toEqual(want);
+				// bytesEqual rather than toEqual: Vitest's deep equality walks a typed array
+				// element by element and needs tens of seconds for a few MiB.
+				expect(got !== undefined && bytesEqual(got, want), key).toBe(true);
 			}
 		});
 
