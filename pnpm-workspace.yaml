@@ -1,0 +1,4 @@
+# The library lives at the repository root; the runnable examples are workspace
+# packages that depend on it via "workspace:*".
+packages:
+  - "examples/*"

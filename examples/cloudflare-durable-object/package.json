@@ -1,0 +1,24 @@
+{
+  "name": "webtessera-example-cloudflare-durable-object",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm --filter webtessera build",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "pretest": "pnpm --filter webtessera build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "webtessera": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20261002.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.124.0"
+  }
+}
