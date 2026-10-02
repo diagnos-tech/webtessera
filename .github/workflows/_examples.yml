@@ -1,0 +1,29 @@
+# Builds and tests every example under examples/, so a change to the public API cannot silently
+# break the code people copy from.
+#
+# Generic by design: each example defines a `ci` script in its package.json, and this job runs
+# whichever examples exist. Adding an example needs no change here.
+#
+# Reusable workflow, called by ci.yml.
+name: Examples
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  examples:
+    name: Examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # The examples depend on the library through `workspace:*`, i.e. on its built dist/.
+      - run: pnpm build
+      - name: Run the examples' ci scripts
+        run: pnpm --filter "./examples/**" --if-present run ci

@@ -1,0 +1,81 @@
+# The test suites, one job per runtime: Node (a version matrix), real Chromium, workerd, and
+# the suites that need external services.
+#
+# Reusable workflow, called by ci.yml.
+name: Test
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # The inner-loop suite and nearly all tests. Node 22 is the oldest supported release
+  # (package.json "engines") and 24 the one after it; Node 20 is end of life and not tested.
+  unit:
+    name: Unit (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm test:unit
+
+  # The IndexedDB driver against the browser's own IndexedDB and Web Locks.
+  browser:
+    name: Browser (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup-browsers
+      - run: pnpm test:browser
+      # Failure screenshots are the quickest way to see what a headless browser saw.
+      - name: Upload browser test attachments
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-test-attachments
+          path: .vitest-attachments
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The Durable Object driver inside workerd, Cloudflare's runtime.
+  workers:
+    name: Workers (workerd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm test:workers
+
+  # Suites that talk to real rqlite and S3-compatible servers (see actions/services).
+  services:
+    name: Services (rqlite, S3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/services
+      - run: pnpm test:services
+      - name: Show the service logs
+        if: failure()
+        run: docker compose --file .github/actions/services/compose.yaml logs --no-color

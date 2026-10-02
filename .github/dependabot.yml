@@ -1,18 +1,30 @@
 version: 2
 
+# What is kept current, and how it arrives:
+#
+# - npm: the library and every pnpm workspace package (the examples and the landing page).
+#   Minor and patch updates come as one pull request per kind; a major update comes on its
+#   own so it can be reviewed on its own. The only runtime dependencies are @noble/*
+#   (AGENTS.md §7): look at those with extra care, since signature verification and hashing run
+#   through them.
+# - github-actions: the workflows and the composite actions under .github/actions. Actions are
+#   pinned to commit SHAs with the release in a trailing comment; Dependabot updates both.
+# - docker-compose: the images of the test services, pinned by tag and digest.
+#
+# `cooldown` makes Dependabot wait before proposing a release that is only days old, which is
+# when a hijacked or broken release is usually found and pulled. Security updates ignore it.
+
 updates:
-  # npm: the library, plus the workspace packages under examples/ (pnpm workspace).
-  # Minor and patch updates arrive as one grouped pull request per kind; majors come
-  # on their own so each can be reviewed. Runtime dependencies are @noble/* only
-  # (AGENTS.md §7): review those with extra care, since signature verification
-  # and hashing run through them.
   - package-ecosystem: npm
     directories:
       - "/"
       - "/examples/*"
+      - "/site"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: build
       prefix-development: build
@@ -28,14 +40,25 @@ updates:
   - package-ecosystem: github-actions
     directories:
       - "/"
-      - "/.github/actions/setup"
+      - "/.github/actions/*"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ci
     groups:
       github-actions:
         patterns: ["*"]
+
+  - package-ecosystem: docker-compose
+    directory: "/.github/actions/services"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
 
   # Deliberately no `gomod` entry for fixtures/gen. Its `replace` directive points at
   # the gitignored .upstream/ checkout, which Dependabot cannot see, so every run

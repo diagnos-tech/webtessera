@@ -1,88 +1,336 @@
+# Publishes webtessera: one tarball, built and tested once, to npm (as `webtessera`) and to
+# GitHub Packages (as `@diagnos-tech/webtessera`), with provenance. The step-by-step process
+# and the one-time setup (npm trusted publisher or token, the `release` environment) are in
+# docs/RELEASING.md; read it before the first release.
+#
+# Triggers: publishing a GitHub Release whose tag is vX.Y.Z (or vX.Y.Z-rc.N), and a manual
+# run that defaults to a dry run. A dry run does everything except the upload.
+#
+# The pipeline, each stage running only if the previous one succeeded:
+#
+#   prepare   tag, package.json version and CHANGELOG.md agree; the commit is on main
+#   verify    the full CI (ci.yml), which also builds and tests the tarball (_package.yml)
+#   attest    GitHub build-provenance attestation for the tarballs
+#   publish   npm and GitHub Packages, in parallel, behind the `release` environment
+#   assets    the tarballs are attached to the GitHub Release
+#
+# Choices worth knowing about:
+#
+# - Nothing is rebuilt. The publish jobs download the `package` artifact that verify
+#   produced and tested, so the bytes that reach the registries are the bytes that passed.
+#   Every job that touches the tarballs first checks their SHA-256 against the digests that
+#   the build job recorded. Those digests are job outputs, which travel outside the artifact
+#   store, so a tool that ran after the build (publint, say, which is fetched outside the
+#   lockfile) cannot change what ships without the release noticing.
+# - Permissions are per job. Only `attest` and the npm job can mint an OIDC token, only the
+#   GitHub Packages job can write packages, and only `assets` can write to the repository.
+# - The publish jobs must stay in this file: npm's trusted publishing is configured against
+#   the workflow file name (release.yml) and does not support reusable workflows.
+# - A dry run uses the `release-dry-run` environment, which has no protection rules and no
+#   secrets, so rehearsing never waits for a reviewer and can run from a branch. The real
+#   publish uses `release`, which requires reviewers and is limited to version tags, and
+#   which npm's trusted publisher is bound to: neither a dry run nor a copy of this workflow
+#   on a branch can publish. A dry run is also never handed NPM_TOKEN, even if the secret
+#   was added to the repository by mistake.
+# - Publishing goes through scripts/release/publish.mjs so that re-running a half-finished
+#   release completes it: a registry that already has the identical tarball is skipped.
 name: Release
 
-# Publishes to npm when a maintainer pushes a version tag (vX.Y.Z or vX.Y.Z-rc.N).
-#
-# Before tagging: rename `## [Unreleased]` in CHANGELOG.md to the new version and
-# date, bump "version" in package.json, merge, and make sure CI is green on that
-# commit. This workflow re-runs the fast checks but not the browser or workerd suites.
-#
-# One-time setup (repository settings):
-#   - an `npm` environment, ideally with required reviewers, so that nothing is
-#     published without a human approving the run;
-#   - an npm automation token as the `NPM_TOKEN` secret of that environment. If the
-#     package is configured for npm trusted publishing (OIDC), the token and the
-#     NODE_AUTH_TOKEN line can be dropped; `id-token: write` already allows it.
 on:
-  push:
-    tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Rehearse the release without publishing (the checks run, `npm publish --dry-run` replaces the upload)
+        type: boolean
+        default: true
 
-permissions:
-  contents: read
+# Nothing by default; every job below states what it needs.
+permissions: {}
 
+# Releases queue behind each other and are never cancelled half way: a cancelled publish is
+# the situation this workflow exists to avoid.
 concurrency:
   group: release
   cancel-in-progress: false
 
+env:
+  # setup-node installs this for the publish jobs: trusted publishing needs npm >= 11.5.1.
+  PUBLISH_NODE_VERSION: 24
+
 jobs:
-  publish:
-    name: Publish to npm
+  prepare:
+    name: Check the release
+    # Forks (and their copies of this workflow) must not try to publish.
     if: github.repository == 'diagnos-tech/webtessera'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: npm
+    timeout-minutes: 5
     permissions:
       contents: read
-      id-token: write # npm provenance (sigstore) attestation
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.check.outputs.tag }}
+      dist-tag: ${{ steps.check.outputs.dist-tag }}
+      dry-run: ${{ steps.check.outputs.dry-run }}
     steps:
-      - uses: actions/checkout@v7
+      # Full history, for the "is on main" check below.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Check the tag matches package.json and CHANGELOG.md
-        run: |
-          version="$(node -p "require('./package.json').version")"
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version"
-            exit 1
-          fi
-          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md has no section for $version"
-            exit 1
-          fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test:unit
-
-      - name: Pack
-        run: |
-          mkdir -p "$RUNNER_TEMP/pack"
-          pnpm pack --pack-destination "$RUNNER_TEMP/pack"
-
-      - name: Smoke-test the packed tarball
-        run: node scripts/smoke-pack.mjs "$RUNNER_TEMP/pack/webtessera-$VERSION.tgz"
-
-      # `npm publish` rather than `pnpm publish`: provenance is an npm feature, and the
-      # tarball that was just smoke-tested is exactly what gets published.
-      - name: Publish
+      # The event payload goes through the environment, never into the script text.
+      - name: Check the tag, the version and the changelog
+        id: check
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: node scripts/release/check-release.mjs
+
+      # Branch protection only guards main. A tag can point anywhere, so ask Git whether this
+      # commit went through review and CI by being on main.
+      - name: Check the commit is on main
+        if: steps.check.outputs.dry-run == 'false'
         run: |
-          case "$VERSION" in
-            *-*) tag=next ;;
-            *)   tag=latest ;;
-          esac
-          npm publish "$RUNNER_TEMP/pack/webtessera-$VERSION.tgz" --provenance --access public --tag "$tag"
+          set -euo pipefail
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error title=Not on main::commit $(git rev-parse --short HEAD) is not an ancestor of main; release from a tag on main"
+            exit 1
+          fi
+
+  verify:
+    name: Verify
+    needs: prepare
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  attest:
+    name: Attest provenance
+    needs: [prepare, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # signing certificate from GitHub's OIDC issuer
+      attestations: write # storing the attestation
+    steps:
+      - name: Download the tarballs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+          path: ${{ runner.temp }}/package
+
+      # The tarballs must be exactly what the build job produced and the check job tested.
+      - name: Verify the tarballs against the recorded digests
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          NPM_SHA256: ${{ needs.verify.outputs.npm-sha256 }}
+          SCOPED_SHA256: ${{ needs.verify.outputs.scoped-sha256 }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/package"
+          printf '%s  %s\n' \
+            "$NPM_SHA256" "webtessera-$VERSION.tgz" \
+            "$SCOPED_SHA256" "${GITHUB_REPOSITORY_OWNER,,}-webtessera-$VERSION.tgz" |
+            sha256sum --check --strict
+          # Exactly the two verified files: nothing else rides along in the artifact.
+          test "$(find . -type f | wc -l)" -eq 2
+
+      # Both tarballs are subjects of one attestation, so `gh attestation verify` works on
+      # either. Skipped in a dry run: that would write to the public transparency log.
+      - name: Attest build provenance
+        if: needs.prepare.outputs.dry-run == 'false'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/package/*.tgz
+
+  publish-npm:
+    name: Publish to npm
+    needs: [prepare, verify, attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ needs.prepare.outputs.dry-run == 'true' && 'release-dry-run' || 'release' }}
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing (OIDC) and the provenance statement
+    steps:
+      # Only the release scripts: this job holds credentials, so it carries no other code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/release
+          persist-credentials: false
+
+      # No dependency cache in a job that publishes.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.PUBLISH_NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Download the tarballs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+          path: ${{ runner.temp }}/package
+
+      # The tarballs must be exactly what the build job produced and the check job tested.
+      - name: Verify the tarballs against the recorded digests
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          NPM_SHA256: ${{ needs.verify.outputs.npm-sha256 }}
+          SCOPED_SHA256: ${{ needs.verify.outputs.scoped-sha256 }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/package"
+          printf '%s  %s\n' \
+            "$NPM_SHA256" "webtessera-$VERSION.tgz" \
+            "$SCOPED_SHA256" "${GITHUB_REPOSITORY_OWNER,,}-webtessera-$VERSION.tgz" |
+            sha256sum --check --strict
+          # Exactly the two verified files: nothing else rides along in the artifact.
+          test "$(find . -type f | wc -l)" -eq 2
+
+      - name: Check that npm supports trusted publishing
+        run: |
+          set -euo pipefail
+          required=11.5.1
+          current="$(npm --version)"
+          if [ "$(printf '%s\n%s\n' "$required" "$current" | sort -V | head -n 1)" != "$required" ]; then
+            echo "::error title=npm is too old::npm $current is older than $required, which trusted publishing needs; use a newer Node.js"
+            exit 1
+          fi
+          echo "npm $current"
+
+      # Authentication, in the order npm tries it: the OIDC exchange (trusted publishing, no
+      # secret needed), then NPM_TOKEN if the repository or the environment has that secret.
+      - name: Publish webtessera
+        env:
+          # Never in a dry run, whatever the secret's scope: a rehearsal has no use for it.
+          NODE_AUTH_TOKEN: ${{ needs.prepare.outputs.dry-run == 'false' && secrets.NPM_TOKEN || '' }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DIST_TAG: ${{ needs.prepare.outputs.dist-tag }}
+          DRY_RUN: ${{ needs.prepare.outputs.dry-run }}
+        run: |
+          set -euo pipefail
+          flags=()
+          if [ "$DRY_RUN" = "true" ]; then flags+=(--dry-run); fi
+          node scripts/release/publish.mjs "$RUNNER_TEMP/package/webtessera-$VERSION.tgz" \
+            --registry https://registry.npmjs.org/ \
+            --tag "$DIST_TAG" \
+            --access public \
+            --provenance \
+            --expect-version "$VERSION" \
+            "${flags[@]}"
+
+  publish-github-packages:
+    name: Publish to GitHub Packages
+    needs: [prepare, verify, attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ needs.prepare.outputs.dry-run == 'true' && 'release-dry-run' || 'release' }}
+    permissions:
+      contents: read
+      packages: write # GITHUB_TOKEN may publish to the repository's packages
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/release
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.PUBLISH_NODE_VERSION }}
+          registry-url: https://npm.pkg.github.com
+          package-manager-cache: false
+
+      - name: Download the tarballs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+          path: ${{ runner.temp }}/package
+
+      # The tarballs must be exactly what the build job produced and the check job tested.
+      - name: Verify the tarballs against the recorded digests
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          NPM_SHA256: ${{ needs.verify.outputs.npm-sha256 }}
+          SCOPED_SHA256: ${{ needs.verify.outputs.scoped-sha256 }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/package"
+          printf '%s  %s\n' \
+            "$NPM_SHA256" "webtessera-$VERSION.tgz" \
+            "$SCOPED_SHA256" "${GITHUB_REPOSITORY_OWNER,,}-webtessera-$VERSION.tgz" |
+            sha256sum --check --strict
+          # Exactly the two verified files: nothing else rides along in the artifact.
+          test "$(find . -type f | wc -l)" -eq 2
+
+      # GitHub Packages' npm registry accepts only packages scoped to the repository owner,
+      # so this is the owner-scoped tarball that _package.yml derived from the npm one (same
+      # files, different "name"). No `--provenance` here: that flag produces npm's provenance
+      # statement for the public npm registry. The GitHub attestation above covers this
+      # tarball instead.
+      - name: Publish @${{ github.repository_owner }}/webtessera
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DIST_TAG: ${{ needs.prepare.outputs.dist-tag }}
+          DRY_RUN: ${{ needs.prepare.outputs.dry-run }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          flags=()
+          if [ "$DRY_RUN" = "true" ]; then flags+=(--dry-run); fi
+          node scripts/release/publish.mjs "$RUNNER_TEMP/package/$owner-webtessera-$VERSION.tgz" \
+            --registry https://npm.pkg.github.com/ \
+            --tag "$DIST_TAG" \
+            --expect-version "$VERSION" \
+            "${flags[@]}"
+
+  # Last, so that a release page never offers tarballs that are not on the registries.
+  assets:
+    name: Attach the tarballs to the release
+    needs: [prepare, verify, publish-npm, publish-github-packages]
+    if: needs.prepare.outputs.dry-run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # uploading release assets
+    steps:
+      - name: Download the tarballs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+          path: ${{ runner.temp }}/package
+
+      # The tarballs must be exactly what the build job produced and the check job tested.
+      - name: Verify the tarballs against the recorded digests
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          NPM_SHA256: ${{ needs.verify.outputs.npm-sha256 }}
+          SCOPED_SHA256: ${{ needs.verify.outputs.scoped-sha256 }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/package"
+          printf '%s  %s\n' \
+            "$NPM_SHA256" "webtessera-$VERSION.tgz" \
+            "$SCOPED_SHA256" "${GITHUB_REPOSITORY_OWNER,,}-webtessera-$VERSION.tgz" |
+            sha256sum --check --strict
+          # Exactly the two verified files: nothing else rides along in the artifact.
+          test "$(find . -type f | wc -l)" -eq 2
+
+      # --clobber makes a re-run replace the assets instead of failing on them. A manual run
+      # on a tag that has no GitHub Release yet has nowhere to attach them: say so, don't fail.
+      - name: Upload to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::warning title=No GitHub Release::there is no release for $TAG, so the tarballs were not attached"
+            exit 0
+          fi
+          gh release upload "$TAG" "$RUNNER_TEMP"/package/*.tgz --repo "$GITHUB_REPOSITORY" --clobber
