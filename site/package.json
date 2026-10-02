@@ -7,9 +7,13 @@
   "scripts": {
     "prebuild": "pnpm --workspace-root build",
     "build": "vite build",
+    "predev": "pnpm --workspace-root build",
     "dev": "vite",
     "preview": "vite preview",
-    "ci": "pnpm run build"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.ts",
+    "og": "node scripts/og.ts",
+    "ci": "pnpm run build && pnpm run typecheck && pnpm run smoke"
   },
   "dependencies": {
     "webtessera": "workspace:*"
