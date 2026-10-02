@@ -186,7 +186,10 @@ export function fromHex(s: string): Uint8Array {
 }
 
 const utf8Encoder = new TextEncoder();
-const utf8Decoder = new TextDecoder("utf-8", { fatal: false });
+// ignoreBOM keeps a leading U+FEFF in the decoded string, as Go's string(b) does; the
+// WHATWG default would silently strip it. fatal: false substitutes U+FFFD for invalid
+// sequences, again matching Go's conversion.
+const utf8Decoder = new TextDecoder("utf-8", { fatal: false, ignoreBOM: true });
 
 /** toUTF8 encodes a string as UTF-8 bytes, which is what `[]byte(s)` does in Go. */
 export function toUTF8(s: string): Uint8Array {

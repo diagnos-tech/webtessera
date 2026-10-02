@@ -13,9 +13,9 @@
 // limitations under the License.
 //
 // This file has no counterpart in Go, where the package itself is the unit of import.
-// It is the barrel that `@repo/webtessera/client` resolves to, re-exporting exactly
-// what Go's `client` package exports (AGENTS.md §2's "donation boundary", following the
-// same pattern api/layout/index.ts and vendor/formats/log/index.ts already use).
+// It is the barrel that `webtessera/client` resolves to, re-exporting exactly what Go's
+// `client` package exports, following the same pattern api/layout/index.ts and
+// vendor/formats/log/index.ts already use.
 //
 // Deliberately NOT re-exported: `NodeCache`/`newNodeCache` (client.ts) and
 // `ProofBuilder.fetchNodes` are unexported in Go and reachable only by importing

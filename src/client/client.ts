@@ -467,7 +467,7 @@ export async function newLogStateTracker(
  * Port note: Go's `nodeCache` type is unexported, but upstream's own
  * TestNodeCacheHandlesInvalidRequest constructs and calls it directly. Exported and
  * marked @internal per docs/decisions/0010-package-private-members.md; not re-exported
- * from client/index.ts, so a consumer importing "@repo/webtessera/client" cannot reach
+ * from client/index.ts, so a consumer importing "webtessera/client" cannot reach
  * it.
  *
  * Go keys its two caches with `map[compact.NodeID][]byte` and `map[tileKey]api.HashTile`,
