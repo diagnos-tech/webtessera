@@ -17,6 +17,8 @@
 // worker of an origin, and an in-process fallback for runtimes without it. See
 // docs/decisions/0112-indexeddb-locks-web-locks-with-in-process-fallback.md.
 
+import { NamedLocks } from "../objectstore/namedlocks.ts";
+
 /**
  * LockScope says which contexts an IndexedDBObjectStore's locks exclude.
  *
@@ -71,54 +73,15 @@ export function newWebLocker(manager: LockManager): Locker {
 }
 
 /**
- * localLocker is a Locker whose locks exclude holders in the current realm only.
- *
- * Each held lock maps to the queue of waiters behind its holder. Releasing hands the
- * lock directly to the first waiter, so a lock is never observably free while
- * someone is waiting for it and waiters are served strictly in arrival order, as Web
- * Locks serves them.
+ * localLocker is a Locker whose locks exclude holders in the current realm only. Like
+ * Web Locks, NamedLocks serves waiters strictly in arrival order.
  */
 class localLocker implements Locker {
 	readonly scope = "realm";
-	readonly #waiters = new Map<string, (() => void)[]>();
+	readonly #locks = new NamedLocks();
 
-	async request<T>(name: string, fn: () => Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-		signal?.throwIfAborted();
-		await this.#acquire(name, signal);
-		try {
-			return await fn();
-		} finally {
-			this.#release(name);
-		}
-	}
-
-	#acquire(name: string, signal: AbortSignal | undefined): Promise<void> {
-		const queue = this.#waiters.get(name);
-		if (queue === undefined) {
-			this.#waiters.set(name, []);
-			return Promise.resolve();
-		}
-		return new Promise<void>((resolve, reject) => {
-			const onAbort = (): void => {
-				queue.splice(queue.indexOf(grant), 1);
-				reject(signal?.reason);
-			};
-			const grant = (): void => {
-				signal?.removeEventListener("abort", onAbort);
-				resolve();
-			};
-			queue.push(grant);
-			signal?.addEventListener("abort", onAbort, { once: true });
-		});
-	}
-
-	#release(name: string): void {
-		const next = this.#waiters.get(name)?.shift();
-		if (next === undefined) {
-			this.#waiters.delete(name);
-		} else {
-			next();
-		}
+	request<T>(name: string, fn: () => Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+		return this.#locks.run(name, fn, signal);
 	}
 }
 

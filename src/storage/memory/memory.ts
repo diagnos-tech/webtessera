@@ -19,20 +19,14 @@
 // and docs/decisions/0104-objectstore-public-api.md.
 
 import type { FetchFn } from "../../client/fetcher.ts";
-import { Mutex } from "../../internal/gostd/sync.ts";
 import { newObjectStoreDriver, type ObjectStoreDriver, type ObjectStoreDriverConfig } from "../objectstore/driver.ts";
+import { NamedLocks } from "../objectstore/namedlocks.ts";
 import type { ObjectInfo, ObjectStore } from "../objectstore/objectstore.ts";
 
 /** storedObject is a stored value together with its metadata. */
 interface storedObject {
 	readonly data: Uint8Array;
 	readonly modTime: number;
-}
-
-/** namedLock is a lock together with the number of callers holding or waiting for it. */
-interface namedLock {
-	readonly mu: Mutex;
-	refs: number;
 }
 
 /**
@@ -48,7 +42,7 @@ interface namedLock {
  */
 export class MemoryObjectStore implements ObjectStore {
 	readonly #objects = new Map<string, storedObject>();
-	readonly #locks = new Map<string, namedLock>();
+	readonly #locks = new NamedLocks();
 
 	async get(key: string): Promise<Uint8Array | undefined> {
 		const o = this.#objects.get(key);
@@ -80,31 +74,8 @@ export class MemoryObjectStore implements ObjectStore {
 		}
 	}
 
-	async lock<T>(name: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-		signal?.throwIfAborted();
-		let l = this.#locks.get(name);
-		if (l === undefined) {
-			l = { mu: new Mutex(), refs: 0 };
-			this.#locks.set(name, l);
-		}
-		l.refs++;
-		try {
-			const unlock = await acquire(l.mu, signal);
-			try {
-				return await fn();
-			} finally {
-				unlock();
-			}
-		} finally {
-			// Forget the lock once nobody holds or waits for it, so that a store used with
-			// many distinct lock names does not grow without bound. An abandoned acquisition
-			// (see acquire) may still be queued on the forgotten Mutex, but it never runs fn,
-			// so a fresh Mutex for the next caller excludes everything it needs to.
-			l.refs--;
-			if (l.refs === 0 && this.#locks.get(name) === l) {
-				this.#locks.delete(name);
-			}
-		}
+	lock<T>(name: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		return this.#locks.run(name, fn, signal);
 	}
 
 	/**
@@ -116,40 +87,6 @@ export class MemoryObjectStore implements ObjectStore {
 	keys(prefix = ""): string[] {
 		return [...this.#objects.keys()].filter((k) => k.startsWith(prefix)).sort();
 	}
-}
-
-/**
- * acquire waits for mu, giving up if signal aborts first.
- *
- * Mutex hands itself to waiters strictly in arrival order and has no way to withdraw a
- * waiter, so an abandoned acquisition stays queued: when its turn comes it releases the lock
- * straight away, which is what keeps an abort from wedging every later caller.
- */
-function acquire(mu: Mutex, signal: AbortSignal | undefined): Promise<() => void> {
-	const pending = mu.lock();
-	if (signal === undefined) {
-		return pending;
-	}
-	return new Promise<() => void>((resolve, reject) => {
-		let abandoned = false;
-		const onAbort = (): void => {
-			abandoned = true;
-			reject(signal.reason);
-		};
-		if (signal.aborted) {
-			onAbort();
-		} else {
-			signal.addEventListener("abort", onAbort, { once: true });
-		}
-		void pending.then((unlock) => {
-			signal.removeEventListener("abort", onAbort);
-			if (abandoned) {
-				unlock();
-			} else {
-				resolve(unlock);
-			}
-		});
-	});
 }
 
 /** MemoryDriverConfig configures newMemoryDriver. */
