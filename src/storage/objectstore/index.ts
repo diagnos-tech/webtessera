@@ -27,4 +27,5 @@ export {
 	ObjectStoreDriver,
 	type ObjectStoreDriverConfig,
 } from "./driver.ts";
+export { NamedLocks } from "./namedlocks.ts";
 export type { ObjectInfo, ObjectStore } from "./objectstore.ts";

@@ -163,7 +163,9 @@ appends entries over HTTP and serves the log's tlog-tiles API.
 Implement `ObjectStore` — `get`, `stat`, `put`, `create`, `deletePrefix` and `lock` — for any
 backend and hand it to `newObjectStoreDriver({ store })`. The contract, including the atomicity and
 locking guarantees the engine relies on, is documented in
-[`src/storage/objectstore/objectstore.ts`](src/storage/objectstore/objectstore.ts).
+[`src/storage/objectstore/objectstore.ts`](src/storage/objectstore/objectstore.ts). `NamedLocks`, from
+the same package, implements the in-process half of `lock`; the shared conformance suites in
+`src/storage/objectstore/testing/` show what a backend must pass.
 
 ## Reading and verifying a log
 

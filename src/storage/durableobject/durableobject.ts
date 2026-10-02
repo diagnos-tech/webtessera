@@ -23,6 +23,7 @@ import type { FetchFn } from "../../client/fetcher.ts";
 import { toHex } from "../../internal/gostd/bytes.ts";
 import { Mutex } from "../../internal/gostd/sync.ts";
 import { newObjectStoreDriver, type ObjectStoreDriver } from "../objectstore/driver.ts";
+import { NamedLocks } from "../objectstore/namedlocks.ts";
 import type { ObjectInfo, ObjectStore } from "../objectstore/objectstore.ts";
 
 /**
@@ -462,7 +463,7 @@ interface sharedState {
 	/** writes serializes put, create and deletePrefix. */
 	readonly writes: Mutex;
 	/** locks holds the named locks behind ObjectStore.lock. */
-	readonly locks: namedLocks;
+	readonly locks: NamedLocks;
 }
 
 // sharedStates maps each storage object to its sharedState. The runtime hands a
@@ -473,59 +474,8 @@ const sharedStates = new WeakMap<DurableObjectStorageLike, sharedState>();
 function sharedStateFor(storage: DurableObjectStorageLike): sharedState {
 	let s = sharedStates.get(storage);
 	if (s === undefined) {
-		s = { writes: new Mutex(), locks: new namedLocks() };
+		s = { writes: new Mutex(), locks: new NamedLocks() };
 		sharedStates.set(storage, s);
 	}
 	return s;
-}
-
-/**
- * namedLocks grants exclusive locks by name, in arrival order.
- *
- * Each held lock maps to the queue of waiters behind its holder. Releasing hands the
- * lock straight to the first waiter, so a lock is never observably free while someone
- * is waiting for it. A waiter whose signal aborts leaves the queue, and the lock is
- * handed past it.
- */
-class namedLocks {
-	readonly #waiters = new Map<string, (() => void)[]>();
-
-	async run<T>(name: string, fn: () => Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-		signal?.throwIfAborted();
-		await this.#acquire(name, signal);
-		try {
-			return await fn();
-		} finally {
-			this.#release(name);
-		}
-	}
-
-	#acquire(name: string, signal: AbortSignal | undefined): Promise<void> {
-		const queue = this.#waiters.get(name);
-		if (queue === undefined) {
-			this.#waiters.set(name, []);
-			return Promise.resolve();
-		}
-		return new Promise<void>((resolve, reject) => {
-			const onAbort = (): void => {
-				queue.splice(queue.indexOf(grant), 1);
-				reject(signal?.reason);
-			};
-			const grant = (): void => {
-				signal?.removeEventListener("abort", onAbort);
-				resolve();
-			};
-			queue.push(grant);
-			signal?.addEventListener("abort", onAbort, { once: true });
-		});
-	}
-
-	#release(name: string): void {
-		const next = this.#waiters.get(name)?.shift();
-		if (next === undefined) {
-			this.#waiters.delete(name);
-		} else {
-			next();
-		}
-	}
 }
