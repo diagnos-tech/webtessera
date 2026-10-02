@@ -1,0 +1,69 @@
+# Runs the built package, not the sources, on each JavaScript runtime the README claims to
+# support: a log is appended to, checkpointed and proven (smoke-runtimes), and the SQLite
+# driver is exercised (smoke-sqlite).
+#
+# Each matrix entry carries the command that starts a script on that runtime, so the
+# permissions Deno needs are data rather than branching in the steps. Bun is taken at its latest
+# release and Deno at the newest 2.x, which is the point of the job: it should notice when a
+# runtime release breaks the package.
+#
+# Reusable workflow, called by ci.yml.
+name: Runtimes
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke test (${{ matrix.runtime }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: node
+            run: node
+            run-sqlite: node
+          - runtime: bun
+            run: bun
+            run-sqlite: bun
+          - runtime: deno
+            run: deno run --allow-read
+            run-sqlite: deno run --allow-read --allow-write --allow-env
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+
+      - name: Set up Bun
+        if: matrix.runtime == 'bun'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: latest
+      - name: Set up Deno
+        if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.x
+
+      # The command is split into words on purpose; it comes from the matrix above, not from
+      # anything a pull request controls.
+      - name: Smoke test the log
+        env:
+          RUN: ${{ matrix.run }}
+        run: |
+          read -r -a cmd <<< "$RUN"
+          "${cmd[@]}" scripts/smoke-runtimes.mjs
+
+      - name: Smoke test the SQLite driver
+        env:
+          RUN: ${{ matrix.run-sqlite }}
+        run: |
+          read -r -a cmd <<< "$RUN"
+          "${cmd[@]}" scripts/smoke-sqlite.mjs

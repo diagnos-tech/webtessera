@@ -1,211 +1,94 @@
+# Continuous integration: the one workflow that decides whether a change may merge.
+#
+# This file only wires things together. Each concern lives in a reusable workflow (the files
+# starting with an underscore) and each job in those is small enough to read at a glance.
+# release.yml calls this workflow too, so a release is gated on exactly the checks that gate
+# a merge; add a check here and it protects releases without touching release.yml.
+#
+# Branch protection should require one check, `CI passed`, rather than the individual jobs:
+# it keeps working when jobs or matrix entries are added, renamed or removed.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  # Merge queue: the required check must also report on the queue's temporary branch.
+  merge_group:
   workflow_dispatch:
+  # Used by release.yml. The outputs pass on the digests of the tarballs that _package.yml
+  # built, so the release can check that what it publishes is what was built and tested.
+  workflow_call:
+    outputs:
+      npm-sha256:
+        description: SHA-256 of the npm tarball, recorded when it was packed.
+        value: ${{ jobs.package.outputs.npm-sha256 }}
+      scoped-sha256:
+        description: SHA-256 of the GitHub Packages tarball, recorded when it was derived.
+        value: ${{ jobs.package.outputs.scoped-sha256 }}
 
-# Least privilege: no job needs to write to the repository. The release workflow
-# asks for more, separately.
+# Least privilege: nothing here writes to the repository. A job that needs more asks for it
+# itself (release.yml does).
 permissions:
   contents: read
 
-# A new push to a pull request supersedes the run in flight. Runs on main always finish.
+# A new push to a pull request supersedes the run in flight. Runs on main, in the merge queue
+# and under release.yml always finish. The group is prefixed `ci-` rather than built from the
+# workflow name, because a called workflow inherits its caller's `github.workflow` and must
+# never share a concurrency group with it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - run: pnpm lint
+  quality:
+    name: Quality
+    uses: ./.github/workflows/_quality.yml
 
-  typecheck:
-    name: Typecheck
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - run: pnpm typecheck
+  test:
+    name: Test
+    uses: ./.github/workflows/_test.yml
 
-  test-unit:
-    name: Unit tests (Node ${{ matrix.node }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [20, 22, 24]
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-        with:
-          node-version: ${{ matrix.node }}
-      - run: pnpm test:unit
+  compat:
+    name: Compatibility
+    uses: ./.github/workflows/_compat.yml
 
-  test-browser:
-    name: Browser tests (Chromium)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - name: Install Chromium
-        run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:browser
-
-  test-workers:
-    name: Workers tests (workerd)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - run: pnpm test:workers
-
-  build:
-    name: Build and package
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-
-      - run: pnpm build
-
-      - name: Show what would be published
-        run: pnpm pack --dry-run
-
-      - name: Pack
-        run: |
-          mkdir -p "$RUNNER_TEMP/pack"
-          pnpm pack --pack-destination "$RUNNER_TEMP/pack"
-
-      - name: Smoke-test the packed tarball
-        run: node scripts/smoke-pack.mjs "$RUNNER_TEMP"/pack/webtessera-*.tgz
-
-      # Both tools run straight from the registry; nothing is added to package.json.
-      - name: Check the package shape (publint)
-        run: pnpm dlx publint@latest --strict
-
-      - name: Check the types resolve for consumers (Are the Types Wrong?)
-        run: pnpm dlx @arethetypeswrong/cli@latest --pack . --profile esm-only
+  package:
+    name: Package
+    uses: ./.github/workflows/_package.yml
 
   runtimes:
-    name: Runtime smoke test (${{ matrix.runtime }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        runtime: [node, bun, deno]
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - run: pnpm build
-      - if: matrix.runtime == 'bun'
-        uses: oven-sh/setup-bun@v2
-      - if: matrix.runtime == 'deno'
-        uses: denoland/setup-deno@v2.0.5
-        with:
-          deno-version: v2.x
-      # Appends to a log, waits for publication and verifies an inclusion proof using
-      # the built package, which backs the README's runtime-support claims.
-      - name: Run the smoke test
-        run: |
-          case "${{ matrix.runtime }}" in
-            node) node scripts/smoke-runtimes.mjs ;;
-            bun) bun scripts/smoke-runtimes.mjs ;;
-            deno) deno run --allow-read scripts/smoke-runtimes.mjs ;;
-          esac
+    name: Runtimes
+    uses: ./.github/workflows/_runtimes.yml
 
   examples:
     name: Examples
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
+    uses: ./.github/workflows/_examples.yml
 
-      # Each example's build/test script builds the library first.
-      - name: Build the browser example
-        run: pnpm --filter webtessera-example-browser build
+  site:
+    name: Site
+    uses: ./.github/workflows/_site.yml
 
-      - name: Typecheck the Cloudflare Durable Object example
-        run: pnpm --filter webtessera-example-cloudflare-durable-object typecheck
-
-      - name: Test the Cloudflare Durable Object example
-        run: pnpm --filter webtessera-example-cloudflare-durable-object test
-
-  fixtures:
-    name: Fixtures are reproducible
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      # Only the pnpm CLI and Node are needed: `pnpm fixtures` runs a zero-dependency
-      # script and then the Go generator.
-      - uses: ./.github/actions/setup
-        with:
-          install: "false"
-      - uses: actions/setup-go@v7
-        with:
-          go-version: "1.24"
-          cache-dependency-path: fixtures/gen/go.sum
-
-      - name: Regenerate the fixtures from upstream Tessera
-        run: pnpm fixtures
-
-      # `git status` rather than `git diff` so that added and removed files count too.
-      - name: Fail if the committed fixtures differ
-        run: |
-          if [ -n "$(git status --porcelain -- fixtures/data)" ]; then
-            echo "::error title=Fixtures are not reproducible::fixtures/data differs from what the generator produces at the pinned upstream commit"
-            git status --porcelain -- fixtures/data
-            git --no-pager diff --stat -- fixtures/data
-            exit 1
-          fi
-
-  # One stable check to require in branch protection, whatever the matrix looks like.
-  ci:
+  # The single stable check to require. `always()` makes it run (and fail) when a job it
+  # needs failed or was cancelled, instead of being skipped, because a skipped required check
+  # counts as passing for branch protection. Skipped needs are allowed so a job can become
+  # conditional later; a job skipped because its dependency failed always comes with that
+  # dependency's failure.
+  passed:
     name: CI passed
     if: always()
-    needs: [lint, typecheck, test-unit, test-browser, test-workers, build, runtimes, examples, fixtures]
+    needs: [quality, test, compat, package, runtimes, examples, site]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      - name: Check every job succeeded
+      - name: Check that no job failed or was cancelled
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "job results: $RESULTS"
-          for r in $RESULTS; do
-            if [ "$r" != "success" ]; then
-              echo "::error::at least one job did not succeed"
-              exit 1
-            fi
-          done
+          set -euo pipefail
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.value.result)\t\(.key)"' | sort
+          if echo "$NEEDS" | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null; then
+            echo "::error title=CI failed::at least one job failed or was cancelled"
+            exit 1
+          fi

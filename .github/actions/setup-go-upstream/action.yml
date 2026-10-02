@@ -1,0 +1,27 @@
+# Prepares the Go side of the compatibility checks (fixtures and interop): the Go toolchain and
+# the upstream Tessera source at the commit this port is pinned to.
+#
+# The Go version lives here and nowhere else in the workflows. The module cache is keyed on
+# both go.sum files, so a change to either generator's dependencies refreshes it. A listed
+# file that does not exist is ignored as long as one of them does.
+#
+# Needs pnpm on PATH (`./.github/actions/setup`, with or without `install`), because the
+# checkout goes through the `upstream` script like it does on a developer machine.
+name: Set up Go and upstream Tessera
+description: Install Go and check out upstream Tessera at the pinned commit into .upstream/tessera.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: "1.24"
+        cache-dependency-path: |
+          fixtures/gen/go.sum
+          interop/go.sum
+
+    # Idempotent; refuses to continue if the checkout is not pristine upstream source.
+    - name: Check out upstream Tessera at the pinned commit
+      shell: bash
+      run: pnpm upstream

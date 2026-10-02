@@ -1,0 +1,50 @@
+# Starts the backing services that `pnpm test:services` needs (rqlite and an S3-compatible
+# object store), waits until they answer, creates the test bucket, and exports their
+# connection settings (RQLITE_URL, S3_*) to the rest of the job.
+#
+# The containers come from compose.yaml rather than the job-level `services:` key because that
+# key cannot pass a command to the image, which the object store needs (`server /data`). The
+# same compose file runs on a developer machine, so a failing CI run can be reproduced.
+#
+# Requires a checkout and installed dependencies (the bucket helper uses aws4fetch from
+# node_modules), and a runner with Docker Compose, which GitHub-hosted Ubuntu runners have.
+name: Start test services
+description: Start rqlite and an S3-compatible object store, create the test bucket, and export their settings.
+
+runs:
+  using: composite
+  steps:
+    # First, so that every later step of this action and of the job sees the variables.
+    # Comments and blank lines are dropped because $GITHUB_ENV accepts only NAME=value lines.
+    - name: Export the connection settings
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ACTION_PATH/services.env" >> "$GITHUB_ENV"
+
+    - name: Start the containers
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        docker compose \
+          --file "$ACTION_PATH/compose.yaml" \
+          --env-file "$ACTION_PATH/services.env" \
+          up --detach --quiet-pull
+
+    # curl retries on refused connections and on non-2xx answers until rqlite is ready or about
+    # a minute has passed; /readyz is rqlite's own readiness endpoint.
+    - name: Wait for rqlite
+      shell: bash
+      run: |
+        curl --fail --silent --show-error \
+          --retry 30 --retry-delay 2 --retry-connrefused --retry-all-errors \
+          "$RQLITE_URL/readyz"
+
+    # Also the object store's readiness check: the helper retries until the server answers, so
+    # nothing here depends on MinIO-specific endpoints and the image can be swapped.
+    - name: Create the test bucket
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: node "$ACTION_PATH/create-bucket.mjs"

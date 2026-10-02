@@ -1,7 +1,14 @@
+# Installs the toolchain every job needs: pnpm (the version pinned by "packageManager" in
+# package.json), Node.js, and the workspace dependencies from the lockfile.
+#
+# Why it is a composite action: the steps must stay in this order (pnpm before setup-node,
+# whose `cache: pnpm` shells out to it) and every job needs the same ones, so one copy keeps
+# them from drifting. Third-party actions are pinned to a commit SHA, with the release in a
+# comment for Dependabot to maintain.
 name: Set up toolchain
 description: >-
-  Install pnpm (the version pinned by "packageManager" in package.json) and Node.js with the pnpm
-  store cached, then install the workspace dependencies from the lockfile.
+  Install pnpm and Node.js with the pnpm store cached, then install the workspace dependencies
+  from the lockfile.
 
 inputs:
   node-version:
@@ -9,30 +16,25 @@ inputs:
     required: false
     default: ""
   install:
-    description: Whether to run `pnpm install --frozen-lockfile`.
+    description: >-
+      Whether to run `pnpm install --frozen-lockfile`. Jobs that only need the pnpm CLI and Node
+      (a zero-dependency script) set this to "false" and skip the store cache as well.
     required: false
     default: "true"
 
 runs:
   using: composite
   steps:
-    # pnpm must be on PATH before setup-node, whose `cache: pnpm` shells out to it.
     - name: Set up pnpm
-      uses: pnpm/action-setup@v6
+      uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-    - name: Set up Node.js ${{ inputs.node-version }}
-      if: inputs.node-version != ''
-      uses: actions/setup-node@v7
+    # Exactly one of node-version and node-version-file is set: setup-node warns when both are.
+    - name: Set up Node.js
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version: ${{ inputs.node-version }}
-        cache: pnpm
-
-    - name: Set up Node.js (from .nvmrc)
-      if: inputs.node-version == ''
-      uses: actions/setup-node@v7
-      with:
-        node-version-file: .nvmrc
-        cache: pnpm
+        node-version-file: ${{ inputs.node-version == '' && '.nvmrc' || '' }}
+        cache: ${{ inputs.install == 'true' && 'pnpm' || '' }}
 
     - name: Install dependencies
       if: inputs.install == 'true'

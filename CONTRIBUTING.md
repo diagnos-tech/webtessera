@@ -165,12 +165,9 @@ have, and any new dependency needs an ADR in [`docs/decisions/`](docs/decisions/
 - **Fill in the pull request template.** Its checklist is the definition of done from
   AGENTS.md §10, including pasting the real `pnpm test:unit` summary line. State plainly what is
   incomplete; a precise partial report beats an overconfident one.
-- **CI must be green.** It runs lint, typecheck, unit tests on Node 20, 22 and 24, the browser and
-  workerd suites, the examples, and the fixture-reproducibility check. The build job also packs the
-  tarball and smoke-tests it as a consumer would (`node scripts/smoke-pack.mjs <tarball>`: licence
-  files present, no test files or Node built-ins shipped, every `exports` entry importable), then
-  runs `publint` and Are the Types Wrong?. `pnpm check` plus `pnpm fixtures` (if you touched the
-  generator) reproduces most of it locally.
+- **CI must be green.** The required check is `CI passed`. [Continuous integration](#continuous-integration)
+  below lists what it covers and how to reproduce each part locally; `pnpm check` plus `pnpm fixtures`
+  (if you touched the generator) reproduces most of it.
 
 ## Running the examples
 
@@ -187,8 +184,48 @@ pnpm --filter webtessera-example-cloudflare-durable-object typecheck
 pnpm --filter webtessera-example-cloudflare-durable-object test       # in workerd
 ```
 
-CI builds the browser example and typechecks and tests the Cloudflare one, so keep them working when
-you change the public API.
+CI runs every example's `ci` script (`pnpm --filter "./examples/**" --if-present run ci`), so a new
+example needs a `ci` script and no change to the workflows. Keep the examples working when you change
+the public API.
+
+## Continuous integration
+
+[`ci.yml`](.github/workflows/ci.yml) runs for every pull request, in the merge queue and on every push
+to `main`. It only wires together reusable workflows (the `.github/workflows/_*.yml` files) and ends
+with one job, **`CI passed`**, which fails if any other job failed or was cancelled. Branch protection
+requires that single check, so adding or renaming a job never needs a settings change.
+
+| Workflow | What it checks | Reproduce locally |
+| --- | --- | --- |
+| `_quality.yml` | Biome, types, and the workflow files themselves (actionlint) | `pnpm lint`, `pnpm typecheck` |
+| `_test.yml` | Unit tests on Node 22 and 24; the browser, workerd and services suites | `pnpm test:unit`, `pnpm test:browser`, `pnpm test:workers`, `pnpm test:services` |
+| `_compat.yml` | Fixtures regenerate unchanged from the pinned Go source; Go and TypeScript read each other's logs | `pnpm fixtures`, `pnpm interop` |
+| `_package.yml` | One job packs the tarball (and its GitHub Packages variant) from the lockfile; another tests it: smoke test, publint, Are the Types Wrong? | `pnpm pack`, then `node scripts/smoke-pack.mjs <tarball>` |
+| `_runtimes.yml` | The built package on Node, Bun and Deno | `pnpm build`, then `node scripts/smoke-runtimes.mjs` (or `bun`, or `deno run --allow-read`) |
+| `_examples.yml` | Every example's `ci` script | `pnpm --filter "./examples/**" --if-present run ci` |
+| `_site.yml` | The landing page builds and passes its browser smoke test | `pnpm --filter webtessera-site run ci` |
+
+`pnpm test:services` talks to an rqlite node and an S3-compatible server. CI starts them with Docker
+Compose, and you can start the very same containers (Docker with Compose is the only requirement):
+
+```sh
+docker compose --file .github/actions/services/compose.yaml \
+  --env-file .github/actions/services/services.env up --detach
+set -a; . .github/actions/services/services.env; set +a
+node .github/actions/services/create-bucket.mjs
+pnpm test:services
+```
+
+When you change a workflow:
+
+- Every job sets `timeout-minutes` and checks out with `persist-credentials: false`. Workflows default
+  to `permissions: contents: read`; a job that needs more asks for exactly that.
+- Third-party actions are pinned to a commit SHA, with the release in a trailing comment. Dependabot
+  updates both; do not replace a SHA with a moving tag.
+- A step that several jobs share belongs in a composite action under `.github/actions/`, not copied.
+- Run [actionlint](https://github.com/rhysd/actionlint) before pushing (`actionlint` if installed, or
+  `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12`). CI runs it too, but a workflow
+  mistake otherwise only shows when that workflow runs.
 
 ## Changelog and releases
 
@@ -197,9 +234,12 @@ a line under `## [Unreleased]` for any change a user of the package would notice
 exports, behaviour changes, fixes); internal refactors, test-only and documentation changes do not
 need one.
 
-Maintainers cut releases: they rename `Unreleased` to the new version and date, bump `version` in
-`package.json`, and tag `vX.Y.Z`. Pushing the tag runs `.github/workflows/release.yml`, which
-publishes to npm with provenance.
+Maintainers cut releases: a pull request renames `Unreleased` to the new version and date and bumps
+`version` in `package.json`, and publishing a GitHub Release for the tag `vX.Y.Z` runs
+[`.github/workflows/release.yml`](.github/workflows/release.yml). It re-runs the whole CI, then, once a
+reviewer approves the `release` environment, publishes the tested tarball to npm (`webtessera`) and to
+GitHub Packages (`@diagnos-tech/webtessera`), with provenance. The step-by-step process, the one-time
+setup and how to verify a release are in [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Licensing of contributions
 
