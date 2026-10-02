@@ -6,9 +6,13 @@ import { defineConfig } from "vitest/config";
 // @noble/*, and Node runs a suite of this size far faster than a browser or
 // workerd would.
 //
-// Runtime-specific storage drivers have their own configs:
-//   - vitest.workers.config.ts runs the Durable Object driver inside workerd.
-//   - vitest.browser.config.ts runs the IndexedDB driver inside real Chromium.
+// Suites that need another runtime or a live service have their own configs, chosen by
+// file-name suffix:
+//   - `*_browser_test.ts`: vitest.browser.config.ts, inside real Chromium (IndexedDB,
+//     Web Locks, SQLite compiled to WebAssembly).
+//   - `*_workers_test.ts`: vitest.workers.config.ts, inside workerd (SQLite as exposed by
+//     the Workers runtime).
+//   - `*_services_test.ts`: vitest.services.config.ts, against external services.
 //
 // Test files are named `*_test.ts`, not `*.test.ts`, mirroring upstream's
 // `*_test.go` so that a side-by-side diff against the Go original stays trivial
@@ -17,7 +21,14 @@ export default defineConfig({
 	resolve: { alias: selfAliases() },
 	test: {
 		include: ["src/**/*_test.ts"],
-		exclude: ["src/storage/durableobject/**", "src/**/*_browser_test.ts", "**/node_modules/**"],
+		exclude: [
+			// Legacy Durable Object KV suites, removed once storage/sqlite replaces them.
+			"src/storage/durableobject/**",
+			"src/**/*_workers_test.ts",
+			"src/**/*_browser_test.ts",
+			"src/**/*_services_test.ts",
+			"**/node_modules/**",
+		],
 		testTimeout: 20_000,
 	},
 });

@@ -54,7 +54,10 @@
     "./storage/objectstore": "./dist/storage/objectstore/index.js",
     "./storage/memory": "./dist/storage/memory/index.js",
     "./storage/indexeddb": "./dist/storage/indexeddb/index.js",
-    "./storage/durableobject": "./dist/storage/durableobject/index.js",
+    "./storage/sqlite": "./dist/storage/sqlite/index.js",
+    "./http": "./dist/http/index.js",
+    "./witness": "./dist/witness/index.js",
+    "./mirror": "./dist/mirror/index.js",
     "./testonly": "./dist/testonly/index.js",
     "./package.json": "./package.json"
   },
