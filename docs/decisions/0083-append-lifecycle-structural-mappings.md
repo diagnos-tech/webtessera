@@ -1,0 +1,130 @@
+# ADR-0083: Structural mappings for `NewAppender`, the `sync.Cond` awaiter, and the concurrency drops
+
+- **Status:** proposed
+- **Date:** 2026-08-19
+- **Author:** append-lifecycle agent
+- **Upstream reference:** `append_lifecycle.go` (`NewAppender`, `terminator`, `AppendOptions`),
+  `await.go` (`PublicationAwaiter`)
+
+## Context
+
+Beyond the OTel drop (ADR-0080) and the witness wiring (ADR-0082), completing this file forced a
+cluster of smaller Go→TS structural decisions, each individually minor but collectively worth a
+record so a reviewer is not surprised.
+
+## Decision
+
+**1. Multi-value returns → named readonly objects (per ADR-0031).**
+`NewAppender` returns `(*Appender, func(ctx) error, LogReader, error)`; the driver's `Appender`
+method returns `(*Appender, LogReader, error)`. These become `NewAppenderResult`
+(`{appender, shutdown, reader}`) and `AppenderInit` (`{appender, reader}`), with the trailing error
+thrown (ADR-0004). Both interface names are new (Go's returns are positional/anonymous), additive,
+and exported so drivers have a name to implement against.
+
+**2. Go's local `appendLifecycle` interface + type assertion.**
+Go does `lc, ok := d.(appendLifecycle)` against an unexported interface local to `NewAppender`.
+TypeScript has no method-set type assertion, so this becomes an exported `AppendLifecycle` interface
+plus an `isAppendLifecycle(d)` runtime guard (`typeof d.appender === "function"`). The `%T` in
+`"driver %T does not implement Appender lifecycle"` becomes a best-effort `typeName(d)` (constructor
+name / `typeof`); no test asserts the exact rendering.
+
+**3. `newCP` is synchronous.** Go's `newCP func(ctx, size, hash) ([]byte, error)` does only
+synchronous work (checkpoint marshal + `note.Sign`); its `ctx` fed only the dropped tracer span. Per
+`AGENTS.md` §3.7 (hashing/signing is synchronous), the field is
+`(size: bigint, hash: Uint8Array) => Uint8Array`, throwing instead of returning an error.
+
+**4. `opts` nullability.** `NewAppender`'s `opts *AppendOptions` is typed `AppendOptions | null` so
+the `"opts cannot be nil"` guard is reachable and faithful, rather than being made unreachable by a
+non-null type.
+
+**5. `AppendOptions` zero value folded into the constructor.** Go's `NewAppendOptions()` sets the
+non-zero defaults and the struct's bare zero value has `nil` func fields. TypeScript class fields
+must all be initialised, and the func fields cannot be `nil`, so the `NewAppendOptions` defaults are
+applied in the constructor and `newAppendOptions()` is `new AppendOptions()`. Go callers always go
+through `NewAppendOptions`, so no behaviour depends on the distinct bare zero value.
+
+**6. Field visibility.** Per `docs/decisions/0010`: `entriesPath` is `_entriesPath` (public,
+`@internal`) because the accessor `entriesPath()` collides with it *and* ct_only.ts's future
+`WithCTLayout` overrides it cross-module; `bundleIDHasher`/`addDecorators`/`followers` are public
+plain because module-level `newAppender` or cross-module ct_only.ts read them; everything purely
+class-internal (`newCP`, `batchMaxAge`, …, `witnesses`, `witnessOpts`) is `#private`, and the
+accessor/field name collision it would otherwise cause is avoided because `#name` and `name()` live
+in different namespaces.
+
+**7. `PublicationAwaiter`: `sync.Cond` → broadcast/wait.** Go coordinates the poll loop and blocked
+`Await` callers with a `sync.Cond`. JavaScript cannot block a thread, so `Cond.Wait`/`Broadcast`
+become a list of pending resolvers woken on each poll update; the loop guard re-checks the condition
+after each wake exactly as `Cond.Wait` requires. No lock guards `size`/`checkpoint`/`err` because
+every access is synchronous (ADR-0004). Cancellation is handled Go's way — the `Await` loop guard
+re-checks `signal.aborted`, and the poll loop issues a final broadcast when its own `sleep` is
+cancelled — rather than registering a per-wait abort listener, which would both churn a listener on
+the caller's (possibly composite) signal on every wakeup and diverge from Go's wake-on-broadcast-only
+semantics.
+
+**8. Dropped mutexes (per ADR-0004), each justified in a `// Port note:`.**
+`terminator`'s `sync.RWMutex` guarding `stopped` is dropped: `terminator.add`'s body and the
+synchronous prefix of `terminator.shutdown` (set `stopped`, read `largestIssued`, early-return on 0)
+contain no `await`, so run-to-completion already guarantees an add cannot observe a half-applied
+shutdown. `terminator.largestIssued` (`atomic.Uint64` + CAS loop) becomes a plain field with a
+synchronous compare-and-set. `integrationStats.indexSample` (`atomic.Pointer`) becomes a plain
+nullable field. `inMemoryDedup`'s two `sync.OnceValue`s become plain captured variables (the build
+step is synchronous). Each is annotated at the site.
+
+## Consequences
+
+- Several new exported type names (`AppendLifecycle`, `AppenderInit`, `NewAppenderResult`,
+  `WitnessOptions`) with no direct Go counterpart, all additive. A donation reviewer diffing exported
+  symbols needs this ADR + ADR-0031 to place them.
+- The dropped mutexes are correct *only* because the guarded sections are synchronous; if a future
+  change introduces an `await` into `terminator.add` or `AppendOptions`' setters, the ADR-0004
+  analysis must be redone. The `// Port note:` at each site states the precondition.
+
+## Alternatives considered
+
+- **Tuples for the multi-returns.** Rejected per ADR-0031 (already the project convention).
+- **Transliterate every `sync.Mutex`/atomic into `gostd/sync` primitives.** Rejected per ADR-0004:
+  it would add deadlock risk and obscure which sections are actually load-bearing across `await`.
+- **A per-wait abort listener in the awaiter for prompt cancellation.** Rejected: needless
+  listener churn on the caller's signal and a divergence from Go's `Cond` wake semantics (which
+  cannot observe ctx and relies on the next broadcast); the final broadcast-on-cancel gives the same
+  result.
+
+## Review
+
+- **Reviewer:** Append-Lifecycle Reviewer (agent)
+- **Verdict:** approved
+- **Notes:** Read `append_lifecycle.go` and `await.go` in full against the ports. Checked each of the
+  eight structural mappings; the load-bearing ones are the concurrency drops (item 8) and the
+  `sync.Cond` awaiter (item 7), which I verified independently rather than on the ADR's say-so:
+
+  - **Decoration order (item 1's neighbourhood):** the port's
+    `for (i = addDecorators.length-1; i>=0; i--) a.add = dec(a.add)` matches Go's reverse loop
+    exactly, so `decorators[0]` ends up outermost; for `WithAntispam` that puts in-memory dedup
+    outside the persistent antispam decorator, as Go intends. The fake-driver test asserts
+    `order === ["A","B"]` for decorators `[A,B]`; a forward loop would yield `["B","A"]`, so the test
+    genuinely distinguishes the two orderings (it is not vacuous).
+  - **`terminator` RWMutex + `atomic.Uint64`:** `add()` is synchronous from the `#stopped` check
+    through `#delegate(...)` to the return (no `await`), and `shutdown()`'s prefix (set `#stopped`,
+    read `#largestIssued`, early-return on 0) is likewise synchronous, so under run-to-completion an
+    add cannot observe a half-applied shutdown — the RWMutex's whole purpose. The `largestIssued`
+    compare-and-set runs after `await res()` but the read+write pair itself has no interleaving
+    point, so it cannot lose an update — equivalent to Go's atomic CAS loop.
+  - **`integrationStats.indexSample` (`atomic.Pointer`):** `sample()` and `latency()` are each fully
+    synchronous; the CAS-on-empty and load/store-nil semantics are preserved atomically.
+  - **`inMemoryDedup` `sync.OnceValue` and `memoizeFuture` `sync.OnceValues`:** both build steps are
+    synchronous (the `built`/`promise` captured variable is set before any `await`), so at-most-once
+    holds without a lock; `add()` is synchronous through `return f()`, so even "concurrent" same-entry
+    adds cannot both miss the cache. `memoizeFuture`'s concurrent test uses `Promise.all([f(),f()])`
+    with a yielding delegate and asserts `calls===1`; a resolve-then-cache memoizer would give
+    `calls===2`, so it exercises real overlap, not just sequential caching.
+  - **`PublicationAwaiter` (item 7):** the `#wait()`/`#broadcast()` pair replaces `Cond.Wait`/
+    `Broadcast`; the condition is re-checked after each wake and the register-a-waiter step is
+    synchronous with the guard check, so there is no lost-wakeup window. Cancellation matches Go's
+    up-to-one-poll latency (waiter woken by the next broadcast, not a per-wait listener), and the
+    poll loop's final broadcast-on-cancel plus its setting of `#err` means a late `await()` returns
+    the error immediately rather than hanging — I traced this against Go's `a.err`-set-under-lock
+    behaviour and it is equivalent.
+
+  Items 2–6 (named multi-returns, `AppendLifecycle` guard, synchronous `newCP`, `opts` nullability,
+  folded zero value, field visibility) are faithful and additive; the new exported names are
+  accounted for by ADR-0031/0010. Full suite and typecheck green after review.
