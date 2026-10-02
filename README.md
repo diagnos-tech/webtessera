@@ -123,18 +123,35 @@ See [`examples/browser`](examples/browser) for a complete page you can open in t
 
 Create the driver and the appender once per object, in its constructor, and keep them for the
 object's lifetime. Batching and checkpoint publication run on timers while the object is in memory;
-when the runtime evicts it, the next instance resumes from storage. Every index the appender returned
-was already durably integrated. No `nodejs_compat` flag is needed.
+when the runtime evicts it, the next instance resumes from storage, and every index the appender
+returned was already durably integrated. Large entry bundles are split transparently to fit the
+storage's per-value limit, on KV- and SQLite-backed objects alike, and no `nodejs_compat` flag is
+needed. From the example's `TransparencyLog` Durable Object:
 
-```ts
-import { DurableObject } from "cloudflare:workers";
-import { newAppender, newAppendOptions } from "webtessera";
-import { newDurableObjectDriver } from "webtessera/storage/durableobject";
+```ts file=examples/cloudflare-durable-object/src/index.ts region=durableobject_example
+readonly #log: Promise<{ appender: Appender; reader: LogReader; awaiter: PublicationAwaiter }>;
 
-export class TransparencyLog extends DurableObject<Env> {
-  // In the constructor, under ctx.blockConcurrencyWhile:
-  //   const driver = newDurableObjectDriver({ storage: ctx.storage });
-  //   const { appender, reader } = await newAppender(driver, newAppendOptions().withCheckpointSigner(signer));
+constructor(ctx: DurableObjectState, env: Env) {
+  super(ctx, env);
+  // Open the log once per instance, before the object serves its first request.
+  // The appender's timers then batch, integrate and publish entries for as long
+  // as the instance lives, and the next instance resumes from storage.
+  this.#log = ctx.blockConcurrencyWhile(async () => {
+    const driver = newDurableObjectDriver({ storage: ctx.storage });
+    const opts = newAppendOptions()
+      .withCheckpointSigner(newSigner(env.LOG_PRIVATE_KEY))
+      .withCheckpointInterval(checkpointIntervalMs);
+    const { appender, reader } = await newAppender(driver, opts);
+    const awaiter = newPublicationAwaiter((signal) => reader.readCheckpoint(signal), 100);
+    return { appender, reader, awaiter };
+  });
+}
+
+/** add appends data to the log and resolves to its index once a published checkpoint commits to it. */
+async add(data: Uint8Array): Promise<bigint> {
+  const { appender, awaiter } = await this.#log;
+  const [{ index }] = await awaiter.await(appender.add(newEntry(data)));
+  return index;
 }
 ```
 
