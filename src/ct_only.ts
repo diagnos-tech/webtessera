@@ -15,39 +15,51 @@
 //
 // Ported from tessera/ct_only.go @ 4a6d9f9
 //
-// This is a partial port: one declaration that depends on the append lifecycle is still
-// deferred, marked with a TODO(gustavo) below. See
-// docs/decisions/0044-ct-only-partial-port.md.
+// Port note: Go declares two methods named WithCTLayout in this file, one on
+// *AppendOptions and one on *MigrationOptions, both reaching the receivers' unexported
+// fields from a different file of the same package. TypeScript has neither cross-file
+// methods nor same-name free functions, so both receivers share the single function
+// withCTLayout below, which dispatches on the receiver's class. See
+// docs/decisions/0079-migrationoptions-withctlayout-is-a-function.md and
+// docs/decisions/0130-ct-only-port-completed.md.
 //
-// identityHash previously had a temporary duplicate copy here, pending src/lifecycle.ts.
-// That file now exists (docs/decisions/0055-identityhash-relocated-closes-adr-0044.md);
-// the copy is deleted and this file imports the shared definition instead.
-//
-// convertCTEntry previously awaited the root `Entry` type from src/entry.ts. That file now
-// exists too, with exactly the `internal.identity`/`internal.leafHash`/`internal.data`
-// fields and `marshalForBundle` hook this function needs — see entry.ts's own doc comment
-// on `Entry.internal` — so convertCTEntry is ported below. It needed neither `Appender`
-// nor `IndexFuture`; only its sibling `NewCertificateTransparencyAppender` does.
-//
-// `(*MigrationOptions).WithCTLayout` previously awaited src/migrate_lifecycle.ts, which now
-// exists too, so `withCTLayout` is ported below — closing the second half of the TODO the
-// witness/migrate work package's mission brief named explicitly.
-// `(*AppendOptions).WithCTLayout` still awaits Wave 3's `AppendOptions`.
+// The unexported helpers ctEntriesPath, ctBundleIDHasher, ctMerkleLeafHasher and the
+// copy* functions are exported only so that ct_only_test.ts can reach them, since Go's
+// in-package tests have no TypeScript equivalent (docs/decisions/0044-ct-only-partial-port.md).
+// They are not re-exported from the package barrel.
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import * as layout from "./api/layout/index.ts";
+import { type Appender, AppendOptions, type IndexFuture } from "./append_lifecycle.ts";
 import type * as ctonly from "./ctonly/ct.ts";
 import { Entry } from "./entry.ts";
 import * as cryptobyte from "./internal/gostd/cryptobyte.ts";
 import { identityHash } from "./lifecycle.ts";
-import type { MigrationOptions } from "./migrate_lifecycle.ts";
+import { MigrationOptions } from "./migrate_lifecycle.ts";
 import { DefaultHasher } from "./vendor/merkle/rfc6962/rfc6962.ts";
 
-// TODO(gustavo): port NewCertificateTransparencyAppender from tessera/ct_only.go:38. It
-// returns a function which knows how to add a CT-specific entry type to the log, and needs
-// `Appender` and `IndexFuture` from tessera/append_lifecycle.go. `IndexFuture` is ported
-// (src/append_lifecycle.ts — docs/decisions/0054-append-lifecycle-partial-port.md), but
-// `Appender` itself awaits the rest of that file, which is Wave 3's job.
+/**
+ * newCertificateTransparencyAppender returns a function which knows how to add a CT-specific entry type to the log.
+ *
+ * This entry point MUST ONLY be used for CT logs participating in the CT ecosystem.
+ * It should not be used as the basis for any other/new transparency application as this protocol:
+ * a) embodies some techniques which are not considered to be best practice (it does this to retain backawards-compatibility with RFC6962)
+ * b) is not compatible with the https://c2sp.org/tlog-tiles API which we _very strongly_ encourage you to use instead.
+ *
+ * Users of this MUST NOT call `add` on the underlying Appender directly.
+ *
+ * Returns a future, which resolves to the assigned index in the log, or throws an error.
+ *
+ * Port note: Go's `func(context.Context, *ctonly.Entry) IndexFuture` takes the context as its
+ * first parameter; the port moves it to an optional trailing `signal`, per
+ * docs/decisions/0004-errors-context-and-concurrency.md. `a.add` is read on every call, not
+ * captured, because Go's `a.Add` is a field that newAppender decorates after construction.
+ */
+export function newCertificateTransparencyAppender(
+	a: Appender,
+): (e: ctonly.Entry, signal?: AbortSignal) => IndexFuture {
+	return (e: ctonly.Entry, signal?: AbortSignal): IndexFuture => a.add(convertCTEntry(e), signal);
+}
 
 /**
  * convertCTEntry returns an Entry struct which will do the right thing for CT Static API logs.
@@ -66,34 +78,54 @@ export function convertCTEntry(e: ctonly.Entry): Entry {
 	return r;
 }
 
-// TODO(gustavo): port `(*AppendOptions).WithCTLayout` from tessera/ct_only.go:60. It sets
-// `entriesPath` and `bundleIDHasher` on `AppendOptions`, defined in
-// tessera/append_lifecycle.go, which Wave 3 still owns. The three functions it (and
-// withCTLayout below) install — ctEntriesPath, ctBundleIDHasher and ctMerkleLeafHasher —
-// are all present below.
-
 /**
  * withCTLayout instructs the underlying storage to use a Static CT API compatible scheme for layout.
  *
- * Port note: Go defines this as a method, `(*MigrationOptions).WithCTLayout`, on the type
- * `src/migrate_lifecycle.ts` declares — same Go package, cross-file method, exactly like
- * `convertCTEntry` above reaching into `src/entry.ts`'s `Entry.internal`. TypeScript
- * cannot add a method to a class from a different module without subclassing (which would
- * change `MigrationOptions`'s identity, breaking `instanceof` checks and the type `Driver`
- * lifecycle methods expect), so this is a standalone function taking the options object as
- * its argument — `withCTLayout(o)` in place of Go's chaining `o.WithCTLayout()` — mutating
- * and returning it, which preserves the fluent call site's chaining shape even though it
- * is a free function rather than a method. `o.internal.entriesPath` etc. are the same
- * `internal`-grouped fields `MigrationOptions`'s own `withAntispam` method reaches by
- * `this.internal...`; see that class's doc comment for why they are grouped this way.
+ * Go defines this twice, as `(*AppendOptions).WithCTLayout` and `(*MigrationOptions).WithCTLayout`.
+ * Both are ported here as overloads of one function, so that the identifier mapping of
+ * docs/decisions/0002-file-and-identifier-naming.md still holds (`WithCTLayout` is always
+ * `withCTLayout`) and a caller writes the same thing for either options type.
+ *
+ * For AppendOptions it sets the entry bundle path and the antispam identity hasher. For
+ * MigrationOptions it additionally sets the Merkle leaf hasher, because a migration must
+ * recompute leaf hashes from the source log's bundles, which Go's AppendOptions never does.
+ *
+ * Because AppendOptions.withAntispam and MigrationOptions.withAntispam capture the identity
+ * hasher that is current when they are called, withCTLayout must be applied before them.
+ *
+ * Port note: Go's methods are declared in this file but belong to types from other files of the
+ * same package. TypeScript cannot add a method to a class from another module without
+ * subclassing, which would change the class's identity, so this is a free function taking the
+ * options as its argument and mutating and returning it, preserving the fluent shape; see
+ * docs/decisions/0079-migrationoptions-withctlayout-is-a-function.md and
+ * docs/decisions/0130-ct-only-port-completed.md. The fields it writes are the cross-module
+ * ones documented on each class (`AppendOptions._entriesPath` and `bundleIDHasher`,
+ * `MigrationOptions.internal`).
  */
-export function withCTLayout(o: MigrationOptions): MigrationOptions {
-	o.internal.entriesPath = ctEntriesPath;
-	o.internal.bundleIDHasher = ctBundleIDHasher;
-	o.internal.bundleLeafHasher = ctMerkleLeafHasher;
-	return o;
+export function withCTLayout(o: AppendOptions): AppendOptions;
+export function withCTLayout(o: MigrationOptions): MigrationOptions;
+export function withCTLayout(o: AppendOptions | MigrationOptions): AppendOptions | MigrationOptions {
+	if (o instanceof AppendOptions) {
+		o._entriesPath = ctEntriesPath;
+		o.bundleIDHasher = ctBundleIDHasher;
+		return o;
+	}
+	if (o instanceof MigrationOptions) {
+		o.internal.entriesPath = ctEntriesPath;
+		o.internal.bundleIDHasher = ctBundleIDHasher;
+		o.internal.bundleLeafHasher = ctMerkleLeafHasher;
+		return o;
+	}
+	// Unreachable for callers the overloads admit. It is reachable when two copies of this library
+	// are loaded and the receiver was built by the other one, where a bare property write would
+	// either fail with an unrelated TypeError or silently configure the wrong object.
+	throw new Error("withCTLayout: unsupported options type");
 }
 
+/**
+ * ctEntriesPath returns the Static CT API path of entry bundle n (partial width p, or zero for a
+ * full bundle). Unlike the tlog-tiles layout it lives under `tile/data/` rather than `tile/entries/`.
+ */
 export function ctEntriesPath(n: bigint, p: number): string {
 	return `tile/data/${layout.nWithSuffix(0n, n, p)}`;
 }

@@ -13,9 +13,9 @@
 // limitations under the License.
 
 // This file has no counterpart in Go, where the package itself is the unit of import.
-// It is the barrel that `@repo/webtessera/formats/log` resolves to, so that a
+// It is the barrel that `webtessera/formats/log` resolves to, so that a
 // TypeScript caller writes `import { Checkpoint, parseCheckpoint } from
-// "@repo/webtessera/formats/log"` where a Go caller writes
+// "webtessera/formats/log"` where a Go caller writes
 // `import "github.com/transparency-dev/formats/log"`.
 
 export { Checkpoint } from "./checkpoint.ts";

@@ -16,15 +16,18 @@
 // Ported from tessera/client/fetcher.go @ 4a6d9f9
 //
 // Port note: only HTTPFetcher is ported. FileFetcher reads a POSIX filesystem
-// (`os.ReadFile`, `path.Join`), which PORTING.md §7 forbids outside src/adapters/ ("No
-// Node built-ins... this code runs on the edge") and which has no meaning in a browser
-// tab or edge worker in the first place. `src/storage/memory` already occupies the "the
-// posix of the browser" role for local/offline data (PORTING.md §2). See
+// (`os.ReadFile`, `path.Join`), which this library cannot do: library code must run
+// unmodified in browsers and edge runtimes, where there is no filesystem and no Node
+// built-ins (PORTING.md §7). The in-memory storage driver, `src/storage/memory`, fills the
+// role of local data that FileFetcher plays upstream. See
 // docs/decisions/0064-filefetcher-not-ported.md.
 //
 // klog request-logging and the `net/http`/`net/url` types are likewise dropped in
 // favour of the standard `fetch` and `URL` globals, which are what let this code run
-// unmodified in a browser tab, Node, and a Cloudflare Worker alike.
+// unmodified in a browser tab, Node, and a Cloudflare Worker alike. Where `fetch`
+// behaves differently from `net/http` in a way that matters at runtime (the receiver it
+// is called with, the response body it leaves open), the port accommodates it; see
+// docs/decisions/0131-httpfetcher-fetch-runtime-fidelity.md.
 
 import { CheckpointPath, entriesPath, tilePath } from "../api/layout/index.ts";
 import { partialOrFullResource } from "../internal/fetcher/fallback.ts";
@@ -34,6 +37,22 @@ import { quote } from "../internal/gostd/strconv.ts";
 /** errText renders an error the way Go's `%v` verb does. */
 function errText(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * discardBody releases the connection behind a response whose body will never be read.
+ *
+ * Port note: upstream returns from the 404 and unexpected-status cases before it registers
+ * `defer r.Body.Close()`, so those bodies are never closed. Go tolerates that; the Fetch API
+ * does not. A response body that is neither read nor cancelled keeps its connection
+ * occupied until it is garbage collected, and workerd allows only a small, fixed number of
+ * simultaneous open connections, so a handful of unread 404 bodies (which the partial-tile
+ * fallback produces routinely) can hold later requests back. Any failure to cancel is
+ * ignored: the status error the caller is about to receive is the one that matters. See
+ * docs/decisions/0131-httpfetcher-fetch-runtime-fidelity.md.
+ */
+function discardBody(r: Response): void {
+	r.body?.cancel().catch(() => undefined);
 }
 
 /**
@@ -90,9 +109,14 @@ export class HTTPFetcher {
 			init.signal = signal;
 		}
 
+		// Port note: `fetch` is called through a local so that it has no receiver. Calling
+		// `this.#c(...)` would pass the HTTPFetcher as `this`, and browsers and workerd reject
+		// that for the global `fetch` with "Illegal invocation". Go's `h.c.Do(req)` has no such
+		// constraint.
+		const c = this.#c;
 		let r: Response;
 		try {
-			r = await this.#c(u.toString(), init);
+			r = await c(u.toString(), init);
 		} catch (err) {
 			throw new Error(`get(${quote(u.toString())}): ${errText(err)}`);
 		}
@@ -103,8 +127,10 @@ export class HTTPFetcher {
 				break;
 			case 404:
 				// Need to throw ErrNotExist here, by contract.
+				discardBody(r);
 				throw wrapError(`get(${quote(u.toString())})`, ErrNotExist);
 			default:
+				discardBody(r);
 				throw new Error(`get(${quote(u.toString())}): ${r.status}`);
 		}
 

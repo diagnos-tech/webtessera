@@ -13,9 +13,9 @@
 // limitations under the License.
 //
 // This file has no counterpart in Go, where the package itself is the unit of import. It
-// is the barrel that `@repo/webtessera/fsck` resolves to (package.json's `exports`),
-// re-exporting exactly what Go's `fsck` package exports (PORTING.md §2's "donation
-// boundary", following the same pattern client/index.ts and api/layout/index.ts use).
+// is the barrel that `webtessera/fsck` resolves to (package.json's `exports`),
+// re-exporting exactly what Go's `fsck` package exports, following the same pattern
+// client/index.ts and api/layout/index.ts use.
 //
 // Deliberately NOT re-exported: `resource`, `fsckTree`, `ResourceQueue`, `countingFetcher`
 // / `newCountingFetcher` (all unexported in Go, or -- ResourceQueue -- have no Go

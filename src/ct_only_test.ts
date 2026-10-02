@@ -17,12 +17,32 @@
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
-import { convertCTEntry, ctBundleIDHasher, ctEntriesPath, ctMerkleLeafHasher, withCTLayout } from "./ct_only.ts";
+import {
+	type AddFn,
+	Appender,
+	type AppenderInit,
+	type AppendOptions,
+	type Index,
+	type IndexFuture,
+	newAppender,
+	newAppendOptions,
+} from "./append_lifecycle.ts";
+import {
+	convertCTEntry,
+	ctBundleIDHasher,
+	ctEntriesPath,
+	ctMerkleLeafHasher,
+	newCertificateTransparencyAppender,
+	withCTLayout,
+} from "./ct_only.ts";
 import { Entry } from "./ctonly/ct.ts";
 import { Entry as RootEntry } from "./entry.ts";
 import { concatBytes, toHex, toUTF8 } from "./internal/gostd/bytes.ts";
+import { ErrNotExist } from "./internal/gostd/errors.ts";
+import type { Antispam, Follower, LogReader } from "./lifecycle.ts";
 import { newMigrationOptions } from "./migrate_lifecycle.ts";
 import { hexToBytes, loadFixture } from "./testonly/fixtures.ts";
+import { newSigner } from "./vendor/note/note.ts";
 
 describe("TestCTEntriesPath", () => {
 	const tests: { N: bigint; p: number; wantPath: string }[] = [
@@ -351,18 +371,199 @@ describe("convertCTEntry", () => {
 	});
 });
 
-// withCTLayout closes the TODO(gustavo) that named this file and
-// docs/decisions/0044-ct-only-partial-port.md, once src/migrate_lifecycle.ts's
-// MigrationOptions existed for it to configure. Go: `(*MigrationOptions).WithCTLayout`.
+// ct_only.go defines WithCTLayout twice, once per receiver: `(*AppendOptions)` and
+// `(*MigrationOptions)`. Neither has an upstream test. TypeScript has no cross-file methods
+// (docs/decisions/0079-migrationoptions-withctlayout-is-a-function.md), so both receivers
+// share the one free function `withCTLayout`, which dispatches on the receiver's class; see
+// docs/decisions/0130-ct-only-port-completed.md.
 describe("withCTLayout", () => {
-	it("installs ctEntriesPath, ctBundleIDHasher and ctMerkleLeafHasher, and returns the same options for chaining", () => {
-		const o = newMigrationOptions();
+	describe("MigrationOptions", () => {
+		it("installs ctEntriesPath, ctBundleIDHasher and ctMerkleLeafHasher, and returns the same options for chaining", () => {
+			const o = newMigrationOptions();
 
-		const returned = withCTLayout(o);
+			const returned = withCTLayout(o);
 
-		expect(returned).toBe(o);
-		expect(o.internal.entriesPath).toBe(ctEntriesPath);
-		expect(o.internal.bundleIDHasher).toBe(ctBundleIDHasher);
-		expect(o.internal.bundleLeafHasher).toBe(ctMerkleLeafHasher);
+			expect(returned).toBe(o);
+			expect(o.internal.entriesPath).toBe(ctEntriesPath);
+			expect(o.internal.bundleIDHasher).toBe(ctBundleIDHasher);
+			expect(o.internal.bundleLeafHasher).toBe(ctMerkleLeafHasher);
+		});
+	});
+
+	describe("AppendOptions", () => {
+		it("installs ctEntriesPath and ctBundleIDHasher, and returns the same options for chaining", () => {
+			const o = newAppendOptions();
+
+			const returned = withCTLayout(o);
+
+			expect(returned).toBe(o);
+			expect(o.entriesPath()).toBe(ctEntriesPath);
+			expect(o.bundleIDHasher).toBe(ctBundleIDHasher);
+		});
+
+		it("makes entriesPath() produce Static CT API paths", () => {
+			const o = withCTLayout(newAppendOptions());
+
+			expect(o.entriesPath()(0n, 8)).toBe("tile/data/000.p/8");
+			expect(o.entriesPath()(123456789000n, 0)).toBe("tile/data/x123/x456/x789/000");
+		});
+
+		it("is only observed by withAntispam when called first", () => {
+			// AppendOptions.withAntispam hands the *current* bundleIDHasher to the antispam follower,
+			// so the layout must be chosen before the antispam is attached: this is how Go behaves,
+			// and the ordering requirement is easy to get backwards.
+			const seen: ((bundle: Uint8Array) => Uint8Array[])[] = [];
+			const spam = fakeAntispam(seen);
+
+			withCTLayout(newAppendOptions()).withAntispam(0, spam);
+			expect(seen).toEqual([ctBundleIDHasher]);
+
+			seen.length = 0;
+			withCTLayout(newAppendOptions().withAntispam(0, spam));
+			expect(seen).toHaveLength(1);
+			expect(seen[0]).not.toBe(ctBundleIDHasher);
+		});
+
+		it("rejects a receiver that is neither AppendOptions nor MigrationOptions", () => {
+			// The overloads make this unreachable for typed callers; the runtime guard is what keeps an
+			// untyped caller from silently receiving an unmodified object.
+			const notOptions = {} as unknown as AppendOptions;
+			expect(() => withCTLayout(notOptions)).toThrowError("withCTLayout: unsupported options type");
+		});
+	});
+});
+
+// fakeAntispam records the bundle hasher each follower is constructed with. Its decorator is the
+// identity, so adding it to an AppendOptions never perturbs the AddFn chain.
+function fakeAntispam(seen: ((bundle: Uint8Array) => Uint8Array[])[]): Antispam {
+	return {
+		decorator: (): ((fn: AddFn) => AddFn) => (fn) => fn,
+		follower: (idHasher): Follower => {
+			seen.push(idHasher);
+			return {
+				name: (): string => "fake",
+				follow: (): void => undefined,
+				entriesProcessed: async (): Promise<bigint> => 0n,
+			};
+		},
+	};
+}
+
+// NewCertificateTransparencyAppender has no upstream test either: Go exercises it only through
+// integration tests against real storage drivers, which are not part of this port yet. The cases
+// below drive it through newAppender with a fake driver, the same way append_lifecycle_test.ts does.
+describe("newCertificateTransparencyAppender", () => {
+	const testSignerKey = "PRIVATE+KEY+example.com/log/testdata+33d7b496+AeymY/SZAX0jZcJ8enZ5FY1Dz+wTML2yWSkK+9DSF3eg";
+
+	function fakeReader(): LogReader {
+		return {
+			readCheckpoint: async (): Promise<Uint8Array> => {
+				throw ErrNotExist;
+			},
+			readTile: async (): Promise<Uint8Array> => new Uint8Array(0),
+			readEntryBundle: async (): Promise<Uint8Array> => new Uint8Array(0),
+			nextIndex: async (): Promise<bigint> => 0n,
+			integratedSize: async (): Promise<bigint> => 0n,
+		};
+	}
+
+	const ctEntry = (): Entry => new Entry({ timestamp: 1234n, isPrecert: false, certificate: testCert });
+
+	it("adds a converted entry to the Appender and returns the Appender's future", async () => {
+		const added: { entry: RootEntry; signal: AbortSignal | undefined }[] = [];
+		const rawAdd: AddFn = (entry: RootEntry, signal?: AbortSignal): IndexFuture => {
+			added.push({ entry, signal });
+			return async (): Promise<Index> => ({ index: 7n, isDup: false });
+		};
+		const add = newCertificateTransparencyAppender(new Appender(rawAdd));
+		const src = ctEntry();
+
+		const got = await add(src)();
+
+		expect(got).toEqual({ index: 7n, isDup: false });
+		expect(added).toHaveLength(1);
+		const entry = added[0]?.entry;
+		expect(entry).toBeInstanceOf(RootEntry);
+		// The Entry handed to the Appender is the convertCTEntry product: identity is eager, and the
+		// bundle encoding is the Static CT leaf data for whichever index the storage assigns.
+		expect(entry?.identity()).toEqual(src.identity());
+		expect(entry?.marshalBundleData(7n)).toEqual(src.leafData(7n));
+		expect(entry?.leafHash()).toEqual(src.merkleLeafHash(7n));
+	});
+
+	it("forwards the abort signal to Appender.add", () => {
+		let gotSignal: AbortSignal | undefined;
+		const rawAdd: AddFn = (_entry: RootEntry, signal?: AbortSignal): IndexFuture => {
+			gotSignal = signal;
+			return async (): Promise<Index> => ({ index: 0n, isDup: false });
+		};
+		const add = newCertificateTransparencyAppender(new Appender(rawAdd));
+		const ctrl = new AbortController();
+
+		add(ctEntry(), ctrl.signal);
+
+		expect(gotSignal).toBe(ctrl.signal);
+	});
+
+	it("reads Appender.add on every call, so a later decoration of the Appender is honoured", async () => {
+		// Go's Appender.Add is a field and the returned closure reads it at call time. newAppender
+		// relies on this when it wraps `add` in decorators after construction.
+		const calls: string[] = [];
+		const appender = new Appender((): IndexFuture => {
+			calls.push("original");
+			return async (): Promise<Index> => ({ index: 1n, isDup: false });
+		});
+		const add = newCertificateTransparencyAppender(appender);
+
+		await add(ctEntry())();
+		appender.add = (): IndexFuture => {
+			calls.push("replacement");
+			return async (): Promise<Index> => ({ index: 2n, isDup: false });
+		};
+		const got = await add(ctEntry())();
+
+		expect(calls).toEqual(["original", "replacement"]);
+		expect(got.index).toBe(2n);
+	});
+
+	it("propagates a failure from the underlying future", async () => {
+		const rawAdd: AddFn = (): IndexFuture => async (): Promise<Index> => {
+			throw new Error("pushback");
+		};
+		const add = newCertificateTransparencyAppender(new Appender(rawAdd));
+
+		await expect(add(ctEntry())()).rejects.toThrowError("pushback");
+	});
+
+	it("works end to end through newAppender, with the CT layout reaching the driver", async () => {
+		let driverOpts: AppendOptions | undefined;
+		const added: RootEntry[] = [];
+		const rawAdd: AddFn = (entry: RootEntry): IndexFuture => {
+			added.push(entry);
+			return async (): Promise<Index> => ({ index: 3n, isDup: false });
+		};
+		const driver = {
+			appender: async (opts: AppendOptions): Promise<AppenderInit> => {
+				driverOpts = opts;
+				return { appender: new Appender(rawAdd), reader: fakeReader() };
+			},
+		};
+		const opts = withCTLayout(newAppendOptions().withCheckpointSigner(newSigner(testSignerKey)));
+		const ctrl = new AbortController();
+		try {
+			const { appender } = await newAppender(driver, opts, ctrl.signal);
+			const add = newCertificateTransparencyAppender(appender);
+			const src = ctEntry();
+
+			const got = await add(src)();
+
+			expect(got).toEqual({ index: 3n, isDup: false });
+			expect(added).toHaveLength(1);
+			expect(added[0]?.marshalBundleData(3n)).toEqual(src.leafData(3n));
+			expect(driverOpts?.entriesPath()(0n, 0)).toBe("tile/data/000");
+			expect(driverOpts?.bundleIDHasher).toBe(ctBundleIDHasher);
+		} finally {
+			ctrl.abort();
+		}
 	});
 });

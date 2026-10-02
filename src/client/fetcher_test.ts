@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// There is no client/fetcher_test.go upstream (client/fetcher.go is mostly HTTP/file
-// I/O plumbing that PORTING.md §4's TDD workflow has nothing to port a test *from*). Per
-// the mission brief for this work package, this covers what upstream's own path-building
-// logic does: HTTPFetcher.readCheckpoint/readTile/readEntryBundle resolve the exact
-// tlog-tiles resource path (layout.CheckpointPath/tilePath/entriesPath, already
-// exhaustively covered by paths_fixtures_test.ts) against the fetcher's root URL, apply
-// the partial-then-full-resource fallback, map a 404 to ErrNotExist, and surface any
-// other non-200 status or transport failure as an error. FileFetcher is not ported; see
-// docs/decisions/0064-filefetcher-not-ported.md.
+// There is no client/fetcher_test.go upstream: fetcher.go is HTTP and file I/O plumbing, which
+// Tessera exercises only through its integration tests against real servers. Every test here is
+// therefore a port addition. They pin what the Go code does on its own account:
+// HTTPFetcher.readCheckpoint/readTile/readEntryBundle resolve the exact tlog-tiles resource
+// path (layout.CheckpointPath/tilePath/entriesPath, already exhaustively covered by
+// paths_fixtures_test.ts) against the fetcher's root URL, apply the partial-then-full-resource
+// fallback, map a 404 to ErrNotExist, and surface any other non-200 status or transport failure
+// as an error with Go's message text. A second group covers the places where the port has to
+// differ because `fetch` is not `net/http`: the receiver `fetch` is called with, the global
+// default, abort signals and response-body release (docs/decisions/0131-httpfetcher-fetch-runtime-fidelity.md).
+// FileFetcher is not ported; see docs/decisions/0064-filefetcher-not-ported.md.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CheckpointPath, entriesPath, tilePath } from "../api/layout/index.ts";
 import { ErrNotExist, errorIs } from "../internal/gostd/errors.ts";
 import { type FetchFn, HTTPFetcher, newHTTPFetcher } from "./fetcher.ts";
@@ -227,5 +229,163 @@ describe("HTTPFetcher construction", () => {
 		const { fetch } = mockFetch(new Map());
 		const h = new HTTPFetcher(fetch, new URL("https://log.example/root/"));
 		expect(h).toBeInstanceOf(HTTPFetcher);
+	});
+});
+
+describe("error messages", () => {
+	// Go formats every failure as `get(%q): ...` with the absolute URL; callers and logs grep for it.
+	const checkpointURL = `https://log.example/root/${CheckpointPath}`;
+
+	it("reports a 404 as get(<url>) wrapping file does not exist", async () => {
+		const { fetch } = mockFetch(new Map([[checkpointURL, { status: 404 }]]));
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		await expect(h.readCheckpoint()).rejects.toThrowError(`get("${checkpointURL}"): file does not exist`);
+	});
+
+	it("reports another status as get(<url>) followed by the status code", async () => {
+		const { fetch } = mockFetch(new Map([[checkpointURL, { status: 503 }]]));
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		await expect(h.readCheckpoint()).rejects.toThrowError(`get("${checkpointURL}"): 503`);
+	});
+
+	it("reports a transport failure as get(<url>) followed by the underlying message", async () => {
+		const fetch: FetchFn = async (): Promise<Response> => {
+			throw new Error("network down");
+		};
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		await expect(h.readCheckpoint()).rejects.toThrowError(`get("${checkpointURL}"): network down`);
+	});
+});
+
+describe("newHTTPFetcher URL handling", () => {
+	it("mutates the URL it is given when it appends the trailing slash, as Go does", () => {
+		const root = new URL("https://log.example/root");
+		newHTTPFetcher(root, mockFetch(new Map()).fetch);
+		expect(root.pathname).toBe("/root/");
+	});
+
+	it("resolves resource paths against the root path rather than the host", async () => {
+		const { fetch, calls } = mockFetch(
+			new Map([["https://log.example/a/b/checkpoint", { status: 200, body: new Uint8Array(0) }]]),
+		);
+		await newHTTPFetcher(new URL("https://log.example/a/b"), fetch).readCheckpoint();
+		expect(calls[0]?.url).toBe("https://log.example/a/b/checkpoint");
+	});
+});
+
+describe("fetch runtime fidelity", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("calls the fetch function detached from the fetcher", async () => {
+		// Browsers and workerd throw "Illegal invocation" when the global `fetch` is called with any
+		// receiver other than the global object, and `this.#c(...)` would pass the HTTPFetcher.
+		// Go's `h.c.Do(req)` is a method call on a client, which has no such constraint.
+		let receiver: unknown = "not called";
+		const fetch = async function (this: unknown): Promise<Response> {
+			receiver = this;
+			return new Response(new Uint8Array(0));
+		};
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		await h.readCheckpoint();
+		expect(receiver).toBeUndefined();
+	});
+
+	it("uses the global fetch when no fetch function is given", async () => {
+		const stub = vi.fn(async (): Promise<Response> => new Response(new Uint8Array([4, 2])));
+		vi.stubGlobal("fetch", stub);
+		const h = newHTTPFetcher(new URL("https://log.example/root/"));
+		expect(await h.readCheckpoint()).toEqual(new Uint8Array([4, 2]));
+		expect(stub).toHaveBeenCalledTimes(1);
+		expect(stub.mock.calls[0]).toEqual(["https://log.example/root/checkpoint", expect.anything()]);
+	});
+
+	it("passes the abort signal to fetch", async () => {
+		let got: AbortSignal | null | undefined;
+		const fetch: FetchFn = async (_input: string, init?: RequestInit): Promise<Response> => {
+			got = init?.signal;
+			return new Response(new Uint8Array(0));
+		};
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		const ctrl = new AbortController();
+		await h.readCheckpoint(ctrl.signal);
+		expect(got).toBe(ctrl.signal);
+	});
+
+	it("passes no signal to fetch when the caller has none", async () => {
+		let init: RequestInit | undefined;
+		const fetch: FetchFn = async (_input: string, i?: RequestInit): Promise<Response> => {
+			init = i;
+			return new Response(new Uint8Array(0));
+		};
+		await newHTTPFetcher(new URL("https://log.example/root/"), fetch).readCheckpoint();
+		expect(init).toBeDefined();
+		expect(init && "signal" in init).toBe(false);
+	});
+
+	it("fails when the signal is aborted while the request is in flight", async () => {
+		const fetch: FetchFn = (_input: string, init?: RequestInit): Promise<Response> =>
+			new Promise((_resolve, reject) => {
+				init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+			});
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		const ctrl = new AbortController();
+		const pending = h.readCheckpoint(ctrl.signal);
+		ctrl.abort();
+		await expect(pending).rejects.toThrowError("aborted");
+	});
+
+	describe("response body release", () => {
+		/**
+		 * trackedResponse returns a Response whose body reports whether it was cancelled. The body of a
+		 * successful response is complete; that of an error response is still open, as when a server is
+		 * partway through sending a large error page, which is the case where an unreleased body matters.
+		 */
+		function trackedResponse(status: number): { response: Response; cancelled: () => boolean } {
+			let cancelled = false;
+			const body = new ReadableStream<Uint8Array>({
+				start(controller): void {
+					controller.enqueue(new Uint8Array([1, 2, 3]));
+					if (status === 200) {
+						controller.close();
+					}
+				},
+				cancel(): void {
+					cancelled = true;
+				},
+			});
+			return { response: new Response(body, { status }), cancelled: () => cancelled };
+		}
+
+		it("cancels the unread body of a 404, so the connection is not held open", async () => {
+			const { response, cancelled } = trackedResponse(404);
+			const fetch: FetchFn = async (): Promise<Response> => response;
+			const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+			await expect(h.readCheckpoint()).rejects.toThrow();
+			expect(cancelled()).toBe(true);
+		});
+
+		it("cancels the unread body of any other non-200 status", async () => {
+			const { response, cancelled } = trackedResponse(500);
+			const fetch: FetchFn = async (): Promise<Response> => response;
+			const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+			await expect(h.readCheckpoint()).rejects.toThrow();
+			expect(cancelled()).toBe(true);
+		});
+
+		it("reads, rather than cancels, the body of a 200", async () => {
+			const { response, cancelled } = trackedResponse(200);
+			const fetch: FetchFn = async (): Promise<Response> => response;
+			const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+			expect(await h.readCheckpoint()).toEqual(new Uint8Array([1, 2, 3]));
+			expect(cancelled()).toBe(false);
+		});
+
+		it("is not disturbed by a response with no body", async () => {
+			const fetch: FetchFn = async (): Promise<Response> => new Response(null, { status: 404 });
+			const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+			await expect(h.readCheckpoint()).rejects.toThrowError("file does not exist");
+		});
 	});
 });

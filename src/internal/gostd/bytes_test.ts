@@ -1,6 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
-import { bytesEqual, fromBase64, fromHex, splitN, toBase64, toHex, toUTF8 } from "./bytes.ts";
+import { bytesEqual, fromBase64, fromHex, fromUTF8, splitN, toBase64, toHex, toUTF8 } from "./bytes.ts";
 
 // Smoke test for the toolchain itself: @noble resolves, `*_test.ts` is picked up,
 // and the hex helpers round-trip. Real coverage of this file lands with the
@@ -10,6 +10,16 @@ describe("gostd/bytes", () => {
 		const empty = sha256(new Uint8Array());
 		expect(toHex(empty)).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 		expect(bytesEqual(fromHex(toHex(empty)), empty)).toBe(true);
+	});
+
+	it("fromUTF8 keeps a leading byte-order mark, like Go's string(b)", () => {
+		const withBOM = new Uint8Array([0xef, 0xbb, 0xbf, 0x61]);
+		expect(fromUTF8(withBOM)).toBe("\ufeffa");
+		expect(bytesEqual(toUTF8(fromUTF8(withBOM)), withBOM)).toBe(true);
+	});
+
+	it("fromUTF8 replaces invalid sequences with U+FFFD, like Go's string(b)", () => {
+		expect(fromUTF8(new Uint8Array([0x61, 0xff, 0x62]))).toBe("a\ufffdb");
 	});
 });
 

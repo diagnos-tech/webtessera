@@ -14,11 +14,11 @@
 
 // Cross-check for internal/parse against golden checkpoints.
 //
-// There is no fixture generated from `parse.CheckpointUnsafe` itself — see the
-// TODO(gustavo) in docs/PORTING-MAP.md. What exists is the `checkpoint` fixture,
-// emitted by running `formats/log`'s marshaller and parser, and `CheckpointUnsafe`
-// is by definition the fast path that must agree with that parser on well-formed
-// input. So this asserts exactly that, over real Go-produced checkpoint bodies.
+// There is no fixture generated from `parse.CheckpointUnsafe` itself. The available
+// fixture is the `checkpoint` one, emitted by running `formats/log`'s marshaller and
+// parser, and `CheckpointUnsafe` is by definition the fast path that must agree with
+// that parser on well-formed input. So this asserts exactly that, over real Go-produced
+// checkpoint bodies.
 //
 // **Only the accepted cases are used.** The two parsers deliberately disagree on
 // rejection: `log.UnmarshalCheckpoint` rejects an empty origin line, while
