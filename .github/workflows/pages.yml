@@ -1,0 +1,70 @@
+# Publishes the landing page (site/) to GitHub Pages on every push to main, and on demand.
+#
+# One-time setup, by a repository admin: Settings → Pages → Build and deployment →
+# Source: "GitHub Actions". Until then configure-pages fails with "Get Pages site failed".
+#
+# The build job runs the site's own `ci` script, which builds the library and the page,
+# type-checks the site and smoke-tests the built page in Chromium; a page that fails its
+# smoke test is never deployed. Pull requests run the same script through ci.yml
+# (_site.yml), so this workflow only builds what main already passed.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time. A newer push queues behind a deployment in progress instead of
+# cancelling it, so Pages never ends up half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the site
+    # Forks build and deploy only when asked to, so a fork without Pages stays green.
+    if: github.repository == 'diagnos-tech/webtessera' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup-browsers
+
+      # Reads the URL Pages will serve the site at, custom domain included.
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      # SITE_URL sets the canonical URL, the base path, the sitemap and the social cards.
+      - name: Build and smoke-test the site
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+        run: pnpm --filter webtessera-site run ci
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

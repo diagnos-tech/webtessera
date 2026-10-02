@@ -1,0 +1,29 @@
+{
+  // Type-checks the site: the build-time generator (src/data, src/sections, src/plugin.ts),
+  // the browser code (src/enhance.ts, src/demo, src/shared) and the scripts. webtessera
+  // resolves to the built package, as it would for any application.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "typeRoots": ["./types"],
+
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "isolatedModules": true,
+
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src", "scripts", "types", "vite.config.ts"]
+}
