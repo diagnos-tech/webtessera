@@ -12,5 +12,15 @@
   "checkpointSize": "0",
   "checkpointHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "tiles": [],
-  "entryBundles": []
+  "entryBundles": [],
+  "state": [
+    {
+      "path": ".state/treeState",
+      "raw": "7b2273697a65223a302c22726f6f74223a223437444551706a38484253612b2f54496d572b354a4365755165526b6d354e4d704a575a473368537546553d227d"
+    },
+    {
+      "path": ".state/version",
+      "raw": "31"
+    }
+  ]
 }

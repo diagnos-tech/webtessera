@@ -84,7 +84,7 @@ increasing order of effort:
 | `note.json` | `golang.org/x/mod/sumdb/note` | key encoding, key hashing, `Sign`, `Open`, and every malformed note upstream rejects |
 | `checkpoint.json` | `formats/log` | `Checkpoint.Marshal`/`Unmarshal`, signed checkpoints, `ParseCheckpoint` |
 | `ctonly.json` | `ctonly` | `Entry.LeafData`, `MerkleTreeLeaf`, `MerkleLeafHash`, `Identity` |
-| `log_<N>.json` | `storage/posix` | a complete log of N entries: every tile, every entry bundle, and the signed checkpoint, keyed by tlog-tiles path |
+| `log_<N>.json` | `storage/posix` | a complete log of N entries: every tile, every entry bundle, and the signed checkpoint, keyed by tlog-tiles path, plus the driver's private `.state/` files (`version`, `treeState`) as Go wrote them |
 
 ### Encoding
 
