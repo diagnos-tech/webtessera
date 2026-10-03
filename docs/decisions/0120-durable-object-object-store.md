@@ -1,6 +1,6 @@
 # ADR-0120: Keep a log in Durable Object storage, chunking objects larger than a storage value
 
-- **Status:** proposed
+- **Status:** superseded by ADR-0150
 - **Date:** 2026-10-02
 - **Author:** Claude
 - **Upstream reference:** `storage/posix/files.go`, `storage/posix/file_ops.go` (the model the ObjectStore

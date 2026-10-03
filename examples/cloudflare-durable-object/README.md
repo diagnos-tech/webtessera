@@ -87,14 +87,17 @@ verifyInclusion(DefaultHasher, index, checkpoint.size, DefaultHasher.hashLeaf(en
   whole log, and the Worker forwards every request to it. Run more logs by addressing more
   objects (`env.LOG.getByName(...)`). Other Workers can append over RPC, without HTTP:
   `await env.LOG.getByName("log").add(data)`.
-- **Opened once per instance.** The object's constructor creates the storage driver
-  (`newDurableObjectDriver({ storage: ctx.storage })`), the appender and a
+- **Opened once per instance.** The object's constructor creates the storage driver, which
+  keeps the log in the object's own SQLite database
+  (`newSqliteDriver({ database: fromDurableObjectStorage(ctx.storage) })`), the appender and a
   `PublicationAwaiter` under `ctx.blockConcurrencyWhile`, so no request sees a half-opened log.
+  The same driver runs on any other SQLite (node:sqlite, bun:sqlite, libSQL, rqlite, D1, …)
+  through the matching adapter of `webtessera/storage/sqlite`.
 - **Durability.** By the time `POST /add` answers, the entry is sequenced, integrated into the
   tree and committed to by a published checkpoint. The driver's storage writes commit before it
   moves on, and the runtime's output gate holds the response back until they are persisted, so
-  an acknowledged entry is never lost. Entry bundles larger than a storage value are split
-  across several values transparently.
+  an acknowledged entry is never lost. Entry bundles larger than the SQL API's 2 MB row limit
+  are split across several rows transparently.
 - **Background work.** Batching, checkpoint publication and garbage collection run on timers
   for as long as the instance is in memory. Pending timers keep an instance from hibernating
   (and workerd will not evict one gracefully while they are pending), so expect the object to

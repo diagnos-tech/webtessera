@@ -1,6 +1,6 @@
 # ADR-0122: Rely on Durable Object output gates for durability, and on storage for restarts
 
-- **Status:** proposed
+- **Status:** superseded by ADR-0153
 - **Date:** 2026-10-02
 - **Author:** Claude
 - **Upstream reference:** `storage/posix/file_ops.go` (`overwrite`, `createEx`: fsync of file and

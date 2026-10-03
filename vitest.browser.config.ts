@@ -11,7 +11,12 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 
 export default defineConfig({
 	// Pre-bundle noble up front: discovering it mid-run makes Vite reload the test page.
-	optimizeDeps: { include: ["@noble/curves/ed25519.js", "@noble/hashes/sha2.js"] },
+	// sqlite-wasm ships its own worker and .wasm files, which Vite's pre-bundling would
+	// break; excluding it also stops Vite reloading the page mid-run when it discovers it.
+	optimizeDeps: {
+		include: ["@noble/curves/ed25519.js", "@noble/hashes/sha2.js"],
+		exclude: ["@sqlite.org/sqlite-wasm"],
+	},
 	test: {
 		include: ["src/**/*_browser_test.ts"],
 		testTimeout: 30_000,

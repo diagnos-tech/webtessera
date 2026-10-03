@@ -5,15 +5,16 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **A faithful TypeScript port of [Tessera](https://github.com/transparency-dev/tessera), the tile-based
-transparency log, that runs in the browser, on Cloudflare Durable Objects, and anywhere else modern
+transparency log, that runs in the browser, on any SQLite database, and anywhere else modern
 JavaScript runs.**
 
 A transparency log is an append-only, tamper-evident record: anyone can verify that an entry is in
 it, and that the log never rewrote its history. Tessera is the transparency-dev project's library
 for building such logs in Go, serving them in the [C2SP tlog-tiles](https://c2sp.org/tlog-tiles)
 format. webtessera brings the same log to places Go does not reach — a browser tab backed by
-IndexedDB, or a Durable Object at the edge — while staying byte-for-byte compatible with it: a log
-written by webtessera can be read and verified by Tessera's Go client, and the other way round.
+IndexedDB, a server or an edge function backed by whichever SQLite it already has — while staying
+byte-for-byte compatible with it: a log written by webtessera can be read and verified by Tessera's
+Go client, and the other way round.
 
 > [!NOTE]
 > webtessera is an independent port. It is not an official Google or transparency-dev project.
@@ -23,9 +24,11 @@ written by webtessera can be read and verified by Tessera's Go client, and the o
 - **The whole append lifecycle**: batching, pushback, antispam deduplication, signed checkpoints
   ([signed notes](https://c2sp.org/signed-note), Ed25519), witnessing with witness policies and
   cosignatures, garbage collection of partial tiles, and migration of existing logs.
-- **Storage for the web**: an in-memory driver, an IndexedDB driver (durable, shared safely between
-  tabs through Web Locks), and a Durable Object driver (KV- and SQLite-backed objects alike). Any
-  key/value store can be plugged in by implementing a six-method contract.
+- **Storage for the web and the server**: an in-memory driver, an IndexedDB driver (durable, shared
+  safely between tabs through Web Locks), and a SQLite driver that runs on any SQLite engine —
+  node:sqlite, bun:sqlite, better-sqlite3, libSQL/Turso, rqlite, Cloudflare D1, SQLite-backed Durable
+  Objects or sqlite-wasm — with lease locks and fencing when several processes share one database.
+  Any key/value store can be plugged in by implementing a six-method contract.
 - **Verification**: checkpoint fetching, inclusion and consistency proofs, entry streaming, a
   client-side log state tracker, and `fsck` for whole-log integrity checks.
 - **Static CT API** support for Certificate Transparency logs.
@@ -50,7 +53,7 @@ import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "
 // Choose one!
 import { newMemoryDriver } from "webtessera/storage/memory";
 // import { newIndexedDBDriver } from "webtessera/storage/indexeddb";
-// import { newDurableObjectDriver } from "webtessera/storage/durableobject";
+// import { newSqliteDriver, fromSqliteSync } from "webtessera/storage/sqlite";
 ```
 
 ```ts file=src/README_test.ts region=construct_example
@@ -100,7 +103,7 @@ the appender accepted is integrated and covered by a published checkpoint.
 | --- | --- | --- | --- |
 | Memory | `webtessera/storage/memory` | anywhere | none (tests, demos, ephemeral logs) |
 | IndexedDB | `webtessera/storage/indexeddb` | browsers, web/service workers | durable, shared between tabs |
-| Durable Object | `webtessera/storage/durableobject` | Cloudflare Workers | durable, one log per object |
+| SQLite | `webtessera/storage/sqlite` | wherever a SQLite engine runs (see below) | durable, shared between processes |
 | Your own | `webtessera/storage/objectstore` | wherever your store runs | yours |
 
 All of them run the same storage engine, a port of Tessera's POSIX driver, on top of a small
@@ -119,44 +122,46 @@ const { appender, shutdown } = await newAppender(driver, newAppendOptions().with
 
 See [`examples/browser`](examples/browser) for a complete page you can open in two tabs.
 
-### On Cloudflare Durable Objects
+### On any SQLite
 
-Create the driver and the appender once per object, in its constructor, and keep them for the
-object's lifetime. Batching and checkpoint publication run on timers while the object is in memory;
-when the runtime evicts it, the next instance resumes from storage, and every index the appender
-returned was already durably integrated. Large entry bundles are split transparently to fit the
-storage's per-value limit, on KV- and SQLite-backed objects alike, and no `nodejs_compat` flag is
-needed. From the example's `TransparencyLog` Durable Object:
+The SQLite driver keeps the log in five tables of an ordinary SQLite database, through a small
+adapter for the engine you already use. Nothing engine-specific leaks past that adapter: every engine
+runs the same store, passes the same conformance suites, and writes byte-identical logs.
 
-```ts file=examples/cloudflare-durable-object/src/index.ts region=durableobject_example
-readonly #log: Promise<{ appender: Appender; reader: LogReader; awaiter: PublicationAwaiter }>;
-
-constructor(ctx: DurableObjectState, env: Env) {
-  super(ctx, env);
-  // Open the log once per instance, before the object serves its first request.
-  // The appender's timers then batch, integrate and publish entries for as long
-  // as the instance lives, and the next instance resumes from storage.
-  this.#log = ctx.blockConcurrencyWhile(async () => {
-    const driver = newDurableObjectDriver({ storage: ctx.storage });
-    const opts = newAppendOptions()
-      .withCheckpointSigner(newSigner(env.LOG_PRIVATE_KEY))
-      .withCheckpointInterval(checkpointIntervalMs);
-    const { appender, reader } = await newAppender(driver, opts);
-    const awaiter = newPublicationAwaiter((signal) => reader.readCheckpoint(signal), 100);
-    return { appender, reader, awaiter };
-  });
-}
-
-/** add appends data to the log and resolves to its index once a published checkpoint commits to it. */
-async add(data: Uint8Array): Promise<bigint> {
-  const { appender, awaiter } = await this.#log;
-  const [{ index }] = await awaiter.await(appender.add(newEntry(data)));
-  return index;
-}
+```ts file=src/README_test.ts region=sqlite_example
+// node:sqlite here; any other engine only changes this line (see the table below).
+const database = fromSqliteSync(new DatabaseSync(file));
+const driver = await newSqliteDriver({ database }, signal);
+const { appender, shutdown } = await newAppender(driver, newAppendOptions().withCheckpointSigner(signer), signal);
 ```
 
-[`examples/cloudflare-durable-object`](examples/cloudflare-durable-object) is a deployable Worker that
-appends entries over HTTP and serves the log's tlog-tiles API.
+| Engine | Adapter | Default locking |
+| --- | --- | --- |
+| node:sqlite (Node.js, Deno), bun:sqlite, better-sqlite3 | `fromSqliteSync(db)` | local |
+| SQLite compiled to WebAssembly ([sqlite-wasm](https://sqlite.org/wasm)) | `fromSqliteWasm(db)` | local for memory and `opfs-sahpool`, else lease |
+| libSQL / Turso | `fromLibsql(client)` | local for `file:` URLs, else lease |
+| rqlite 8.32 or later | `fromRqlite({ url })` | lease |
+| Cloudflare D1 | `fromD1(db)` | lease |
+| SQLite-backed Durable Objects | `fromDurableObjectStorage(ctx.storage)` | local |
+
+The adapters are typed structurally, so webtessera depends on none of these engines. Any other SQLite
+can be used by implementing `SqlDatabase`: an async `query` and an atomic `batch`.
+
+- **Locking.** "local" locking serialises the writers of one process. "lease" locking lets several
+  processes or instances append to the same database: each lock is a lease renewed while it is held,
+  and every write made under a lease is fenced on it in the same transaction, so a writer that stalled
+  past its lease can never overwrite what the next holder wrote. Choose `locking: "lease"` explicitly
+  when several processes open the same SQLite file.
+- **Durability.** An index the appender returns is on durable storage: the in-process adapters raise
+  `synchronous` to `FULL`, and the networked engines resolve a write only once they have committed it.
+- **Sharing a database.** `namespace` keeps a log in tables of its own, so several logs, or a log and
+  your application's own tables, can live in one database.
+- **Lifetime.** Create the driver and the appender once per process or instance and keep them:
+  batching and checkpoint publication run on timers. When a process stops, the next one resumes from
+  the database, and every index the appender returned was already durably integrated.
+
+The limits of each engine (row sizes, bound parameters) are handled for you: any object larger than
+`maxChunkBytes` (1 MiB by default) is stored in chunks, and read back whole.
 
 ### Bring your own store
 
@@ -220,14 +225,18 @@ original:
   at a pinned commit, through the Go program in [`fixtures/gen`](fixtures/gen). The tests assert
   byte-for-byte equality against them — tiles, entry bundles, checkpoints, proofs, notes — and CI
   regenerates them from upstream and fails on any difference.
-- The test suites run in Node, in a real Chromium, and in workerd, Cloudflare's runtime.
+- The same golden suite runs against every storage backend — memory, IndexedDB and each SQLite
+  engine — and a Go interop test has Tessera's Go client verify logs written by webtessera, and
+  webtessera continue logs written by Tessera, byte for byte.
+- The test suites run in Node, in a real Chromium, in workerd, and against live rqlite and
+  S3-compatible servers.
 
 ## Runtime support
 
-Node.js 20 or later, current browsers (IndexedDB and Web Locks for the IndexedDB driver), Cloudflare
-Workers and Durable Objects, Deno 2 and Bun. CI runs the test suites on Node 20, 22 and 24, in Chromium
-and in workerd, and an end-to-end smoke test of the built package on Node, Bun and Deno. The
-published build is ES2022.
+Node.js 22 or later, Deno 2, Bun, current browsers (IndexedDB and Web Locks for the IndexedDB driver),
+and edge runtimes built on web standards. CI runs the test suites on Node 22 and 24, in Chromium
+and in workerd, and an end-to-end smoke test of the built package, including the SQLite driver, on
+Node, Bun and Deno. The published build is ES2022.
 
 ## Contributing
 
