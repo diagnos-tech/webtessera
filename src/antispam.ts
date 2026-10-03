@@ -33,6 +33,10 @@ import { toHex } from "./internal/gostd/bytes.ts";
  * When using this with a persistent dedup, the persistent layer should be the delegate of this
  * InMemoryDedup. This allows recent duplicates to be deduplicated in memory, reducing the need to
  * make calls to a persistent storage.
+ *
+ * @internal Unexported in Go; exported because AppendOptions.withAntispam in append_lifecycle.ts,
+ * which stands in for another file of the same Go package, uses it, and antispam_test.ts tests it
+ * (ADR-0010). Not re-exported from any package barrel.
  */
 export function newInMemoryDedup(size: number): (af: AddFn) => AddFn {
 	return (af: AddFn): AddFn => {

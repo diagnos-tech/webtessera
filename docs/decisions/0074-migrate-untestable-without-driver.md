@@ -101,3 +101,9 @@ persisting and integrating data, and what does not:
   real copy+integrate+root-compare — are exactly the ones that would be vacuous against a canned
   fake `MigrationWriter`, so deferring them to Wave 4 (rather than manufacturing a passing test) is
   the right call and correctly matches REVIEW-PROTOCOL §2.3. Wave 4 inherits the integration test.
+
+## Update (2026-10-02)
+
+`progress()` and its tests are deleted (ADR-0181). `migrate_lifecycle_test.ts` now also drives
+`newMigrationTarget` and `migrate` with a stub `MigrationWriter` that has nothing to copy, to pin
+how followers are started (ADR-0180) and which followers a target takes from its options.

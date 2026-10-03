@@ -83,3 +83,9 @@ Following ADR-0051's precedent directly:
   in full (its only effect was the dropped `klog.Infof`); `progress()` itself is still ported and
   tested, correctly. Same precedent as ADR-0051/0061, applied identically. Dependency list gains
   nothing. Confirmed no observable behaviour a test or fixture checks is lost.
+
+## Update (2026-10-02)
+
+The Decision's last bullet says `progress()` "is still ported and tested". It no longer is: its
+only upstream caller is the dropped "Progress: ..." goroutine, so ADR-0181 deletes it along with
+the other code whose only effect was to feed dropped metrics or logs.

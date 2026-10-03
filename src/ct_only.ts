@@ -65,6 +65,8 @@ export function newCertificateTransparencyAppender(
  * convertCTEntry returns an Entry struct which will do the right thing for CT Static API logs.
  *
  * This MUST NOT be used for any other purpose.
+ *
+ * @internal Unexported in Go; exported only so ct_only_test.ts can reach it (see the file header).
  */
 export function convertCTEntry(e: ctonly.Entry): Entry {
 	const r = new Entry();
@@ -125,6 +127,8 @@ export function withCTLayout(o: AppendOptions | MigrationOptions): AppendOptions
 /**
  * ctEntriesPath returns the Static CT API path of entry bundle n (partial width p, or zero for a
  * full bundle). Unlike the tlog-tiles layout it lives under `tile/data/` rather than `tile/entries/`.
+ *
+ * @internal Unexported in Go; exported only so ct_only_test.ts can reach it (see the file header).
  */
 export function ctEntriesPath(n: bigint, p: number): string {
 	return `tile/data/${layout.nWithSuffix(0n, n, p)}`;
@@ -133,6 +137,8 @@ export function ctEntriesPath(n: bigint, p: number): string {
 /**
  * ctBundleIDHasher knows how to calculate antispam identity hashes for entries in a
  * Static-CT formatted entry bundle.
+ *
+ * @internal Unexported in Go; exported only so ct_only_test.ts can reach it (see the file header).
  */
 export function ctBundleIDHasher(bundle: Uint8Array): Uint8Array[] {
 	const r: Uint8Array[] = [];
@@ -201,7 +207,11 @@ export function ctBundleIDHasher(bundle: Uint8Array): Uint8Array[] {
 	return r;
 }
 
-/** copyBytes copies N bytes between from and to. */
+/**
+ * copyBytes copies N bytes between from and to.
+ *
+ * @internal Unexported in Go; exported only so ct_only_test.ts can reach it (see the file header).
+ */
 export function copyBytes(from: cryptobyte.String, to: cryptobyte.Builder, N: number): boolean {
 	const b = from.readBytes(N);
 	if (b === undefined) {
@@ -211,7 +221,11 @@ export function copyBytes(from: cryptobyte.String, to: cryptobyte.Builder, N: nu
 	return true;
 }
 
-/** copyUint16LengthPrefixed copies a uint16 length and value between from and to. */
+/**
+ * copyUint16LengthPrefixed copies a uint16 length and value between from and to.
+ *
+ * @internal Unexported in Go; exported only so ct_only_test.ts can reach it (see the file header).
+ */
 export function copyUint16LengthPrefixed(from: cryptobyte.String, to: cryptobyte.Builder): boolean {
 	const b = from.readUint16LengthPrefixed();
 	if (b === undefined) {
@@ -223,7 +237,11 @@ export function copyUint16LengthPrefixed(from: cryptobyte.String, to: cryptobyte
 	return true;
 }
 
-/** copyUint24LengthPrefixed copies a uint24 length and value between from and to. */
+/**
+ * copyUint24LengthPrefixed copies a uint24 length and value between from and to.
+ *
+ * @internal Unexported in Go; exported only so ct_only_test.ts can reach it (see the file header).
+ */
 export function copyUint24LengthPrefixed(from: cryptobyte.String, to: cryptobyte.Builder): boolean {
 	const b = from.readUint24LengthPrefixed();
 	if (b === undefined) {
@@ -238,6 +256,8 @@ export function copyUint24LengthPrefixed(from: cryptobyte.String, to: cryptobyte
 /**
  * ctMerkleLeafHasher knows how to calculate RFC6962 Merkle leaf hashes for entries in a
  * Static-CT formatted entry bundle.
+ *
+ * @internal Unexported in Go; exported only so ct_only_test.ts can reach it (see the file header).
  */
 export function ctMerkleLeafHasher(bundle: Uint8Array): Uint8Array[] {
 	const r: Uint8Array[] = [];

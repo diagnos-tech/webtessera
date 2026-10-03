@@ -75,3 +75,30 @@ configures it. It is not a byte-for-byte port of the library's internal jitter a
   fixture pipeline touches retry timing; `migrate_test.ts` uses fake timers and asserts attempt
   *counts* (3 for eventual success, 10 for exhaustion), not wall-clock timing. Third-party dep
   correctly avoided per AGENTS.md §7.
+
+## Update (2026-10-02)
+
+The Decision's "not a byte-for-byte port of the library's internal jitter algorithm or its
+`ctx`-cancellation plumbing" no longer holds; `retryWithBackoff` was brought in line with
+`backoff.Retry` and `ExponentialBackOff` from `github.com/cenkalti/backoff/v5` **v5.0.3** (the
+version `fixtures/gen/go.mod` resolves), read from the module cache:
+
+- The operation runs before cancellation is looked at, so it always runs at least once; the
+  `throwIfAborted(signal)` at the top of each attempt is gone.
+- After a failure the checks run in `Retry`'s order: once `maxTries` attempts have been made the
+  operation's error is returned; then an aborted signal returns the signal's reason (Go:
+  `context.Cause(ctx)`); then, if the elapsed time plus the next wait would exceed
+  `DefaultMaxElapsedTime` (15 minutes, which `Retry` applies when no `WithMaxElapsedTime` option is
+  given and which the old helper lacked), the operation's error is returned; a signal aborted
+  during the wait returns its reason.
+- The waits use `ExponentialBackOff`'s formula in nanoseconds, including its truncations and the
+  `+1` in the random interval. Only the random source differs (`Math.random` for
+  `math/rand/v2`), so individual waits are still not reproducible, as they are not in Go.
+- `PermanentError` and `RetryAfterError` are not reproduced; the worker's operation returns
+  neither.
+- The worker adds the `1` its operation returns to `bundlesCopied`, as Go adds `n`.
+
+`migrate_test.ts` pins the new cases: the operation runs once under an already-aborted signal,
+a failure under an aborted signal reports the signal's reason, the last allowed try reports the
+operation's error even if the signal was aborted during it, and the 15-minute bound ends retries
+early. The rest of this ADR (no dependency, helper local to `migrate.ts`) stands.

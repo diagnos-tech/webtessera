@@ -17,12 +17,21 @@
 // docs/decisions/0074-migrate-untestable-without-driver.md). This file is original to this
 // project and covers exactly the logic reachable without one: populateWork's chunking
 // arithmetic (an off-by-one there would duplicate or skip entries during a real
-// migration) and Copier.copy's worker orchestration against in-memory fakes standing in
-// for EntryBundleFetcherFunc/setEntryBundleFunc.
+// migration), and copier.copy's worker orchestration and retry policy against in-memory
+// fakes standing in for EntryBundleFetcherFunc/setEntryBundleFunc.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EntryBundleFetcherFunc } from "./client/index.ts";
-import { type Bundle, type Copier, newCopier, populateWork } from "./migrate.ts";
+import { type bundle, type copier, newCopier } from "./migrate.ts";
+
+/** populateWork reaches copier.populateWork, which needs no state from the copier. */
+function populateWork(from: bigint, treeSize: bigint): Generator<bundle> {
+	return newCopier(
+		1,
+		async () => {},
+		async () => new Uint8Array(0),
+	).populateWork(from, treeSize);
+}
 
 describe("populateWork", () => {
 	// TileWidth/EntryBundleWidth is 256; these cases are hand-computed against
@@ -30,7 +39,7 @@ describe("populateWork", () => {
 	// exhaustive fixture coverage (layout_range.json, 27 cases) for range() itself. What
 	// is new here is populateWork's own mapping from range()'s from/N call to
 	// {index, partial} bundle addresses, and its boundary at a real tile width (256).
-	const tests: { desc: string; from: bigint; treeSize: bigint; want: Bundle[] }[] = [
+	const tests: { desc: string; from: bigint; treeSize: bigint; want: bundle[] }[] = [
 		{ desc: "empty: from == treeSize == 0", from: 0n, treeSize: 0n, want: [] },
 		{ desc: "empty: from == treeSize, non-zero", from: 10n, treeSize: 10n, want: [] },
 		{ desc: "single partial bundle below one tile", from: 0n, treeSize: 1n, want: [{ index: 0n, partial: 1 }] },
@@ -79,7 +88,7 @@ describe("populateWork", () => {
 	}
 });
 
-describe("Copier.copy", () => {
+describe("copier.copy", () => {
 	afterEach(() => {
 		vi.useRealTimers();
 	});
@@ -123,7 +132,7 @@ describe("Copier.copy", () => {
 	});
 
 	it("seeds bundlesCopied from _bundlesCopied, mirroring migrate_lifecycle.ts's resumption via .Store()", async () => {
-		const c: Copier = newCopier(
+		const c: copier = newCopier(
 			2,
 			async () => {},
 			async () => new Uint8Array(0),
@@ -174,5 +183,85 @@ describe("Copier.copy", () => {
 		await assertion;
 
 		expect(attempts).toBe(10);
+	});
+
+	// backoff.Retry runs the operation before it ever looks at the context.
+	it("runs the operation once even when the signal is already aborted, and keeps a success", async () => {
+		let attempts = 0;
+		const c = newCopier(
+			1,
+			async () => {},
+			async (): Promise<Uint8Array> => {
+				attempts++;
+				return new Uint8Array([1]);
+			},
+		);
+		await c.copy(0n, 1n, AbortSignal.abort(new Error("cancelled")));
+		expect(attempts).toBe(1);
+		expect(c.bundlesCopied()).toBe(1n);
+	});
+
+	it("stops after a failure with the signal's reason, as Retry returns context.Cause", async () => {
+		let attempts = 0;
+		const c = newCopier(
+			1,
+			async () => {},
+			async (): Promise<Uint8Array> => {
+				attempts++;
+				throw new Error("fetch failed");
+			},
+		);
+		await expect(c.copy(0n, 1n, AbortSignal.abort(new Error("cancelled")))).rejects.toThrow(
+			new Error("copy failed: cancelled"),
+		);
+		expect(attempts).toBe(1);
+	});
+
+	it("reports the operation's error, not the signal's, when the last allowed try fails", async () => {
+		vi.useFakeTimers();
+
+		const controller = new AbortController();
+		let attempts = 0;
+		const c = newCopier(
+			1,
+			async () => {},
+			async (): Promise<Uint8Array> => {
+				attempts++;
+				if (attempts === 10) {
+					controller.abort(new Error("cancelled"));
+				}
+				throw new Error(`attempt ${attempts}`);
+			},
+		);
+		const done = c.copy(0n, 1n, controller.signal);
+		const assertion = expect(done).rejects.toThrow(
+			new Error("copy failed: failed to fetch entrybundle 0 (p=1): attempt 10"),
+		);
+		await vi.advanceTimersByTimeAsync(120_000);
+		await assertion;
+		expect(attempts).toBe(10);
+	});
+
+	it("gives up early when the next wait would pass backoff's 15 minute DefaultMaxElapsedTime", async () => {
+		vi.useFakeTimers();
+
+		let attempts = 0;
+		const c = newCopier(
+			1,
+			async () => {},
+			async (): Promise<Uint8Array> => {
+				attempts++;
+				// Each attempt takes five minutes before failing.
+				await new Promise((resolve) => setTimeout(resolve, 5 * 60 * 1000));
+				throw new Error("slow failure");
+			},
+		);
+		const done = c.copy(0n, 1n);
+		const assertion = expect(done).rejects.toThrow(
+			new Error("copy failed: failed to fetch entrybundle 0 (p=1): slow failure"),
+		);
+		await vi.advanceTimersByTimeAsync(20 * 60 * 1000);
+		await assertion;
+		expect(attempts).toBe(3);
 	});
 });

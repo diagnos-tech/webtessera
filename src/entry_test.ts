@@ -17,29 +17,29 @@
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
-import { newEntry } from "./entry.ts";
+import { Entry, newEntry } from "./entry.ts";
 import { toUTF8 } from "./internal/gostd/bytes.ts";
 import { DefaultHasher } from "./vendor/merkle/rfc6962/rfc6962.ts";
 
-describe("entry", () => {
-	it("MarshalBundleData delegates to marshalForBundle", () => {
-		const wantIdx = 143n;
-		const wantBundle = toUTF8(`Yes ${wantIdx}`);
+it("TestEntryMarshalBundleDelegates", () => {
+	const wantIdx = 143n;
+	const wantBundle = toUTF8(`Yes ${wantIdx}`);
 
-		const e = newEntry(toUTF8("this is data"));
-		e.marshalForBundle = (gotIdx: bigint): Uint8Array => {
-			expect(gotIdx).toBe(wantIdx);
-			return wantBundle;
-		};
+	const e = newEntry(toUTF8("this is data"));
+	e.marshalForBundle = (gotIdx: bigint): Uint8Array => {
+		expect(gotIdx, `Got idx ${gotIdx}, want ${wantIdx}`).toBe(wantIdx);
+		return wantBundle;
+	};
 
-		expect(e.marshalBundleData(wantIdx)).toEqual(wantBundle);
-	});
+	expect(e.marshalBundleData(wantIdx)).toEqual(wantBundle);
+});
 
-	// Below this line are port additions: entry_test.go only pins the delegation
-	// behaviour above, but newEntry's own defaults (identity, leaf hash, and the
-	// tlog-tiles bundle encoding) are real logic that the golden-fixture integration
-	// test in storage/internal/integrate_test.ts depends on being correct, so they are
-	// pinned directly here too.
+// Port additions: entry_test.go only pins the delegation behaviour above, but newEntry's own
+// defaults (identity, leaf hash, and the tlog-tiles bundle encoding) are real logic that the
+// golden-fixture integration test in storage/internal/integrate_test.ts depends on being correct,
+// so they are pinned directly here too, along with the two places the port departs from Go: the
+// blank Entry's marshalForBundle, and newEntry's size limit.
+describe("entry (port additions)", () => {
 	describe("newEntry", () => {
 		it("has no assigned index until MarshalBundleData is called", () => {
 			const e = newEntry(toUTF8("data"));
@@ -79,13 +79,26 @@ describe("entry", () => {
 			expect(e.index()).toBe(7n);
 		});
 
-		it("truncates a length over 65535 to uint16, matching Go's uint16(len(data)) cast", () => {
-			const data = new Uint8Array(65536 + 5);
-			const e = newEntry(data);
-			const got = e.marshalBundleData(0n);
-			// uint16(65541) wraps to 5.
-			expect(got[0]).toBe(0);
-			expect(got[1]).toBe(5);
+		// docs/decisions/0182-newentry-rejects-entries-over-65535-bytes.md
+		it("accepts the largest entry a uint16 length prefix can describe", () => {
+			const data = new Uint8Array(0xffff).fill(1);
+			const got = newEntry(data).marshalBundleData(0n);
+			expect(got[0]).toBe(0xff);
+			expect(got[1]).toBe(0xff);
+			expect(got.length).toBe(2 + 0xffff);
+		});
+
+		it("rejects an entry longer than a uint16 length prefix can describe", () => {
+			expect(() => newEntry(new Uint8Array(0x10000))).toThrow(
+				"entry data is 65536 bytes, more than the 65535 a tlog-tiles entry bundle can hold",
+			);
+		});
+	});
+
+	describe("Entry", () => {
+		it("throws from marshalBundleData when marshalForBundle was never set, as Go's nil func call panics", () => {
+			const e = new Entry();
+			expect(() => e.marshalBundleData(3n)).toThrow("Entry.marshalForBundle is nil: construct entries with newEntry");
 		});
 	});
 });
