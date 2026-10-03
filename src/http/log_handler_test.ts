@@ -262,13 +262,17 @@ describe("POST /add answers", () => {
 		expect(await addResponse({ index: 7n }).text()).toBe("7");
 	});
 
-	it("is 503 with Retry-After on pushback and 500 with the error text otherwise", async () => {
+	it("is 503 with Retry-After on pushback, and 500 with the error text only when asked", async () => {
 		const p = addErrorResponse(wrapError("antispam", ErrPushback));
 		expect(p.status).toBe(503);
 		expect(p.headers.get("Retry-After")).toBe("1");
-		const e = addErrorResponse(new Error("boom"));
+		const err = new Error('sqlite: put "tile/0/000": disk I/O error at /var/lib/log.db');
+		const e = addErrorResponse(err);
 		expect(e.status).toBe(500);
-		expect(await e.text()).toBe("boom");
+		expect(await e.text()).toBe("internal server error\n");
+		const detailed = addErrorResponse(err, { detail: true });
+		expect(detailed.status).toBe(500);
+		expect(await detailed.text()).toBe(err.message);
 	});
 
 	it("reads an entry of up to 65535 bytes and refuses a larger one while it streams", async () => {
@@ -289,5 +293,12 @@ describe("POST /add answers", () => {
 		});
 		expect(await readEntryBody(post(endless))).toBeUndefined();
 		expect(pulled).toBeLessThan(40);
+	});
+
+	it("refuses a size limit that is not a positive integer", async () => {
+		const post = (): Request => new Request("https://log.example/add", { method: "POST", body: new Uint8Array(70000) });
+		for (const maxBytes of [Number.NaN, Number(undefined), -1, 0, 1.5, Number.POSITIVE_INFINITY]) {
+			await expect(readEntryBody(post(), maxBytes), String(maxBytes)).rejects.toThrow(RangeError);
+		}
 	});
 });

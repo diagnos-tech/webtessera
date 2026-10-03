@@ -22,6 +22,7 @@ import { partialOrFullResource } from "../internal/fetcher/fallback.ts";
 import { ErrNotExist, wrapError } from "../internal/gostd/errors.ts";
 import { quote } from "../internal/gostd/strconv.ts";
 import type { Source, Target } from "./mirror.ts";
+import { S3Sink } from "./s3.ts";
 
 /**
  * SinkObject is what a sink's `get` may resolve to: the bytes themselves, or a body to read
@@ -44,6 +45,12 @@ export type SinkObject = Uint8Array | ArrayBuffer | { arrayBuffer(): Promise<Arr
  * `get` is optional. With it, a mirror resumes from the checkpoint it last wrote; without
  * it, every run copies the whole log again, which is correct (resources are immutable and
  * `put` overwrites them with identical bytes) but slower.
+ *
+ * `put` must replace what is stored, as every ObjectStore and R2 binding does. A sink that
+ * instead keeps an object already stored under the key must make sure that it holds the
+ * same bytes, as newS3Sink's conditional writes do, or fail: a mirror interrupted while
+ * copying from a source that then served a different history would otherwise publish its
+ * new checkpoint over part of the old tree.
  */
 export interface Sink {
 	/** put stores data under key, replacing whatever was there. */
@@ -57,6 +64,11 @@ export interface SinkTargetOptions {
 	/**
 	 * prefix is prepended to every key, to keep several logs in one bucket or store:
 	 * `logs/a/` puts the checkpoint at `logs/a/checkpoint`. Defaults to "".
+	 *
+	 * A sink from newS3Sink takes the prefix itself, so that it still sees each key as a
+	 * tlog-tiles path and stores it with the matching metadata and conditional write. A
+	 * sink of your own that derives anything from the key should be given the prefix the
+	 * same way, rather than here.
 	 */
 	readonly prefix?: string;
 }
@@ -71,7 +83,11 @@ export interface SinkTargetOptions {
  * the sink has a `get`: the way to check a mirror, since mirroring itself verifies nothing.
  */
 export function newSinkTarget(sink: Sink, options: SinkTargetOptions = {}): SinkTarget {
-	return new SinkTarget(sink, options.prefix ?? "");
+	const prefix = options.prefix ?? "";
+	if (sink instanceof S3Sink && prefix !== "") {
+		return new SinkTarget(sink._withPrefix(prefix), "");
+	}
+	return new SinkTarget(sink, prefix);
 }
 
 /** SinkTarget is a mirror Target, and a Source, over a Sink. Construct it with {@link newSinkTarget}. */

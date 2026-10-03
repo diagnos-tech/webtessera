@@ -60,3 +60,29 @@ into the object storage they already have, vendor-neutrally.
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+- **A 412 is checked, not trusted.** The S3 sink treated `412 Precondition Failed` on an immutable key as
+  "already written". After a run interrupted before its checkpoint, against a source that then served a
+  different history signed by the same key, the next run kept the old objects and published the new
+  checkpoint over them: the review's proof of concept ended with a checkpoint from history B over
+  `tile/0/000` from history A, which `fsck` rejected. On 412 the sink now reads the stored object back,
+  capped at the size of what it is writing, and accepts only identical bytes; anything else fails the put
+  with an error marked `unrecoverable` that names the key (`S3 PUT b/tile/0/001.p/44: a different object is
+  already stored there, ...`), so the mirror stops at once and never writes its checkpoint. An object
+  deleted between the two requests fails the attempt recoverably, and the next attempt writes it afresh.
+- **Sinks that keep objects.** `Sink.put`'s documentation now requires replacing what is stored, as every
+  `ObjectStore` and R2 binding does, or checking that what is kept is identical. The `ObjectStore` path of
+  `SinkTarget` has no "exists means done" step: `put` overwrites, so a re-run against another history
+  replaces every object it writes before its checkpoint.
+- **Prefixes keep metadata and conditional writes.** `newSinkTarget(s3, { prefix })` prepended the prefix
+  before the sink saw the key, so `resourceHeaders` no longer recognised it as a tlog-tiles path: objects
+  were stored as `application/octet-stream` without `Cache-Control`, and without `If-None-Match`.
+  `newSinkTarget` now hands an `S3Sink` the prefix itself (an internal `_withPrefix`), so the sink derives
+  each object's headers from the log-relative path; the option's documentation tells authors of other sinks
+  that derive anything from the key to take the prefix the same way.
+- Requests also omit ambient credentials
+  ([ADR-0213](0213-rqlite-and-s3-requests-omit-credentials-and-refuse-redirects.md)), and `attempts` and
+  `maxObjectBytes` must be positive safe integers
+  ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).

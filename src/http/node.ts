@@ -19,6 +19,7 @@
 // docs/decisions/0170-http-log-handler.md.
 
 import { concatBytes } from "../internal/gostd/bytes.ts";
+import { positiveInteger } from "./handler.ts";
 
 /**
  * NodeIncomingMessage is the part of Node's `http.IncomingMessage` the adapter reads:
@@ -42,7 +43,8 @@ export interface NodeListenerOptions {
 	/**
 	 * origin is the scheme and authority requests are taken to be addressed to, used to
 	 * build each Request's absolute URL. Defaults to `http://` followed by the request's
-	 * `Host` header. Handlers in this package look only at the path.
+	 * `Host` header; a request whose `Host` is not a bare authority is answered with 400.
+	 * Handlers in this package look only at the path.
 	 */
 	readonly origin?: string;
 
@@ -73,12 +75,25 @@ const defaultMaxBodyBytes = 1 << 20;
  *
  * Request bodies are buffered (up to `maxBodyBytes`) and responses are written in one
  * piece: every resource these protocols serve is small and already in memory.
+ *
+ * Only a request-target in origin form (`/path?query`, which is what clients send to an
+ * origin server) reaches the handler, and it is taken as the path and query it is, never
+ * resolved against the origin as a reference: `//host/path` is the path `//host/path`.
+ * Any other form (absolute, authority) is answered with 400, except `*` with OPTIONS, the
+ * server-wide form RFC 9110 allows, which is answered with 204 and reaches no handler.
+ * It throws a RangeError if maxBodyBytes is not a positive integer, and a TypeError if
+ * origin is not a scheme and authority alone.
  */
 export function toNodeListener(
 	handler: (request: Request) => Promise<Response | undefined>,
 	options: NodeListenerOptions = {},
 ): (req: NodeIncomingMessage, res: NodeServerResponse) => void {
-	const maxBodyBytes = options.maxBodyBytes ?? defaultMaxBodyBytes;
+	const maxBodyBytes = positiveInteger("toNodeListener: maxBodyBytes", options.maxBodyBytes ?? defaultMaxBodyBytes);
+	if (options.origin !== undefined && requestURL("/", options.origin) === undefined) {
+		throw new TypeError(
+			`toNodeListener: origin must be a scheme and authority alone, got ${JSON.stringify(options.origin)}`,
+		);
+	}
 	return (req: NodeIncomingMessage, res: NodeServerResponse): void => {
 		serve(handler, req, res, maxBodyBytes, options).catch((err: unknown) => {
 			options.onError?.(err);
@@ -104,7 +119,17 @@ async function serve(
 			headers.append(name, v);
 		}
 	}
-	const origin = options.origin ?? `http://${headers.get("Host") ?? "localhost"}`;
+	const target = req.url ?? "/";
+	if (target === "*" && method === "OPTIONS") {
+		res.writeHead(204, {});
+		res.end();
+		return;
+	}
+	const url = requestURL(target, options.origin ?? `http://${headers.get("Host") ?? "localhost"}`);
+	if (url === undefined) {
+		writeText(res, 400, "bad request target");
+		return;
+	}
 	const init: RequestInit = { method, headers };
 	if (method !== "GET" && method !== "HEAD") {
 		const body = await readBody(req, maxBodyBytes);
@@ -117,7 +142,7 @@ async function serve(
 
 	let response: Response | undefined;
 	try {
-		response = await handler(new Request(new URL(req.url ?? "/", origin), init));
+		response = await handler(new Request(url, init));
 	} catch (err) {
 		options.onError?.(err);
 		writeText(res, 500, "internal server error");
@@ -139,6 +164,33 @@ async function serve(
 	const body = response.body === null ? undefined : new Uint8Array(await response.arrayBuffer());
 	res.writeHead(response.status, out);
 	res.end(body);
+}
+
+/**
+ * requestURL returns the absolute URL of a request whose request-target is target, or
+ * undefined if target is not in origin form or origin is not a bare scheme and authority.
+ *
+ * The target is set as the URL's path and query rather than resolved against origin: as a
+ * relative reference, `//host/path` would name another authority, and its path would lose
+ * the host's segment.
+ */
+function requestURL(target: string, origin: string): URL | undefined {
+	if (!target.startsWith("/")) {
+		return undefined;
+	}
+	let url: URL;
+	try {
+		url = new URL(origin);
+	} catch {
+		return undefined;
+	}
+	if (url.pathname !== "/" || url.search !== "" || url.hash !== "" || url.username !== "" || url.password !== "") {
+		return undefined;
+	}
+	const q = target.indexOf("?");
+	url.pathname = q < 0 ? target : target.slice(0, q);
+	url.search = q < 0 ? "" : target.slice(q);
+	return url;
 }
 
 /** readBody buffers the request body, or returns undefined once it exceeds max bytes. */

@@ -39,7 +39,7 @@ import { errorIs } from "../internal/gostd/errors.ts";
 import { MemoryObjectStore } from "../storage/memory/memory.ts";
 import type { ObjectStore } from "../storage/objectstore/objectstore.ts";
 import { DefaultHasher } from "../vendor/merkle/rfc6962/rfc6962.ts";
-import { generateKey, newSigner, open, type Signer, sign, verifierList } from "../vendor/note/note.ts";
+import { generateKey, newSigner, open, type Signer, sign, type Verifier, verifierList } from "../vendor/note/note.ts";
 
 const origin = "example.com/witnessed-log";
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -365,8 +365,79 @@ describe("WitnessServer.addCheckpoint", () => {
 		).toThrow(/configured twice/);
 		expect(() => newTestWitness({ logs: [{ origin }] })).toThrow(/no verifier keys/);
 		expect(() => newTestWitness({ logs: [{ origin, verifierKeys: ["garbage"] }] })).toThrow();
+		for (const maxBodyBytes of [Number.NaN, Number(undefined), -1, 0, 1.5, Number.POSITIVE_INFINITY]) {
+			expect(() => newTestWitness({ maxBodyBytes }), String(maxBodyBytes)).toThrow(RangeError);
+		}
+	});
+
+	it("insists that every signer makes cosignature/v1 signatures", () => {
+		const plain = newSigner(witnessKey.skey);
+		expect(() => newTestWitness({ signer: plain })).toThrow(/does not make cosignature\/v1 signatures/);
+		expect(() => newTestWitness({ additionalSigners: [plain] })).toThrow(/cosignature\/v1/);
+		// The right shape is not enough when the signer's own verifier disagrees.
+		const other = newSignerForCosignatureV1(generateKey(undefined, "witness.example/w1").skey);
+		const mismatched: Signer & { verifier(): Verifier } = {
+			name: () => witnessSigner.name(),
+			keyHash: () => witnessSigner.keyHash(),
+			sign: (m) => other.sign(m),
+			verifier: () => witnessSigner.verifier(),
+		};
+		expect(() => newTestWitness({ signer: mismatched })).toThrow(/its own verifier does not accept/);
+		const untimed: Signer = {
+			...plainSignerShape(witnessSigner),
+			sign: (m) => withTimestamp(witnessSigner.sign(m), 0n),
+		};
+		expect(() => newTestWitness({ signer: untimed })).toThrow(/no valid timestamp/);
+		expect(() => newTestWitness({ signer: witnessSigner, additionalSigners: [other] })).not.toThrow();
+	});
+
+	it("checks each key lookupLog returns against its own keys once, however many requests use it", async () => {
+		const probes = vi.fn();
+		const counted: Verifier = {
+			name: () => log.verifier.name(),
+			keyHash: () => log.verifier.keyHash(),
+			verify: (msg, sig) => {
+				if (dec(msg).includes("key separation probe")) {
+					probes();
+				}
+				return log.verifier.verify(msg, sig);
+			},
+		};
+		const w = newTestWitness({ logs: [], lookupLog: () => ({ verifiers: [counted] }) });
+		await w.addCheckpoint({ oldSize: 0n, proof: [], checkpoint: cp5 });
+		const after = probes.mock.calls.length;
+		expect(after).toBeGreaterThan(0);
+		await w.addCheckpoint({ oldSize: 5n, proof: proof5to15, checkpoint: cp15 });
+		await w.addCheckpoint({ oldSize: 15n, proof: [], checkpoint: cp15 });
+		expect(probes.mock.calls.length).toBe(after);
+
+		// A key that is the witness's own stays refused.
+		const shared = generateKey(undefined, origin);
+		const sharing = newTestWitness({
+			signer: newSignerForCosignatureV1(shared.skey),
+			logs: [],
+			lookupLog: () => ({ verifierKeys: [shared.vkey] }),
+		});
+		const cp = sign({ text: `${origin}\n0\n${toBase64(DefaultHasher.emptyRoot())}\n` }, newSigner(shared.skey));
+		for (let i = 0; i < 2; i++) {
+			expect(
+				errorIs(await refusalOf(sharing.addCheckpoint({ oldSize: 0n, proof: [], checkpoint: cp })), ErrUnknownLog),
+			).toBe(true);
+		}
 	});
 });
+
+/** plainSignerShape returns s's name and key hash, as the parts of a Signer that a test keeps. */
+function plainSignerShape(s: Signer): Pick<Signer, "name" | "keyHash"> {
+	return { name: () => s.name(), keyHash: () => s.keyHash() };
+}
+
+/** withTimestamp returns a cosignature/v1 signature with its timestamp replaced by t. */
+function withTimestamp(sig: Uint8Array, t: bigint): Uint8Array {
+	const out = new Uint8Array(sig);
+	new DataView(out.buffer).setBigUint64(0, t);
+	return out;
+}
 
 describe("WitnessServer.handle", () => {
 	it("answers add-checkpoint with 200 and signature lines", async () => {

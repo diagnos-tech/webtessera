@@ -25,7 +25,7 @@ import { openSqliteObjectStore } from "../sqlite.ts";
 import { describeSqliteBehaviour } from "../testing/behaviour.ts";
 import { type FakeRqlite, newFakeRqlite } from "../testing/fake_rqlite.ts";
 import { type StoreTarget, storeFactory } from "../testing/stores.ts";
-import { fromRqlite } from "./rqlite.ts";
+import { fromRqlite, type RqliteReadLevel } from "./rqlite.ts";
 
 const fakes = new WeakMap<SqlDatabase, FakeRqlite>();
 
@@ -103,6 +103,40 @@ describe("fromRqlite", () => {
 			]),
 		).rejects.toThrow("rqlite: NOT NULL constraint failed");
 		expect(await db.query({ sql: "SELECT count(*) AS n FROM t", params: [] })).toEqual([{ n: 0 }]);
+	});
+
+	it("reads at linearizable or strong consistency only", () => {
+		const fetch = newFakeRqlite(new DatabaseSync(":memory:")).fetch;
+		for (const level of ["weak", "none", "auto", "", "linearizable&level=none", "Strong"]) {
+			expect(() => fromRqlite({ url: "http://rqlite.test", fetch, level: level as RqliteReadLevel }), level).toThrow(
+				RangeError,
+			);
+		}
+		for (const level of ["linearizable", "strong"] as const) {
+			expect(() => fromRqlite({ url: "http://rqlite.test", fetch, level }), level).not.toThrow();
+		}
+	});
+
+	it("sends no ambient credentials and refuses redirects unless told to follow them", async () => {
+		const fake = newFakeRqlite(new DatabaseSync(":memory:"));
+		await fromRqlite({ url: "http://rqlite.test", fetch: fake.fetch }).query({ sql: "SELECT 1", params: [] });
+		expect(fake.requests[0]).toMatchObject({ credentials: "omit", redirect: "manual" });
+
+		const redirecting = async (_: string, init?: RequestInit) =>
+			init?.redirect === "manual"
+				? new Response(null, { status: 307, headers: { Location: "http://elsewhere.example/db/request" } })
+				: fake.fetch("http://rqlite.test/db/request?level=linearizable", init);
+		const refusing = fromRqlite({
+			url: "http://rqlite.test",
+			fetch: redirecting,
+			headers: { Authorization: "Basic x" },
+		});
+		await expect(refusing.query({ sql: "SELECT 1", params: [] })).rejects.toThrow(
+			/replied with a redirect, which is not followed: 307/,
+		);
+		const following = fromRqlite({ url: "http://rqlite.test", fetch: redirecting, followRedirects: true });
+		expect(await following.query({ sql: "SELECT 1 AS one", params: [] })).toEqual([{ one: 1 }]);
+		expect(fake.requests.at(-1)).toMatchObject({ credentials: "omit", redirect: "follow" });
 	});
 
 	it("reports HTTP failures", async () => {

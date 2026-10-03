@@ -1,6 +1,6 @@
 # ADR-0150: Keep logs in any SQLite through one engine-neutral ObjectStore, replacing the Durable Object KV backend
 
-- **Status:** proposed
+- **Status:** proposed; its default locking is superseded by ADR-0210
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go`, `storage/posix/file_ops.go` (the model the ObjectStore
@@ -88,3 +88,14 @@ public API ADR-0154; the tests ADR-0155.
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+The "Default locking" column of the adapter table is superseded by
+[ADR-0210](0210-sqlite-locking-fails-closed.md): locking now fails closed. `fromSqliteSync` defaults to
+local only for an in-memory or temporary database (by `PRAGMA database_list`) and to lease for a file;
+`fromLibsql` asks the database the same way for a `file:` client, so an embedded replica gets lease;
+`fromSqliteWasm`, `fromD1`, `fromRqlite` and `fromDurableObjectStorage` are unchanged; and an adapter that
+leaves `defaultLocking` undefined now means lease. `defaultLocking` may be a function returning a promise,
+for an adapter that has to ask the database. The review found the old default let two connections to one
+file assign one index twice.

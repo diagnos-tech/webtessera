@@ -56,3 +56,22 @@ The port stays faithful (ADR-0173). Verification is a separate `Source` decorato
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+- **Conditional writes no longer weaken the guarantee.** "Conditional writes make them permanent" above
+  cut both ways: an S3 sink that took a 412 as success could keep unverified-for-this-run bytes from an
+  earlier, interrupted run against an equivocating source. The sink now accepts a 412 only over identical
+  bytes (ADR-0175's update), so a verified mirror either writes a checkpoint whose every resource is what it
+  verified, or fails before the checkpoint. `verify_test.ts` covers both: a resumed run over the same
+  history succeeds and passes `fsck`; one over another history fails, naming the key, without a checkpoint.
+- **Per-run state.** `VerifyingSource` kept one verified tree per instance, and `readCheckpoint` replaced
+  it, so two concurrent runs of one mirror could verify one run's resources against the other's checkpoint.
+  `newVerifiedMirror` now returns a `Mirror` subclass that gives each run a fresh `VerifyingSource` and
+  rejects a run started while another is in progress. A `VerifyingSource` used directly fails any resource
+  read that a later `readCheckpoint` overtook, and its documentation says it serves one run at a time.
+- **Copies.** `VerifyingSource` copies what the source returns before verifying it, and returns copies of
+  what it keeps, so neither a source that changes its buffers afterwards nor a target that changes what it
+  was given can alter verified bytes.
+- `numWorkers` must be a positive safe integer, checked by `newVerifiedMirror`
+  ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).

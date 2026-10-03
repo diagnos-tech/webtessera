@@ -34,6 +34,7 @@ export interface RecordedRequest {
 	readonly url: string;
 	readonly headers: Headers;
 	readonly redirect: RequestRedirect | undefined;
+	readonly credentials: RequestCredentials | undefined;
 }
 
 /** FakeS3 is an in-memory, path-style or virtual-hosted S3 endpoint. */
@@ -58,7 +59,13 @@ export class FakeS3 {
 	/** fetch is the endpoint, to hand to newS3Sink. */
 	readonly fetch: FetchFn = async (input, init) => {
 		const headers = new Headers(init?.headers);
-		this.requests.push({ method: init?.method ?? "GET", url: input, headers, redirect: init?.redirect });
+		this.requests.push({
+			method: init?.method ?? "GET",
+			url: input,
+			headers,
+			redirect: init?.redirect,
+			credentials: init?.credentials,
+		});
 		const failure = this.failNext.shift();
 		if (failure !== undefined) {
 			return errorResponse(failure, failure === 403 ? "AccessDenied" : "SlowDown");
