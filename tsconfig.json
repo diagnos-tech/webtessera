@@ -54,5 +54,5 @@
   },
   "include": ["src"],
   // workerd-only code is checked by tsconfig.workers.json instead.
-  "exclude": ["src/storage/durableobject/**/*_test.ts", "src/storage/durableobject/testing/**"]
+  "exclude": ["src/**/*_workers_test.ts", "src/storage/sqlite/testing/workers/**"]
 }

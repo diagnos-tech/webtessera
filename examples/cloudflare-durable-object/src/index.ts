@@ -31,7 +31,7 @@ import {
 } from "webtessera";
 import { parseTileIndexPartial, parseTileLevel } from "webtessera/api/layout";
 import { newSigner } from "webtessera/note";
-import { newDurableObjectDriver } from "webtessera/storage/durableobject";
+import { fromDurableObjectStorage, newSqliteDriver } from "webtessera/storage/sqlite";
 
 /** Env holds the bindings wrangler.jsonc and the Worker's secrets declare. */
 export interface Env {
@@ -77,7 +77,7 @@ export class TransparencyLog extends DurableObject<Env> {
 		// The appender's timers then batch, integrate and publish entries for as long
 		// as the instance lives, and the next instance resumes from storage.
 		this.#log = ctx.blockConcurrencyWhile(async () => {
-			const driver = newDurableObjectDriver({ storage: ctx.storage });
+			const driver = await newSqliteDriver({ database: fromDurableObjectStorage(ctx.storage) });
 			const opts = newAppendOptions()
 				.withCheckpointSigner(newSigner(env.LOG_PRIVATE_KEY))
 				.withCheckpointInterval(checkpointIntervalMs);

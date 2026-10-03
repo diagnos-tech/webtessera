@@ -1,6 +1,6 @@
 # ADR-0121: Implement ObjectStore.lock in memory for Durable Objects
 
-- **Status:** proposed
+- **Status:** superseded by ADR-0152
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`lockFile`, and the `mu sync.Mutex` + `lockFile`

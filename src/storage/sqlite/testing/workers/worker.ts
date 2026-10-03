@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package durableobject keeps a Tessera log in a Cloudflare Durable Object's
-// storage. Published as `webtessera/storage/durableobject`.
+// Test-only Worker for the SQLite backend's workerd suites (see vitest.workers.config.ts).
+// wrangler.jsonc binds its Durable Object class and a D1 database. Excluded from the
+// published build.
 
-export {
-	DefaultMaxValueBytes,
-	type DurableObjectDriverConfig,
-	type DurableObjectListOptionsLike,
-	DurableObjectObjectStore,
-	type DurableObjectObjectStoreOptions,
-	type DurableObjectStorageLike,
-	type DurableObjectTransactionLike,
-	newDurableObjectDriver,
-} from "./durableobject.ts";
+import { DurableObject } from "cloudflare:workers";
+
+/**
+ * SqliteTestObject is the SQLite-backed Durable Object the suites run their code in,
+ * through runInDurableObject. It has no behaviour of its own.
+ */
+export class SqliteTestObject extends DurableObject {}
+
+export default {
+	fetch(): Response {
+		return new Response("not found", { status: 404 });
+	},
+};
