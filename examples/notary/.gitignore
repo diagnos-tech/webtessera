@@ -1,0 +1,7 @@
+# Local databases and the key file that `keygen` writes.
+*.db
+*.db-*
+.env
+# What `notarize` writes: the submitter's key and receipts.
+submitter.key
+*.tlog-proof

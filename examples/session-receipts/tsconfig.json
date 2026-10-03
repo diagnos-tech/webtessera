@@ -1,0 +1,31 @@
+{
+  // Type-checks the server, the browser client, the auditor, the scripts and the tests against
+  // the built package, as an application that installed webtessera from npm sees it. Sources run
+  // unmodified on Node (type stripping), Bun and Deno, so imports carry their ".ts" extension
+  // and only erasable syntax is allowed; Vite bundles the client from the same sources.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // DOM supplies the browser's types and the web-standard Request, Response, fetch and crypto
+    // types every server runtime implements; server/runtime/ambient.d.ts declares the few
+    // runtime-specific modules, and vite/client the client's CSS import.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["server", "client/src", "shared", "audit", "scripts", "test"]
+}

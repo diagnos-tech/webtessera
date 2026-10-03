@@ -75,8 +75,12 @@ webtessera/
 │   │   └── 0000-template.md
 │   └── notes/                 ← free-form design discussion, scratch analysis
 ├── examples/
-│   ├── browser/               ← Vite demo: a log in IndexedDB, in a tab
-│   └── cloudflare-durable-object/  ← Worker + Durable Object log
+│   ├── client-only/           ← a browser's own log in IndexedDB, signed by a device key
+│   ├── session-receipts/      ← browser log, witnessed by the server and mirrored to S3
+│   ├── notary/                ← digests plus signatures, with offline-verifiable receipts
+│   ├── log-server/            ← POST /add and the tlog-tiles API on any SQLite, Node/Bun/Deno
+│   ├── monitor/               ← follows a log and reports forks and rollbacks
+│   └── edge/                  ← the log server as a Worker on a SQLite-backed Durable Object
 ├── fixtures/
 │   ├── gen/                   ← Go program that emits golden fixtures from real Tessera
 │   └── data/                  ← generated fixtures, COMMITTED to the repo

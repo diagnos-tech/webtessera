@@ -32,14 +32,11 @@ interface ImportMetaWithGlob extends ImportMeta {
 // The files a README block may embed, keyed by their path from the repository root.
 const embeddable: Record<string, string> = Object.fromEntries(
 	Object.entries(
-		(import.meta as ImportMetaWithGlob).glob<string>(
-			["./README_test.ts", "../examples/cloudflare-durable-object/src/index.ts"],
-			{
-				query: "?raw",
-				import: "default",
-				eager: true,
-			},
-		),
+		(import.meta as ImportMetaWithGlob).glob<string>(["./README_test.ts"], {
+			query: "?raw",
+			import: "default",
+			eager: true,
+		}),
 	).map(([path, text]) => [path.replace(/^\.\.\//, "").replace(/^\.\//, "src/"), text]),
 );
 

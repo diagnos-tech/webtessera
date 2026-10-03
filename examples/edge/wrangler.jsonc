@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "webtessera-log-server",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-01",
+  // No compatibility_flags: webtessera uses only web-standard APIs, so the Worker runs
+  // without nodejs_compat.
+  "durable_objects": {
+    "bindings": [{ "name": "LOG", "class_name": "LogObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LogObject"] }]
+  // LOG_SKEY, the log's private key, is a secret rather than a var: set it with
+  // `wrangler secret put LOG_SKEY`, and locally in .dev.vars. See README.md.
+}

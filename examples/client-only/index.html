@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
+		<link rel="icon" href="data:," />
+		<title>This device's log</title>
+	</head>
+	<body>
+		<main>
+			<header>
+				<h1>This device's log</h1>
+				<p class="lede">
+					A tamper-evident log kept in this browser's IndexedDB and signed by a key generated here, which no script
+					can export. Every event gets a receipt that anyone holding the log's public key can verify, offline. Open
+					the page in a second tab: both write the same log, and Web Locks make them take turns.
+				</p>
+			</header>
+
+			<div id="refusal" class="warning" role="alert" hidden>
+				<p id="refusal-text"></p>
+				<button id="single-writer" type="button">This is the only tab: open the log anyway</button>
+			</div>
+			<p id="banner" class="error" role="alert" hidden></p>
+
+			<section aria-labelledby="add-heading">
+				<h2 id="add-heading">Log an event</h2>
+				<form id="add-form" class="row">
+					<label class="visually-hidden" for="event">Event</label>
+					<input id="event" autocomplete="off" placeholder="What happened?" required disabled />
+					<button id="add" type="submit" disabled>Log it</button>
+				</form>
+				<details id="receipt" hidden>
+					<summary id="receipt-summary"></summary>
+					<pre id="receipt-text"></pre>
+				</details>
+			</section>
+
+			<section aria-labelledby="events-heading">
+				<h2 id="events-heading">Events</h2>
+				<ol id="events" reversed></ol>
+				<details id="hood" hidden>
+					<summary>Under the hood: the newest receipt, verified by hand with the ported API</summary>
+					<pre id="hood-text"></pre>
+				</details>
+			</section>
+
+			<section aria-labelledby="device-heading">
+				<h2 id="device-heading">This device</h2>
+				<dl class="facts">
+					<dt>Log</dt>
+					<dd><code id="origin">…</code></dd>
+					<dt>Public key</dt>
+					<dd><code id="vkey">…</code></dd>
+					<dt>Signing key</dt>
+					<dd id="custody">…</dd>
+					<dt>Tabs</dt>
+					<dd id="locking">…</dd>
+					<dt>Persistent storage</dt>
+					<dd id="persistence">…</dd>
+				</dl>
+				<div class="row">
+					<button id="persist" type="button" class="secondary" hidden>Ask for persistent storage</button>
+					<a id="no-locks" href="?no-web-locks">See what happens without Web Locks</a>
+				</div>
+				<div class="row">
+					<button id="forget" type="button" class="secondary">Delete this device's log and key</button>
+				</div>
+			</section>
+		</main>
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>

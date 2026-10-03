@@ -1,0 +1,31 @@
+{
+  "name": "webtessera-example-notary",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A notary: it logs a document's SHA-256 digest with its submitter's signature, and returns a receipt that anyone can verify offline.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "keygen": "node scripts/keygen.ts",
+    "start:node": "node --env-file-if-exists=.env src/main.ts",
+    "start:bun": "bun src/main.ts",
+    "start:deno": "deno run --env-file --allow-net --allow-read --allow-write --allow-env src/main.ts",
+    "notarize": "node scripts/notarize.ts",
+    "verify": "node scripts/verify.ts",
+    "smoke:node": "node scripts/smoke.ts",
+    "smoke:bun": "bun scripts/smoke.ts",
+    "smoke:deno": "deno run --allow-net --allow-read --allow-write --allow-env scripts/smoke.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "ci": "tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "webtessera": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

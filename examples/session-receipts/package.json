@@ -1,0 +1,37 @@
+{
+  "name": "webtessera-example-session-receipts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Session receipts: the browser logs every exchange with the server, the server witnesses the log and commits it to S3-compatible storage, and neither can rewrite it alone.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "keygen": "node scripts/keygen.ts",
+    "start:node": "node --env-file-if-exists=.env server/main.ts",
+    "start:bun": "bun server/main.ts",
+    "start:deno": "deno run --env-file --allow-net --allow-read --allow-write --allow-env server/main.ts",
+    "dev": "vite",
+    "build": "vite build",
+    "audit": "node --env-file-if-exists=.env scripts/audit.ts",
+    "smoke:node": "node scripts/smoke.ts",
+    "smoke:bun": "bun scripts/smoke.ts",
+    "smoke:deno": "deno run --allow-net --allow-read --allow-write --allow-env scripts/smoke.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && vitest run --config vitest.browser.config.ts",
+    "test:node": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "ci": "tsc --noEmit && vitest run && vitest run --config vitest.browser.config.ts && vite build"
+  },
+  "dependencies": {
+    "webtessera": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/browser-playwright": "4.1.11",
+    "playwright": "1.56.1",
+    "typescript": "5.9.3",
+    "vite": "8.3.2",
+    "vitest": "4.1.11"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "webtessera-example-monitor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A monitor that follows a remote transparency log, proves every new checkpoint consistent with the last, and reports a fork or rollback loudly.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start:node": "node src/main.ts",
+    "start:bun": "bun src/main.ts",
+    "start:deno": "deno run --allow-net --allow-read --allow-write src/main.ts",
+    "smoke:node": "node scripts/smoke.ts",
+    "smoke:bun": "bun scripts/smoke.ts",
+    "smoke:deno": "deno run --allow-net --allow-read --allow-write --allow-env scripts/smoke.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "ci": "tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "webtessera": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
