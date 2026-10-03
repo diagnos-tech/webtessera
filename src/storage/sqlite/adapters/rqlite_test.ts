@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // fromRqlite against a fake rqlite node (testing/fake_rqlite.ts), so that its wire format
-// and error handling are covered by `pnpm test:unit`. rqlite_services_test.ts runs the
+// and error handling are covered by `bun run test:unit`. rqlite_services_test.ts runs the
 // same suites against a real rqlite.
 
 import { DatabaseSync } from "node:sqlite";
