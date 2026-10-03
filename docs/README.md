@@ -53,8 +53,9 @@ How to read them:
   the `formats/note` additions they need, 0180s the fixes to the root package, 0190s the fixes to
   `client`, `fsck`, `storage/internal` and the witness client, 0200s hardening (input validation,
   fail-closed locks and publication, and the `merkle`, `note` and Go standard-library fixes that go
-  with them). 0215–0219 are the differential tests and the test-parity check, and 0220–0239 are
-  reserved for the safe high-level API, which is in progress. New ADRs take the next unused number.
+  with them), 0210–0213 the second security review's fixes (SQLite locking and fencing, the HTTP
+  surface, rqlite and S3 requests). 0215–0219 are the differential tests and the test-parity check,
+  0220–0227 the safe high-level API, and 0240 the move to Bun. New ADRs take the next unused number.
 - **"Work package" and "wave"** in the older ADRs refer to the initial port's work plan, an internal
   coordination document that is not part of this repository. Read them as "the files this change
   covered".

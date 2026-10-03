@@ -1,6 +1,6 @@
 # ADR-0152: Lock SQLite stores in memory or with fenced leases in the database, per store
 
-- **Status:** proposed
+- **Status:** proposed; its default locking and its keying of local locks are superseded by ADR-0210
 - **Date:** 2026-10-02
 - **Author:** Claude
 - **Upstream reference:** `storage/posix/files.go` (`lockFile`, `treeStateLock`, `publishLock`, `gcStateLock`,
@@ -113,3 +113,22 @@ itself. Choosing `locking: "local"` explicitly remains possible and is the calle
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+- **Defaults** ([ADR-0210](0210-sqlite-locking-fails-closed.md)). "Defaulting to its database's
+  `defaultLocking`, else `"local"`" becomes "else `"lease"`", and the in-process adapters no longer default
+  to local for files: a store defaults to lease unless its adapter shows the database is private (in
+  memory, temporary, a Durable Object's, a private WebAssembly VFS). An explicit `locking: "local"` is the
+  caller's declaration that this realm is the only writer. The "WebAssembly fails closed" paragraph above
+  now describes every adapter.
+- **Local** locks are keyed by the database's identity, a random `instance_id` the tables record, instead
+  of the `SqlDatabase` object, so every local-mode store of a realm over one database shares them, whatever
+  connection it uses. The in-process queue in front of leases stays keyed by the `SqlDatabase` object.
+- **Fencing** inserts a NULL into a NOT NULL column instead of violating a CHECK constraint, which
+  `PRAGMA ignore_check_constraints` turns off ([ADR-0211](0211-sqlite-fence-on-a-not-null-column.md)); the
+  constraint's name is the column's, so recognition is unchanged.
+- **Timings** are whole milliseconds, validated as positive safe integers;
+  `renewIntervalMs` defaults to `floor(ttlMs / 3)` ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).
+- Lease mode's correctness also rests on reads made after a lease is taken seeing every write made before
+  it, which some engines do not give; see ADR-0153's update.

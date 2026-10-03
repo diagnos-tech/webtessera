@@ -13,7 +13,14 @@
 // limitations under the License.
 
 import { describe, expect, it } from "vitest";
-import { newS3Sink, S3Error, type S3SinkOptions } from "webtessera/mirror";
+import {
+	isRecoverable,
+	newS3Sink,
+	newSinkTarget,
+	newSourceFetch,
+	S3Error,
+	type S3SinkOptions,
+} from "webtessera/mirror";
 import { FakeS3 } from "./testing/fakes3.ts";
 
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -41,7 +48,7 @@ describe("newS3Sink", () => {
 		expect(await sink.get("tile/entries/x001/234.p/7")).toEqual(enc("bundle"));
 		expect(await sink.get("checkpoint")).toBeUndefined();
 		expect([...s3.objects.keys()]).toEqual(["/logs/mirrors/a/tile/entries/x001/234.p/7"]);
-		expect(s3.requests.every((r) => r.redirect === "manual")).toBe(true);
+		expect(s3.requests.every((r) => r.redirect === "manual" && r.credentials === "omit")).toBe(true);
 	});
 
 	it("signs with temporary credentials", async () => {
@@ -76,10 +83,17 @@ describe("newS3Sink", () => {
 		expect(s3.requests[1]?.headers.get("if-none-match")).toBe("*");
 	});
 
-	it("treats an immutable object that is already there as written", async () => {
+	it("accepts an immutable object that is already there only if it holds the same bytes", async () => {
 		const { s3, sink } = setup();
 		await sink.put("tile/0/000", enc("first"));
-		await sink.put("tile/0/000", enc("second"));
+		await sink.put("tile/0/000", enc("first"));
+		expect(s3.objects.get("/logs/tile/0/000")?.data).toEqual(enc("first"));
+		for (const other of ["second", "firs", "first!"]) {
+			const err = await sink.put("tile/0/000", enc(other)).catch((e: unknown) => e);
+			expect(err instanceof Error ? err.message : "", other).toContain("logs/tile/0/000");
+			expect(err instanceof Error ? err.message : "", other).toContain("a different object is already stored there");
+			expect(isRecoverable(err), other).toBe(false);
+		}
 		expect(s3.objects.get("/logs/tile/0/000")?.data).toEqual(enc("first"));
 
 		const plain = setup({ conditionalWrites: false });
@@ -87,6 +101,34 @@ describe("newS3Sink", () => {
 		await plain.sink.put("tile/0/000", enc("second"));
 		expect(plain.s3.objects.get("/logs/tile/0/000")?.data).toEqual(enc("second"));
 		expect(plain.s3.requests.some((r) => r.headers.has("if-none-match"))).toBe(false);
+	});
+
+	it("keeps each object's metadata and conditional write under a mirror target's prefix", async () => {
+		const { s3, sink } = setup({ prefix: "mirrors/" });
+		const t = newSinkTarget(sink, { prefix: "a/" });
+		await t.writeTile(0n, 1n, 0, new Uint8Array(8192));
+		await t.writeEntryBundle(0n, 7, enc("bundle"));
+		await t.writeCheckpoint(enc("cp\n"));
+		expect(s3.objects.get("/logs/mirrors/a/tile/0/001")).toMatchObject({
+			contentType: "application/octet-stream",
+			cacheControl: "public, max-age=31536000, immutable",
+		});
+		expect(s3.objects.get("/logs/mirrors/a/tile/entries/000.p/7")?.cacheControl).toBe("public, max-age=60");
+		expect(s3.objects.get("/logs/mirrors/a/checkpoint")).toMatchObject({
+			contentType: "text/plain; charset=utf-8",
+			cacheControl: "no-cache",
+		});
+		expect(s3.requests.map((r) => r.headers.get("if-none-match"))).toEqual(["*", "*", null]);
+		expect(await t.readCheckpoint()).toEqual(enc("cp\n"));
+		expect(await t.readEntryBundle(0n, 7)).toEqual(enc("bundle"));
+	});
+
+	it("refuses limits that are not positive integers", () => {
+		for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+			expect(() => setup({ attempts: bad }), `attempts ${bad}`).toThrow(RangeError);
+			expect(() => setup({ maxObjectBytes: bad }), `maxObjectBytes ${bad}`).toThrow(RangeError);
+			expect(() => newSourceFetch({ maxBytes: bad }), `maxBytes ${bad}`).toThrow(RangeError);
+		}
 	});
 
 	it("retries throttling and server errors", async () => {

@@ -58,3 +58,11 @@ target 0, 30 workers (the CLI default) loops. Incremental mirroring of a slowly 
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+`retry` (`src/mirror/retry.ts`) throws a `RangeError` for an `attempts` that is not a positive safe integer,
+or a delay that is not a finite, non-negative number: a NaN count was never reached, and retried forever.
+retry-go's defaults, which `Mirror` uses, are unaffected. See
+[ADR-0212](0212-http-request-targets-limits-and-error-bodies.md). `Mirror` itself is unchanged; the verified
+mirror's per-run state is ADR-0176's update.

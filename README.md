@@ -27,7 +27,8 @@ Go client, and the other way round.
 - **Storage for the web and the server**: an in-memory driver, an IndexedDB driver (durable, shared
   safely between tabs through Web Locks), and a SQLite driver that runs on any SQLite engine —
   node:sqlite, bun:sqlite, better-sqlite3, libSQL/Turso, rqlite, Cloudflare D1, SQLite-backed Durable
-  Objects or sqlite-wasm — with lease locks and fencing when several processes share one database.
+  Objects or sqlite-wasm — with lease locks and fencing by default wherever another process could open
+  the database.
   Any key/value store can be plugged in by implementing a six-method contract.
 - **Verification**: checkpoint fetching, inclusion and consistency proofs, entry streaming, a
   client-side log state tracker, and `fsck` for whole-log integrity checks.
@@ -199,9 +200,9 @@ const { appender, shutdown } = await newAppender(driver, newAppendOptions().with
 
 | Engine | Adapter | Default locking |
 | --- | --- | --- |
-| node:sqlite (Node.js, Deno), bun:sqlite, better-sqlite3 | `fromSqliteSync(db)` | local |
-| SQLite compiled to WebAssembly ([sqlite-wasm](https://sqlite.org/wasm)) | `fromSqliteWasm(db)` | local for memory and `opfs-sahpool`, else lease |
-| libSQL / Turso | `fromLibsql(client)` | local for `file:` URLs, else lease |
+| node:sqlite (Node.js, Deno), bun:sqlite, better-sqlite3 | `fromSqliteSync(db)` | lease for a file; local for an in-memory or temporary database |
+| SQLite compiled to WebAssembly ([sqlite-wasm](https://sqlite.org/wasm)) | `fromSqliteWasm(db)` | local for memory, `memdb` and `opfs-sahpool`, else lease |
+| libSQL / Turso | `fromLibsql(client)` | local for an in-memory database; lease for `file:` URLs, embedded replicas and remote databases |
 | rqlite 8.32 or later | `fromRqlite({ url })` | lease |
 | Cloudflare D1 | `fromD1(db)` | lease |
 | SQLite-backed Durable Objects | `fromDurableObjectStorage(ctx.storage)` | local |
@@ -209,11 +210,15 @@ const { appender, shutdown } = await newAppender(driver, newAppendOptions().with
 The adapters are typed structurally, so webtessera depends on none of these engines. Any other SQLite
 can be used by implementing `SqlDatabase`: an async `query` and an atomic `batch`.
 
-- **Locking.** "local" locking serialises the writers of one process. "lease" locking lets several
-  processes or instances append to the same database: each lock is a lease renewed while it is held,
-  and every write made under a lease is fenced on it in the same transaction, so a writer that stalled
-  past its lease can never overwrite what the next holder wrote. Choose `locking: "lease"` explicitly
-  when several processes open the same SQLite file.
+- **Locking fails closed.** "lease" locking, the default for every database that another process or
+  connection could open, lets several processes, connections or instances append to the same database:
+  each lock is a lease renewed while it is held, and every write made under a lease is fenced on it in
+  the same transaction, so a writer that stalled past its lease can never overwrite what the next holder
+  wrote. "local" locking, the default only where the database is private (in memory, a Durable
+  Object's), keeps locks in memory and saves the lease's writes, about a third of append throughput on a
+  file at the default batch size. Pass `locking: "local"` for a file only to declare that this process is
+  its only writer. A libSQL embedded replica, or any setup that serves reads from a replica, is not safe
+  for a log that several clients write, with either locking.
 - **Durability.** An index the appender returns is on durable storage: the in-process adapters raise
   `synchronous` to `FULL`, and the networked engines resolve a write only once they have committed it.
 - **Sharing a database.** `namespace` keeps a log in tables of its own, so several logs, or a log and

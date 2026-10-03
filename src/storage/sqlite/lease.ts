@@ -143,9 +143,10 @@ export class LeaseLocks {
 
 	/**
 	 * fence returns the statement that, run first in a batch, fails the whole batch with
-	 * a CHECK constraint error unless every lease this store holds is still held, or
+	 * a NOT NULL constraint error unless every lease this store holds is still held, or
 	 * undefined if it holds none. Inside the batch's transaction no other contender can
-	 * take a lease over, so the check holds for every statement after it.
+	 * take a lease over, so the check holds for every statement after it. NOT NULL, unlike
+	 * CHECK, is enforced whatever pragmas the connection has set.
 	 *
 	 * Every write is fenced on every lease the store holds, not only the one its caller
 	 * holds: JavaScript cannot tell which lock an asynchronous caller is running under.
@@ -172,7 +173,7 @@ export class LeaseLocks {
 		return {
 			statement: {
 				sql:
-					`INSERT INTO ${this.#t.fence} (lost) SELECT 1 WHERE ` +
+					`INSERT INTO ${this.#t.fence} (${leaseLostConstraint}) SELECT NULL WHERE ` +
 					`(SELECT count(*) FROM ${this.#t.locks} WHERE holder IN (${leases.map(() => "?").join(", ")})) < ?`,
 				params: [...leases.map((l) => l.token), leases.length],
 			},
@@ -293,7 +294,7 @@ export class LeaseLocks {
 	}
 }
 
-/** isLeaseLost reports whether err, or an error in its cause chain, is a fenced-out batch's CHECK failure. */
+/** isLeaseLost reports whether err, or an error in its cause chain, is a fenced-out batch's constraint failure. */
 export function isLeaseLost(err: unknown): boolean {
 	for (let e: unknown = err, depth = 0; e !== undefined && e !== null && depth < 16; depth++) {
 		if (e === ErrLeaseLost || String(e instanceof Error ? e.message : e).includes(leaseLostConstraint)) {

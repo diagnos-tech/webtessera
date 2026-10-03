@@ -29,6 +29,11 @@
  * const log = newLogHandler({ reader, cors: true });
  * ```
  *
+ * The reader is trusted: what it returns is served, with long-lived immutable caching for
+ * full tiles and bundles. An `HTTPFetcher` for a remote log is a valid reader, and the
+ * handler then re-serves that log unverified; to re-serve a log you do not operate, mirror
+ * it with `newVerifiedMirror` (webtessera/mirror) and serve the copy.
+ *
  * A Handler resolves to undefined for requests that are not its own, so handlers compose
  * with each other and with an application's routes. {@link combineHandlers} turns a list of
  * them into the `(request) => Promise<Response>` every runtime expects, answering 404 when
@@ -73,14 +78,15 @@
  * tlog-tiles specifies no write API, and adding entries is the personality's business. The
  * convention Tessera's personalities follow, and its tooling expects, is `POST /add` with
  * the entry as the body, answered by the assigned index as a bare decimal;
- * {@link addResponse} and {@link addErrorResponse} produce exactly those answers, and
+ * {@link addResponse} and {@link addErrorResponse} produce those answers (a 500 carries the
+ * error's text only when asked to, since it can describe the server's internals), and
  * {@link readEntryBody} reads the entry while capping it at the 65535 bytes an entry bundle
  * can hold, so that an oversized upload is refused while it streams rather than buffered.
  *
  * @module
  */
 
-export { addErrorResponse, addResponse, MaxEntryBytes, readEntryBody } from "./add.ts";
+export { type AddErrorResponseOptions, addErrorResponse, addResponse, MaxEntryBytes, readEntryBody } from "./add.ts";
 export type { CorsOptions } from "./cors.ts";
 export { combineHandlers, type Handler } from "./handler.ts";
 export { type LogHandlerOptions, type LogResourceReader, newLogHandler } from "./log_handler.ts";

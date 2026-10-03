@@ -305,6 +305,22 @@ describe("SQLite lease locking", () => {
 	});
 });
 
+describe("SQLite lease fencing", () => {
+	it("refuses a lapsed holder's writes on a connection that ignores CHECK constraints", async () => {
+		const raw = new DatabaseSync(":memory:");
+		raw.exec("PRAGMA ignore_check_constraints = ON");
+		const db = fromSqliteSync(raw);
+		const store = await openSqliteObjectStore({ database: db, locking: "lease" });
+		await store.lock(lockName, async () => {
+			// Another holder takes the lock over.
+			await db.query({ sql: "UPDATE webtessera_locks SET holder = 'another holder'", params: [] });
+			const err = await store.put("checkpoint", enc.encode("stale")).catch((e: unknown) => e);
+			expect(errorIs(err, ErrLeaseLost)).toBe(true);
+		});
+		expect(await store.get("checkpoint")).toBeUndefined();
+	});
+});
+
 describe("SQLite lease locking on the database's clock", () => {
 	/** open opens a lease-mode store over db with no clock of its own, as production code does. */
 	const open = (db: SqlDatabase, lease: SqliteLeaseOptions) =>

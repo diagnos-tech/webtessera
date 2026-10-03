@@ -67,3 +67,32 @@ the adapter still throws on any error result. This is worth reporting upstream t
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03): the read-after-lease assumption, and the busy timeout
+
+**Lease locking assumes that every read a store makes after taking a lease sees every write committed
+before it took it.** Fencing (ADR-0152) makes a write fail if its lease is gone, but it says nothing about
+the reads the write was computed from. The driver reads the tree state under the tree-state lock and
+integrates on top of it; if that read returns a state older than the lock's previous holder left, the
+driver assigns indices that are already taken, and the fence lets the write through because the lease is
+genuinely its own. The assumption holds where every read goes to the one copy writes commit to:
+
+| Engine | Reads after a lease see earlier writes? |
+| --- | --- |
+| node:sqlite, bun:sqlite, better-sqlite3, sqlite-wasm, libSQL `file:` | yes: one database file, under SQLite's own locking |
+| Durable Object | yes: one instance, one database |
+| D1 through the binding (`env.DB`) | yes: queries without the Sessions API go to the primary |
+| rqlite | yes, at `linearizable` or `strong`, the only levels `fromRqlite` accepts (ADR-0213) |
+| libSQL remote (sqld, Turso) | yes for a server with no read replicas; not established for one that serves reads from replicas |
+| libSQL embedded replica (`file:` with `syncUrl`) | **no**: reads are served from the local copy, which lags writes made through other clients until it syncs |
+| D1 through a Sessions API session (`env.DB.withSession()`) | not established: a session is sequentially consistent with its own writes, which may suffice since taking a lease is a write, but this has not been verified |
+| any engine behind a read replica or a cache of query results | **no** |
+
+So an embedded replica, or any setup that answers reads from a replica, is not a safe home for a log that
+more than one client writes, under either locking mode; `fromLibsql`'s documentation says so. A single
+client writing through an embedded replica is unaffected, since its own writes are visible to its reads.
+
+**Busy timeout.** The adapter for in-process engines now sets the busy timeout before reading
+`PRAGMA synchronous` (and `PRAGMA database_list`, ADR-0210), because those load the schema and, without a
+timeout, fail at once with `SQLITE_BUSY` while another process writes the file. The new test that runs
+several processes against one file found this.

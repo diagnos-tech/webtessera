@@ -22,15 +22,16 @@
 //     bun scripts/smoke-sqlite.mjs
 //     deno run --allow-read scripts/smoke-sqlite.mjs
 //
-// It appends a few hundred entries to a log kept in an in-memory SQLite database, waits
-// for a checkpoint that commits to the last one, and verifies the checkpoint's signature
-// and the entry's inclusion proof against it. It then restarts the log on the same
-// database with lease locking, appends again, and checks that the log resumed where it
-// stopped. Zero dependencies.
+// It checks that the adapter gives an in-memory database, which no other connection can
+// open, local locking by default (a file would get leases). It then appends a few hundred
+// entries to a log kept in that database, waits for a checkpoint that commits to the last
+// one, and verifies the checkpoint's signature and the entry's inclusion proof against
+// it. It then restarts the log on the same database with lease locking, appends again,
+// and checks that the log resumed where it stopped. Zero dependencies.
 
 import { fetchCheckpoint, newProofBuilder } from "../dist/client/index.js";
 import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "../dist/index.js";
-import { fromSqliteSync, newSqliteDriver } from "../dist/storage/sqlite/index.js";
+import { fromSqliteSync, newSqliteDriver, openSqliteObjectStore } from "../dist/storage/sqlite/index.js";
 import { verifyInclusion } from "../dist/vendor/merkle/proof/index.js";
 import { DefaultHasher } from "../dist/vendor/merkle/rfc6962/rfc6962.js";
 import { generateKey, newSigner, newVerifier } from "../dist/vendor/note/note.js";
@@ -73,6 +74,10 @@ async function appendAndProve(driverOptions, count, label) {
 	return { index: index.index, size: checkpoint.size };
 }
 
+const { locking } = await openSqliteObjectStore({ database });
+if (locking !== "local") {
+	throw new Error(`an in-memory database defaults to ${locking} locking, want local`);
+}
 const first = await appendAndProve({}, 300, "local");
 const second = await appendAndProve({ locking: "lease" }, 20, "lease");
 if (first.index !== 300n || second.index !== 321n || second.size < 322n) {

@@ -44,16 +44,23 @@ export type SqlRow = Readonly<Record<string, SqlValue>>;
 /**
  * SqliteLocking selects how a SQLite ObjectStore implements ObjectStore.lock.
  *
- * "local" locks are held in memory and exclude every store opened over the same
- * SqlDatabase object in this JavaScript realm. They are right whenever that realm is the
- * only writer: one process using a SQLite file, a Durable Object (the runtime runs one
- * instance of it at a time), a WebAssembly SQLite in one tab.
- *
  * "lease" locks are rows in the database, held for a bounded time and renewed while held,
- * so they exclude every process, isolate or machine that reaches the database, and every
- * write made while one is held is fenced on it still being held. They are right for a
- * database shared between processes: Cloudflare D1, rqlite, a remote libSQL server, or a
- * SQLite file opened by several processes.
+ * so they exclude every connection, process, isolate or machine that reaches the database,
+ * and every write made while one is held is fenced on it still being held. They are right
+ * for every database, and are what stores use unless the adapter can show that nothing
+ * outside this JavaScript realm can reach the database (see SqlDatabase.defaultLocking).
+ *
+ * "local" locks are held in memory and exclude only the stores of this realm that use
+ * the same database. Choosing them is the caller's declaration that this realm is the
+ * database's only writer, as IndexedDB's `singleWriter` is: a SQLite file that another
+ * process, or another connection that is not a store of this realm, also writes is then
+ * forked the first time two writers append at once. They suit a database that is private
+ * by construction: an in-memory or temporary database, a Durable Object's (the runtime runs
+ * one instance of it at a time), or a WebAssembly SQLite in a VFS that holds its files
+ * exclusively. They save the lease's writes, and nothing else.
+ *
+ * Every store over one database must use the same locking: local locks and leases do not
+ * see each other.
  */
 export type SqliteLocking = "local" | "lease";
 
@@ -67,9 +74,9 @@ export type SqliteLocking = "local" | "lease";
  * batch's job, which lets engines that forbid explicit transactions (D1, Durable Objects)
  * provide it their own way.
  *
- * Stores opened over the same SqlDatabase object share their in-process locks. The
- * adapters whose default locking is "local" therefore return the same SqlDatabase for the
- * same engine handle, so that every store over one connection excludes the others.
+ * With "local" locking, every store of this realm over the same database shares one set of
+ * in-process locks, whichever SqlDatabase it was opened through: the database itself
+ * records a random identity that they all read (see openSqliteObjectStore).
  */
 export interface SqlDatabase {
 	/**
@@ -88,10 +95,12 @@ export interface SqlDatabase {
 
 	/**
 	 * defaultLocking is the locking stores use over this database when their options do
-	 * not choose one, and "local" if it is undefined. An adapter for an engine that
-	 * several processes reach at once sets it to "lease".
+	 * not choose one. Locking fails closed: it is "lease" if this is undefined, and an
+	 * adapter sets it to "local" only for a database it can show nothing outside this
+	 * realm can reach, such as one in memory. An adapter that has to ask the database
+	 * makes it a function, which each store opened over the database calls once.
 	 */
-	readonly defaultLocking?: SqliteLocking | undefined;
+	readonly defaultLocking?: SqliteLocking | (() => Promise<SqliteLocking>) | undefined;
 
 	/**
 	 * leaseClock says where "lease" locking reads the time that lease expiries are set
