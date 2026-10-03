@@ -1,0 +1,145 @@
+{
+  // Biome is the repository's formatter, linter and import sorter: `bun run lint` checks,
+  // `bun run lint:fix` repairs, the pre-commit hook (.githooks/pre-commit) checks what is staged,
+  // and the editor settings (.vscode/settings.json) format on save with the same binary.
+  //
+  // What Biome covers: TypeScript and JavaScript (src/, scripts/, the site and the examples),
+  // JSON and JSONC (package.json, tsconfig*.json, wrangler.jsonc, this file) and CSS (the site's
+  // styles and the browser example's). HTML files are linted but not formatted: Biome 2.5 still
+  // marks its HTML formatter experimental and opt-in, and it would rewrite both of this
+  // repository's pages (void elements lose their `/>`, inline text is re-wrapped). Go is
+  // formatted by gofmt, and Markdown and YAML are not formatted by any tool; .editorconfig
+  // carries their basic conventions. Nothing below may change what the formatter prints for the
+  // files already in the repository, because other work in flight would conflict with a rewrite.
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    // Files that git ignores (node_modules, dist, .upstream, ...) are not Biome's business.
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    // Fixtures are generated and byte-exact, so Biome must not touch them. The other entries
+    // repeat what .gitignore already says, for runs outside a git checkout.
+    "includes": ["**", "!dist", "!fixtures/data", "!**/.wrangler", "!**/node_modules", "!.upstream"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab",
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "json": {
+    "formatter": {
+      "indentStyle": "space",
+      "indentWidth": 2
+    }
+  },
+  "html": {
+    // See the note at the top: lint yes, format not yet.
+    "formatter": { "enabled": false },
+    "linter": { "enabled": true }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "useNamingConvention": "off",
+        "noNonNullAssertion": "error",
+        "useImportType": "error",
+        "useExportType": "error",
+        "noParameterAssign": "off",
+        "useTemplate": "off",
+        // AGENTS.md section 3.6: errors are thrown as Error objects, built with `new`.
+        "useThrowOnlyError": "error",
+        "useThrowNewError": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConsole": "error",
+        "useDefaultSwitchClauseLast": "off",
+        // Upstream tests assert on error message text, so an Error without one is a port bug.
+        "useErrorMessage": "error",
+        // "hello ${name}" in plain quotes is a template literal that lost its backticks.
+        "noTemplateCurlyInString": "error",
+        // `a + b;` and `x === y;` as statements do nothing: a typo for a call or an assignment.
+        "noUnusedExpressions": "error"
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        // AGENTS.md section 3.8: relative imports carry their extension (".ts"), which is what
+        // lets the sources run unmodified under Node, Deno and Bun.
+        "useImportExtensions": "error"
+      },
+      "performance": {
+        // `[...acc, x]` in a reduce copies the array on every step: quadratic in its length.
+        "noAccumulatingSpread": "error"
+      },
+      // These four are in Biome's nursery group, so their behaviour may change with a Biome
+      // release. Biome is pinned exactly in package.json, so a bump that changes them shows up
+      // in the pull request that makes it. They need type information, which Biome infers itself.
+      "nursery": {
+        // The port is asynchronous throughout (AGENTS.md section 3.7). A promise that nobody
+        // awaits, catches or explicitly discards (`void`) is a lost error.
+        "noFloatingPromises": "error",
+        // A promise used as a condition, or an async callback where a synchronous one is expected.
+        "noMisusedPromises": "error",
+        // A switch over a union (error kinds, statuses) must name every member or say default.
+        "useExhaustiveSwitchCases": "error",
+        // Promise.reject() takes an Error, as `throw` does.
+        "usePromiseRejectErrors": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*_test.ts", "**/testing/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    },
+    {
+      // AGENTS.md section 7, as a rule: code that ships runs in browsers and on the edge, so it
+      // imports no Node built-in and uses neither `process` nor `Buffer`. Tests, test helpers,
+      // scripts and the site are not shipped and are exempt.
+      "includes": ["src/**", "!src/**/*_test.ts", "!src/**/testing/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noNodejsModules": "error",
+            "noProcessGlobal": "error"
+          },
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "Buffer": "Library code also runs where Buffer does not exist: use Uint8Array (AGENTS.md section 7)."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

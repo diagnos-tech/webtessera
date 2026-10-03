@@ -16,7 +16,7 @@
 // JavaScript runtime executes this file, with the SQLite that runtime ships: node:sqlite
 // under Node.js and Deno, bun:sqlite under Bun.
 //
-// Usage, after `pnpm build`:
+// Usage, after `bun run build`:
 //
 //     node scripts/smoke-sqlite.mjs
 //     bun scripts/smoke-sqlite.mjs

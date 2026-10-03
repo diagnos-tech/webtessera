@@ -28,11 +28,11 @@ back-pressure.
 From a checkout of this repository:
 
 ```sh
-pnpm install
+bun install
 cd examples/cloudflare-durable-object
-pnpm keygen localhost/my-log      # prints a key pair, and the .dev.vars line to use
+bun run keygen localhost/my-log   # prints a key pair, and the .dev.vars line to use
 echo 'LOG_PRIVATE_KEY=PRIVATE+KEY+localhost/my-log+…' > .dev.vars
-pnpm dev                          # builds webtessera, then starts wrangler dev
+bun run dev                       # builds webtessera, then starts wrangler dev
 ```
 
 Then, in another terminal:
@@ -53,16 +53,16 @@ mjYvVTS+XkUmXXfsmu2ey9PiZaeJCckzncvqk97CELA=
 ## Deploy
 
 ```sh
-pnpm keygen log.example.com/my-log
-pnpm exec wrangler secret put LOG_PRIVATE_KEY   # paste the private key when prompted
-pnpm run deploy                                 # `pnpm deploy` is a different, built-in command
+bun run keygen log.example.com/my-log
+bunx wrangler secret put LOG_PRIVATE_KEY   # paste the private key when prompted
+bun run deploy                             # builds webtessera, then wrangler deploy
 ```
 
 The key's name is the log's _origin_, the first line of every checkpoint, which clients check.
 By convention it is the URL the log is served at, without the scheme. Keep the private key
 secret, and publish the public key: clients verify checkpoints with it. Keys use the signed-note
 format of `golang.org/x/mod/sumdb/note`, so tools built on Go's `note` package accept them too.
-`pnpm keygen` wraps `generateKey` from `webtessera/note`, which you can also call yourself.
+`bun run keygen` wraps `generateKey` from `webtessera/note`, which you can also call yourself.
 
 ## Verify it
 
@@ -117,7 +117,7 @@ verifyInclusion(DefaultHasher, index, checkpoint.size, DefaultHasher.hashLeaf(en
 ## Test
 
 ```sh
-pnpm test
+bun run test
 ```
 
 runs [`src/index_test.ts`](src/index_test.ts) inside workerd with

@@ -4,17 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "pnpm --workspace-root build",
+    "predev": "bun run --cwd ../.. build",
     "dev": "vite",
-    "prebuild": "pnpm --workspace-root build",
+    "prebuild": "bun run --cwd ../.. build",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "webtessera": "workspace:*"
+    "preview": "vite preview",
+    "ci": "tsc --noEmit && vite build"
   },
   "devDependencies": {
     "typescript": "5.9.3",
     "vite": "8.3.2"
+  },
+  "peerDependencies": {
+    "webtessera": "*"
+  },
+  "peerDependenciesMeta": {
+    "webtessera": {
+      "optional": true
+    }
   }
 }

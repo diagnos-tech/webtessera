@@ -16,7 +16,7 @@
 // runtime executes this file. CI runs it under Node, Bun and Deno, which is what
 // backs the README's claim that webtessera runs on all three.
 //
-// Usage, after `pnpm build`:
+// Usage, after `bun run build`:
 //
 //     node scripts/smoke-runtimes.mjs
 //     bun scripts/smoke-runtimes.mjs

@@ -2,11 +2,14 @@ version: 2
 
 # What is kept current, and how it arrives:
 #
-# - npm: the library and every pnpm workspace package (the examples and the landing page).
-#   Minor and patch updates come as one pull request per kind; a major update comes on its
-#   own so it can be reviewed on its own. The only runtime dependencies are @noble/*
-#   (AGENTS.md §7): look at those with extra care, since signature verification and hashing run
-#   through them.
+# - bun: the library and every Bun workspace package (the examples and the landing page), with
+#   bun.lock as the one lockfile. Bun is an ecosystem of its own for Dependabot: the `npm` one
+#   refuses a repository that has a bun.lock. Minor and patch updates come as one pull request
+#   per kind; a major update comes on its own so it can be reviewed on its own. The only
+#   runtime dependencies are @noble/* (AGENTS.md §7): look at those with extra care, since
+#   signature verification and hashing run through them. The Bun version itself, the
+#   "packageManager" field in package.json that CI and contributors install, is not tracked
+#   here: bump it by hand, with a read of Bun's release notes.
 # - github-actions: the workflows and the composite actions under .github/actions. Actions are
 #   pinned to commit SHAs with the release in a trailing comment; Dependabot updates both.
 # - docker-compose: the images of the test services, pinned by tag and digest.
@@ -15,7 +18,7 @@ version: 2
 # when a hijacked or broken release is usually found and pulled. Security updates ignore it.
 
 updates:
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directories:
       - "/"
       - "/examples/*"

@@ -1,0 +1,53 @@
+{
+  // Shared editor settings. Everything here only makes the editor do what `bun run lint:fix` and
+  // the pre-commit hook would do anyway; nothing changes how the code is built or tested.
+
+  // Biome formats and lints TypeScript, JavaScript, JSON and CSS (biome.jsonc), using the copy
+  // pinned in package.json. VS Code language ids: "javascript" is also .mjs and .cjs, and
+  // "jsonc" is tsconfig*.json and .jsonc. HTML is not listed because Biome does not format it yet.
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.biome": "explicit",
+    "source.organizeImports.biome": "explicit"
+  },
+  "[typescript]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[typescriptreact]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[javascript]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[javascriptreact]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[json]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[jsonc]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[css]": { "editor.defaultFormatter": "biomejs.biome" },
+
+  // Go is formatted by gofmt (through the Go extension), which indents with tabs.
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.insertSpaces": false,
+    "editor.formatOnSave": true
+  },
+
+  // The TypeScript the repository pins, not the one bundled with the editor, so that the
+  // editor and `bun run typecheck` report the same errors.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // Match .editorconfig and Biome's lineWidth.
+  "editor.rulers": [120],
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "[markdown]": { "files.trimTrailingWhitespace": false },
+
+  // Build output, the upstream Go checkout and dependencies are not worth searching or watching.
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.upstream/**": true
+  },
+  "search.exclude": {
+    "**/dist": true,
+    "**/.upstream": true,
+    "**/bun.lock": true,
+    "fixtures/data": true
+  }
+}

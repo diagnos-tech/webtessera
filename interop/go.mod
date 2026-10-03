@@ -28,7 +28,7 @@ require (
 // The interop tools must run the exact upstream checkout the port is pinned to
 // (see scripts/upstream.json), not whatever is on the module proxy, and the
 // dependency versions above are the ones that checkout's go.mod requires: these
-// tools are the Go half of a compatibility proof. `pnpm upstream` creates the
-// checkout at .upstream/tessera; `pnpm interop` does that first and then builds
+// tools are the Go half of a compatibility proof. `bun run upstream` creates the
+// checkout at .upstream/tessera; `bun run interop` does that first and then builds
 // these tools.
 replace github.com/transparency-dev/tessera => ../.upstream/tessera

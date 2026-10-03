@@ -15,7 +15,7 @@
 // Smoke test of the built site (dist/), in a real Chromium: the page loads without
 // console errors, carries its SEO metadata, reads completely without JavaScript, fits a
 // 320 px screen, and the live demo appends an entry, verifies its inclusion proof,
-// rejects a tampered one and fills a tile. Run `pnpm build` first; `pnpm ci` does both.
+// rejects a tampered one and fills a tile. Run `bun run build` first; `bun run ci` does both.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

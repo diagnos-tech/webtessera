@@ -131,7 +131,7 @@ creates the package and links it to this repository. After the first publish:
 | Stage | Job | What it does and what stops it |
 | --- | --- | --- |
 | 1 | `prepare` | The tag is `v` + the `package.json` version; `CHANGELOG.md` has a `## [X.Y.Z]` section; the Release's pre-release flag agrees with the version; the commit is an ancestor of `main`. |
-| 2 | `verify` | The whole CI ([`ci.yml`](../.github/workflows/ci.yml)): lint, types, every test suite, compatibility with Go, runtimes, examples, the site, and the packaging checks. Its `build` job packs the tarballs from the lockfile's dependencies, records their SHA-256 and uploads them as the `package` artifact; a separate `check` job tests them. |
+| 2 | `verify` | The whole CI ([`ci.yml`](../.github/workflows/ci.yml)): lint, types, every test suite, compatibility with Go, runtimes, examples, the site, and the packaging checks. Its `build` job packs the tarballs (`bun pm pack`) from the lockfile's dependencies, records their SHA-256 and uploads them as the `package` artifact; a separate `check` job tests them. |
 | 3 | `attest` | A GitHub build-provenance attestation for both tarballs. |
 | 4 | `publish-npm`, `publish-github-packages` | Download the `package` artifact (nothing is rebuilt) and publish it, behind the `release` environment. |
 | 5 | `assets` | Attach the tarballs to the GitHub Release. |
@@ -149,6 +149,21 @@ so `attest`, both publish jobs and `assets` each compare the tarballs they downl
 recorded digests before doing anything else, and stop if a single byte differs or a file is
 missing or extra. The guarantee is: what is attested, published and attached is what `build` packed
 from the lockfile.
+
+**Why Bun packs and npm uploads.** Bun is this project's package manager, so `bun pm pack` makes the tarball
+([`_package.yml`](../.github/workflows/_package.yml)), but the upload is `npm publish`, from jobs that
+have Node and npm and no Bun. `bun publish` supports neither of the two things that make a release
+verifiable: npm's provenance statement (`--provenance`, [oven-sh/bun#15601](https://github.com/oven-sh/bun/issues/15601))
+and trusted publishing, the OIDC exchange that needs no stored secret
+([oven-sh/bun#22423](https://github.com/oven-sh/bun/issues/22423)). Nothing about the digests changes: `npm
+publish <tarball>` uploads the file it is given, byte for byte (the shasum and integrity it prints are the
+file's), so the SHA-256 recorded when `build` packed it is the digest of what the registry receives. Bun
+also makes the GitHub Packages variant ([`rescope.mjs`](../scripts/release/rescope.mjs)); npm cannot, because
+it runs a package's `prepare` script when it packs a directory even with `--ignore-scripts`, and that script
+is not in the tarball. The two packers do not produce the same bytes (they order the entries differently), but
+they select the same files with the same contents, and `build` asserts that on every pull request: it asks
+`npm pack --dry-run` which files it would pack from the same tree and fails on any difference, long before a
+release.
 
 **Why two package names.** GitHub Packages' npm registry accepts only packages scoped to the owner of
 the repository, so `webtessera` cannot be published there. [`scripts/release/rescope.mjs`](../scripts/release/rescope.mjs)
@@ -272,5 +287,7 @@ npm install webtessera@npm:@diagnos-tech/webtessera
 | `publish-npm` fails with "npm ... is older than 11.5.1" | The Node.js version set by `PUBLISH_NODE_VERSION` in `release.yml` ships an older npm. Move to a newer Node.js release. |
 | `publish-github-packages` fails with `permission_denied` | The package exists but this repository lacks the **Write** role under *Manage Actions access*, or the package belongs to another repository. |
 | A job fails at "Verify the tarballs against the recorded digests" | The artifact is not what `build` packed (or a digest did not arrive). Treat it as a possible tampering until explained: look at the run's `package` job summary for the recorded digests, then re-run the whole workflow (*Re-run all jobs*), which rebuilds and records new ones. |
+| `Check that npm would pack the same files` fails with a diff | `bun pm pack` and `npm pack` no longer select the same files: a new `files` pattern, or a Bun release, changed how one of them reads it. The diff names the files; `files` in `package.json` is written for npm's rules, so fix the pattern, or the Bun version, until they agree. |
+| `Derive the GitHub Packages variant` fails with "file lists differ" or "differs between the two tarballs" | The unpacked tarball was changed by more than its package name, or Bun packed it differently the second time. Run `node scripts/release/rescope.mjs <tarball> --scope <owner>` locally to see which file. |
 | A job fails with "already exists ... with different contents" | The registry holds a different build of this version. See [Recovering and re-running](#recovering-and-re-running). |
 | The deployment never starts | It waits for a reviewer on the `release` environment (see step 5), or the tag does not match the environment's allowed tag pattern. |
