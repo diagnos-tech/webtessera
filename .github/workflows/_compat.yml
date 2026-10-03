@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # `pnpm fixtures` runs a zero-dependency script and then the Go generator, so the
+      # `bun run fixtures` runs a zero-dependency script and then the Go generator, so the
       # workspace dependencies are not needed.
       - uses: ./.github/actions/setup
         with:
@@ -28,7 +28,7 @@ jobs:
       - uses: ./.github/actions/setup-go-upstream
 
       - name: Regenerate the fixtures from upstream Tessera
-        run: pnpm fixtures
+        run: bun run fixtures
 
       # `git status` rather than `git diff`, so that added and removed files count too.
       - name: Fail if the committed fixtures differ
@@ -51,5 +51,5 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/setup-go-upstream
-      - run: pnpm build
-      - run: pnpm interop
+      - run: bun run build
+      - run: bun run interop
