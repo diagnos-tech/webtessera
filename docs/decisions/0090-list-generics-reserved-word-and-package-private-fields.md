@@ -141,3 +141,17 @@ Three mechanical decisions came up while porting it, none covered by an existing
   with the same values; all green. Generics-over-`any`, `New`→`newList`, and the `_`-prefixed
   package-private fields are all consistent with ADR-0002/ADR-0010 precedent. Open licence item
   (BSD-3-Clause inline header, repo-level mixed-licence note) is correctly flagged, same as ADR-0040.
+
+## Update (2026-10-02)
+
+- **Licence header.** The Consequences above say `list.ts` "carries the full BSD-3-Clause text
+  reproduced inline". It now carries the form AGENTS.md section 9 prescribes for a Go-licensed port: the
+  Go Authors' copyright line, ours, and the short pointer to `LICENSES/BSD-3-Clause-Go.txt`. The licence
+  text itself lives in `LICENSES/` and `NOTICE` attributes the file, as for the other ports.
+- **Position of `newList`.** Go declares `New` between `Init` and `Len`. A class body cannot be
+  interleaved with a function declaration, so `newList` is declared directly above the `List` class
+  rather than at the end of the file, which is as near to Go's position as TypeScript allows.
+- `list_test.ts` again carries the four comments upstream puts above `TestZeroList`,
+  `TestInsertBeforeUnknownMark`, `TestInsertAfterUnknownMark` and `TestMoveUnknownMark`.
+
+*Review of this update: pending.*

@@ -107,3 +107,25 @@ covers every other export of this module in one place.
   to gostd, not a local copy). The documented gap — `errorIs`/`errorAs` don't yet walk
   `JoinError.errors` — is inherited from ADR-0004 and unexercised here (nothing in scope calls
   `errorIs` on a `JoinError`), so nothing regresses.
+
+## Update (2026-10-02)
+
+**`errorIs` and `errorAs` now walk `JoinError.errors`.** The gap this ADR documented, inherited from
+ADR-0004, is closed: both functions visit `err`, then its `cause` chain, and where an error is a
+`JoinError` they visit each joined error depth-first and in order, as Go's `errors.Is` and `errors.As`
+do for `Unwrap() []error`. A joined error is found through `wrapError`'s `cause` as well. The cycle
+guard is shared across the whole traversal. `errors` stays public, as above. Only `JoinError` carries
+the multi-error shape in this port, so the test is `instanceof JoinError`; an `AggregateError`, or any
+other error that merely has an `errors` property, is not traversed.
+
+**`joinErrors` follows Go 1.25.5, not Go 1.24.** The port cites Go 1.25.5 everywhere else, and the two
+differ here: Go 1.24's `errors.Join` always wraps, while 1.25 returns its only non-nil argument
+unchanged when that argument already implements `Unwrap() []error`. `joinErrors` now does the same for
+a single `JoinError`, so `joinErrors([j]) === j` and `joinErrors([undefined, j, null]) === j`. A single
+error of any other kind is still wrapped, and still renders its own message; a `JoinError` joined with
+a second error is wrapped like any other. The behaviour is noted at the top of `errors.ts` and on
+`joinErrors`.
+
+`tileWriteCache.err()` is unaffected: `integrate.ts` passes it plain errors.
+
+*Review of this update: pending.*

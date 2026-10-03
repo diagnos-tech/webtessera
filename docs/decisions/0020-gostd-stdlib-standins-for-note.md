@@ -153,3 +153,20 @@ Deliberate limits, so that no untested parser branch ships:
   - `bytes.ts` additions (`indexByte`, `lastIndex`, `hasPrefix`, `readUint32BE`/`appendUint32BE`)
     checked against `bytes.IndexByte`/`LastIndex`/`HasPrefix` and `binary.BigEndian`; `readUint32BE`
     is correctly unsigned (`>>> 0`).
+
+## Update (2026-10-02)
+
+- **`io.readFull` and a read of zero bytes.** Go's `io.ReadFull` retries a `Read` that returns zero
+  bytes and no error, since `io.Reader` documents that as "nothing happened"; a reader that keeps
+  returning it makes the loop spin forever. `readFull` instead treats such a read as the end of the
+  input: `EOF` if nothing had been read, `ErrUnexpectedEOF` otherwise. A synchronous `Reader` has
+  nothing to wait for between calls, so a retry could not see different input, and failing is the safer
+  reading. This differs from Go only for a Reader that returns 0 and later returns bytes, which none in
+  the port does. It is noted on `readFull` and pinned in `io_test.ts`.
+- **`unicode.ts` is a mixed-provenance file.** `isSpace`, with its Latin-1 switch and the ranges above
+  it, is derived from Go's `unicode.IsSpace` and `White_Space` table; the rest of the file is ours. Its
+  header now says so, as AGENTS.md section 9 prescribes for mixed files: both copyright lines, the
+  derived declaration named, the Apache-2.0 notice for the remainder, and the pointer to
+  `LICENSES/BSD-3-Clause-Go.txt`. `NOTICE` lists it with the other Go-derived files.
+
+*Review of this update: pending.*

@@ -1,15 +1,17 @@
 // Copyright 2017 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck. All Rights Reserved.
-//
 // Use of this source code is governed by a BSD-style
 // license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
 // Ported from golang.org/x/crypto@v0.46.0/cryptobyte/cryptobyte_test.go
 //
 // The ASN.1 tests (TestASN1Int64, TestASN1Uint64) and the fixed-size Builder tests
-// (TestPreallocatedBuffer, TestFixedBuilderLengthPrefixed, TestFixedBuilderPanicReallocate)
-// are absent because the corresponding functionality is not ported. See
-// docs/decisions/0040-cryptobyte-port-scope.md.
+// (TestFixedBuilderLengthPrefixed, TestFixedBuilderPanicReallocate) are absent because
+// the corresponding functionality is not ported. See
+// docs/decisions/0040-cryptobyte-port-scope.md. TestPreallocatedBuffer is ported with
+// the one change described on it.
+//
+// The Examples of example_test.go are in cryptobyte_example_test.ts.
 
 import { describe, expect, it } from "vitest";
 import * as cryptobyte from "./cryptobyte.ts";
@@ -268,6 +270,26 @@ describe("TestUint8LengthPrefixedNested", () => {
 	});
 });
 
+describe("TestPreallocatedBuffer", () => {
+	it("appends into the caller's buffer until it is outgrown", () => {
+		// Port note: Go builds on `buf[0:0]`, a zero-length slice with room behind it. A
+		// Uint8Array has no such thing, so the same state is reached by handing over the
+		// array and rolling its length back to zero with unwrite(), as newBuilder's comment
+		// describes.
+		const buf = new Uint8Array(5);
+		const b = cryptobyte.newBuilder(buf);
+		b.unwrite(buf.length);
+		b.addUint8(1);
+		b.addUint8LengthPrefixed((c) => {
+			c.addUint8(3);
+			c.addUint8(4);
+		});
+		b.addUint16(1286); // Outgrow buf by one byte.
+		expect(Array.from(buf)).toEqual([1, 2, 3, 4, 0]);
+		builderBytesEq(b, 1, 2, 3, 4, 5, 6);
+	});
+});
+
 describe("TestWriteWithPendingChild", () => {
 	it("throws when an ancestor is written to while a child is pending", () => {
 		const b = new cryptobyte.Builder();
@@ -516,6 +538,36 @@ describe("String reads", () => {
 		expect(s.empty()).toBe(true);
 		expect(s.length).toBe(0);
 	});
+
+	it("fails every read on the zero value, a nil String, even of 0 bytes", () => {
+		// Go: `var s cryptobyte.String; s.Skip(0)` is false, because read(0) slices nil to nil.
+		const s = new cryptobyte.String();
+		expect(s.skip(0)).toBe(false);
+		expect(s.readBytes(0)).toBeUndefined();
+		expect(s.readUint8()).toBeUndefined();
+		expect(s.readUint8LengthPrefixed()).toBeUndefined();
+		expect(new cryptobyte.String(undefined).skip(0)).toBe(false);
+	});
+
+	it("succeeds in reading 0 bytes from an empty String that is not nil", () => {
+		const s = new cryptobyte.String(new Uint8Array(0));
+		expect(s.skip(0)).toBe(true);
+		expect(s.readBytes(0)?.length).toBe(0);
+		expect(s.readUint8()).toBeUndefined();
+	});
+
+	it("stays non-nil once every byte has been read", () => {
+		const s = new cryptobyte.String(Uint8Array.of(1));
+		expect(s.skip(1)).toBe(true);
+		expect(s.empty()).toBe(true);
+		expect(s.skip(0)).toBe(true);
+		expect(s.readBytes(0)?.length).toBe(0);
+	});
+
+	it("hands out an empty length-prefixed value that is not nil", () => {
+		const v = new cryptobyte.String(Uint8Array.of(0, 0)).readUint16LengthPrefixed();
+		expect(v?.skip(0)).toBe(true);
+	});
 });
 
 describe("newBuilder", () => {
@@ -524,5 +576,32 @@ describe("newBuilder", () => {
 		b.addUint8(0xbe);
 		b.addUint8(0xef);
 		builderBytesEq(b, 0xde, 0xad, 0xbe, 0xef);
+	});
+
+	it("reallocates on the first append, leaving a buffer that is full as it was", () => {
+		// What Go does for NewBuilder(buf) when len(buf) == cap(buf).
+		const buf = Uint8Array.of(1, 2, 3, 4);
+		const b = cryptobyte.newBuilder(buf);
+		b.addUint8(9);
+		expect(Array.from(buf)).toEqual([1, 2, 3, 4]);
+		builderBytesEq(b, 1, 2, 3, 4, 9);
+	});
+
+	it("writes into the caller's buffer once unwrite has made room, as Go's append does", () => {
+		const buf = Uint8Array.of(1, 2, 3, 4);
+		const b = cryptobyte.newBuilder(buf);
+		b.unwrite(4);
+		b.addUint8(9);
+		expect(Array.from(buf)).toEqual([9, 2, 3, 4]);
+		builderBytesEq(b, 9);
+	});
+
+	it("moves to a new array when unwrite has left too little room, leaving the rest of the caller's buffer alone", () => {
+		const buf = Uint8Array.of(1, 2, 3, 4);
+		const b = cryptobyte.newBuilder(buf);
+		b.unwrite(1);
+		b.addBytes(Uint8Array.of(7, 8));
+		expect(Array.from(buf)).toEqual([1, 2, 3, 4]);
+		builderBytesEq(b, 1, 2, 3, 7, 8);
 	});
 });

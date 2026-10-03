@@ -109,3 +109,82 @@ wins, cancel the rest" contract. `time.Ticker` loops become `ticker`.
   first error is accurate and a strictly-safer superset. Minor, out of this ADR's scope:
   `bits.ts` shift helpers return `0n` for a negative shift count while modern Go panics — the
   path is unreachable from the Merkle layer (shift counts derive from bit-lengths).
+
+## Update (2026-10-02)
+
+A fidelity audit of `src/internal/gostd/` against Go 1.25.5 and `golang.org/x/sync@v0.19.0` corrected
+the shims this ADR introduced. The decisions above stand; what follows changes what they describe.
+Every item is pinned by a test in `sync_test.ts` (now 42 cases) or `errors_test.ts` (now 31).
+
+**`ErrGroup`**
+
+- **The concurrency limit could be exceeded.** A finishing task released its permit and woke the next
+  queued task, which counted itself a few microtasks later; a `go()` call landing in that window found
+  a free slot and took it, so three tasks ran under a limit of two. The woken task's permit is now
+  counted in the same synchronous step that frees it, so no `go()` call can slip in between. The
+  regression test fails against the previous implementation.
+- **`signal` is also aborted the first time `wait()` returns.** This is `errgroup.WithContext`'s
+  contract: the derived context is cancelled "the first time a function passed to Go returns a non-nil
+  error or the first time Wait returns, whichever occurs first". The Consequences bullet above says
+  only "on first error"; both now hold. With no error the reason is the default `AbortError` (Go:
+  `context.Canceled`); with one it is the first error, and a parent's reason is kept if the parent
+  aborted first. A caller that keeps using `eg.signal` after `eg.wait()` has returned will see it
+  aborted; `fsck` threads it only into workers that `wait()` joins, and no other caller reads it.
+- **`go()` queues instead of blocking the caller at the limit.** Go's `Group.Go` blocks until the new
+  goroutine fits under the limit. A synchronous JavaScript caller cannot be suspended, so `go()`
+  returns at once and the operation waits in a first-in-first-out queue. The limit therefore bounds how
+  many operations run at once, not how far a producer can run ahead of them. This is a deliberate
+  divergence; it is recorded on the class and on `go`.
+- **`setLimit` follows Go.** A negative value means no limit and never throws. Zero means no operation
+  may start: operations passed to `go()` stay queued, and `wait()` does not settle, until a later
+  `setLimit` raises the limit (Go's `Go` blocks forever there). The "modify limit while ... goroutines
+  in the group are still active" error, with Go's message text, is thrown only while operations are
+  *running*, counted by an active count rather than by the tasks started so far. Before, zero meant
+  unlimited, and a task that had already finished but not been waited for still made `setLimit` throw.
+  A limit that is not an integer is a `RangeError`, since Go's is an `int`. No caller in the port calls
+  `setLimit`.
+
+**`Once.do`** now memoises a synchronous throw the way it memoises a rejection, so `fn` runs once
+whichever way it fails; before, a throw left the `Once` unused and the next call ran `fn` again. Go's
+`sync.Once` treats a panicking `f` as done. Every caller then observes the failure, as `sync.OnceFunc`
+and `sync.OnceValue` do by panicking again on each call; `Once.Do` itself panics only in the first
+caller.
+
+**`ticker`** keeps to a fixed schedule, as `time.Ticker` does. Before, it slept a full period after
+each body, so the doc comment's claim that this matched Go was wrong: a 40 ms body stretched a 50 ms
+period to about 90 ms. Ticks now fall due at the start time plus n periods. A tick that falls due while
+the body is running is held and the body runs again as soon as it returns; further ticks that fall due
+meanwhile are dropped, as Go's one-slot channel drops them for a slow receiver, so a stall is never
+made up with a burst. A body longer than the period runs back to back (still yielding once to the event
+loop between runs). A non-positive period throws a `RangeError`, as `time.NewTicker` panics. The three
+callers (`followerStats` at 200 ms and `updateStats` at 100 ms in `append_lifecycle.ts`, and the garbage
+collection job in `storage/objectstore/driver.ts`, which is started only when its interval is positive)
+have cheap bodies and no logic that depends on the old drift; the visible change is that a body that
+outlasts its period is now followed immediately by the next one rather than after another full period.
+
+**`errorIs` and `errorAs`** now traverse `JoinError.errors` depth-first and in order, with the cycle
+guard shared across the whole traversal, as Go's `errors.Is` and `errors.As` walk `Unwrap() []error`.
+This closes the gap named in the Review above and in ADR-0057. See ADR-0057 for `errors.Join` itself.
+
+*Review of this update: pending.*
+
+## Update (2026-10-02)
+
+Two statements above no longer describe the code, and are corrected here rather than rewritten:
+
+- **`context.WithTimeout`.** "`context.WithTimeout` becomes `AbortSignal.timeout(ms)` combined
+  with the caller's signal" holds only where the timeout lives as long as the work it bounds. Go
+  pairs `WithTimeout` with `defer cancel()`, which stops the timer and cancels the context as
+  soon as the function returns; `AbortSignal.timeout` cannot be cancelled, so it keeps its timer
+  pending for the full duration. Where upstream defers `cancel()`, the port uses an
+  `AbortController` and a `setTimeout`, and both clears the timer and aborts the controller in a
+  `finally` (`AppendOptions.checkpointPublisher` in `src/append_lifecycle.ts` is the example; see
+  ADR-0082's update).
+- **`errgroup`.** "Tessera uses `WithContext` at the sites that matter" is wrong: at the pinned
+  commit Tessera never calls `errgroup.WithContext`. Every site (`migrate.go`,
+  `migrate_lifecycle.go`, `fsck/fsck.go`, the cloud storage drivers and the experimental mirror)
+  constructs a bare `errgroup.Group{}`, whose `Wait` returns the first error but cancels nothing.
+  `ErrGroup` still aborts its own `signal` on the first error, but that is only observable where a
+  task is given `eg.signal`: `src/fsck/fsck.ts` does so deliberately and says why in its own port
+  note, while `src/migrate.ts` and `src/migrate_lifecycle.ts` pass their caller's signal, as Go
+  passes its own context, and so behave like Go's bare group.
