@@ -21,6 +21,7 @@
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { concatBytes, readUint16BE } from "../internal/gostd/bytes.ts";
+import { EntryBundleWidth, TileWidth } from "./layout/tile.ts";
 
 // sha256Size is `crypto/sha256.Size`, the length in bytes of a SHA-256 checksum.
 const sha256Size = sha256.outputLen;
@@ -61,10 +62,17 @@ export class HashTile {
 	/**
 	 * unmarshalText implements encoding/TextUnmarshaler and reads HashTiles
 	 * which are encoded using the tlog-tiles spec.
+	 *
+	 * Port note: hardening with no Go counterpart: a tile holding more than the
+	 * tlog-tiles maximum of TileWidth (256) hashes is rejected, where Go accepts any
+	 * multiple of 32 bytes. See docs/decisions/0194-tile-and-bundle-size-limits.md.
 	 */
 	unmarshalText(raw: Uint8Array): void {
 		if (raw.length % sha256Size !== 0) {
 			throw new Error(`${raw.length} is not a multiple of ${sha256Size}`);
+		}
+		if (raw.length > TileWidth * sha256Size) {
+			throw new Error(`tile of ${raw.length / sha256Size} hashes exceeds the maximum of ${TileWidth}`);
 		}
 		const nodes: Uint8Array[] = [];
 		for (let index = 0; index < raw.length; index += sha256Size) {
@@ -90,13 +98,19 @@ export class EntryBundle {
 	/**
 	 * unmarshalText implements encoding/TextUnmarshaler and reads EntryBundles
 	 * which are encoded using the tlog-tiles spec.
+	 *
+	 * Port note: hardening with no Go counterpart: parsing stops with an error at a
+	 * 257th entry, the tlog-tiles maximum being EntryBundleWidth (256), where Go reads
+	 * any number of entries. See docs/decisions/0194-tile-and-bundle-size-limits.md.
 	 */
 	unmarshalText(raw: Uint8Array): void {
 		// Port note: upstream pre-allocates capacity layout.EntryBundleWidth here. A
-		// JavaScript array has no separate capacity, so the hint has no counterpart and
-		// the dependency on api/layout goes with it.
+		// JavaScript array has no separate capacity, so the hint has no counterpart.
 		const nodes: Uint8Array[] = [];
 		for (let index = 0; index < raw.length; ) {
+			if (nodes.length === EntryBundleWidth) {
+				throw new Error(`entry bundle holds more than the maximum of ${EntryBundleWidth} entries`);
+			}
 			const dataIndex = index + 2;
 			if (dataIndex > raw.length) {
 				throw new Error(`dangling bytes at byte index ${index} in data of ${raw.length} bytes`);

@@ -73,6 +73,13 @@ describe("internal/future/FutureErr", () => {
 		await expect(f.get()).rejects.toThrow("first");
 	});
 
+	// Port addition: Go's setter tests `err != nil`; `null`, like `undefined`, is a nil error.
+	it("treats a null error as success, as Go treats a nil error", async () => {
+		const [f, set] = newFutureErr<number>();
+		set(5, null);
+		expect(await f.get()).toBe(5);
+	});
+
 	// Port addition: Vitest fails the run on an unhandled rejection, so this case fails if a
 	// future set with an error that nobody reads is reported as one (see the port note in
 	// newFutureErr).

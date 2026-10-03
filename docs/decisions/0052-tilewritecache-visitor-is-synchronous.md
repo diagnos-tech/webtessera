@@ -1,6 +1,6 @@
 # ADR-0052: `tileWriteCache`'s `getTile` fallback is synchronous, backed by a cache-only `peek`
 
-- **Status:** accepted
+- **Status:** superseded by [ADR-0190](0190-integrate-visitor-tile-reads-are-replayed.md)
 - **Date:** 2026-08-19
 - **Author:** storage-internal agent
 - **Upstream reference:** `storage/internal/integrate.go` (`tileWriteCache.Visitor`, `tileReadCache.Get`, `treeBuilder.integrate`, `treeBuilder.newRange`), `merkle/compact/range.go` (`VisitFn`)
@@ -227,3 +227,17 @@ Go's. They match, byte for byte.
   tighten the "The invariant that resolves it" paragraph to say "every tile with preservable
   data is prewarmed," rather than "every tile the fallback can need," but this is a
   documentation-precision fix, not a code change — the code and the decision are correct.
+
+## Update (2026-10-02): superseded by ADR-0190
+
+The invariant this ADR rests on is false, beyond the review's precision note above. The visitor's
+`readCache.Get` also fetches tiles that hold no node of the pre-integration compact range but whose
+`minImpliedTreeSize` is within the tree: Go's `getTiles` log for 0 → 255 → 256 → 257 has a second
+call per step (`{0 0}@0`, `{1 0}@255`, `{0 1}@256`) that `peek` never made. Such a read usually finds
+nothing, which is why the golden fixtures agreed; but a tile left behind by a crashed integration —
+the case upstream's comment on that branch names — was started afresh by the port where Go loads and
+extends it, and storage saw a different `getTiles` sequence. `peek` is removed; ADR-0190 describes the
+replacement, which makes Go's reads in Go's order. The status line above is left for the lead to
+update to "superseded by ADR-0190".
+
+*Review of this update: pending.*

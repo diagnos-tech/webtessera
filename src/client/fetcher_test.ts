@@ -389,3 +389,89 @@ describe("fetch runtime fidelity", () => {
 		});
 	});
 });
+
+// Port additions: hardening with no Go counterpart (docs/decisions/0195, 0197).
+describe("request policy", () => {
+	it("omits credentials and follows redirects by default", async () => {
+		let init: RequestInit | undefined;
+		const fetch: FetchFn = async (_input: string, i?: RequestInit): Promise<Response> => {
+			init = i;
+			return new Response(new Uint8Array(0));
+		};
+		await newHTTPFetcher(new URL("https://log.example/root/"), fetch).readCheckpoint();
+		expect(init?.credentials).toBe("omit");
+		expect(init?.redirect).toBe("follow");
+	});
+
+	it("passes the redirect option through", async () => {
+		let init: RequestInit | undefined;
+		const fetch: FetchFn = async (_input: string, i?: RequestInit): Promise<Response> => {
+			init = i;
+			return new Response(new Uint8Array(0));
+		};
+		await newHTTPFetcher(new URL("https://log.example/root/"), fetch, { redirect: "manual" }).readCheckpoint();
+		expect(init?.redirect).toBe("manual");
+		expect(init?.credentials).toBe("omit");
+	});
+
+	it("reports a redirect it was told not to follow as a bad status", async () => {
+		const fetch: FetchFn = async (): Promise<Response> =>
+			new Response(null, { status: 302, headers: { Location: "https://elsewhere.example/" } });
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch, { redirect: "manual" });
+		await expect(h.readCheckpoint()).rejects.toThrow('get("https://log.example/root/checkpoint"): 302');
+	});
+});
+
+describe("response size caps", () => {
+	/** streamOf returns a body that delivers size bytes in chunks of 1000, reporting whether it was cancelled. */
+	function streamOf(size: number): { body: ReadableStream<Uint8Array>; cancelled: () => boolean } {
+		let sent = 0;
+		let cancelled = false;
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller): void {
+				if (sent >= size) {
+					controller.close();
+					return;
+				}
+				const n = Math.min(1000, size - sent);
+				sent += n;
+				controller.enqueue(new Uint8Array(n));
+			},
+			cancel(): void {
+				cancelled = true;
+			},
+		});
+		return { body, cancelled: () => cancelled };
+	}
+
+	it("accepts a full tile and rejects a tile body beyond the cap", async () => {
+		const sizes = new Map<string, number>([
+			["https://log.example/root/tile/0/000", 256 * 32],
+			["https://log.example/root/tile/0/001", 256 * 32 + 1025],
+		]);
+		const fetch: FetchFn = async (input: string): Promise<Response> =>
+			new Response(streamOf(sizes.get(input) ?? 0).body);
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		expect(await h.readTile(0n, 0n, 0)).toHaveLength(256 * 32);
+		await expect(h.readTile(0n, 1n, 0)).rejects.toThrow(
+			'get("https://log.example/root/tile/0/001"): response body exceeds the limit of 9216 bytes',
+		);
+	});
+
+	it("stops reading, and cancels, a checkpoint body beyond the cap", async () => {
+		const { body, cancelled } = streamOf(4 << 20);
+		const fetch: FetchFn = async (): Promise<Response> => new Response(body);
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		await expect(h.readCheckpoint()).rejects.toThrow("response body exceeds the limit of 1048576 bytes");
+		expect(cancelled()).toBe(true);
+	});
+
+	it("rejects an entry bundle whose Content-Length announces more than the cap, without reading it", async () => {
+		const { body, cancelled } = streamOf(10);
+		const fetch: FetchFn = async (): Promise<Response> =>
+			new Response(body, { headers: { "Content-Length": String(256 * 65537 + 1) } });
+		const h = newHTTPFetcher(new URL("https://log.example/root/"), fetch);
+		await expect(h.readEntryBundle(0n, 0)).rejects.toThrow("response body exceeds the limit of 16777472 bytes");
+		expect(cancelled()).toBe(true);
+	});
+});

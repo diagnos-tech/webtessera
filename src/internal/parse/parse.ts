@@ -48,6 +48,13 @@ export interface ParsedCheckpoint {
 // Parsing a checkpoint like this is only acceptable in the same binary as the
 // log implementation that generated it and thus we can safely assume it's a well formed and
 // validly signed checkpoint. Anyone copying similar logic into client code will get hurt.
+//
+// Port note: Go's `string(b)` keeps every byte of b, valid UTF-8 or not, and `%q` then
+// escapes an invalid byte as `\xNN`. fromUTF8 decodes each invalid sequence to U+FFFD
+// instead, which quote renders as `\ufffd`, so for a checkpoint that is not valid UTF-8
+// the returned origin, and the quoted text in these error messages, differ from Go's.
+// A JavaScript string cannot hold the raw bytes Go's does; only malformed checkpoints
+// are affected.
 export function checkpointUnsafe(rawCp: Uint8Array): ParsedCheckpoint {
 	const parts = splitN(rawCp, newline, 4);
 	if (parts.length !== 4) {

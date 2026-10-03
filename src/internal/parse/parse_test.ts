@@ -16,7 +16,7 @@
 // Ported from tessera/internal/parse/parse_test.go @ 4a6d9f9
 
 import { describe, expect, it } from "vitest";
-import { bytesEqual, fromBase64, toUTF8 } from "../gostd/bytes.ts";
+import { bytesEqual, fromBase64, fromHex, toHex, toUTF8 } from "../gostd/bytes.ts";
 import { checkpointUnsafe } from "./parse.ts";
 
 describe("TestCheckpointUnsafe", () => {
@@ -33,7 +33,7 @@ describe("TestCheckpointUnsafe", () => {
 			cp: "original.example.com\n42\nqINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs=\n",
 			wantOrigin: "original.example.com",
 			wantSize: 42n,
-			wantHash: mustDecodeB64("qINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs="),
+			wantHash: mustDecodeB64("qINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs=", qINS1GRFhex),
 			wantErr: false,
 		},
 		{
@@ -57,7 +57,7 @@ describe("TestCheckpointUnsafe", () => {
 			cp: "\n42\nqINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs=\n",
 			wantOrigin: "",
 			wantSize: 42n,
-			wantHash: mustDecodeB64("qINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs="),
+			wantHash: mustDecodeB64("qINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs=", qINS1GRFhex),
 			wantErr: false,
 		},
 		{
@@ -95,6 +95,21 @@ describe("TestCheckpointUnsafe", () => {
 	}
 });
 
-function mustDecodeB64(encoded: string): Uint8Array {
-	return fromBase64(encoded);
+/** qINS1GRFhex is the hex encoding of the bytes "qINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs=" encodes. */
+const qINS1GRFhex = "a88352d464458561f076451ea8b1283f8c843244c1073c41906c0642556555cb";
+
+/**
+ * mustDecodeB64 mirrors parse_test.go's helper.
+ *
+ * Port note: Go's helper decodes with the standard library, which is independent of the
+ * code under test. Here checkpointUnsafe itself decodes with gostd's fromBase64, so a
+ * want value produced by the same function could not catch a decoding bug; the decoded
+ * bytes are therefore also checked against their hex literal.
+ */
+function mustDecodeB64(encoded: string, wantHex: string): Uint8Array {
+	const res = fromBase64(encoded);
+	if (toHex(res) !== wantHex) {
+		throw new Error(`mustDecodeB64(${encoded}) = ${toHex(res)}, want ${wantHex}`);
+	}
+	return fromHex(wantHex);
 }

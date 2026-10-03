@@ -113,3 +113,44 @@ reference implementations over a dense range.
 - **Reviewer:** _pending_
 - **Verdict:** _pending_
 - **Notes:**
+
+## Update (2026-10-02): further sites outside the Merkle port
+
+The same helpers now write out Go's uint64 wraparound at these sites, each with a Port note and a test
+whose expected values were printed by the Go code at the pinned commit:
+
+- `api/layout/paths.ts` `range`: `from + N` and `endInc = from + N - 1` wrap. Where the wrap makes
+  Go's `uint` count `N` itself wrap (a single bundle whose wrapped end falls before `First`, e.g.
+  `Range(5, MaxUint64-2, 10)`, where Go yields `N: 18446744073709551613`), the value cannot be
+  represented in `RangeInfo.n: number`, and a `RangeError` is thrown instead. This is the one site that
+  is not bit-faithful; making it so would mean typing `RangeInfo.first`/`n` as `bigint`.
+- `api/layout/tile.ts` `partialTileSize`: `level * TileHeight` wraps and the shift saturates at 64
+  (`PartialTileSize(1<<61, 60, 12345) == 57` in Go and here).
+- `storage/internal/integrate.ts` `minImpliedTreeSize`: the `level * 8` shift count wraps, as the
+  product already did.
+- `client/stream.ts`: `fromEntry + N` in `entryBundles`, and the entry index in `entries`.
+- `fsck/fsck.ts` `appendBundle`: `impliedSeq = index * 256 + first`.
+- `client/client.ts` `fetchLeafHashes`: `end = first + N`.
+
+*Review of this update: pending.*
+
+## Update (2026-10-02): the remaining Merkle sites, and the negative-shift row
+
+- **`Range.append`** now passes `asUint64(this._end + 1n)` to `appendImpl`, like the other sites listed under
+  Decision: Go's `r.end+1` wraps to 0 at `MaxUint64`. Before, the port carried an end of 2^64; the merkle
+  differential harness's 20 sequential-append mismatches at that boundary are now 0.
+- **`proof.nodes`, `proof.consistency` and `compact.rangeNodes`** compute their shift counts
+  (`size >> level`, `index >> inner`, `(size1-1) >> level`, `pos >> level`) and now spell them
+  `shiftRight64(x, n)` as the Decision says, instead of `x >> BigInt(n)`. For every valid input the result is
+  the same (the counts are in [0, 63] there); the helper is what makes a count outside that range yield Go's
+  0 rather than a left shift. Shifts by a literal (`>> 1n`, `index >>= 1n`) stay plain operators, as the
+  Decision allows.
+- **The negative-shift row of the Context table is imprecise.** In Go, `x << n` with a *signed* negative `n`
+  panics at run time ("negative shift amount"); it is `x << uint(n)` that yields 0, because the conversion
+  makes the count at least 2^63. Every computed shift upstream writes that conversion explicitly
+  (`uint64(1)<<uint(d)` in `Decompose`, `index>>uint(i)` in the verifier), and that is what `shiftLeft64` and
+  `shiftRight64` model. Their doc comments and test names in `bits.ts`/`bits_test.ts` now say so.
+- Values outside the uint64 domain (negative, or ≥ 2^64) can no longer reach these sites from the exported
+  entry points at all: see ADR-0207.
+
+*Review of this update: pending.*

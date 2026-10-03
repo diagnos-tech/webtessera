@@ -22,18 +22,6 @@ import type { Entry } from "../../entry.ts";
 import { newFutureErr } from "../../internal/future/future.ts";
 
 /**
- * FlushFunc is the signature of a function which will receive the slice of queued entries.
- * Normally, this function would be provided by storage implementations. It's important to note
- * that the implementation MUST call each entry's marshalBundleData function before attempting
- * to integrate it into the tree.
- * See the comment on Entry.marshalBundleData for further info.
- *
- * Port note: Go returns `error`; the port throws instead, per
- * docs/decisions/0004-errors-context-and-concurrency.md.
- */
-export type FlushFunc = (entries: readonly Entry[], signal?: AbortSignal) => Promise<void>;
-
-/**
  * Queue knows how to queue up a number of entries in order.
  *
  * When the buffered queue grows past a defined size, or the age of the oldest entry in the
@@ -47,6 +35,9 @@ export type FlushFunc = (entries: readonly Entry[], signal?: AbortSignal) => Pro
  * IndexFuture immediately). This port replaces the channel with an unbounded in-memory
  * queue drained one batch at a time by a re-entrant-safe async loop — see
  * docs/decisions/0053-queue-channel-becomes-async-drain-loop.md.
+ *
+ * Port note: Go declares FlushFunc and NewQueue between this struct and its methods; a
+ * TypeScript class keeps its methods in its body, so they follow the class instead.
  */
 export class Queue {
 	private readonly maxSize: number;
@@ -85,10 +76,13 @@ export class Queue {
 		// docs/decisions/0004-errors-context-and-concurrency.md, a critical section like
 		// this needs no lock at all, so none is taken here.
 		this.#items.push(qi);
+
+		// If this is the first item, start the timer.
 		if (this.#items.length === 1) {
 			this.#timer = setTimeout(() => this.#flush(), this.maxAgeMs);
 		}
 
+		// If we've reached max size, flush.
 		let itemsToFlush: queueItem[] | undefined;
 		if (this.#items.length >= this.maxSize) {
 			itemsToFlush = this.#flushLocked();
@@ -111,10 +105,11 @@ export class Queue {
 	}
 
 	/**
-	 * flushLocked prepares items for flushing and returns them.
+	 * flushLocked must be called with q.mu held.
+	 * It prepares items for flushing and returns them.
 	 *
-	 * Port note: named `…Locked` per upstream's comment convention ("must be called with
-	 * q.mu held"), even though this port takes no lock — see the Port notes on add()/flush().
+	 * Port note: this port takes no lock (see the Port notes on add() and flush()); the
+	 * name and the comment are kept as upstream has them.
 	 */
 	#flushLocked(): queueItem[] | undefined {
 		if (this.#items.length === 0) {
@@ -176,18 +171,48 @@ export class Queue {
 		}
 
 		// Send assigned indices to all the waiting add() requests
-		for (const e of entries) {
-			e.notify(err);
+		for (let i = 0; i < entries.length; i++) {
+			try {
+				(entries[i] as queueItem).notify(err);
+			} catch (logicErr) {
+				// Port note: notify panics in Go when storage forgot to assign an index,
+				// which takes the whole process — and every waiting Add() — down with it.
+				// Here the panic is an exception on the drain loop, so the futures still
+				// pending would otherwise wait forever: settle each remaining one with the
+				// same logic error before rethrowing it. See
+				// docs/decisions/0053-queue-channel-becomes-async-drain-loop.md.
+				for (const e of entries.slice(i)) {
+					e.set({ index: 0n, isDup: false }, logicErr);
+				}
+				throw logicErr;
+			}
 		}
 	}
 }
+
+/**
+ * FlushFunc is the signature of a function which will receive the slice of queued entries.
+ * Normally, this function would be provided by storage implementations. It's important to note
+ * that the implementation MUST call each entry's marshalBundleData function before attempting
+ * to integrate it into the tree.
+ * See the comment on Entry.marshalBundleData for further info.
+ *
+ * Port note: Go returns `error`; the port throws instead, per
+ * docs/decisions/0004-errors-context-and-concurrency.md.
+ */
+export type FlushFunc = (entries: readonly Entry[], signal?: AbortSignal) => Promise<void>;
 
 /**
  * newQueue creates a new queue with the specified maximum age and size.
  *
  * The provided FlushFunc will be called with a slice containing the contents of the queue, in
  * the same order as they were added, when either the oldest entry in the queue has been there
- * for maxAgeMs, or the size of the queue reaches maxSize.
+ * for maxAge, or the size of the queue reaches maxSize.
+ *
+ * Port note: Go spins off its worker goroutine here ("Spin off a worker thread to write the
+ * queue flushes to storage."); this port starts its drain loop on demand from add() and the
+ * timer instead — see the Port note on Queue. maxAge is `maxAgeMs`, a number of
+ * milliseconds (AGENTS.md §3.5).
  */
 export function newQueue(maxAgeMs: number, maxSize: number, f: FlushFunc, signal?: AbortSignal): Queue {
 	return new Queue(maxAgeMs, maxSize, f, signal);
@@ -215,9 +240,12 @@ class queueItem {
 	 *
 	 * This func must only be called once, and will cause any current or future callers of index()
 	 * to be given the values provided here.
+	 *
+	 * Port note: Go's `err == nil` is `err === undefined || err === null` here, the same
+	 * test newFutureErr's setter applies (docs/decisions/0056-future-ported-ahead-of-schedule.md).
 	 */
 	notify(err: unknown): void {
-		if (this.entry.index() === undefined && err === undefined) {
+		if (this.entry.index() === undefined && (err === undefined || err === null)) {
 			throw new Error(
 				"logic error: flush complete without error, but entry was not assigned an index - did storage fail to call entry.MarshalBundleData?",
 			);

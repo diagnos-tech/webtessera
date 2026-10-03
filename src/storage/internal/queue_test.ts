@@ -216,6 +216,62 @@ describe("storage/internal/Queue", () => {
 			expect(new Set(flat).size).toBe(25);
 		});
 
+		it("settles every pending future with the logic error, then rethrows it, when storage forgets an index", async () => {
+			// Go's notify panics here, taking the process and every waiting Add() with it. The
+			// port settles each future still pending with that error, then rethrows it from
+			// the drain loop, where it surfaces as an unhandled rejection (ADR-0053).
+			const flushed: number[] = [];
+			const unhandled = await captureUnhandledRejections(async () => {
+				const flushFunc = async (entries: readonly Entry[]): Promise<void> => {
+					flushed.push(entries.length);
+					// Forgets to call marshalBundleData, and reports no error.
+				};
+				const q = newQueue(60_000, 3, flushFunc);
+				const futures = [q.add(newEntry(toUTF8("a"))), q.add(newEntry(toUTF8("b"))), q.add(newEntry(toUTF8("c")))];
+				for (const f of futures) {
+					await expect(f()).rejects.toThrow(
+						"logic error: flush complete without error, but entry was not assigned an index - did storage fail to call entry.MarshalBundleData?",
+					);
+				}
+			});
+			expect(flushed).toEqual([3]);
+			expect(unhandled.map((e) => (e as Error).message)).toEqual([
+				"logic error: flush complete without error, but entry was not assigned an index - did storage fail to call entry.MarshalBundleData?",
+			]);
+		});
+
+		it("stops flushing once its signal is aborted", async () => {
+			// Go's worker goroutine returns on ctx.Done(); queued batches are never flushed and
+			// their futures never resolve.
+			let flushes = 0;
+			const flushFunc = async (entries: readonly Entry[]): Promise<void> => {
+				flushes++;
+				for (const e of entries) {
+					e.marshalBundleData(0n);
+				}
+			};
+			const controller = new AbortController();
+			const q = newQueue(60_000, 1, flushFunc, controller.signal);
+			await q.add(newEntry(toUTF8("before")))();
+			expect(flushes).toBe(1);
+
+			controller.abort();
+			let settled = false;
+			void q
+				.add(newEntry(toUTF8("after")))()
+				.then(
+					() => {
+						settled = true;
+					},
+					() => {
+						settled = true;
+					},
+				);
+			await new Promise((r) => setTimeout(r, 20));
+			expect(flushes).toBe(1);
+			expect(settled).toBe(false);
+		});
+
 		it("does not resolve add() before flush is called", async () => {
 			let resolved = false;
 			const flushFunc = async (entries: readonly Entry[]): Promise<void> => {
@@ -234,3 +290,35 @@ describe("storage/internal/Queue", () => {
 		});
 	});
 });
+
+/** nodeProcess is the part of Node's `process` captureUnhandledRejections needs; the suite runs on Node. */
+interface nodeProcess {
+	listeners(event: "unhandledRejection"): ((reason: unknown) => void)[];
+	removeAllListeners(event: "unhandledRejection"): void;
+	on(event: "unhandledRejection", listener: (reason: unknown) => void): void;
+}
+
+/**
+ * captureUnhandledRejections runs fn with the test runner's unhandled-rejection handlers
+ * replaced by one that records each reason, and returns the reasons once the rejections
+ * fn provoked have had a chance to surface.
+ */
+async function captureUnhandledRejections(fn: () => Promise<void>): Promise<unknown[]> {
+	const proc = (globalThis as unknown as { process: nodeProcess }).process;
+	const saved = proc.listeners("unhandledRejection");
+	const caught: unknown[] = [];
+	proc.removeAllListeners("unhandledRejection");
+	proc.on("unhandledRejection", (reason) => {
+		caught.push(reason);
+	});
+	try {
+		await fn();
+		await new Promise((r) => setTimeout(r, 20));
+	} finally {
+		proc.removeAllListeners("unhandledRejection");
+		for (const l of saved) {
+			proc.on("unhandledRejection", l);
+		}
+	}
+	return caught;
+}
