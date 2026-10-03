@@ -119,3 +119,29 @@ alongside ours.
 The third-party licence inventory this ADR called for now exists: `NOTICE` lists
 `golang.org/x/crypto/cryptobyte` among the Go-derived sources and `LICENSES/BSD-3-Clause-Go.txt`
 carries the licence text. None of the decisions above changed.
+
+## Update (2026-10-02)
+
+A fidelity audit found three statements above that no longer hold, or never did:
+
+- **`example_test.go` was not accounted for.** "Every other test in `cryptobyte_test.go` is ported"
+  spoke of that one file; upstream's other test file, `example_test.go`, was dropped without a word.
+  Its four non-ASN.1 Examples (`ExampleString_lengthPrefixed`, `ExampleBuilder_lengthPrefixed`,
+  `ExampleBuilder_lengthPrefixOverflow`, `ExampleBuilderContinuation_errorHandling`) are now ported as
+  assertion tests in `cryptobyte_example_test.ts`, as ADR-0033 prescribes. `ExampleString_aSN1` and
+  `ExampleBuilder_aSN1` stay unported with the ASN.1 code they demonstrate.
+- **`TestPreallocatedBuffer` is ported after all.** It was listed above as omitted with the fixed-size
+  builder, as if it depended on Go's slice capacity, which a `Uint8Array` lacks. It can be expressed
+  anyway: see the update to ADR-0041. The omitted tests are now `TestASN1Int64`, `TestASN1Uint64`, `TestFixedBuilderLengthPrefixed`
+  and `TestFixedBuilderPanicReallocate`, so 19 of the 23 tests in `cryptobyte_test.go` are ported.
+- **The licence text is no longer reproduced in the file header.** "The licence text is reproduced
+  verbatim in the file header" is superseded by PORTING.md section 9: `cryptobyte.ts` carries the Go
+  Authors' copyright line, ours, and the short pointer to `LICENSES/BSD-3-Clause-Go.txt`, like the
+  other ports of Go-licensed files. `cryptobyte_example_test.ts` is listed in `NOTICE` with the others.
+
+Declaration order in `cryptobyte.ts` now follows `builder.go`: `Builder`, `NewBuilder`,
+`BuilderContinuation`, `BuildError`, then `String`. A class body cannot be interleaved with the
+declarations Go places between a type's methods, so `newBuilder` sits directly above the class and
+`BuilderContinuation` and `BuildError` directly below it, in Go's order.
+
+*Review of this update: pending.*

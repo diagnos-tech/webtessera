@@ -1,6 +1,5 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
-//
 // Use of this source code is governed by a BSD-style
 // license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
@@ -275,6 +274,7 @@ it("TestMove", () => {
 	checkListPointers(l, [e1, e3, e2, e4]);
 });
 
+// Test PushFront, PushBack, PushFrontList, PushBackList with uninitialized List
 it("TestZeroList", () => {
 	// Port note: Go's `new(List)` zero-value is `new List<number>()` here -- see
 	// list.ts's class doc comment on why the two are equivalent in this port.
@@ -295,6 +295,7 @@ it("TestZeroList", () => {
 	checkList(l4, [1]);
 });
 
+// Test that a list l is not modified when calling InsertBefore with a mark that is not an element of l.
 it("TestInsertBeforeUnknownMark", () => {
 	const l = new List<number>();
 	l.pushBack(1);
@@ -307,6 +308,7 @@ it("TestInsertBeforeUnknownMark", () => {
 	checkList(l, [1, 2, 3]);
 });
 
+// Test that a list l is not modified when calling InsertAfter with a mark that is not an element of l.
 it("TestInsertAfterUnknownMark", () => {
 	const l = new List<number>();
 	l.pushBack(1);
@@ -316,6 +318,7 @@ it("TestInsertAfterUnknownMark", () => {
 	checkList(l, [1, 2, 3]);
 });
 
+// Test that a list l is not modified when calling MoveAfter or MoveBefore with a mark that is not an element of l.
 it("TestMoveUnknownMark", () => {
 	const l1 = new List<number>();
 	const e1 = l1.pushBack(1);

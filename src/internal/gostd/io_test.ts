@@ -88,6 +88,33 @@ describe("gostd/io", () => {
 		expect(errorIs(thrown, EOF)).toBe(true);
 	});
 
+	it("readFull treats a read of 0 bytes with no error as the end of the input, unlike Go's retry", () => {
+		// Go's io.ReadFull retries a (0, nil) read, which spins forever on a reader that never
+		// makes progress; the port reports EOF instead (see readFull's Port note).
+		const stalled: Reader = {
+			read(): number {
+				return 0;
+			},
+		};
+		expect(() => readFull(stalled, new Uint8Array(4))).toThrow(EOF);
+	});
+
+	it("readFull reports ErrUnexpectedEOF when a read of 0 bytes follows a partial read", () => {
+		let calls = 0;
+		const stallsAfterOneByte: Reader = {
+			read(buf: Uint8Array): number {
+				calls++;
+				if (calls === 1) {
+					buf[0] = 7;
+					return 1;
+				}
+				return 0;
+			},
+		};
+		expect(() => readFull(stallsAfterOneByte, new Uint8Array(4))).toThrow(ErrUnexpectedEOF);
+		expect(calls).toBe(2);
+	});
+
 	it("readFull propagates a reader error", () => {
 		const boom = new Error("boom");
 		const failing: Reader = {

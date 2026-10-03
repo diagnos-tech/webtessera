@@ -51,6 +51,15 @@ export interface Reader {
  * It throws {@link EOF} if no bytes were read at all, {@link ErrUnexpectedEOF} if
  * fewer than buf.length bytes were read, and re-throws any other reader error
  * unchanged.
+ *
+ * Port note: a read that returns 0 bytes without throwing is treated as the end of the
+ * input here ({@link EOF} if nothing had been read yet, otherwise {@link ErrUnexpectedEOF}).
+ * Go's `io.ReadFull` retries such a read, because `io.Reader` documents (0, nil) as
+ * "nothing happened"; a reader that keeps returning it makes Go's loop spin forever. A
+ * synchronous Reader has nothing to wait for between calls, so a retry could never see
+ * different input, and failing is the safer reading. The difference is observable only
+ * for a Reader that returns 0 and later returns bytes. See
+ * docs/decisions/0020-gostd-stdlib-standins-for-note.md.
  */
 export function readFull(r: Reader, buf: Uint8Array): void {
 	let n = 0;

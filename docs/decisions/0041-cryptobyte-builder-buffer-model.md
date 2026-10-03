@@ -90,7 +90,7 @@ rather than kept as unreachable code.
 Two behaviours therefore differ from Go, both only observable through a builder that has already
 errored:
 
-- **`NewBuilder(buffer)` never writes into `buffer` in place.** In Go, `NewBuilder(buf[0:0])`
+- **`NewBuilder(buffer)` never writes into `buffer` in place.** *(Corrected in the Update of 2026-10-02 below: it does, once `unwrite` has made room, as in Go.)* In Go, `NewBuilder(buf[0:0])`
   appends into `buf`'s spare capacity, which is what upstream's `TestPreallocatedBuffer` asserts. A
   `Uint8Array` has no spare capacity, so the port's `len` starts equal to `buf.length` and the first
   append copies. Tessera's only call is `cryptobyte.NewBuilder([]byte{})`, where the two are
@@ -145,3 +145,28 @@ errored:
   past `len`. The dropped `add` overflow guard is justified (JS numbers don't wrap; oversize
   allocation throws `RangeError`). `bytes()` returning a `slice` copy rather than an aliasing view
   is safe for every current caller and is the deliberate consequence recorded here and in ADR-0042.
+
+## Update (2026-10-02)
+
+**A correction.** The first of the "two behaviours" that differ from Go above, "`NewBuilder(buffer)`
+never writes into `buffer` in place", and the matching `// Port note:` that was on `newBuilder`, were
+wrong (and, unlike the second behaviour, not confined to a builder that has already errored). The port
+writes into the caller's array exactly as Go does whenever the builder's `len` has been
+rolled back below the array's size. `unwrite` lowers `len` without touching `buf`, and the next `add`
+finds room (`grow` reallocates only when `len + n > buf.length`) and writes into the caller's array.
+Checked against `golang.org/x/crypto@v0.46.0`: after `NewBuilder(buf)` followed by `Unwrite(len(buf))`
+and an `AddUint8(9)`, Go's `buf[0]` is 9, and so is the port's.
+
+What differs is only how that state is reached. A Go caller can pass `buf[0:0]`, a zero-length slice with
+capacity behind it. A `Uint8Array` has no capacity, so `newBuilder(buffer)` starts with
+`len = buffer.length` and the first append copies, leaving `buffer` untouched, which is also what Go does
+when `len(buf) == cap(buf)`. The port's rendering of `NewBuilder(buf[0:0])` is `newBuilder(buffer)`
+followed by `unwrite(buffer.length)`. That is also how upstream's `TestPreallocatedBuffer` is ported:
+the test asserts `buf == [1, 2, 3, 4, 0]` after the builder outgrows the array by one byte, and the
+builder's result `[1, 2, 3, 4, 5, 6]`. Callers that need the result read it from `bytes()`, as before.
+ADR-0040's omission of that test is amended in its own update.
+
+The second behaviour listed above, the child's bytes surviving physically after a length-prefix
+overflow, is unchanged.
+
+*Review of this update: pending.*
