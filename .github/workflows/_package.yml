@@ -14,13 +14,13 @@
 #   release.yml checks again before publishing, come from `build`'s outputs. Those travel
 #   outside the artifact store, so replacing the artifact later is detected.
 #
-# Who makes the bytes and who ships them: Bun packs the first tarball (`bun pm pack`),
-# scripts/release/rescope.mjs derives the second with `npm pack`, and release.yml uploads both
-# with `npm publish`, which sends a tarball exactly as it finds it (`bun publish` has neither
-# npm provenance nor trusted publishing; see release.yml). The two packers select the same
-# files with the same contents (docs/decisions/0240-bun-as-package-manager-and-script-runner.md
-# has the comparison), and rescope.mjs asserts that again on every run: a pull request fails
-# if they ever disagree, long before a release.
+# Who makes the bytes and who ships them: Bun packs both tarballs (`bun pm pack`, here and in
+# scripts/release/rescope.mjs), and release.yml uploads them with `npm publish`, which sends a
+# tarball exactly as it finds it (`bun publish` has neither npm provenance nor trusted
+# publishing; see release.yml). `files` in package.json is written for npm's rules, so a step
+# below asks npm which files it would pack and requires the same list: if Bun and npm ever read
+# a pattern differently, a pull request fails, long before a release
+# (docs/decisions/0240-bun-as-package-manager-and-script-runner.md has the comparison).
 #
 # The artifact holds two tarballs with identical contents. `webtessera-<version>.tgz` goes to
 # npm. `<owner>-webtessera-<version>.tgz` differs only in its package name (@<owner>/webtessera)
@@ -80,9 +80,20 @@ jobs:
           version="$(node -p "require('./package.json').version")"
           echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "OUT_DIR=$RUNNER_TEMP/package" >> "$GITHUB_ENV"
-          bun pm pack --destination "$RUNNER_TEMP/package"
+          bun pm pack --quiet --destination "$RUNNER_TEMP/package"
 
-      # The script prints the path of the tarball it wrote, and nothing else, on stdout.
+      # What the tarball holds must be what npm would pack from this tree. `--dry-run` writes
+      # nothing, and `--ignore-scripts` keeps it from rebuilding dist/ (npm still runs the
+      # `prepare` script, which does nothing in CI).
+      - name: Check that npm would pack the same files
+        run: |
+          set -euo pipefail
+          diff \
+            <(tar -tzf "$OUT_DIR/webtessera-$VERSION.tgz" | sed 's|^package/||' | sort) \
+            <(npm pack --dry-run --json --ignore-scripts | jq -r '.[0].files[].path' | sort)
+
+      # The script packs with Bun too, and prints the path of the tarball it wrote, and
+      # nothing else, on stdout.
       - name: Derive the GitHub Packages variant
         run: |
           set -euo pipefail

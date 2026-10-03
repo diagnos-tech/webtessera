@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Derives the GitHub Packages variant of an npm tarball.
+// Derives the GitHub Packages variant of the package tarball.
 //
 // Usage:
 //
@@ -24,18 +24,28 @@
 // the same build ships under two names, and this script makes the second tarball from the
 // first instead of building twice: it unpacks the tarball, changes "name" in package.json
 // and nothing else, and packs it again. The result is written to <out-dir> (default: next to
-// the input) as <scope>-webtessera-<version>.tgz, the file name npm gives scoped packages,
-// and its path is the last line printed.
+// the input) as <scope>-webtessera-<version>.tgz, the file name npm and Bun give scoped
+// packages, and its path is the last line printed. It packs with Bun, as _package.yml does for
+// the first tarball, so that both are made the same way.
 //
 // Before it finishes it unpacks both tarballs and checks that they hold the same files with
 // the same bytes, and that the two package.json files differ in "name" only. A derivation
 // that quietly changed anything else would otherwise publish something nobody tested.
 //
-// Zero dependencies; needs Node >= 20, and tar and npm on PATH.
+// Zero dependencies; needs Node >= 20, and tar and bun on PATH.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -105,15 +115,18 @@ try {
 	const copy = extract(tarball, work, "scoped");
 	writeFileSync(join(copy, "package.json"), `${JSON.stringify({ ...manifest, name: scopedName }, null, 2)}\n`);
 
-	// --ignore-scripts: the package's own `prepack` would delete dist/ and rebuild it, which
-	// cannot work in a directory that holds no sources.
-	const packed = JSON.parse(
-		execFileSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", outDir, copy], {
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "inherit"],
-		}),
-	);
-	const output = join(outDir, packed[0].filename);
+	// --ignore-scripts: the package's own `prepack` would delete dist/ and rebuild it, and its
+	// `prepare` would run scripts/prepare.mjs, which is not in the tarball; neither can work in a
+	// directory that holds no sources. Bun skips both with this flag. npm skips `prepack` but
+	// still runs `prepare` (npm 10), which is why this does not use `npm pack`.
+	execFileSync("bun", ["pm", "pack", "--ignore-scripts", "--quiet", "--destination", outDir], {
+		cwd: copy,
+		stdio: ["ignore", "ignore", "inherit"],
+	});
+	const output = join(outDir, `${scope}-${manifest.name}-${manifest.version}.tgz`);
+	if (!existsSync(output)) {
+		fail(`bun pm pack did not write ${output}`);
+	}
 
 	const rebuilt = extract(output, work, "check");
 	const before = walk(original);
