@@ -24,11 +24,15 @@
 //
 // It appends a few hundred entries to an in-memory log, waits for a checkpoint
 // that commits to the last one, verifies the log's signature on that checkpoint,
-// and verifies an inclusion proof for the entry against it. It uses only
+// and verifies an inclusion proof for the entry against it. Then it does the same
+// through the safe API's entry points, webtessera/server and webtessera/browser,
+// which must load on every server runtime and recognise it as one. It uses only
 // runtime-neutral APIs, so it needs no permissions beyond reading the package.
 
+import { verifyReceipt } from "../dist/browser/index.js";
 import { fetchCheckpoint, newProofBuilder } from "../dist/client/index.js";
 import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "../dist/index.js";
+import { detectRuntime, importLogKey, openServerLog } from "../dist/server/index.js";
 import { newMemoryDriver } from "../dist/storage/memory/index.js";
 import { verifyInclusion } from "../dist/vendor/merkle/proof/index.js";
 import { DefaultHasher } from "../dist/vendor/merkle/rfc6962/rfc6962.js";
@@ -61,5 +65,24 @@ ac.abort();
 if (index.index !== BigInt(entries) || checkpoint.size < index.index + 1n) {
 	throw new Error(`unexpected result: index ${index.index}, checkpoint size ${checkpoint.size}`);
 }
+
+// The safe API: the same key, imported into WebCrypto where the runtime supports Ed25519,
+// signs a log whose receipt verifies offline through the browser entry point.
+const runtime = detectRuntime();
+if (!["node", "bun", "deno"].includes(runtime)) {
+	throw new Error(`webtessera/server detected the runtime as ${runtime}`);
+}
+const key = await importLogKey(skey);
+const safeLog = await openServerLog({ key, storage: { memory: true } });
+const receipt = await safeLog.append(data);
+const verified = verifyReceipt(receipt.text, { vkey, data });
+await safeLog.close();
+if (verified.index !== 0n || receipt.checkpoint.size !== 1n) {
+	throw new Error(`unexpected receipt: index ${verified.index}, checkpoint size ${receipt.checkpoint.size}`);
+}
+
 // biome-ignore lint/suspicious/noConsole: the script's output is its report; console is the one sink every runtime shares.
-console.log(`smoke-runtimes: ok (index ${index.index} proven in a tree of ${checkpoint.size})`);
+console.log(
+	`smoke-runtimes: ok (index ${index.index} proven in a tree of ${checkpoint.size}; ` +
+		`safe API on ${runtime} with a ${key.extractable ? "extractable" : "non-extractable"} ${key.backend} key)`,
+);

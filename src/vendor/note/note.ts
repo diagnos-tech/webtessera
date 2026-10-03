@@ -994,3 +994,67 @@ export function sign(n: Note, ...signers: Signer[]): Uint8Array {
 
 	return concatBytes(textBytes, toUTF8(buf));
 }
+
+/**
+ * An AsyncSigner signs messages using a specific key, like a {@link Signer}, but its
+ * sign method resolves asynchronously. It is what a key held by the platform's WebCrypto
+ * API can implement: `crypto.subtle.sign` returns a Promise, and a key created as
+ * non-extractable cannot be handed to a synchronous implementation instead.
+ *
+ * Port note: this has no upstream counterpart. Go's Signer.Sign is synchronous, and every
+ * signer Go programs use is too; see
+ * docs/decisions/0223-async-signers-for-notes-and-checkpoints.md.
+ *
+ * ```ts
+ * const s: AsyncSigner = {
+ *   name: () => "example.com/log",
+ *   keyHash: () => hash,
+ *   sign: async (msg) => new Uint8Array(await crypto.subtle.sign("Ed25519", privateKey, msg)),
+ * };
+ * ```
+ */
+export interface AsyncSigner {
+	/** name returns the server name associated with the key. */
+	name(): string;
+
+	/** keyHash returns the key hash. */
+	keyHash(): number;
+
+	/** sign resolves to a signature for the given message, or rejects. */
+	sign(msg: Uint8Array): Promise<Uint8Array>;
+}
+
+/**
+ * signAsync is {@link sign} for signers that may be asynchronous: it signs the note with
+ * the given signers, each an {@link AsyncSigner} or a {@link Signer}, and resolves to the
+ * encoded message. For the same note and the same keys it produces exactly the bytes
+ * sign produces, because it is sign: each signer signs the note's text in turn, and the
+ * signatures are then handed to sign to encode.
+ *
+ * As with sign, an invalid signer name rejects with the error sign throws before that
+ * signer is asked to sign, and an error from a signer is let through unchanged.
+ *
+ * Port note: this has no upstream counterpart; see
+ * docs/decisions/0223-async-signers-for-notes-and-checkpoints.md.
+ *
+ * ```ts
+ * const msg = await signAsync({ text: "hello\n" }, webCryptoSigner, nobleSigner);
+ * ```
+ */
+export async function signAsync(n: Note, ...signers: (Signer | AsyncSigner)[]): Promise<Uint8Array> {
+	if (!n.text.endsWith("\n")) {
+		throw errMalformedNote;
+	}
+	const textBytes = toUTF8(n.text);
+	const signed: Signer[] = [];
+	for (const s of signers) {
+		const name = s.name();
+		const hash = s.keyHash();
+		if (!isValidName(name)) {
+			throw errInvalidSigner;
+		}
+		const sig = await s.sign(textBytes);
+		signed.push(new signer(name, hash, (): Uint8Array => sig));
+	}
+	return sign(n, ...signed);
+}

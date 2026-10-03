@@ -42,6 +42,7 @@
       "webtessera/merkle/proof": ["./src/vendor/merkle/proof/index.ts"],
       "webtessera/note": ["./src/vendor/note/note.ts"],
       "webtessera/formats/log": ["./src/vendor/formats/log/index.ts"],
+      "webtessera/formats/proof": ["./src/vendor/formats/proof/index.ts"],
       "webtessera/storage/objectstore": ["./src/storage/objectstore/index.ts"],
       "webtessera/storage/memory": ["./src/storage/memory/index.ts"],
       "webtessera/storage/indexeddb": ["./src/storage/indexeddb/index.ts"],
@@ -49,6 +50,8 @@
       "webtessera/http": ["./src/http/index.ts"],
       "webtessera/witness": ["./src/witness/index.ts"],
       "webtessera/mirror": ["./src/mirror/index.ts"],
+      "webtessera/server": ["./src/server/index.ts"],
+      "webtessera/browser": ["./src/browser/index.ts"],
       "webtessera/testonly": ["./src/testonly/index.ts"]
     }
   },

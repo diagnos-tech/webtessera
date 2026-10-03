@@ -46,9 +46,63 @@ npm install webtessera
 # or: pnpm add webtessera / yarn add webtessera / bun add webtessera
 ```
 
-## Quick start
+## The safe API
 
-Pick a storage driver and start an appender on it:
+Most applications want a log that cannot be misused more than they want Tessera's full API. webtessera
+ships a small layer for them, in two entry points that say where the code runs:
+
+| Import | For | Holds |
+| --- | --- | --- |
+| `webtessera/server` | Node.js, Deno, Bun, Cloudflare Workers and other server and edge runtimes | the log's key, imported from your secret store into a non-extractable WebCrypto key |
+| `webtessera/browser` | browser windows and workers | a device key generated in the browser, which no script can export |
+
+A log on a server, kept in SQLite:
+
+```ts file=src/README_test.ts region=safe_server_example
+// The key comes from your secret store, never from source code.
+const log = await openServerLog({
+  key: await importLogKey(env.LOG_SKEY),
+  storage: { sqlite: fromSqliteSync(new DatabaseSync(file)) },
+});
+
+// Resolves once a published checkpoint commits to the entry, with a receipt that
+// proves it offline: a C2SP tlog-proof, already verified.
+const receipt = await log.append(entry);
+```
+
+Receipts verify anywhere, without the log:
+
+```ts file=src/README_test.ts region=safe_verify_example
+// Anyone with the log's vkey and the entry can check a receipt, offline.
+const { index, checkpoint } = verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });
+```
+
+A log of the browser's own, kept in IndexedDB:
+
+```ts file=src/README_test.ts region=safe_browser_example
+// A key generated on this device and kept in IndexedDB, which no script can export.
+const key = await openDeviceKey("device.example/7f3a");
+const log = await openBrowserLog({ key });
+
+const receipt = await log.append(new TextEncoder().encode("signed the form"));
+```
+
+The layer refuses the mistakes that are easy to make with the full API. `webtessera/server` fails the build of a
+browser bundle and refuses to run in a browser; `webtessera/browser` never accepts a private key string. Storage
+is durable unless memory is asked for by name, SQLite is locked so that several processes cannot fork the log,
+`append` resolves only once a published checkpoint covers the entry, every receipt is verified before it is
+returned, and a log refuses to open with a key that did not create it. Receipts are
+[C2SP tlog-proofs](https://c2sp.org/tlog-proof), and witnesses, such as your own server running
+`webtessera/witness`, can cosign every checkpoint.
+
+The [safe API guide](docs/guides/safe-api.md) covers key custody, receipts, session receipts with a witness, a
+notary, and when to use the full API underneath, which every log exposes as `log.reader` and `log.appender`.
+
+## Quick start: the full API
+
+Underneath the safe API is the faithful port of Tessera's own API, for everything the safe API does
+not cover: custom storage, migration, antispam, witness policies, Static CT. Pick a storage driver and
+start an appender on it:
 
 ```ts file=src/README_test.ts region=common_imports
 import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "webtessera";
@@ -247,12 +301,15 @@ The package is split the way Tessera is split into Go packages:
 | `webtessera/api`, `webtessera/api/layout` | `tessera/api`, `tessera/api/layout` | tile and entry-bundle formats, tlog-tiles paths |
 | `webtessera/fsck` | `tessera/fsck` | whole-log verification |
 | `webtessera/ctonly` | `tessera/ctonly` | Static CT API entries |
+| `webtessera/server` | — (safe API) | `openServerLog`, `importLogKey`, receipts; refuses to run in browsers |
+| `webtessera/browser` | — (safe API) | `openBrowserLog`, device keys, receipts |
 | `webtessera/testonly` | `tessera/testonly` | an in-memory test log for your own tests |
 | `webtessera/http` | — | serves a log over the tlog-tiles HTTP API, as a fetch-style handler |
 | `webtessera/witness` | — | a tlog-witness server, the other side of the witnessing in `webtessera` |
 | `webtessera/mirror` | `tessera/cmd/experimental/mirror` | copies a log into S3-compatible storage or any `ObjectStore` |
 | `webtessera/note` | `golang.org/x/mod/sumdb/note` | signed notes, signers and verifiers |
 | `webtessera/formats/log` | `transparency-dev/formats/log` | checkpoints |
+| `webtessera/formats/proof` | `transparency-dev/formats/proof` | [C2SP tlog-proof](https://c2sp.org/tlog-proof) encoding |
 | `webtessera/merkle/*` | `transparency-dev/merkle/*` | RFC 6962 hashing, compact ranges, proofs |
 
 Names follow Go's, with functions in camelCase (`NewAppender` is `newAppender`). Go's `uint64` is
