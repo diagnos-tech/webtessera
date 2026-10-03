@@ -1,0 +1,2 @@
+# The monitor's state directory: the last verified checkpoint, and evidence of misbehaviour.
+.monitor/

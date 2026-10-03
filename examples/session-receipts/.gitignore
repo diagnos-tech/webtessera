@@ -1,0 +1,5 @@
+# The server's database, the witness key that `keygen` writes, and the client build.
+*.db
+*.db-*
+.env
+client/dist/

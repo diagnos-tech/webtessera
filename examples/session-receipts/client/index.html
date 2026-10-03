@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="light dark" />
+		<link rel="icon" href="data:," />
+		<title>Session receipts</title>
+	</head>
+	<body>
+		<main>
+			<header>
+				<h1>Session receipts</h1>
+				<p class="lede">
+					This page records every exchange it has with the server in a transparency log kept in this browser and
+					signed by a key that cannot leave it. The server cosigns each checkpoint as the log's witness, after
+					checking that it extends the last, and commits the log to its bucket. Neither side can rewrite the record
+					alone.
+				</p>
+			</header>
+
+			<p id="banner" class="error" role="alert" hidden></p>
+
+			<section aria-labelledby="app-heading">
+				<h2 id="app-heading">The application under audit: notes</h2>
+				<div class="row">
+					<label for="name">Name</label>
+					<input id="name" value="todo" autocomplete="off" />
+				</div>
+				<textarea id="text" aria-label="Note text">buy milk</textarea>
+				<div class="row">
+					<button id="save" type="button" disabled>Save</button>
+					<button id="load" type="button" class="secondary" disabled>Load</button>
+					<button id="delete" type="button" class="secondary" disabled>Delete</button>
+				</div>
+				<pre id="answer" aria-live="polite"></pre>
+			</section>
+
+			<section aria-labelledby="log-heading">
+				<h2 id="log-heading">Recorded interactions</h2>
+				<p class="meta" id="committed">Not committed to the server yet.</p>
+				<table>
+					<thead>
+						<tr><th>#</th><th>When</th><th>Request</th><th>Status</th><th>Receipt</th></tr>
+					</thead>
+					<tbody id="rows"></tbody>
+				</table>
+				<div class="row">
+					<button id="verify" type="button" class="secondary" disabled>Verify every receipt again</button>
+				</div>
+			</section>
+
+			<section aria-labelledby="session-heading">
+				<h2 id="session-heading">This session</h2>
+				<dl class="facts">
+					<dt>Log</dt>
+					<dd><code id="origin">…</code></dd>
+					<dt>Device key</dt>
+					<dd><code id="vkey">…</code></dd>
+					<dt>Server's witness key</dt>
+					<dd><code id="witness">…</code></dd>
+				</dl>
+				<div class="row">
+					<button id="new-session" type="button" class="secondary">Start a new session</button>
+				</div>
+			</section>
+		</main>
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>

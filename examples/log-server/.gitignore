@@ -1,0 +1,5 @@
+# Local databases and the key file that `keygen` writes.
+*.db
+*.db-*
+.env
+.last-checkpoint

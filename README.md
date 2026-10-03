@@ -183,7 +183,7 @@ browsers provide in secure contexts (HTTPS and `localhost`). Without it, opening
 than run with locks that cannot exclude other tabs, unless you pass `singleWriter: true` to promise that
 only one tab or worker will ever write it; `driver.lockScope` tells you which guarantee you got.
 
-See [`examples/browser`](examples/browser) for a complete page you can open in two tabs.
+See [`examples/client-only`](examples/client-only) for a complete page you can open in two tabs.
 
 ### On any SQLite
 
@@ -292,6 +292,21 @@ comment (`src/http/index.ts`, `src/witness/index.ts`, `src/mirror/index.ts`) has
   `ObjectStore`, a bucket on a service that speaks the S3 API (AWS S3, Cloudflare R2 or MinIO, say)
   through `newS3Sink`, which signs requests with AWS Signature Version 4 over `fetch` and needs no SDK, or
   anything with a `put` method.
+
+## Examples
+
+Each example under [`examples/`](examples) is a small, complete application with its own README (what
+it shows, how to run it, its trust model) and its own tests, which CI runs with no network and no
+external service. [`docs/guides`](docs/guides) has a short guide for each.
+
+| Example | What it shows | Runs on |
+| --- | --- | --- |
+| [`client-only`](examples/client-only) | A browser keeps its own tamper-evident log in IndexedDB, signed by a device key no script can export; tabs share it through Web Locks, and it refuses to open without them. | browsers |
+| [`session-receipts`](examples/session-receipts) | The browser records every exchange with your server in its own log; the server witnesses it and commits it, verified, to S3, R2 or MinIO. Neither side can rewrite the record alone. | browser + Node, Bun, Deno |
+| [`notary`](examples/notary) | Logs a document's digest with its submitter's signature and returns a C2SP tlog-proof that a CLI verifies offline, and shows forged and altered receipts failing. | Node, Bun, Deno |
+| [`log-server`](examples/log-server) | A public log, `POST /add` and the tlog-tiles API, on any SQLite with lease locking: one source on Node, Bun and Deno, verified by webtessera's client and by Tessera's Go client. | Node, Bun, Deno |
+| [`monitor`](examples/monitor) | Follows a remote log, proves every checkpoint consistent with the last, keeps its state durably, and reports forks and rollbacks with evidence. | Node, Bun, Deno |
+| [`edge`](examples/edge) | The log server as an edge Worker on a SQLite-backed Durable Object: the same handler, one deployment target among several. | Cloudflare Workers |
 
 ## Packages
 
