@@ -14,8 +14,10 @@
 
 // This file has no upstream counterpart. It provides the two lock implementations
 // behind IndexedDBObjectStore.lock: the Web Locks API, which excludes every tab and
-// worker of an origin, and an in-process fallback for runtimes without it. See
-// docs/decisions/0112-indexeddb-locks-web-locks-with-in-process-fallback.md.
+// worker of an origin, and an in-process fallback for runtimes without it, which a
+// store uses only when opened with singleWriter: true. See
+// docs/decisions/0112-indexeddb-locks-web-locks-with-in-process-fallback.md and
+// docs/decisions/0201-indexeddb-locks-fail-closed.md.
 
 import { NamedLocks } from "../objectstore/namedlocks.ts";
 
@@ -26,7 +28,8 @@ import { NamedLocks } from "../objectstore/namedlocks.ts";
  * window and worker of the origin, which is also everything that can open the same
  * IndexedDB database. "realm" means the Web Locks API was unavailable and locks only
  * exclude holders in the current JavaScript realm (the current tab or worker): two
- * contexts that write the same log concurrently would then corrupt it.
+ * contexts that write the same log concurrently would then corrupt it, which is why a
+ * store only runs with this scope when opened with singleWriter: true.
  */
 export type LockScope = "origin" | "realm";
 

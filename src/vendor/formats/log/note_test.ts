@@ -39,10 +39,16 @@ describe("formats/log note", () => {
 		const known1Verifier = newVerifier(known1VK);
 		const known2Verifier = newVerifier(known2VK);
 
+		// Port note: upstream's hash is []byte("abcdef"). This port's parseCheckpoint
+		// requires the 32-byte root hash C2SP tlog-checkpoint specifies
+		// (docs/decisions/0202-merkle-proof-hash-sizes.md), so the six bytes are padded
+		// to 32 with zeros; the test is about signatures, and every case keeps
+		// upstream's verdict and signature count. "rejects a root hash that is not 32
+		// bytes" below pins the unpadded value.
 		const cp = new Checkpoint({
 			origin: "TestParseCheckpoint",
 			size: 42n,
-			hash: toUTF8("abcdef"),
+			hash: Uint8Array.from({ length: 32 }, (_, i) => toUTF8("abcdef")[i] ?? 0),
 		});
 		const noteBody = fromUTF8(cp.marshal());
 
@@ -170,6 +176,69 @@ describe("formats/log note", () => {
 		}
 	});
 
+	// Not upstream: the port's additional checkpoint checks.
+	describe("parseCheckpoint hardening", () => {
+		const logVerifier = newVerifier(logVK);
+		const lns = newSigner(logSK);
+		const signed = (hash: Uint8Array): Uint8Array =>
+			sign({ text: fromUTF8(new Checkpoint({ origin: "Log", size: 7n, hash }).marshal()) }, lns);
+
+		// docs/decisions/0202-merkle-proof-hash-sizes.md
+		it("rejects a root hash that is not 32 bytes", () => {
+			for (const len of [0, 6, 31, 33, 64]) {
+				let err: unknown;
+				try {
+					parseCheckpoint(signed(new Uint8Array(len)), "Log", logVerifier);
+				} catch (e) {
+					err = e;
+				}
+				expect(err).toBeInstanceOf(ParseCheckpointError);
+				expect((err as ParseCheckpointError).message).toBe(
+					`failed to unmarshal checkpoint: invalid checkpoint - root hash has unexpected size ${len}, want 32`,
+				);
+				// The note is still carried, as for upstream's unmarshal errors.
+				expect((err as ParseCheckpointError).note?.sigs?.length).toBe(1);
+			}
+			expect(parseCheckpoint(signed(new Uint8Array(32)), "Log", logVerifier).checkpoint.hash.length).toBe(32);
+		});
+
+		it("reports a wrong origin before a wrong hash size, as upstream would", () => {
+			expect(() => parseCheckpoint(signed(new Uint8Array(6)), "Other", logVerifier)).toThrow(
+				'got Origin "Log" but expected "Other"',
+			);
+		});
+
+		// docs/decisions/0209-parsecheckpoint-wraps-only-returned-errors.md: errors that stand in for
+		// Go's returned errors are wrapped; what stands in for a panic is not.
+		it("wraps returned errors but lets panic-like errors through unchanged", () => {
+			const raw = signed(new Uint8Array(32));
+			const throwing = (err: unknown) => ({
+				name: () => "Log",
+				keyHash: () => logVerifier.keyHash(),
+				verify: (): boolean => {
+					throw err;
+				},
+			});
+			const bug = new TypeError("cannot read properties of undefined");
+			let got: unknown;
+			try {
+				parseCheckpoint(raw, "Log", throwing(bug));
+			} catch (e) {
+				got = e;
+			}
+			expect(got).toBe(bug);
+
+			const returned = new Error("verifier backend unavailable");
+			try {
+				parseCheckpoint(raw, "Log", throwing(returned));
+			} catch (e) {
+				got = e;
+			}
+			expect(got).toBeInstanceOf(ParseCheckpointError);
+			expect((got as Error).message).toBe("failed to verify signatures on checkpoint: verifier backend unavailable");
+		});
+	});
+
 	describe("TestSumDBNoteParsing", () => {
 		// A real checkpoint issued by sum.golang.org: the strongest interoperability
 		// evidence in this package, since nothing about it was produced here.
@@ -190,6 +259,7 @@ describe("formats/log note", () => {
 			it(test.desc, () => {
 				if (test.wantErr) {
 					expect(() => parseCheckpoint(toUTF8(noteString), test.logID, logVerifier)).toThrow(ParseCheckpointError);
+					// Always return after error because remaining checks are for cp, which is nil.
 					return;
 				}
 				const { checkpoint: cp } = parseCheckpoint(toUTF8(noteString), test.logID, logVerifier);

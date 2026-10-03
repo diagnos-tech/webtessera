@@ -3,10 +3,12 @@
 //
 // This file has mixed provenance. The base64 decoder (BASE64_STD_DECODE_MAP,
 // corruptInputError, fromBase64 and decodeQuantum, each marked below) is a derivative
-// work of Go's standard library package `encoding/base64` and remains subject to the Go
-// project's BSD-style licence, which is reproduced further down and in
-// LICENSES/BSD-3-Clause-Go.txt. Everything else in this file is original to this
-// project and is licensed under the Apache License, Version 2.0:
+// work of Go's standard library package `encoding/base64`, and the hex decoder
+// (REVERSE_HEX_TABLE, invalidByteError and fromHex, each marked below) is a derivative
+// work of Go's `encoding/hex`; both remain subject to the Go project's BSD-style
+// licence, which is reproduced further down and in LICENSES/BSD-3-Clause-Go.txt.
+// Everything else in this file is original to this project and is licensed under the
+// Apache License, Version 2.0:
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,12 +52,13 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Ported from encoding/base64/base64.go (Go standard library) @ Go 1.25.5 (the decoder only)
+// Ported from encoding/base64/base64.go and encoding/hex/hex.go (Go standard library)
+// @ Go 1.25.5 (the decoders only)
 
 // This file is not a port of a Tessera file. It stands in for Go's `bytes`,
 // `encoding/hex`, `encoding/base64` and `encoding/binary` packages, which the port
-// uses pervasively and TypeScript does not provide. Apart from the base64 decoder, which
-// transcribes Go's, the code here is our own.
+// uses pervasively and TypeScript does not provide. Apart from the base64 and hex
+// decoders, which transcribe Go's, the code here is our own.
 //
 // Everything here is deliberately dependency-free and allocation-conscious: it sits
 // underneath the Merkle layer, which is the hottest code in the package.
@@ -207,29 +210,95 @@ export function toHex(b: Uint8Array): string {
 	return out;
 }
 
+// The hex decoder below (REVERSE_HEX_TABLE, invalidByteError and fromHex) is derived
+// from Go's `encoding/hex` (Copyright 2009 The Go Authors, BSD-3-Clause; see the file
+// header and LICENSES/BSD-3-Clause-Go.txt). `toHex` above is not.
+
+/**
+ * REVERSE_HEX_TABLE is Go's `reverseHexTable`: the value of each hex digit byte, and
+ * 0xff for every other byte. Derived from encoding/hex.
+ */
+const REVERSE_HEX_TABLE = ((): Uint8Array => {
+	const m = new Uint8Array(256).fill(0xff);
+	for (let i = 0; i < 10; i++) {
+		m[0x30 + i] = i; // '0'-'9'
+	}
+	for (let i = 0; i < 6; i++) {
+		m[0x61 + i] = 10 + i; // 'a'-'f'
+		m[0x41 + i] = 10 + i; // 'A'-'F'
+	}
+	return m;
+})();
+
+/**
+ * invalidByteError is the port of `hex.InvalidByteError`, whose message is
+ * `fmt.Sprintf("encoding/hex: invalid byte: %#U", rune(e))`. Derived from encoding/hex.
+ *
+ * Port note: `%#U` appends the quoted character when `strconv.IsPrint` holds for it.
+ * The rune here is always a single byte widened to U+0000–U+00FF, where IsPrint is
+ * true for U+0020–U+007E and U+00A1–U+00FF except U+00AD (soft hyphen), so that range
+ * check stands in for the Unicode tables.
+ */
+function invalidByteError(b: number): Error {
+	const code = `U+${b.toString(16).toUpperCase().padStart(4, "0")}`;
+	const printable = (b >= 0x20 && b <= 0x7e) || (b >= 0xa1 && b !== 0xad);
+	return new Error(`encoding/hex: invalid byte: ${printable ? `${code} '${String.fromCharCode(b)}'` : code}`);
+}
+
 /**
  * fromHex decodes a lower- or upper-case hexadecimal string (`hex.DecodeString`).
- * It throws on odd length or non-hex characters, as Go's decoder does.
+ * It throws Go's `InvalidByteError` text for the first byte that is not a hex digit,
+ * and Go's `ErrLength` text ("encoding/hex: odd length hex string") for an odd number
+ * of bytes, with the same precedence as Go's `Decode`. Derived from encoding/hex.
+ *
+ * Port note: Go decodes the bytes of the string, so a non-ASCII character is reported
+ * by its first UTF-8 byte; the string is therefore encoded to UTF-8 first. Like Go's
+ * DecodeString, this returns no partial result on error.
  */
 export function fromHex(s: string): Uint8Array {
-	if (s.length % 2 !== 0) {
-		throw new Error(`encoding/hex: odd length hex string: ${s.length}`);
-	}
-	const out = new Uint8Array(s.length / 2);
-	for (let i = 0; i < out.length; i++) {
-		const byte = Number.parseInt(s.substring(i * 2, i * 2 + 2), 16);
-		if (Number.isNaN(byte)) {
-			throw new Error(`encoding/hex: invalid byte at offset ${i * 2}`);
+	const src = toUTF8(s);
+	const dst = new Uint8Array(src.length >> 1);
+	let i = 0;
+	let j = 1;
+	for (; j < src.length; j += 2) {
+		const p = src[j - 1] as number;
+		const q = src[j] as number;
+
+		const a = REVERSE_HEX_TABLE[p] as number;
+		const b = REVERSE_HEX_TABLE[q] as number;
+		if (a > 0x0f) {
+			throw invalidByteError(p);
 		}
-		out[i] = byte;
+		if (b > 0x0f) {
+			throw invalidByteError(q);
+		}
+		dst[i] = (a << 4) | b;
+		i++;
 	}
-	return out;
+	if (src.length % 2 === 1) {
+		// Check for invalid char before reporting bad length,
+		// since the invalid char (if present) is an earlier problem.
+		const last = src[j - 1] as number;
+		if ((REVERSE_HEX_TABLE[last] as number) > 0x0f) {
+			throw invalidByteError(last);
+		}
+		throw new Error("encoding/hex: odd length hex string");
+	}
+	return dst;
 }
 
 const utf8Encoder = new TextEncoder();
 // ignoreBOM keeps a leading U+FEFF in the decoded string, as Go's string(b) does; the
-// WHATWG default would silently strip it. fatal: false substitutes U+FFFD for invalid
-// sequences, again matching Go's conversion.
+// WHATWG default would silently strip it.
+//
+// Port note: invalid UTF-8 is where this conversion and Go's part ways. Go's string(b)
+// copies the bytes verbatim — a Go string is a byte sequence and may hold invalid
+// UTF-8 — whereas a JavaScript string is UTF-16 and cannot, so fatal: false makes the
+// decoder substitute U+FFFD for each invalid sequence. The conversion is therefore
+// lossy for invalid input: distinct byte strings can decode to the same string, and
+// toUTF8(fromUTF8(b)) is not b. Callers whose result feeds an identity comparison must
+// validate first (sumdb/note's open does; formats/log's Checkpoint.unmarshal rejects
+// a non-UTF-8 origin, see docs/decisions/0203-checkpoint-origin-must-be-utf8.md).
 const utf8Decoder = new TextDecoder("utf-8", { fatal: false, ignoreBOM: true });
 
 /** toUTF8 encodes a string as UTF-8 bytes, which is what `[]byte(s)` does in Go. */
@@ -237,7 +306,11 @@ export function toUTF8(s: string): Uint8Array {
 	return utf8Encoder.encode(s);
 }
 
-/** fromUTF8 decodes UTF-8 bytes to a string, which is what `string(b)` does in Go. */
+/**
+ * fromUTF8 decodes UTF-8 bytes to a string, which is what `string(b)` does in Go for
+ * valid UTF-8. Invalid sequences become U+FFFD, where Go would keep the bytes; see the
+ * port note on utf8Decoder.
+ */
 export function fromUTF8(b: Uint8Array): string {
 	return utf8Decoder.decode(b);
 }
@@ -245,8 +318,17 @@ export function fromUTF8(b: Uint8Array): string {
 /**
  * appendUint16BE appends v to b in big-endian order
  * (`binary.BigEndian.AppendUint16`). It is how tlog-tiles length-prefixes entries.
+ *
+ * Port note: Go's parameter is a `uint16`, so an out-of-range value cannot reach it; a
+ * caller that converts with `uint16(n)` truncates explicitly. A `number` parameter
+ * accepts anything, and silently keeping the low 16 bits would turn an oversized entry
+ * into a wrong length prefix. This throws a RangeError for anything that is not an
+ * integer in [0, 0xffff]. See docs/decisions/0200-length-prefix-appenders-reject-out-of-range-values.md.
  */
 export function appendUint16BE(b: Uint8Array, v: number): Uint8Array {
+	if (!Number.isInteger(v) || v < 0 || v > 0xffff) {
+		throw new RangeError(`binary: ${v} is out of range for uint16`);
+	}
 	const out = new Uint8Array(b.length + 2);
 	out.set(b, 0);
 	out[b.length] = (v >> 8) & 0xff;
@@ -264,8 +346,15 @@ export function readUint16BE(b: Uint8Array, offset: number): number {
 	return (hi << 8) | lo;
 }
 
-/** appendUint32BE appends v to b in big-endian order (`binary.BigEndian.AppendUint32`). */
+/**
+ * appendUint32BE appends v to b in big-endian order (`binary.BigEndian.AppendUint32`).
+ * It throws a RangeError for anything that is not an integer in [0, 0xffffffff]; see
+ * appendUint16BE.
+ */
 export function appendUint32BE(b: Uint8Array, v: number): Uint8Array {
+	if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) {
+		throw new RangeError(`binary: ${v} is out of range for uint32`);
+	}
 	const out = new Uint8Array(b.length + 4);
 	out.set(b, 0);
 	out[b.length] = (v >>> 24) & 0xff;
@@ -291,8 +380,14 @@ export function readUint32BE(b: Uint8Array, offset: number): number {
 	return ((b0 << 24) | (b1 << 16) | (b2 << 8) | b3) >>> 0;
 }
 
-/** appendUint64BE appends v to b in big-endian order (`binary.BigEndian.AppendUint64`). */
+/**
+ * appendUint64BE appends v to b in big-endian order (`binary.BigEndian.AppendUint64`).
+ * It throws a RangeError for a value outside [0, 2^64-1]; see appendUint16BE.
+ */
 export function appendUint64BE(b: Uint8Array, v: bigint): Uint8Array {
+	if (typeof v !== "bigint" || v < 0n || v > 0xffffffffffffffffn) {
+		throw new RangeError(`binary: ${v} is out of range for uint64`);
+	}
 	const out = new Uint8Array(b.length + 8);
 	out.set(b, 0);
 	for (let i = 7; i >= 0; i--) {

@@ -57,9 +57,41 @@ export class ParseCheckpointError extends Error {
 }
 
 /** errText renders an error the way Go's `%v` verb does. */
-function errText(err: unknown): string {
-	return err instanceof Error ? err.message : String(err);
+function errText(err: Error): string {
+	return err.message;
 }
+
+/**
+ * isReturnedError reports whether err is the port of an error a Go function would
+ * have *returned*, as opposed to a panic.
+ *
+ * Port note: ParseCheckpoint wraps every error that note.Open and Unmarshal return;
+ * a panic is not an error return and propagates through it untouched. The port has
+ * only throws, so the distinction is drawn by class: TypeError, RangeError,
+ * ReferenceError and SyntaxError are what JavaScript raises where Go would panic (a
+ * nil dereference, an index out of range, a bug), and a thrown non-Error is never an
+ * error return. Those propagate unchanged instead of being flattened into a
+ * ParseCheckpointError message, which would hide a programming error behind "failed
+ * to verify signatures". Every error class sumdb/note and Checkpoint.unmarshal use
+ * for their results is a plain Error or a subclass of it, so is still wrapped.
+ * See docs/decisions/0209-parsecheckpoint-wraps-only-returned-errors.md.
+ */
+function isReturnedError(err: unknown): err is Error {
+	return (
+		err instanceof Error &&
+		!(err instanceof TypeError) &&
+		!(err instanceof RangeError) &&
+		!(err instanceof ReferenceError) &&
+		!(err instanceof SyntaxError)
+	);
+}
+
+/**
+ * checkpointHashSize is the size of a checkpoint's root hash: tlog-checkpoint defines it
+ * as the root of the RFC 6962 Merkle tree, and tlog-tiles fixes that tree's hash
+ * algorithm as SHA-256.
+ */
+const checkpointHashSize = 32;
 
 /**
  * parseCheckpoint takes a raw checkpoint as bytes and returns a parsed checkpoint
@@ -71,6 +103,15 @@ function errText(err: unknown): string {
  * always carried on the error where possible.
  * The signatures on the note will include the log signature if no error is thrown,
  * plus any signatures from otherVerifiers that were found.
+ *
+ * Port note: in addition to upstream's checks, the checkpoint's root hash must be 32
+ * bytes ("failed to unmarshal checkpoint: invalid checkpoint - root hash has
+ * unexpected size N, want 32"). C2SP tlog-checkpoint defines the third line as "the
+ * base64 encoding of the root of the RFC 6962 Merkle hash tree", and RFC 6962 (and
+ * C2SP tlog-tiles: "The hashing algorithm is defined to be SHA-256") fixes that hash
+ * at SHA-256; upstream accepts any length. The check runs after upstream's, so
+ * whatever upstream rejects is rejected with upstream's error.
+ * See docs/decisions/0202-merkle-proof-hash-sizes.md.
  */
 export function parseCheckpoint(
 	chkpt: Uint8Array,
@@ -85,6 +126,9 @@ export function parseCheckpoint(
 	try {
 		n = open(chkpt, verifiers);
 	} catch (err) {
+		if (!isReturnedError(err)) {
+			throw err;
+		}
 		// Port note: Go formats the cause with %v, not %w, so the chain stops here.
 		// Keeping that means `errorIs` cannot see past this boundary in TypeScript
 		// either, which is the behaviour every existing caller was written against.
@@ -99,10 +143,19 @@ export function parseCheckpoint(
 			try {
 				otherData = cp.unmarshal(toUTF8(n.text));
 			} catch (err) {
+				if (!isReturnedError(err)) {
+					throw err;
+				}
 				throw new ParseCheckpointError(`failed to unmarshal checkpoint: ${errText(err)}`, n);
 			}
 			if (cp.origin !== origin) {
 				throw new ParseCheckpointError(`got Origin ${quote(cp.origin)} but expected ${quote(origin)}`, n);
+			}
+			if (cp.hash.length !== checkpointHashSize) {
+				throw new ParseCheckpointError(
+					`failed to unmarshal checkpoint: invalid checkpoint - root hash has unexpected size ${cp.hash.length}, want ${checkpointHashSize}`,
+					n,
+				);
 			}
 			return { checkpoint: cp, otherData, note: n };
 		}

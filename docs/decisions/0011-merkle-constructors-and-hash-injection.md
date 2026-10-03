@@ -80,6 +80,20 @@ into a `HashFn`/`VisitFn` parameter is written that way.
   `hashChildren` as an arrow-function property on the instance — would move the methods off the
   prototype and break `expect(a).toEqual(b)` on `Tree` values, which ADR-0010 depends on.
 
+> **Update (2026-10-02):** two statements above did not match the code or the rest of the record, and are
+> corrected here.
+>
+> - "This is the one place in this work package where ADR-0002's 'declaration order identical to upstream'
+>   rule is bent" — the rule is ADR-0002's (and AGENTS.md §3.3's), but it is not the only bend: the testonly
+>   split (ADR-0010) also changes file layout. The `DefaultHasher` move is the only *declaration-order* change
+>   in `rfc6962.ts`; `rfc6962.ts` now says so in a port note on `DefaultHasher`, and carries Go's doc comment
+>   for `New` on the constructor and the blank import's "SHA256 is the default algorithm." as a port note.
+> - "The file also carries a `// Port note:`" pointed at this ADR under a file name that does not exist
+>   (`0011-merkle-port-divergences.md`); `rfc6962.ts` and `testonly/tree.ts` now link this file.
+> - `RangeFactory`, whose Go form is the composite literal `&compact.RangeFactory{Hash: h}`, follows the same
+>   pattern as `New`: it is built with `new RangeFactory(h)`, its exported field is the `readonly` property
+>   `hash`, and factories compare by identity as Go's pointers do. `range.ts` documents this in a port note.
+
 ## Alternatives considered
 
 - **Export `newHasher` / `newTree` alongside the constructors.** Rejected: two ways to build one

@@ -52,6 +52,7 @@ import { generateKey, newSigner, newVerifier, type Signer } from "webtessera/not
 import { newIndexedDBDriver } from "webtessera/storage/indexeddb";
 import { MemoryObjectStore } from "webtessera/storage/memory";
 import { fromSqliteSync, newSqliteDriver } from "webtessera/storage/sqlite";
+import { newInProcessLockManager } from "./storage/indexeddb/testing/locks.ts";
 
 // fastOptions keeps the snippets' logs quick to publish under test; the README's
 // snippets use the defaults.
@@ -152,6 +153,9 @@ async function useIndexedDB(): Promise<void> {
 	const signer = createSigner();
 	const ac = new AbortController();
 	const signal = ac.signal;
+	// Node has no Web Locks, and the driver refuses to open without them unless told it is
+	// the only writer; a browser provides navigator.locks in every secure context.
+	vi.stubGlobal("navigator", { locks: newInProcessLockManager() });
 
 	// #region indexeddb_example
 	// The log survives reloads, and several tabs may share it: Web Locks serialise

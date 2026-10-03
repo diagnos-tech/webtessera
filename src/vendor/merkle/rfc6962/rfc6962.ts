@@ -17,6 +17,9 @@
 
 // Package rfc6962 provides hashing functionality according to RFC6962.
 
+// Port note: Go blank-imports `crypto/sha256` here ("SHA256 is the default
+// algorithm."), which registers SHA-256 with `crypto.Hash`; the port imports the
+// noble implementation directly. See docs/decisions/0011-merkle-constructors-and-hash-injection.md.
 import { sha256 } from "@noble/hashes/sha2.js";
 import type { CHash } from "@noble/hashes/utils.js";
 import type { LogHasher } from "../hasher.ts";
@@ -32,11 +35,12 @@ export const RFC6962NodeHashPrefix = 1;
  * registry of hash implementations, and calls `t.New()` to instantiate it. There
  * is no such registry in TypeScript, so the constructor takes the hash function
  * itself — the direct equivalent of upstream's `New(crypto.SHA256)` is
- * `new Hasher(sha256)`. See docs/decisions/0011-merkle-port-divergences.md.
+ * `new Hasher(sha256)`. See docs/decisions/0011-merkle-constructors-and-hash-injection.md.
  */
 export class Hasher implements LogHasher {
 	readonly hash: CHash;
 
+	/** New creates a new Hashers.LogHasher on the passed in hash function. */
 	constructor(hash: CHash) {
 		this.hash = hash;
 	}
@@ -78,5 +82,11 @@ export class Hasher implements LogHasher {
 	}
 }
 
-/** DefaultHasher is a SHA256 based LogHasher. */
+/**
+ * DefaultHasher is a SHA256 based LogHasher.
+ *
+ * Port note: declared after Hasher, where Go declares it before, because a `const`
+ * cannot use a class before the class declaration has run. See
+ * docs/decisions/0011-merkle-constructors-and-hash-injection.md.
+ */
 export const DefaultHasher = new Hasher(sha256);

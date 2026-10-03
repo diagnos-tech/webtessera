@@ -18,7 +18,7 @@
 
 import type { FetchFn } from "../../client/fetcher.ts";
 import { SentinelError, wrapError } from "../../internal/gostd/errors.ts";
-import { newObjectStoreDriver, type ObjectStoreDriver } from "../objectstore/driver.ts";
+import { newObjectStoreDriver, ObjectStoreDriver } from "../objectstore/driver.ts";
 import type { ObjectInfo, ObjectStore } from "../objectstore/objectstore.ts";
 import { type Locker, type LockScope, localLockerFor, newWebLocker } from "./locks.ts";
 
@@ -84,10 +84,23 @@ export interface IndexedDBObjectStoreOptions {
 	 * locks is the Web Locks LockManager through which the store takes its locks. It
 	 * defaults to `globalThis.navigator.locks`, which browsers provide in secure
 	 * contexts (HTTPS and localhost). If it is null, or the default is unavailable,
-	 * locks fall back to excluding holders in the current realm only: see
-	 * IndexedDBObjectStore.lockScope.
+	 * locks can only exclude holders in the current realm, and opening the store fails
+	 * unless singleWriter is true: see IndexedDBObjectStore.lockScope.
 	 */
 	readonly locks?: LockManager | null;
+
+	/**
+	 * singleWriter, when true, declares that this tab or worker is the only context that
+	 * will write the log while the store is open, and so permits the store to open with
+	 * locks that only exclude holders in the current realm when no Web Locks
+	 * LockManager is available (a non-secure origin, an older browser, Node). Without
+	 * it, opening the store fails in that situation rather than run with locks that do
+	 * not exclude other tabs: two contexts appending to one log concurrently each
+	 * believe they hold the tree-state lock and sign checkpoints for diverging trees.
+	 * It has no effect when Web Locks are available, which are always used then.
+	 * See docs/decisions/0201-indexeddb-locks-fail-closed.md.
+	 */
+	readonly singleWriter?: boolean;
 }
 
 /**
@@ -115,8 +128,9 @@ export interface IndexedDBObjectStore extends ObjectStore {
 	 * lockScope is "origin" when locks exclude every tab and worker of the origin, as
 	 * the ObjectStore contract requires of a shared backend, and "realm" when the Web
 	 * Locks API was unavailable and they only exclude holders in this tab or worker.
-	 * With a "realm" scope, the application must itself ensure that only one context
-	 * writes the log at a time.
+	 * A store has a "realm" scope only if it was opened with singleWriter: true, and
+	 * the application must then itself ensure that only one context writes the log at
+	 * a time.
 	 */
 	readonly lockScope: LockScope;
 
@@ -135,6 +149,10 @@ export interface IndexedDBObjectStore extends ObjectStore {
  * If another tab or worker holds the database open with an older schema and does not
  * close it, opening waits for it to do so. If signal aborts before the database is
  * open, openIndexedDBObjectStore rejects with the signal's reason.
+ *
+ * If no Web Locks LockManager is available (opts.locks is null, or
+ * `navigator.locks` is missing), it rejects, before touching the database, unless
+ * opts.singleWriter is true. See docs/decisions/0201-indexeddb-locks-fail-closed.md.
  */
 export async function openIndexedDBObjectStore(
 	opts: IndexedDBObjectStoreOptions,
@@ -150,7 +168,20 @@ export async function openIndexedDBObjectStore(
 	}
 	const manager =
 		opts.locks === undefined ? (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks : opts.locks;
-	const locker = manager === undefined || manager === null ? localLockerFor(factory) : newWebLocker(manager);
+	let locker: Locker;
+	if (manager === undefined || manager === null) {
+		if (opts.singleWriter !== true) {
+			throw new Error(
+				`indexeddb: open database ${JSON.stringify(opts.name)}: the Web Locks API (navigator.locks) is not available ` +
+					"in this context (it requires a secure context: HTTPS or localhost), so locks could not exclude other tabs " +
+					"and workers writing the same log; serve the page from a secure context, pass opts.locks, or pass " +
+					"singleWriter: true if this is the only context that will ever write this log",
+			);
+		}
+		locker = localLockerFor(factory);
+	} else {
+		locker = newWebLocker(manager);
+	}
 
 	const db = await openDatabase(factory, opts.name, signal);
 	return new idbObjectStore(opts.name, db, keyRange, locker);
@@ -160,6 +191,29 @@ export async function openIndexedDBObjectStore(
 export interface IndexedDBDriverConfig extends IndexedDBObjectStoreOptions {
 	/** fetch is used for outgoing HTTP requests, e.g. to witnesses. If unset, the global fetch is used. */
 	readonly fetch?: FetchFn;
+}
+
+/**
+ * IndexedDBDriver is the storage driver newIndexedDBDriver returns: the shared
+ * ObjectStoreDriver, plus the lock scope of the store it runs on.
+ */
+export interface IndexedDBDriver extends ObjectStoreDriver {
+	/**
+	 * lockScope is the effective scope of the store's locks: "origin" (Web Locks), or
+	 * "realm" when the driver was opened with singleWriter: true in a context without
+	 * Web Locks. See IndexedDBObjectStore.lockScope.
+	 */
+	readonly lockScope: LockScope;
+}
+
+/** indexedDBDriver implements IndexedDBDriver. */
+class indexedDBDriver extends ObjectStoreDriver implements IndexedDBDriver {
+	readonly lockScope: LockScope;
+
+	constructor(base: ObjectStoreDriver, lockScope: LockScope) {
+		super(base.cfg);
+		this.lockScope = lockScope;
+	}
 }
 
 /**
@@ -173,10 +227,14 @@ export interface IndexedDBDriverConfig extends IndexedDBObjectStoreOptions {
  * the connection stays open for the life of the realm, or until another context
  * upgrades or deletes the database.
  *
+ * As openIndexedDBObjectStore does, it rejects when no Web Locks LockManager is
+ * available unless cfg.singleWriter is true; the returned driver's lockScope says which
+ * kind of locks it runs with.
+ *
  * To reach the store itself, open it with openIndexedDBObjectStore and pass it to
  * newObjectStoreDriver instead.
  */
-export async function newIndexedDBDriver(cfg: IndexedDBDriverConfig, signal?: AbortSignal): Promise<ObjectStoreDriver> {
+export async function newIndexedDBDriver(cfg: IndexedDBDriverConfig, signal?: AbortSignal): Promise<IndexedDBDriver> {
 	const store = await openIndexedDBObjectStore(cfg, signal);
 	if (signal !== undefined) {
 		if (signal.aborted) {
@@ -185,7 +243,10 @@ export async function newIndexedDBDriver(cfg: IndexedDBDriverConfig, signal?: Ab
 		}
 		signal.addEventListener("abort", () => store.close(), { once: true });
 	}
-	return newObjectStoreDriver(cfg.fetch === undefined ? { store } : { store, fetch: cfg.fetch });
+	return new indexedDBDriver(
+		newObjectStoreDriver(cfg.fetch === undefined ? { store } : { store, fetch: cfg.fetch }),
+		store.lockScope,
+	);
 }
 
 /**

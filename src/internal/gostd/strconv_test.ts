@@ -396,6 +396,11 @@ describe("gostd/strconv", () => {
 			["a\u{1f600}b", '"a\u{1f600}b"'],
 			["a\ufffdb", '"a\ufffdb"'],
 			["a\ud800b", '"a\\ufffdb"'],
+			// Assigned in Unicode 16, unassigned in Go 1.25's Unicode 15.0.0 tables: Go escapes
+			// them whatever the JavaScript engine's Unicode version is, and so does quote.
+			["a\u2ffcb", '"a\\u2ffcb"'],
+			["a\u31efb", '"a\\u31efb"'],
+			["a\u{2ebf0}b", '"a\\U0002ebf0b"'],
 		];
 		for (const [s, want] of tests) {
 			it(`quotes ${JSON.stringify(s)}`, () => {

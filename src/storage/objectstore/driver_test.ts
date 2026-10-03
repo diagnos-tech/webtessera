@@ -28,7 +28,7 @@ import { newPublicationAwaiter } from "../../await.ts";
 import { withCTLayout } from "../../ct_only.ts";
 import { newEntry } from "../../entry.ts";
 import { newFsck } from "../../fsck/fsck.ts";
-import { fromUTF8, toHex, toUTF8 } from "../../internal/gostd/bytes.ts";
+import { fromUTF8, toBase64, toHex, toUTF8 } from "../../internal/gostd/bytes.ts";
 import { ErrNotExist, errorIs } from "../../internal/gostd/errors.ts";
 import { defaultMerkleLeafHasher } from "../../lifecycle.ts";
 import { newMigrationOptions } from "../../migrate_lifecycle.ts";
@@ -282,8 +282,14 @@ describe.concurrent("TestPublishTree", () => {
 				const { appender, reader: lr } = await s.newAppender(logStorage, opts, ctx);
 
 				// Add time as an extension line on the checkpoint so we can easily tell when it's been updated.
+				//
+				// Port note: upstream renders the hash with %x. This port refuses to publish a
+				// checkpoint that does not parse as one for the tree it was asked to sign
+				// (docs/decisions/0205-checkpoint-publication-fails-closed.md), and a hex root is
+				// not the base64 root a checkpoint carries, so the fake publisher writes base64.
+				// The timestamp extension line, which is what the test observes, is unchanged.
 				appender.newCP = async (size: bigint, hash: Uint8Array): Promise<Uint8Array> =>
-					toUTF8(`origin\n${size}\n${toHex(hash)}\n${Math.floor(Date.now() / 1000)}\n,`);
+					toUTF8(`origin\n${size}\n${toBase64(hash)}\n${Math.floor(Date.now() / 1000)}\n,`);
 
 				await appender.publishCheckpoint(test.publishInterval, test.republishInterval ?? 0, ctx);
 
@@ -444,6 +450,49 @@ describe("ObjectStoreDriver", () => {
 			"failed to load checkpoint for log: error in Unmarshal: json: missing field treeState.root",
 		);
 		expect(fromUTF8((await store.get(".state/treeState")) as Uint8Array)).toBe('{"size":12}');
+	});
+
+	// Not upstream: docs/decisions/0205-checkpoint-publication-fails-closed.md. Go's posix
+	// driver starts a fresh tree here.
+	it("refuses to start a new tree over a published checkpoint when the tree state is missing", async () => {
+		const ac = new AbortController();
+		try {
+			const store = new MemoryObjectStore();
+			const [sk] = mustGenerateKeys();
+			const opts = testOptions(sk);
+			const s = newMemoryDriver({ store });
+			const { appender } = await s.newAppender(new logResourceStorage(s, opts.entriesPath()), opts, ac.signal);
+			await appender.sequenceBatch([newEntry(toUTF8("a")), newEntry(toUTF8("b"))]);
+			await appender.publishCheckpoint(0, 0, ac.signal);
+			const published = await store.get(CheckpointPath);
+			const bundle = await store.get("tile/entries/000.p/2");
+
+			await store.deletePrefix(".state/treeState");
+			await expect(newMemoryDriver({ store }).appender(opts, ac.signal)).rejects.toThrow(
+				new Error(
+					'refusing to initialise a new tree: .state/treeState does not exist but a checkpoint is already published at "checkpoint"; starting over would fork the published log (restore .state/treeState, or start the new log in an empty store)',
+				),
+			);
+			// Nothing was rewritten.
+			expect(await store.get(CheckpointPath)).toEqual(published);
+			expect(await store.get("tile/entries/000.p/2")).toEqual(bundle);
+			expect(await store.get(".state/treeState")).toBeUndefined();
+		} finally {
+			ac.abort();
+		}
+	});
+
+	it("still initialises a store that has neither tree state nor checkpoint", async () => {
+		const ac = new AbortController();
+		try {
+			const store = new MemoryObjectStore();
+			await store.put(".state/version", toUTF8("1"));
+			const [sk] = mustGenerateKeys();
+			await newMemoryDriver({ store }).appender(testOptions(sk), ac.signal);
+			expect(await store.stat(CheckpointPath)).toBeDefined();
+		} finally {
+			ac.abort();
+		}
 	});
 
 	it("reports a missing tree state as ErrNotExist", async () => {
@@ -631,6 +680,46 @@ describe("appender", () => {
 			ac.abort();
 		}
 	});
+
+	// Not upstream: docs/decisions/0205-checkpoint-publication-fails-closed.md.
+	for (const test of [
+		{
+			name: "an empty checkpoint",
+			cp: (): Uint8Array => new Uint8Array(0),
+			want: 'does not parse, refusing to publish it: invalid checkpoint: ""',
+		},
+		{
+			name: "garbage",
+			cp: (): Uint8Array => toUTF8("garbage"),
+			want: 'does not parse, refusing to publish it: invalid checkpoint: "garbage"',
+		},
+		{
+			name: "a checkpoint for another size",
+			cp: (): Uint8Array => toUTF8(`testlog\n7\n${"A".repeat(43)}=\n`),
+			want: "newCP returned a checkpoint for a different tree (size 7,",
+		},
+	]) {
+		it(`refuses to publish ${test.name} and keeps the published checkpoint`, async () => {
+			const ac = new AbortController();
+			try {
+				const store = new MemoryObjectStore();
+				const [sk] = mustGenerateKeys();
+				const opts = testOptions(sk);
+				const s = newMemoryDriver({ store });
+				const { appender } = await s.newAppender(new logResourceStorage(s, opts.entriesPath()), opts, ac.signal);
+				await appender.sequenceBatch([newEntry(toUTF8("a"))]);
+				const before = await store.get(CheckpointPath);
+				appender.newCP = async () => test.cp();
+				const err = await appender.publishCheckpoint(0, 0, ac.signal).catch((e: unknown) => e);
+				expect((err as Error).message).toContain(test.want);
+				expect(await store.get(CheckpointPath)).toEqual(before);
+				// The log can still publish once the publisher behaves.
+				expect(await appender.publishedSize()).toBe(0n);
+			} finally {
+				ac.abort();
+			}
+		});
+	}
 
 	it("waits out the checkpoint interval before publishing an integration", async () => {
 		const ac = new AbortController();
