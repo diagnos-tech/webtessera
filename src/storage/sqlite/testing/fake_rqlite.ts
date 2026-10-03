@@ -29,8 +29,13 @@ const rewritten = /time\(|date\(|julianday\(|unixepoch\(|random\(|randomblob\(|e
 /** FakeRqlite is the fake node: its fetch function and what it has seen. */
 export interface FakeRqlite {
 	readonly fetch: (input: string, init?: RequestInit) => Promise<Response>;
-	/** requests records each request's URL and headers. */
-	readonly requests: { url: string; headers: Headers }[];
+	/** requests records each request's URL, headers, and credentials and redirect modes. */
+	readonly requests: {
+		url: string;
+		headers: Headers;
+		credentials: RequestCredentials | undefined;
+		redirect: RequestRedirect | undefined;
+	}[];
 	/** failNext, if set, makes the next request fail with this HTTP status. */
 	failNext: number | undefined;
 }
@@ -42,7 +47,12 @@ export function newFakeRqlite(db: DatabaseSync): FakeRqlite {
 		failNext: undefined,
 		fetch: async (input, init) => {
 			const url = new URL(input);
-			fake.requests.push({ url: input, headers: new Headers(init?.headers) });
+			fake.requests.push({
+				url: input,
+				headers: new Headers(init?.headers),
+				credentials: init?.credentials,
+				redirect: init?.redirect,
+			});
 			if (fake.failNext !== undefined) {
 				const status = fake.failNext;
 				fake.failNext = undefined;

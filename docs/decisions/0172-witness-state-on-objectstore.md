@@ -46,3 +46,12 @@ or two racing requests can roll a log back. The witness must run on every backen
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+The rollback guarantee rests on `lock` excluding every writer of the store. On a SQLite file it did not by
+default: stores defaulted to local locking, and the review's two witness servers on two connections to one
+file both cosigned from old size 0 and left the log rolled back to the smaller size. SQLite stores now
+default to lease locking for every database that is not provably private
+([ADR-0210](0210-sqlite-locking-fails-closed.md)), and `sqlite_test.ts` races two witnesses on two
+connections to one file: exactly one succeeds, and the stored size is the winner's.

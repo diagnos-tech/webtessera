@@ -79,3 +79,23 @@ API changes.
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+- **Signers must make cosignature/v1 signatures.** `newWitnessServer` has `signer` and each of
+  `additionalSigners` sign a probe at construction, and throws unless the signature has the cosignature/v1
+  shape (a positive 8-byte timestamp and a 64-byte Ed25519 signature) and, when the signer can produce its
+  verifier (as `newSignerForCosignatureV1`'s can), that verifier has the signer's name and key hash and
+  accepts the signature. The review showed that a plain Ed25519 note signer was accepted and answered
+  add-checkpoint with what verifies as the witness key's own signed note over the request's text,
+  extension lines included. This narrows "Any `note.Signer` can be passed, so an ML-DSA signer can be added
+  later without API changes" above: an ML-DSA cosigner would need this check extended, which is no API
+  change but is a code change. A custom cosignature/v1 signer without a `verifier()` is held to the shape
+  alone.
+- **Looked-up keys are checked once.** The key separation check costs a signature verification per key
+  and per witness signer, and ran on every request for an origin found through `lookupLog`. The witness now
+  keeps, per key string (at most 4,096, least recently used first out), the verifier and its verdict, and per
+  `Verifier` object (weakly) the verdict. `lookupLog` itself still runs on every request, before any
+  signature is checked; its documentation now says bounding that cost is the caller's job and recommends a
+  bounded, short-lived cache of answers, unknown origins included.
+- `maxBodyBytes` must be a positive safe integer ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).

@@ -74,3 +74,19 @@ New module `webtessera/http` (`src/http/`), with no upstream counterpart:
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+Three changes from the security review, recorded in
+[ADR-0212](0212-http-request-targets-limits-and-error-bodies.md):
+
+- `toNodeListener` passes only origin-form request-targets to the handler, set as the URL's path and query
+  rather than resolved against the origin (`//x/checkpoint` used to become host `x`, path `/checkpoint`);
+  other forms get 400, `OPTIONS *` gets 204, and a `Host` header that is not a bare authority gets 400.
+- Every size cap is checked as a positive safe integer where it is given: `readEntryBody`'s `maxBytes` and
+  `toNodeListener`'s `maxBodyBytes` (a NaN cap used to cap nothing), and CORS's `maxAgeSeconds` as a
+  non-negative one.
+- `addErrorResponse` answers 500 with a generic body unless `{ detail: true }` is passed, no longer with
+  the error's text as upstream's personalities do. The handler's documentation now warns that over an
+  `HTTPFetcher` it re-serves a remote log unverified, with immutable caching, and points to
+  `newVerifiedMirror`.

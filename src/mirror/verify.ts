@@ -23,6 +23,7 @@
 import { partialTileSize, TileHeight, TileWidth } from "../api/layout/index.ts";
 import type { FetchFn } from "../client/fetcher.ts";
 import { fetchRangeNodes, newHTTPFetcher, newProofBuilder } from "../client/index.ts";
+import { positiveInteger } from "../http/handler.ts";
 import { trimToWidth } from "../http/partial.ts";
 import { bytesEqual } from "../internal/gostd/bytes.ts";
 import { ErrNotExist, errorIs } from "../internal/gostd/errors.ts";
@@ -84,6 +85,12 @@ interface tree {
  * mirror reads them. Anything else, including a resource that does not verify, is an error,
  * so a mirror built on this source writes nothing it has not verified, and writes its
  * checkpoint only once every resource under it has been.
+ *
+ * A VerifyingSource serves one mirror run at a time: each readCheckpoint starts a new
+ * verification, and a resource read that was in progress when it started fails rather than
+ * be verified against a checkpoint its run never read. Every array it returns is its own
+ * copy, taken before verifying, so neither the source nor the target can change verified
+ * bytes afterwards. newVerifiedMirror takes care of all of this.
  */
 export function newVerifyingSource(source: Source, options: VerifyingSourceOptions): VerifyingSource {
 	return new VerifyingSource(source, options);
@@ -103,7 +110,7 @@ export class VerifyingSource implements Source {
 
 	async readCheckpoint(signal?: AbortSignal): Promise<Uint8Array> {
 		this.#tree = undefined;
-		const raw = await this.#source.readCheckpoint(signal);
+		const raw = (await this.#source.readCheckpoint(signal)).slice();
 		const { size, root } = this.#verifyCheckpoint(raw, "source");
 
 		const t: tree = { size, root, tiles: new Map(), leafTiles: new Map() };
@@ -119,7 +126,7 @@ export class VerifyingSource implements Source {
 			const nodes = await fetchRangeNodes(
 				size,
 				async (l, i, p, s) => {
-					const tile = trimTile(await this.#source.readTile(l, i, p, s), p);
+					const tile = trimTile((await this.#source.readTile(l, i, p, s)).slice(), p);
 					fetched.set(tileKey(l, i, p), tile);
 					return tile;
 				},
@@ -140,24 +147,25 @@ export class VerifyingSource implements Source {
 			await this.#checkTarget(this.#options.target, size, root, signal);
 		}
 		this.#tree = t;
-		return raw;
+		return raw.slice();
 	}
 
 	async readTile(l: bigint, i: bigint, p: number, signal?: AbortSignal): Promise<Uint8Array> {
 		const t = this.#current();
 		checkImplied(t, l, i, p);
 		const tile = await this.#verifiedTile(t, l, i, p, signal);
+		this.#stillCurrent(t);
 		if (l === 0n && p === 0) {
 			// Kept for readEntryBundle, which the mirror calls next for the same index.
 			t.leafTiles.set(tileKey(l, i, p), Promise.resolve(tile));
 		}
-		return tile;
+		return tile.slice();
 	}
 
 	async readEntryBundle(i: bigint, p: number, signal?: AbortSignal): Promise<Uint8Array> {
 		const t = this.#current();
 		checkImplied(t, 0n, i, p);
-		const raw = await this.#source.readEntryBundle(i, p, signal);
+		const raw = (await this.#source.readEntryBundle(i, p, signal)).slice();
 		if (raw.length > MaxResourceBytes) {
 			throw verificationFailed(`entry bundle ${i} exceeds ${MaxResourceBytes} bytes`);
 		}
@@ -180,6 +188,7 @@ export class VerifyingSource implements Source {
 				throw verificationFailed(`entry ${BigInt(k) + i * tileWidth64} does not hash to its leaf in the verified tile`);
 			}
 		}
+		this.#stillCurrent(t);
 		return bundle;
 	}
 
@@ -188,6 +197,19 @@ export class VerifyingSource implements Source {
 			throw verificationFailed("readCheckpoint must succeed before resources can be verified");
 		}
 		return this.#tree;
+	}
+
+	/**
+	 * stillCurrent refuses a resource verified against t once readCheckpoint has started
+	 * another verification: the read belongs to a run that is not the latest, whose
+	 * checkpoint may not be the one the resource is about to be written under.
+	 */
+	#stillCurrent(t: tree): void {
+		if (this.#tree !== t) {
+			throw verificationFailed(
+				"the source checkpoint was read again while a resource was being verified; a VerifyingSource serves one mirror run at a time",
+			);
+		}
 	}
 
 	#verifyCheckpoint(raw: Uint8Array, which: string): { size: bigint; root: Uint8Array } {
@@ -254,7 +276,7 @@ export class VerifyingSource implements Source {
 			return Promise.reject(verificationFailed(`partial tile ${key} is not implied by the verified checkpoint`));
 		}
 		const verified = (async () => {
-			const raw = await this.#source.readTile(l, i, 0, signal);
+			const raw = (await this.#source.readTile(l, i, 0, signal)).slice();
 			if (raw.length !== TileWidth * hashSize) {
 				throw verificationFailed(`full tile ${key} is ${raw.length} bytes, want ${TileWidth * hashSize}`);
 			}
@@ -296,7 +318,7 @@ export interface VerifiedMirrorOptions {
 	readonly origin: string;
 	/** verifier checks the source log's signature. */
 	readonly verifier: Verifier;
-	/** numWorkers is how many resources are copied at once. Defaults to 30. */
+	/** numWorkers is how many resources are copied at once: a positive integer, 30 by default. */
 	readonly numWorkers?: number;
 	/** fetch makes the requests for a URL source. Defaults to the global fetch. */
 	readonly fetch?: FetchFn;
@@ -319,7 +341,9 @@ export interface VerifiedMirrorOptions {
  * ```
  *
  * Running it again later copies only what the source has added since, after checking that
- * the source still extends what was copied.
+ * the source still extends what was copied. Each run verifies afresh, and a run started
+ * while another is in progress fails at once: two runs of one mirror would write into the
+ * same target, under checkpoints each read separately.
  */
 export function newVerifiedMirror(options: VerifiedMirrorOptions): Mirror {
 	const target = isTarget(options.target) ? options.target : newSinkTarget(options.target);
@@ -330,10 +354,39 @@ export function newVerifiedMirror(options: VerifiedMirrorOptions): Mirror {
 					newSourceFetch(options.fetch === undefined ? {} : { fetch: options.fetch }),
 				)
 			: options.source;
-	const source = newVerifyingSource(raw, { origin: options.origin, verifier: options.verifier, target });
-	return new Mirror(
-		options.numWorkers === undefined ? { source, target } : { source, target, numWorkers: options.numWorkers },
+	const numWorkers = positiveInteger("newVerifiedMirror: numWorkers", options.numWorkers ?? 30);
+	return new verifiedMirror(
+		() => newVerifyingSource(raw, { origin: options.origin, verifier: options.verifier, target }),
+		target,
+		numWorkers,
 	);
+}
+
+/**
+ * verifiedMirror is the Mirror newVerifiedMirror returns: each run gets a VerifyingSource of
+ * its own, so that nothing one run verified is trusted by another, and runs never overlap.
+ */
+class verifiedMirror extends Mirror {
+	readonly #newSource: () => Source;
+	#running = false;
+
+	constructor(newSource: () => Source, target: Target, numWorkers: number) {
+		super({ source: newSource(), target, numWorkers });
+		this.#newSource = newSource;
+	}
+
+	override async run(signal?: AbortSignal): Promise<void> {
+		if (this.#running) {
+			throw new Error("this verified mirror is already running; wait for that run to finish before starting another");
+		}
+		this.#running = true;
+		try {
+			this.source = this.#newSource();
+			await super.run(signal);
+		} finally {
+			this.#running = false;
+		}
+	}
 }
 
 function isTarget(t: Target | Sink): t is Target {

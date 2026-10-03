@@ -15,7 +15,8 @@
 // This file has no upstream counterpart. It is what the adapters for in-process SQLite
 // engines share: node:sqlite, bun:sqlite and better-sqlite3 (./sync.ts) and SQLite
 // compiled to WebAssembly (./wasm.ts) all run statements synchronously on one connection
-// the caller opened. See docs/decisions/0153-sqlite-durability.md.
+// the caller opened. See docs/decisions/0153-sqlite-durability.md and
+// docs/decisions/0210-sqlite-locking-fails-closed.md.
 
 import type { SqlDatabase, SqliteLocking, SqlRow, SqlValue } from "../database.ts";
 import { asInteger } from "../values.ts";
@@ -33,13 +34,14 @@ export const DefaultBusyTimeoutMs = 5000;
 
 /**
  * newSyncDatabase returns a SqlDatabase over a synchronous engine, after making the
- * connection safe for a log:
+ * connection safe for a log. Its default locking is defaultLocking if given, and otherwise
+ * that of mainDatabaseLocking. The connection is set up as follows:
  *
+ *   - `PRAGMA busy_timeout` is set to DefaultBusyTimeoutMs if it is 0, SQLite's default.
  *   - `PRAGMA synchronous` is raised to FULL if it is lower, so that a committed batch has
  *     reached stable storage, in rollback-journal and WAL mode alike, by the time it
  *     resolves. better-sqlite3, for one, builds SQLite with WAL commits at NORMAL, which
  *     can lose the latest commits on power loss.
- *   - `PRAGMA busy_timeout` is set to DefaultBusyTimeoutMs if it is 0, SQLite's default.
  *
  * Both settings belong to the connection and are not persisted; the journal mode, which
  * is persisted and affects every user of the file, is left alone.
@@ -52,17 +54,20 @@ export const DefaultBusyTimeoutMs = 5000;
  * Leases are timed by SQLite's clock, which for an in-process engine is the machine's:
  * the one clock every process sharing a database file on it reads.
  */
-export function newSyncDatabase(run: runFunc, defaultLocking: SqliteLocking = "local"): SqlDatabase {
+export function newSyncDatabase(run: runFunc, defaultLocking?: SqliteLocking): SqlDatabase {
 	const rows = (sql: string, params: readonly SqlValue[]): SqlRow[] => run(sql, params).map(normalizeRow);
-	if (asInteger(rows("PRAGMA synchronous", [])[0]?.synchronous, "PRAGMA synchronous") < 2) {
-		run("PRAGMA synchronous = FULL", []);
-	}
+	// The busy timeout comes first: it is the one setting read without the schema, which
+	// the others load, and loading it waits for another process's write only once the
+	// timeout is set.
 	if (asInteger(rows("PRAGMA busy_timeout", [])[0]?.timeout, "PRAGMA busy_timeout") === 0) {
 		run(`PRAGMA busy_timeout = ${DefaultBusyTimeoutMs}`, []);
 	}
+	if (asInteger(rows("PRAGMA synchronous", [])[0]?.synchronous, "PRAGMA synchronous") < 2) {
+		run("PRAGMA synchronous = FULL", []);
+	}
 
 	return {
-		defaultLocking,
+		defaultLocking: defaultLocking ?? mainDatabaseLocking(rows("PRAGMA database_list", [])),
 		leaseClock: "database",
 		query: async (s) => rows(s.sql, s.params),
 		batch: async (statements) => {
@@ -82,4 +87,18 @@ export function newSyncDatabase(run: runFunc, defaultLocking: SqliteLocking = "l
 			}
 		},
 	};
+}
+
+/**
+ * mainDatabaseLocking returns the locking a connection's main database calls for, given
+ * the rows of `PRAGMA database_list`: "local" if its file name is empty, which is how
+ * SQLite reports an in-memory or temporary database, and "lease" for a file, which any
+ * other connection or process may open too.
+ *
+ * It asks SQLite itself rather than the binding, so it holds for every binding alike: the
+ * name it reads is the one node:sqlite's `location()`, better-sqlite3's `memory` and
+ * bun:sqlite's `filename` are derived from.
+ */
+export function mainDatabaseLocking(databases: readonly SqlRow[]): SqliteLocking {
+	return databases.find((d) => d.name === "main")?.file === "" ? "local" : "lease";
 }
