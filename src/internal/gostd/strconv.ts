@@ -1,4 +1,5 @@
 // Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2013 The Go Authors. All rights reserved. (isprint.go)
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
 // This file has mixed provenance. parseUint, underscoreOK, lower, NumError, ErrSyntax and

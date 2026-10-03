@@ -93,7 +93,7 @@ user-visible change has a `CHANGELOG.md` entry.
 
 ### 2.6 Web storage drivers (no Go original)
 
-The `ObjectStore` contract, the driver and the memory, IndexedDB and Durable Object backends
+The `ObjectStore` contract, the driver and the memory, IndexedDB and SQLite backends
 (`PORTING.md` §8) have no Go file to be compared with, so the questions change:
 
 - Does the backend honour every sentence of the contract in `src/storage/objectstore/objectstore.ts`

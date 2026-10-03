@@ -8,6 +8,7 @@ rules, and [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the workflow.
 | --- | --- |
 | [`PORTING-MAP.md`](PORTING-MAP.md) | The file-by-file status of the port: one row per upstream Go file. |
 | [`compatibility.md`](compatibility.md) | How byte compatibility with Tessera is proven, per backend and in both directions, and how to reproduce it. |
+| [`RELEASING.md`](RELEASING.md) | How a release is prepared, published to npm and GitHub Packages, and verified. |
 | [`REVIEW-PROTOCOL.md`](REVIEW-PROTOCOL.md) | What a reviewer checks, in priority order, for ports, ADRs and pull requests. |
 | [`decisions/`](decisions/) | Architecture decision records (ADRs): every divergence from Go and every file not ported. |
 | [`notes/`](notes/) | Free-form analysis that is not (yet) a decision. |
@@ -36,15 +37,23 @@ How to read them:
 - **Status matters.** An ADR is in force only once someone other than its author has signed its
   `## Review` section. A superseded ADR is kept, marked, and points at its replacement.
 - **They are historical.** An accepted ADR is not rewritten to match later thinking; it is
-  superseded by a new one. Two small exceptions: private paths have been generalised, and an `Update`
-  section may record that an open obligation has since been met.
-- **Numbers group by area**, because they were allocated in blocks during the initial port: roughly
+  superseded by a new one. Two small exceptions: private paths have been generalised, and a dated
+  `Update` note may record that an open obligation has since been met, that a later ADR supersedes
+  part of the decision, or that a count or a claim was wrong.
+- **Numbers group by area**, because they were allocated in blocks as the port grew: roughly
   0001–0006 foundations, 0010s Merkle, 0020s `note` and the Go standard-library stand-ins, 0030s API
   and test conventions, 0040s CT, 0050s `storage/internal`, 0060s `client`, 0070s witness and
   migrate, 0080s append lifecycle, 0090s `list` and `fsck`, 0100s the ObjectStore storage engine and
-  memory driver, 0110s IndexedDB, 0120s Durable Objects, 0130s the remaining root-package ports and
-  the package barrel, 0140s testonly, the README check, scope disposition and shared locks. New ADRs
-  take the next unused number.
+  memory driver, 0110s IndexedDB, 0120s the Durable Object backend (superseded by the SQLite backend,
+  where a Durable Object is one engine among several), 0130s the remaining root-package ports and the
+  package barrel, 0140s testonly, the README check, scope disposition and shared locks, 0150s the
+  SQLite backend, 0160s the compatibility suites (the golden suite for every backend, the `.state/`
+  fixtures, the Go interop harness), 0170s the protocol modules (`http`, `witness`, `mirror`) and
+  the `formats/note` additions they need, 0180s the fixes to the root package, 0190s the fixes to
+  `client`, `fsck`, `storage/internal` and the witness client, 0200s hardening (input validation,
+  fail-closed locks and publication, and the `merkle`, `note` and Go standard-library fixes that go
+  with them). 0215–0219 are the differential tests and the test-parity check, and 0220–0239 are
+  reserved for the safe high-level API, which is in progress. New ADRs take the next unused number.
 - **"Work package" and "wave"** in the older ADRs refer to the initial port's work plan, an internal
   coordination document that is not part of this repository. Read them as "the files this change
   covered".
@@ -61,8 +70,9 @@ with the TypeScript file that replaces it, a status, and a count of test cases o
   counterpart. A TS count above the Go count means the port added cases, which the `notes` column
   says.
 - Below the main table are the ports of Tessera's *dependencies* (`src/vendor/`, the Go
-  standard-library stand-ins in `src/internal/gostd/`), the golden-fixture coverage table, and the
-  open items.
+  standard-library stand-ins in `src/internal/gostd/`), the code this port adds (the storage
+  backends, `webtessera/http`, `webtessera/witness` and `webtessera/mirror`), the golden-fixture
+  coverage table, and the open items.
 - Update it in the same pull request as the code it describes (`PORTING.md` §4, step 5).
 
 ## Notes
