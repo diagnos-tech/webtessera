@@ -120,5 +120,9 @@ dist
 __screenshots__/
 .vitest-attachments/
 
+# Local Claude Code state: agent worktrees and personal settings
+.claude/worktrees/
+.claude/settings.local.json
+
 # Upstream Tessera checkout made by `pnpm upstream` (see scripts/upstream.json)
 .upstream/
