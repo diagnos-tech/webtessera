@@ -31,6 +31,9 @@ Go client, and the other way round.
   Any key/value store can be plugged in by implementing a six-method contract.
 - **Verification**: checkpoint fetching, inclusion and consistency proofs, entry streaming, a
   client-side log state tracker, and `fsck` for whole-log integrity checks.
+- **Serving, witnessing and mirroring**: a fetch-style handler that serves the tlog-tiles API, a
+  [tlog-witness](https://c2sp.org/tlog-witness) server, and a mirror that verifies a log before it
+  copies it into any S3-compatible bucket or `ObjectStore`.
 - **Static CT API** support for Certificate Transparency logs.
 - **Small and portable**: ESM with type declarations, no Node built-ins, and only two runtime
   dependencies, the audited [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) and
@@ -197,6 +200,40 @@ verifyInclusion(DefaultHasher, index.index, checkpoint.size, DefaultHasher.hashL
 
 A `LogReader` from `newAppender` can stand in for the HTTP fetcher when the log is local.
 
+## Serving, witnessing and mirroring
+
+Three packages put a log to use once it exists. Tessera leaves serving and witnessing to the programs
+built on it, and its mirror is an experimental command; here they are libraries. Each one's module
+comment (`src/http/index.ts`, `src/witness/index.ts`, `src/mirror/index.ts`) has a worked example.
+
+- **Serving.** `newLogHandler` from `webtessera/http` serves the [tlog-tiles](https://c2sp.org/tlog-tiles)
+  read API (the checkpoint, tiles and entry bundles, for `GET` and `HEAD`) from any `LogReader`: the one
+  `newAppender` returns, or an `HTTPFetcher`, which turns the handler into a caching proxy for a remote log.
+  It is a plain function from `Request` to `Response`, so it runs unchanged in Deno, Bun, Workers and
+  service workers, and `toNodeListener` adapts it to `node:http`. It sets the content types and cache
+  headers the specification gives, accepts only canonical paths, and adds CORS headers when asked, so
+  that a log in a browser tab can be verified from another origin. `combineHandlers` joins several
+  handlers into the one function a runtime expects. Appending stays the application's job, as in
+  Tessera; `readEntryBody`, `addResponse` and `addErrorResponse` give a `POST /add` endpoint the
+  conventions Tessera's own personalities follow.
+- **Witnessing.** The root package already holds a log's side of the
+  [tlog-witness](https://c2sp.org/tlog-witness) protocol (`newWitnessGroupFromPolicy`, `withWitnesses`).
+  `newWitnessServer` from `webtessera/witness` is the other side: it checks that each checkpoint a log
+  submits is consistent with the last one it cosigned, then returns a cosignature. It keeps its state in
+  any `ObjectStore`, so it runs wherever a log does, and it can be given a fixed list of logs or a
+  `lookupLog` function for an open-ended set. Its `handle` is a `webtessera/http` handler, and
+  `addCheckpoint` makes the same call without HTTP. `vKeyToCosignatureV1` turns the witness's public key
+  into the form a log operator names in a witness policy. A log's witness URLs must use `https`, or
+  `http` for a loopback address.
+- **Mirroring.** `Mirror` from `webtessera/mirror` is the port of Tessera's experimental mirror: it
+  copies the tiles and entry bundles a target lacks, in parallel, and writes the source checkpoint last.
+  Like the original, it copies bytes without checking them, so for a log you do not operate use
+  `newVerifiedMirror`: it checks the log's signature on the checkpoint, that the checkpoint extends what
+  was mirrored before, and every tile and bundle against it, before anything is written. A target is any
+  `ObjectStore`, a bucket on a service that speaks the S3 API (AWS S3, Cloudflare R2 or MinIO, say)
+  through `newS3Sink`, which signs requests with AWS Signature Version 4 over `fetch` and needs no SDK, or
+  anything with a `put` method.
+
 ## Packages
 
 The package is split the way Tessera is split into Go packages:
@@ -206,10 +243,14 @@ The package is split the way Tessera is split into Go packages:
 | `webtessera` | `tessera` | appender, options, publication awaiter, antispam, witnessing, migration |
 | `webtessera/client` | `tessera/client` | fetchers, proof building, entry streaming, log state tracking |
 | `webtessera/storage/*` | `tessera/storage/*` | storage drivers (see above) |
+| `webtessera/storage/sqlite` | — | the SQLite driver and one adapter per engine |
 | `webtessera/api`, `webtessera/api/layout` | `tessera/api`, `tessera/api/layout` | tile and entry-bundle formats, tlog-tiles paths |
 | `webtessera/fsck` | `tessera/fsck` | whole-log verification |
 | `webtessera/ctonly` | `tessera/ctonly` | Static CT API entries |
 | `webtessera/testonly` | `tessera/testonly` | an in-memory test log for your own tests |
+| `webtessera/http` | — | serves a log over the tlog-tiles HTTP API, as a fetch-style handler |
+| `webtessera/witness` | — | a tlog-witness server, the other side of the witnessing in `webtessera` |
+| `webtessera/mirror` | `tessera/cmd/experimental/mirror` | copies a log into S3-compatible storage or any `ObjectStore` |
 | `webtessera/note` | `golang.org/x/mod/sumdb/note` | signed notes, signers and verifiers |
 | `webtessera/formats/log` | `transparency-dev/formats/log` | checkpoints |
 | `webtessera/merkle/*` | `transparency-dev/merkle/*` | RFC 6962 hashing, compact ranges, proofs |
