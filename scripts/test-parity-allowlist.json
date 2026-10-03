@@ -1,0 +1,85 @@
+{
+  "description": "Upstream Go tests deliberately left without a TypeScript counterpart, read by scripts/test-parity.mjs (pnpm test:parity). A key is \"<Go import path>.<test name>\", where \"*\" matches any run of characters. Every entry cites the ADR that decided it; the script fails if an ADR is missing, if an entry no longer matches anything, or if a listed test has since been ported.",
+  "entries": {
+    "*.Benchmark*": {
+      "adrs": ["0034"],
+      "reason": "Go benchmarks are not ported; vitest has no equivalent harness and none of them asserts behaviour."
+    },
+    "github.com/transparency-dev/merkle/compact.FuzzRangeNodes": {
+      "adrs": ["0015"],
+      "reason": "Fuzz target; its property is covered exhaustively by TestGenRangeNodes and by differential_compact.json."
+    },
+    "github.com/transparency-dev/merkle/testonly.Fuzz*": {
+      "adrs": ["0015"],
+      "reason": "Fuzz targets; their properties are covered by the Tree tests, proof_*.json and the differential_proof_*.json corpora."
+    },
+    "github.com/transparency-dev/formats/note.TestRFC6962VerifierString": {
+      "adrs": ["0071"],
+      "reason": "note_rfc6962.go (RFC 6962 STH verifiers) is not ported."
+    },
+    "github.com/transparency-dev/formats/note.TestVerify": {
+      "adrs": ["0071"],
+      "reason": "note_rfc6962.go (RFC 6962 STH verifiers) is not ported."
+    },
+    "github.com/transparency-dev/formats/note.TestRFC6962STHToCheckpoint": {
+      "adrs": ["0071"],
+      "reason": "note_rfc6962.go (RFC 6962 STH verifiers) is not ported."
+    },
+    "github.com/transparency-dev/formats/note.TestSignerVerifierFromEd25519Key": {
+      "adrs": ["0071"],
+      "reason": "note_verifier.go (algorithm-dispatching NewVerifier, ECDSA) is not ported."
+    },
+    "github.com/transparency-dev/formats/note.TestNewVerifier": {
+      "adrs": ["0071"],
+      "reason": "note_verifier.go (algorithm-dispatching NewVerifier, ECDSA) is not ported."
+    },
+    "github.com/transparency-dev/formats/note.TestNewECDSAVerifier": {
+      "adrs": ["0071"],
+      "reason": "note_verifier.go (algorithm-dispatching NewVerifier, ECDSA) is not ported."
+    },
+    "github.com/transparency-dev/formats/note.TestECDSAVerifier": {
+      "adrs": ["0071"],
+      "reason": "note_verifier.go (algorithm-dispatching NewVerifier, ECDSA) is not ported."
+    },
+    "github.com/transparency-dev/tessera/cmd/fsck/tui.*": {
+      "adrs": ["0093"],
+      "reason": "cmd/fsck's terminal UI is not ported."
+    },
+    "github.com/transparency-dev/tessera/integration*": {
+      "adrs": ["0141"],
+      "reason": "integration/ (the live-log suite and fault injection) is not ported as files; describeDriverConformance covers every backend end to end, and pnpm interop drives the real Go code."
+    },
+    "github.com/transparency-dev/tessera/internal/hammer*": {
+      "adrs": ["0141"],
+      "reason": "internal/hammer is a load-test command with a terminal UI; not ported."
+    },
+    "github.com/transparency-dev/tessera/storage/aws*": {
+      "adrs": ["0141"],
+      "reason": "The AWS driver and its antispam are not ported; backends plug in through the ObjectStore contract."
+    },
+    "github.com/transparency-dev/tessera/storage/gcp*": {
+      "adrs": ["0141"],
+      "reason": "The GCP driver and its antispam are not ported; backends plug in through the ObjectStore contract."
+    },
+    "github.com/transparency-dev/tessera/storage/mysql*": {
+      "adrs": ["0141"],
+      "reason": "The MySQL driver is not ported; backends plug in through the ObjectStore contract."
+    },
+    "github.com/transparency-dev/tessera/storage/posix/antispam.*": {
+      "adrs": ["0141"],
+      "reason": "The Badger-backed POSIX antispam is not ported."
+    },
+    "golang.org/x/crypto/cryptobyte.Test*ASN1*": {
+      "adrs": ["0040"],
+      "reason": "cryptobyte's ASN.1 support is not ported; Tessera parses no DER."
+    },
+    "golang.org/x/crypto/cryptobyte.Example*_aSN1": {
+      "adrs": ["0040"],
+      "reason": "cryptobyte's ASN.1 support is not ported; Tessera parses no DER."
+    },
+    "golang.org/x/crypto/cryptobyte.TestFixedBuilder*": {
+      "adrs": ["0040"],
+      "reason": "NewFixedBuilder is not ported: a Uint8Array has no spare capacity (ADR-0041)."
+    }
+  }
+}

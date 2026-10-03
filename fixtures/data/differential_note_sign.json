@@ -1,0 +1,1518 @@
+{
+  "description": "Differential corpus for sumdb/note Sign: texts with and without a final newline, controls and BOM, existing verified and unverified signatures (valid and malformed), and signers under valid and invalid names. Records the error text or the signed note's exact bytes.",
+  "upstream": "golang.org/x/mod/sumdb/note",
+  "commit": "4a6d9f9",
+  "columns": {"cases":["text","sigs [name, hash, base64]","unverifiedSigs","signer indices into signers","err","msgHex"],"signers":["name","ed25519SeedHex","keyHash"]},
+  "signers": [
+    ["alpha","5e4621058869258edf84c732c46a38e2f821b3129f6117923c063c92b13596a2",1245191902],
+    ["Señor","68189dd1e3bdd9dfdf0b80356cef98c07b94dae2d38ef5a5679a42f3bd2daebf",516462828],
+    ["x﻿y","2c491830a8d6b4e601e5d7bb9bbc6fa42bdfbd899518491dbcea453095588416",4206666793],
+    ["bad name","acb1aa4735e47ac20cc9f919e1ae74530d90306fcf74989d53cf0eb07dc4f7b4",3115415239],
+    ["plus+name","ffbf4ddf0e4e33d5c8a87e71e14684ac8d01bfa4f468c7f06a58affccd58f8b4",2690770399],
+    ["","1301a81f18143543eef77d0dd20998ef2768ccd5a7f9471301469689fc942666",2420635543],
+    ["nel","97997991208d57c90ca5b2ceef7603ad8cce8784da1f196173c0019c5f65fa44",2239332590],
+    ["日本","d028ee9964f8c715b430ecb9b78d9284d6653c9f7cac9441a75da690b6ca57c7",276050648]
+  ],
+  "cases": [
+    ["\n",[["plus+name",2690770399,"oGHl38Z4gnc="],["nel",3981828657,"7VXi\nMUQ="]],[["nel",2239332590,"hXmA7hJT"],["bad name",3115415239,"AAAA"]],[6],"invalid signer"],
+    ["no newline",[],[["x﻿y",999610053,"AAAA\nAAAA"],["Señor",516462828,"HsiY7A=="]],[3,7,3],"malformed note"],
+    ["cr\r\n",[],[],[],"","63720d0a0a"],
+    ["a\n\nb\n",[],[["alpha",1245191902,"Sjge3ow="],["日本",276050648,"AA==\n"]],[3,2,4],"invalid signer"],
+    ["﻿bom\n",[["日本",276050648,"AA==\n"]],[["Señor",3799264113,"AA==\n"]],[6,3],"invalid signer"],
+    ["",[["nel",2239332590,"hXmA7g=="]],[["日本",276050648,"EHQy2LE="],["alpha",620784893,"JQBs/Q=="]],[5,4],"malformed note"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["cr\r\n",[["nel",392878905,"F2rbOcU="],["plus+name",2690770399,"oGHl3/I="]],[],[],"malformed note"],
+    ["\n",[["日本",276050648,"EHQy2GROZw=="],["",2420635543,""]],[],[2,1],"malformed note"],
+    ["hello\n",[["",2420635543,"kEf3\nl3fDVw=="]],[["",2420635543,"AAA"],["plus+name",2720458430,"AAAAAAAA"]],[3,0,3],"invalid signer"],
+    ["\n",[],[["plus+name",2690770399,"oGHl\n31k="]],[0,2,6],"invalid signer"],
+    ["no newline",[],[],[0],"malformed note"],
+    ["",[["alpha",1245191902,"Sjge\n3pVb"],["",2420635543,"kEf3lwp+"]],[["日本",276050648,"AA==\n"]],[0,6],"malformed note"],
+    ["\n",[],[["x﻿y",4206666793,"+rykKT8="],["alpha",1245191902,"AAAA"]],[6,1,0],"invalid signer"],
+    ["\n",[],[["x﻿y",4115129774,"9Uflrg=="]],[6,1],"invalid signer"],
+    ["cr\r\n",[],[["alpha",1060802579,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["nel",263397420,"D7MgLBBQXg=="]],[0,4,5],"invalid signer"],
+    ["hello\n",[["x﻿y",4206666793,"+ryk\nKQ=="],["Señor",1762779790,"aRHijg=="]],[["nel",2239332590,"hXmA\n7kRY9g=="],["bad name",3115415239,"ubF2\nx1qn"]],[],"malformed note"],
+    ["no newline",[["alpha",1245191902,"Sjge3nQo"]],[],[0,6,6],"malformed note"],
+    ["\n",[],[["plus+name",2690770399,"oGHl327i"]],[7,5],"invalid signer"],
+    ["",[],[["日本",276050648,"EHQy2L0q"],["x﻿y",4206666793,"+rykKaML"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[],[["plus+name",2690770399,"oGHl\n358="]],[0],"malformed note"],
+    ["no newline",[["日本",583605514,"Iskd\nCs777dtj"]],[["Señor",516462828,"HsiY7A=="]],[5,3,5],"malformed note"],
+    ["a\n\nb\n",[["Señor",2004554972,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["nel",2239332590,"AA==\n"]],[["bad name",3115415239,"ubF2\nx4U="]],[0],"malformed note"],
+    ["no newline",[],[["plus+name",2690770399,"oGHl3w=="]],[5,6,1],"malformed note"],
+    ["café 日本語 🌲\n",[["alpha",1245191902,"Sjge3nT7I/g="]],[],[3],"invalid signer"],
+    ["cr\r\n",[],[["bad name",304856521,"Eiu9\nyTdt"]],[4],"invalid signer"],
+    ["no newline",[["日本",1372292020,"AAA="],["alpha",1245191902,""]],[["Señor",516462828,"HsiY\n7LM4Tn8="],["x﻿y",1618875593,"YH4U\nyQ=="]],[0,0],"malformed note"],
+    ["\u0001ctl\n",[],[["",2420635543,"kEf3\nl7Lbj0k="],["alpha",1245191902,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["a\n\nb\n",[["nel",1480101105,"WDiM8Zo4JKQ="]],[["bad name",3115415239,"AAA"],["nel",2239332590,"hXmA7hRC"]],[5,2],"invalid signer"],
+    ["cr\r\n",[],[],[],"","63720d0a0a"],
+    ["a\n\nb\n",[["bad name",88856654,"BUvY\nTnYW"]],[["plus+name",3300909807,"xL/i77J5CIxi"]],[],"malformed note"],
+    ["",[["日本",3827983017,"AAAA"]],[["bad name",3115415239,"AAAAAAAAAAAA"]],[6,3],"malformed note"],
+    ["a\nb\n\n",[],[["x﻿y",110030888,"AAAA\nAAAA"]],[],"malformed note"],
+    ["\n",[["alpha",1245191902,"AAAAAAAA"]],[["x﻿y",4206666793,"+rykKcdKaXI="]],[],"malformed note"],
+    ["no newline",[["日本",1847194294,"bhnytgc="]],[["x﻿y",4206666793,"+ryk\nKckHeQ=="]],[2,5,0],"malformed note"],
+    ["a\n\nb\n",[["日本",276050648,"EHQy2FAvjQ=="]],[],[5,2],"invalid signer"],
+    ["café 日本語 🌲\n",[["日本",86830752,"BSzu\noA=="]],[["日本",276050648,"AAA="]],[],"malformed note"],
+    ["\n",[],[],[],"","7f0a0a"],
+    ["\n",[["bad name",811291326,"MFtSvvg="],["日本",276050648,"AAA="]],[],[2,5,3],"invalid signer"],
+    ["\u0001ctl\n",[["plus+name",2690770399,"oGHl32mrQw=="],["",2420635543,"kEf3l+OgraE="]],[["bad name",3115415239,"ubF2xxm1bwc3"]],[6,4,6],"invalid signer"],
+    ["\n",[["nel",2239332590,"hXmA7uup"]],[["bad name",3115415239,"ubF2\nx81BqA=="]],[2],"malformed note"],
+    ["hello\n",[["bad name",3115415239,"ubF2\nx2uY0g=="],["bad name",3115415239,"ubF2xw=="]],[["nel",2239332590,"!!!!"]],[2,2],"malformed note"],
+    ["x\n\n",[["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["Señor",675922243,"KEnB\nQ5k="]],[],[4,0],"invalid signer"],
+    ["cr\r\n",[["nel",2239332590,"AAAAAAAA"]],[],[],"malformed note"],
+    ["x\n\n",[],[],[0],"","780a0a0ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0a"],
+    ["x\n\n",[],[["x﻿y",4206666793,"+rykKbc="]],[0,7,2],"","780a0a0ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0ae2809420e697a5e69cac2045485179324d414b4e784e79357555623148663850665048314e7658395a70786651683470544541413251483674786a3976467a314c325273786d7377612b7a6e357a6e70457877585a4b564c53476832667744685979326e67343d0ae280942078efbbbf79202b72796b4b644a41343974444a7a614b322f332f64384753554858305957415573323245383766437864735a6b554435337a7a534f534568694e472b6c7163705858514456574a37595742354d38714f745a7832573564746577673d0a"],
+    ["hello\n",[["日本",276050648,"EHQy2GSS3OuR"]],[["plus+name",2690770399,"AAAA"],["plus+name",2690770399,"oGHl37lYfA=="]],[1,4,2],"invalid signer"],
+    ["\n",[["日本",276050648,"!!!!"]],[["nel",2239332590,"AAAAAAAAAAAA"],["x﻿y",2398162512,"jvEOUHjFqg=="]],[3,4,5],"invalid signer"],
+    ["",[["plus+name",2690770399,"AA==\n"],["alpha",1293368898,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["alpha",1245191902,"Sjge\n3qs/"],["nel",2239332590,"hXmA7ltMrBE="]],[0,2],"malformed note"],
+    ["café 日本語 🌲\n",[],[["日本",276050648,""]],[3,5],"invalid signer"],
+    ["\u0001ctl\n",[["",1959617743,"dM1kzw=="],["日本",1335973624,"T6FW+MkJUQAt"]],[["bad name",3115415239,""],["",2420635543,"AAAAAAAA"]],[0,3],"invalid signer"],
+    ["café 日本語 🌲\n",[["",959820524,"AAAAAAAA"]],[["nel",2239332590,"AAAA\nAAAA"]],[2],"malformed note"],
+    ["a\nb\n\n",[],[],[6,3],"invalid signer"],
+    ["a\n\nb\n",[],[],[5],"invalid signer"],
+    ["no newline",[],[["bad name",3115415239,"ubF2x/69HSIg"]],[4],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY7Pvw"],["日本",276050648,"!!!!"]],[],[7],"malformed note"],
+    ["\n",[["alpha",2152214527,"AAAAAAAAAAAA"]],[],[5,0],"invalid signer"],
+    ["a\n\nb\n",[["日本",276050648,"AAAAAAAAAAAA"],["bad name",3115415239,"ubF2x9pDqi0z"]],[["",2420635543,"kEf3lyjTBQ=="],["",4002154230,"7owG9iLKeg=="]],[0,6],"invalid signer"],
+    ["\n",[],[],[2,1,6],"invalid signer"],
+    ["\u0001ctl\n",[["日本",276050648,"AAAA\nAAAA"],["Señor",3156097669,"vB46\nhVaj"]],[],[],"malformed note"],
+    ["\u0001ctl\n",[],[],[3,0],"invalid signer"],
+    ["x\n\n",[],[["nel",2239332590,"hXmA7lhMsjg="],["nel",353841994,"AA==\n"]],[1,0,2],"malformed note"],
+    ["a\nb\n\n",[],[["x﻿y",4206666793,"+ryk\nKQ=="],["bad name",3115415239,"ubF2x2NB2AM="]],[5,7],"invalid signer"],
+    ["\n",[],[["Señor",516462828,"AAA="],["alpha",1967435455,"AAA"]],[0,4],"invalid signer"],
+    ["hello\n",[["x﻿y",4206666793,"A"]],[],[2,3,0],"invalid signer"],
+    ["a\n\nb\n",[],[["plus+name",2690770399,"oGHl3w=="],["nel",1557073353,"XM8NyWc2Pg=="]],[],"malformed note"],
+    ["a\n\nb\n",[["x﻿y",880580083,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["nel",2239332590,"hXmA\n7sVr"]],[["Señor",516462828,"HsiY7PJ0QQA="],["Señor",2021091737,""]],[],"malformed note"],
+    ["\u0001ctl\n",[["x﻿y",3033805171,"AAA="],["",3856729144,"AAAAAAAA"]],[["nel",3321781302,"xf5cNoYuAFQ="]],[2],"malformed note"],
+    ["\u0001ctl\n",[],[],[6],"invalid signer"],
+    ["\n",[],[["日本",276050648,"EHQy2E6a"]],[6],"invalid signer"],
+    ["\u0001ctl\n",[["alpha",1245191902,"Sjge3jo5"],["bad name",3115415239,"ubF2\nxw1/SJA="]],[],[4,3],"invalid signer"],
+    ["\n",[["alpha",1245191902,"Sjge\n3jqsxR8="]],[],[6,2],"invalid signer"],
+    ["a\n\nb\n",[["Señor",516462828,"AAAAAAAA"],["x﻿y",4206666793,"+ryk\nKRa40cPq"]],[],[7],"malformed note"],
+    ["hello\n",[],[["x﻿y",1208638554,"SApcWu4="],["日本",276050648,"EHQy\n2EH0"]],[3,7,4],"invalid signer"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"AAAA\nAAAA"]],[["x﻿y",388441495,"Fycl\nlw=="]],[0,3,0],"invalid signer"],
+    ["x\n\n",[["alpha",2783253027,"peUSIxqoiFY="],["alpha",1245191902,"Sjge3kI/BzI="]],[],[7,0,4],"invalid signer"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"+rykKQ=="]],[["x﻿y",471331342,"HBfyDuRLWLeJ"]],[],"","610a620a0a0ae280942078efbbbf79202b72796b4b513d3d0ae280942078efbbbf7920484266794475524c574c654a0a"],
+    ["hello\n",[["plus+name",3518733724,"AAAAAAAA"]],[["日本",276050648,""]],[3,5],"invalid signer"],
+    ["﻿bom\n",[["",2420635543,"kEf3lyvH"]],[["bad name",3115415239,"AA==\n"],["日本",276050648,"EHQy\n2A=="]],[5,5,5],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["Señor",516462828,"HsiY7CY1"]],[],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0ae28094205365c3b16f722048736959374359310a"],
+    ["a\nb\n\n",[["nel",2239332590,"A"]],[["plus+name",2690770399,"oGHl3yRI7AI="],["nel",2692112762,"oHZheg=="]],[],"malformed note"],
+    ["cr\r\n",[],[["alpha",1245191902,"Sjge3ovs"],["Señor",204661353,"DDLiaRjmyw=="]],[],"","63720d0a0ae2809420616c70686120536a6765336f76730ae28094205365c3b16f722044444c6961526a6d79773d3d0a"],
+    ["no newline",[],[["alpha",1157985200,"RQVzsA=="]],[3],"malformed note"],
+    ["﻿bom\n",[["plus+name",775210543,"LjTG\nLw=="]],[["plus+name",2690770399,"AAAA"],["plus+name",2690770399,"oGHl33DRBw=="]],[7],"malformed note"],
+    ["a\n\nb\n",[["",2420635543,"kEf3l3vi"],["plus+name",2320709043,"ilM1s5w="]],[],[],"malformed note"],
+    ["\n",[],[],[],"","0a0a"],
+    ["a\n\nb\n",[["Señor",516462828,""]],[],[0,5,3],"invalid signer"],
+    ["hello\n",[["bad name",3115415239,"ubF2\nx4+UXQc="]],[["x﻿y",4206666793,"+ryk\nKcy3Fw=="],["x﻿y",4206666793,"+rykKTM="]],[3,1],"invalid signer"],
+    ["\n",[["Señor",3571308915,"AAA="],["x﻿y",4206666793,"!!!!"]],[["",2420635543,"kEf3lyE="]],[],"malformed note"],
+    ["",[["bad name",1956805843,"dKJ803LwcDA="],["nel",2239332590,"hXmA\n7iXU"]],[["plus+name",230765204,"DcEylDs6iA=="],["日本",1515013493,"Wk1Fdf0+LQ=="]],[5,3,0],"malformed note"],
+    ["\u0001ctl\n",[],[["",2420635543,"AAAAAAAA"],["plus+name",2690770399,"AAAA"]],[0,2,7],"malformed note"],
+    ["﻿bom\n",[["alpha",1245191902,"Sjge\n3puHlEDH"]],[["bad name",3115415239,"ubF2xw=="]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[7,5],"invalid signer"],
+    ["a\n\nb\n",[["bad name",3115415239,"ubF2x4QpwmPJ"]],[["Señor",516462828,"HsiY7A=="]],[],"malformed note"],
+    ["x\n\n",[["nel",2239332590,"AAAA"]],[["x﻿y",4206666793,"+rykKbv2Hz+0"],["",667283112,"AAA="]],[1,6],"invalid signer"],
+    ["a\n\nb\n",[],[["alpha",1245191902,"Sjge3oM="]],[3,7,6],"invalid signer"],
+    ["no newline",[["nel",2941248068,"AAAAAAAA"],["Señor",516462828,"HsiY\n7OY="]],[],[6],"malformed note"],
+    ["cr\r\n",[["bad name",3115415239,"ubF2x62g"]],[],[3,4],"invalid signer"],
+    ["a\nb\n\n",[],[["alpha",3048206559,"ta/w3zsghz8q"],["plus+name",2690770399,"A"]],[2,4,0],"invalid signer"],
+    ["﻿bom\n",[["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["alpha",1245191902,"Sjge3hDs+aA="]],[["日本",276050648,"EHQy2LE="]],[0],"malformed note"],
+    ["x\n\n",[["x﻿y",1129052537,"Q0v5\neTqs8t0="]],[],[],"","780a0a0ae280942078efbbbf7920513076350a655471733874303d0a"],
+    ["x\n\n",[],[["alpha",3849169289,"5W2piTYolqs="],["alpha",1245191902,"Sjge3roDfAqR"]],[2,5],"invalid signer"],
+    ["\u0001ctl\n",[],[],[3,5,7],"invalid signer"],
+    ["\n",[["",2420635543,"kEf3\nlw=="],["alpha",1245191902,"Sjge\n3uebdw=="]],[["Señor",516462828,"HsiY7Eevgr8="]],[],"malformed note"],
+    ["\n",[["bad name",166005070,""],["日本",276050648,"EHQy\n2DX1H4Q="]],[["nel",2239332590,"AAA="],["nel",2239332590,"hXmA7oE="]],[],"malformed note"],
+    ["\n",[],[["nel",984420639,"Oq0RH3TpC0U="],["nel",2206710852,"g4e8RGk8TBSF"]],[2,5,3],"invalid signer"],
+    ["",[],[["alpha",1245191902,"Sjge3qg="]],[2,4],"malformed note"],
+    ["\u0001ctl\n",[["Señor",516462828,"A"],["plus+name",2690770399,"oGHl373a"]],[],[4,0,6],"invalid signer"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3lymu"]],[["Señor",2232475512,"hRDfeI8rnhDo"]],[7,3,6],"invalid signer"],
+    ["café 日本語 🌲\n",[["nel",2239332590,"hXmA7gZi"]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[],[["plus+name",2690770399,"A"],["",2420635543,"kEf3lwJ1SYy0"]],[5,1],"invalid signer"],
+    ["\n",[["nel",2239332590,"hXmA7pc="]],[],[3,3,7],"invalid signer"],
+    ["\u0001ctl\n",[["x﻿y",4206666793,"+rykKQz8fBw="]],[],[0],"","0163746c0a0ae280942078efbbbf79202b72796b4b517a386642773d0ae2809420616c70686120536a67653372774f30674e584b62756b794c45514872386c6f38697a507769364c4b692f5a3731317949416573656874556b75326c6e4f2f54444c6f70435259796e4778746e445a716854526c50754453636e614b7a62375541343d0a"],
+    ["﻿bom\n",[],[["alpha",1245191902,"AAAAAAAA"]],[6],"invalid signer"],
+    ["x\n\n",[["",2420635543,"kEf3l/xF"],["alpha",1245191902,"Sjge3g=="]],[],[],"malformed note"],
+    ["﻿bom\n",[],[],[3,4],"invalid signer"],
+    ["\u0001ctl\n",[],[["nel",2239332590,"hXmA7uCo"]],[1],"malformed note"],
+    ["a\nb\n\n",[],[["",1776590999,"aeSgl/ZfVQ=="],["",2420635543,"kEf3lw=="]],[],"malformed note"],
+    ["hello\n",[],[["Señor",516462828,"HsiY7OE="],["alpha",2816169967,"p9tX73Z2qdOO"]],[7,6],"invalid signer"],
+    ["x\n\n",[["nel",630416175,"JZNjLw+VDPE="]],[["alpha",1245191902,"Sjge3lq+pzI="]],[1,0],"malformed note"],
+    ["no newline",[],[["bad name",276678393,"EH3G\n+UYYKw=="]],[2,5,5],"malformed note"],
+    ["﻿bom\n",[],[["Señor",516462828,"HsiY7BuR"],["alpha",3495899391,"0F8w\n/2Q5XFTP"]],[6,1,2],"invalid signer"],
+    ["a\n\nb\n",[],[["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[7],"malformed note"],
+    ["x\n\n",[["日本",276050648,"AAAA"]],[],[],"malformed note"],
+    ["a\n\nb\n",[["bad name",3115415239,"ubF2x3Qy9g=="],["日本",276050648,"AAAA\nAAAA"]],[],[],"malformed note"],
+    ["\u0001ctl\n",[["plus+name",2690770399,"!!!!"]],[["alpha",2173013380,"gYWNhNWzRZkw"],["Señor",516462828,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],"malformed note"],
+    ["﻿bom\n",[["plus+name",2690770399,"AAA"]],[["x﻿y",4206666793,"+rykKbdm2A=="]],[],"malformed note"],
+    ["a\nb\n\n",[],[["Señor",3877075780,"AAAA\nAAAA"],["plus+name",2690770399,"oGHl3yxU5b2H"]],[6],"invalid signer"],
+    ["\n",[["alpha",1245191902,"Sjge3u++"]],[],[],"","0a0ae2809420616c70686120536a676533752b2b0a"],
+    ["",[["x﻿y",4206666793,"+rykKdvGs2A="],["nel",1612940607,"YCOF\nPziJgQ=="]],[],[],"malformed note"],
+    ["﻿bom\n",[["bad name",3115415239,"ubF2x3WV"]],[],[2],"malformed note"],
+    ["x\n\n",[["plus+name",3390268784,"yhNlcFcp"],["x﻿y",247337596,"Dr4SfAYcFvAR"]],[["日本",1856571592,"A"]],[0,5,1],"invalid signer"],
+    ["\n",[],[["Señor",516462828,"HsiY7CtaBnYH"],["plus+name",2690770399,"oGHl39D8ABLE"]],[],"malformed note"],
+    ["no newline",[["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[],"malformed note"],
+    ["﻿bom\n",[["bad name",3115415239,"ubF2xw=="]],[["日本",1668384741,"Y3GH5R+q6g=="]],[],"malformed note"],
+    ["\u0001ctl\n",[["plus+name",2690770399,"oGHl3zravi0P"]],[["日本",276050648,"A"]],[0],"malformed note"],
+    ["\n",[["alpha",1245191902,"Sjge3ucdxRMQ"]],[],[5,6,7],"invalid signer"],
+    ["",[["",2073099487,"e5D837RJ700M"],["nel",2239332590,"hXmA7g=="]],[["x﻿y",1552403339,"XIfLi8Dcj6U="],["日本",276050648,"EHQy2NNjgA=="]],[6,3,6],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY\n7DdIGg=="]],[],[4,0,2],"malformed note"],
+    ["\n",[["nel",3127401213,"AAAAAAAAAAAA"]],[],[1,1],"malformed note"],
+    ["café 日本語 🌲\n",[["plus+name",2690770399,"oGHl3w=="],["x﻿y",4206666793,"+ryk\nKd0="]],[["Señor",516462828,"AAA"]],[],"malformed note"],
+    ["x\n\n",[["",2420635543,""],["",3644107209,"2TSp\nyeCi"]],[["",3051614914,"tePywkWX6kI="]],[7],"malformed note"],
+    ["a\nb\n\n",[["Señor",516462828,"AAAAAAAA"],["alpha",546227692,"II7F7L8A"]],[["Señor",516462828,"AAA="],["nel",372115259,"AA==\n"]],[4,4],"invalid signer"],
+    ["",[["alpha",1245191902,""]],[],[6],"malformed note"],
+    ["a\n\nb\n",[],[["bad name",3115415239,"AAAA"]],[5],"invalid signer"],
+    ["a\n\nb\n",[["日本",276050648,"EHQy2N/W9Qo="],["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["plus+name",2690770399,"oGHl39zIVA=="],["bad name",3115415239,"ubF2x657CA=="]],[0],"malformed note"],
+    ["",[["x﻿y",4206666793,"+rykKdPkmnxJ"]],[["Señor",1604436607,"X6HCfw=="],["",2420635543,"kEf3l9U="]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"hXmA7inHLA=="],["bad name",3465484135,"zo8X\nZ+GylYpk"]],[["",2420635543,"AAAAAAAA"]],[3,5,0],"invalid signer"],
+    ["﻿bom\n",[["Señor",339734102,"FD/u\nVo8="]],[],[],"","efbbbf626f6d0a0ae28094205365c3b16f722046442f750a566f383d0a"],
+    ["\n",[["",2420635543,"kEf3l1o="],["alpha",2114179164,"fgPQ\nXA=="]],[],[1],"malformed note"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"AA==\n"]],[["日本",276050648,"AAAAAAAA"]],[3,0],"invalid signer"],
+    ["",[["Señor",2817825517,"p/Sa7ahR9mM="],["Señor",3803828138,"4rnPqmhc"]],[],[2,4,0],"malformed note"],
+    ["﻿bom\n",[["bad name",3115415239,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["plus+name",2690770399,"AAA"]],[],[],"malformed note"],
+    ["no newline",[["alpha",2684152286,"n/zp3iY="],["",4266900375,"/lO7lw=="]],[["",2420635543,"kEf3l4GC7wQ="],["Señor",4057895604,"8d6StG9rXR+o"]],[6,2,3],"malformed note"],
+    ["x\n\n",[],[["",2420635543,"kEf3l2XDycg="]],[7,5,1],"invalid signer"],
+    ["a\n\nb\n",[],[["nel",2258802071,"AAAAAAAA"]],[1,1],"malformed note"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"+rykKa3r4Q=="],["",2420635543,"kEf3lyqgtg=="]],[["Señor",516462828,"HsiY7GfzjPp9"],["日本",276050648,"AAAA"]],[2],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"+rykKYdEt3s="],["",486852999,"HQTJ\nh9c="]],[["alpha",1245191902,"Sjge3iM="]],[],"malformed note"],
+    ["a\n\nb\n",[],[],[6],"invalid signer"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["café 日本語 🌲\n",[],[["nel",2239332590,"A"],["",2420635543,"AAA"]],[],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY7KI="]],[["x﻿y",314493121,"AAAA"]],[5,2,2],"malformed note"],
+    ["\n",[["plus+name",2690770399,"oGHl3wlY"]],[["bad name",3115415239,"AAA="]],[],"malformed note"],
+    ["cr\r\n",[["nel",2239332590,"hXmA7jXCOzI="],["日本",276050648,"EHQy2PKz"]],[],[0,5],"invalid signer"],
+    ["hello\n",[],[],[7,6,7],"invalid signer"],
+    ["\n",[["nel",2797232512,"prph\ngFStVAp7"]],[["nel",2239332590,"hXmA7rfIxw=="],["",2420635543,"kEf3l+obMA=="]],[6,5,0],"invalid signer"],
+    ["a\n\nb\n",[],[["Señor",516462828,""],["",2420635543,"kEf3l1HZoAQ/"]],[3],"invalid signer"],
+    ["\n",[],[["",2420635543,"kEf3\nl4fjpO9h"],["Señor",516462828,"HsiY7BM="]],[1,2,5],"invalid signer"],
+    ["cr\r\n",[["alpha",1245191902,"AAAAAAAA"]],[],[1,0],"","63720d0a0ae28094205365c3b16f722048736959374e5846316d6e4575582b4254616e306e6a435572344e4b52652b717a31724656666f56674946445570776c6c6b643568392b4c6558594c5178364a42764969696a747371645930567433316c302b61735861737641773d0ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0a"],
+    ["\u0001ctl\n",[["",4292955482,"AAAAAAAA"]],[["bad name",3115415239,"AAAA"],["plus+name",3423811087,"zBM2\nD4c="]],[5],"invalid signer"],
+    ["﻿bom\n",[["bad name",341690205,"AAAA\nAAAA"]],[],[5],"invalid signer"],
+    ["cr\r\n",[["",803849969,"L+nG8XoGiGw="],["",2420635543,"kEf3l6O7cso="]],[["alpha",1245191902,"AAAAAAAAAAAA"]],[5],"invalid signer"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"HsiY\n7Lp1mr0="]],[["nel",2239332590,"hXmA7uU2/xqz"]],[7,1,4],"invalid signer"],
+    ["hello\n",[["alpha",1245191902,"Sjge3kU="]],[],[2,7,0],"","68656c6c6f0a0ae280942078efbbbf79202b72796b4b65666d49364d352f7442375a684741393938434850547974332b68386d576d79762f662f6f31364934536965686b505a464c6967346665385152346e69422b65447a433358544c72774265796871744941374a6d41343d0ae2809420e697a5e69cac2045485179324d4f4e616a4f392f50417172737479504d547251386264356e454343727741753774447151314a6d68313173366d6e7958746359347076456b6d58514545725a554533534c7a30545a4476364f48326373397852514d3d0ae2809420616c70686120536a676533756b6e37583955754931353459474a4e6d5232463070556d6e777833792f42485756734339677a3266536e6649705a397577482b574254364277633477302b42364d3539684d587641394132463343523059456d77383d0a"],
+    ["",[["Señor",516462828,"HsiY\n7C0="]],[["bad name",2016305615,""],["日本",276050648,"EHQy\n2A=="]],[1,5],"malformed note"],
+    ["hello\n",[["bad name",3115415239,"ubF2x+s3"]],[],[],"malformed note"],
+    ["",[],[["alpha",1245191902,"!!!!"],["Señor",516462828,"!!!!"]],[5,2,7],"malformed note"],
+    ["\n",[["",2420635543,"kEf3\nly0P"],["Señor",516462828,"HsiY\n7P8c"]],[["",2420635543,"kEf3\nlw=="]],[1,3],"invalid signer"],
+    ["\u0001ctl\n",[],[["nel",2239332590,"AAAAAAAA"],["bad name",3115415239,"AAA"]],[0,4],"invalid signer"],
+    ["\u0001ctl\n",[["bad name",3115415239,"ubF2x6Oe/g=="]],[["bad name",3115415239,"ubF2xw=="],["nel",3107075583,"uTI1/4Q="]],[6],"invalid signer"],
+    ["﻿bom\n",[],[["bad name",3115415239,"ubF2xycBlMI="],["Señor",516462828,"A"]],[5,6,3],"invalid signer"],
+    ["x\n\n",[],[["",2420635543,"kEf3lw=="],["nel",2239332590,"AAAA\nAAAA"]],[2,0],"malformed note"],
+    ["café 日本語 🌲\n",[["plus+name",3979747119,"7TYfLx7v0FKG"],["bad name",1732484161,"Z0OcQZc="]],[],[3,0,7],"invalid signer"],
+    ["café 日本語 🌲\n",[["alpha",1245191902,""]],[],[6],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["nel",2239332590,"AAA"]],[4,7],"invalid signer"],
+    ["a\n\nb\n",[],[["Señor",1042302277,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["bad name",511243783,"Hnj2B+HCZSJ7"]],[6,1],"invalid signer"],
+    ["a\n\nb\n",[],[["plus+name",2690770399,"oGHl39o="],["plus+name",2690770399,"AA==\n"]],[3,2,2],"invalid signer"],
+    ["a\nb\n\n",[],[],[2,5],"invalid signer"],
+    ["\n",[["Señor",516462828,"HsiY7Oqnrvg="]],[["bad name",1654822841,"AAAA\nAAAA"],["Señor",3768232777,"4Jqr\nSdGD"]],[2,7,7],"malformed note"],
+    ["",[],[["",2420635543,"kEf3l3DV"]],[],"malformed note"],
+    ["\u0001ctl\n",[],[["x﻿y",4206666793,"+rykKTI="],["plus+name",2690770399,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["hello\n",[["x﻿y",4206666793,"+rykKQ=="]],[["日本",2643785259,"nZT2KyOrnQ=="]],[3,1,7],"invalid signer"],
+    ["\n",[["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["plus+name",2690770399,"oGHl\n34H5sok="]],[["bad name",4276016612,"/t7V5Bc="]],[7],"malformed note"],
+    ["no newline",[["日本",2407008398,"j3gIjmg/6xE="],["alpha",1245191902,"Sjge\n3u2bmQ=="]],[["alpha",1327563097,"TyEBWdmM"],["Señor",516462828,"HsiY\n7FbM"]],[],"malformed note"],
+    ["\n",[["",48729899,"A"],["Señor",516462828,"AA==\n"]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"+rykKQ=="]],[["x﻿y",4206666793,"+ryk\nKbqHxu30"]],[],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0ae280942078efbbbf79202b72796b4b513d3d0ae280942078efbbbf79202b72796b0a4b627148787533300a"],
+    ["\u0001ctl\n",[],[["",2420635543,"kEf3lzuE"],["alpha",1245191902,"Sjge3oYgZH0="]],[6,3,3],"invalid signer"],
+    ["x\n\n",[["alpha",1245191902,"Sjge3urr"],["alpha",219857828,"AAA="]],[["x﻿y",4206666793,"+ryk\nKZd5Ht4="]],[1,4],"invalid signer"],
+    ["\n",[["plus+name",2690770399,"oGHl33M="],["日本",276050648,"AAAA\nAAAA"]],[["",2420635543,"kEf3l2Y7SOjW"]],[6,1],"invalid signer"],
+    ["\n",[],[["alpha",1245191902,"Sjge3iM="]],[4,0],"invalid signer"],
+    ["no newline",[["x﻿y",4206666793,"+rykKSjrZg=="],["nel",2239332590,"hXmA7j1D94BJ"]],[],[0],"malformed note"],
+    ["\n",[["",2420635543,"AAA="],["bad name",3115415239,"ubF2x4tGX/l0"]],[["bad name",3115415239,"ubF2x5P0l2s="],["bad name",4103807410,"9JshsvhL004="]],[],"malformed note"],
+    ["cr\r\n",[],[["nel",763143843,"LXymo00Eu0N5"]],[2],"malformed note"],
+    ["\n",[["nel",2239332590,"hXmA\n7rc="]],[],[],"malformed note"],
+    ["a\n\nb\n",[],[],[7,2,6],"invalid signer"],
+    ["",[["bad name",3115415239,"ubF2\nxz0="]],[["Señor",516462828,"HsiY7MhAdp8="],["日本",276050648,"EHQy2A=="]],[3],"malformed note"],
+    ["a\n\nb\n",[["",2420635543,"AAAAAAAAAAAA"],["x﻿y",4206666793,"A"]],[["",2420635543,"AAA"]],[6],"invalid signer"],
+    ["",[["日本",276050648,"EHQy2A=="],["Señor",516462828,"AAA"]],[],[4],"malformed note"],
+    ["hello\n",[],[["",2420635543,"kEf3lw=="],["bad name",3115415239,"ubF2x2Ws/ZU="]],[5],"invalid signer"],
+    ["hello\n",[["nel",2239332590,"hXmA7qrIjR3D"],["Señor",516462828,"HsiY7GjXC+Q="]],[],[],"malformed note"],
+    ["",[["日本",276050648,"EHQy2KU="]],[],[5,5,0],"malformed note"],
+    ["a\nb\n\n",[["bad name",3115415239,"ubF2\nx1s="],["nel",2239332590,"AAAAAAAAAAAA"]],[["bad name",3115415239,"ubF2x2A="],["",982646596,"A"]],[5,4,4],"invalid signer"],
+    ["",[],[],[],"malformed note"],
+    ["a\nb\n\n",[["日本",276050648,"EHQy2FzqIG+u"]],[["plus+name",2690770399,"AAAAAAAAAAAA"],["bad name",3115415239,"ubF2\nx6PKpYdv"]],[7,4],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[6],"invalid signer"],
+    ["hello\n",[],[["alpha",947155048,"OHRw\naCCzxWy8"]],[1,0],"","68656c6c6f0a0ae2809420616c706861204f4852770a6143437a785779380ae28094205365c3b16f72204873695937453538466a4b4e4c6b53532b354a582b35336a79776e67617075312b6c6d30427a6563767a6f6855537547695a5a31317032786a6b6668484b6c6f6b37366c436b53764f66522f693665785772375949464f426341673d0ae2809420616c70686120536a676533756b6e37583955754931353459474a4e6d5232463070556d6e777833792f42485756734339677a3266536e6649705a397577482b574254364277633477302b42364d3539684d587641394132463343523059456d77383d0a"],
+    ["no newline",[["bad name",3115415239,"ubF2x7Q="]],[["nel",2239332590,"hXmA\n7qqG"],["Señor",516462828,"HsiY7CQ="]],[5],"malformed note"],
+    ["\n",[],[["plus+name",2690770399,"oGHl39Xk"]],[2,1],"malformed note"],
+    ["a\n\nb\n",[["plus+name",2690770399,"oGHl3wDP"]],[["",2420635543,"kEf3lzM="],["日本",276050648,"EHQy2BK3"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"!!!!"],["日本",276050648,"EHQy\n2OnnHZs="]],[["日本",276050648,"EHQy2AY+Yg=="],["Señor",516462828,"HsiY\n7D8="]],[5,2],"invalid signer"],
+    ["x\n\n",[["bad name",3115415239,"ubF2x4/f"]],[["日本",276050648,"EHQy2Kap030K"],["Señor",516462828,"HsiY7MGe+M8="]],[],"malformed note"],
+    ["cr\r\n",[["",2420635543,"kEf3l3CZKao="]],[["Señor",516462828,"AAA"],["nel",2239332590,"hXmA\n7jY="]],[0,2],"malformed note"],
+    ["no newline",[],[["alpha",1245191902,"AA==\n"]],[6],"malformed note"],
+    ["﻿bom\n",[["x﻿y",4206666793,"+rykKZQ="]],[],[0],"","efbbbf626f6d0a0ae280942078efbbbf79202b72796b4b5a513d0ae2809420616c70686120536a676533767255526847527971694738674e34564a4a714c45726f514a584c4a6d4736473753377361574c485a59343047754f6444624d6853736e367746434471456b63657350374773783938764c632b7862724d726f3967303d0a"],
+    ["café 日本語 🌲\n",[],[["nel",3910091516,"AAAA"]],[6,6],"invalid signer"],
+    ["café 日本語 🌲\n",[["",581912575,"Iq9H/yHhaA=="]],[],[4,4,7],"invalid signer"],
+    ["hello\n",[["Señor",4174679638,"+NSOVg=="]],[["",2420635543,"kEf3lyk="]],[],"malformed note"],
+    ["hello\n",[["日本",1761941483,"aQUX6w=="]],[["x﻿y",2688283683,"oDv0I1uiQw4="]],[],"","68656c6c6f0a0ae2809420e697a5e69cac206151555836773d3d0ae280942078efbbbf79206f447630493175695177343d0a"],
+    ["\u0001ctl\n",[["Señor",516462828,"HsiY7G4="]],[["bad name",3508107378,"0Rl4cg=="],["plus+name",2960451631,"sHToLw=="]],[],"malformed note"],
+    ["\u0001ctl\n",[["bad name",3115415239,"ubF2x0AIGiU="],["x﻿y",4206666793,"+rykKVwmcAuV"]],[["日本",2682605338,"n+VPGu8zaA=="],["x﻿y",4206666793,"+rykKdMouw=="]],[],"malformed note"],
+    ["",[],[["alpha",1245191902,"Sjge\n3uJVnjM="],["plus+name",2690770399,"AAAA\nAAAA"]],[4],"malformed note"],
+    ["a\nb\n\n",[],[["x﻿y",4206666793,"AAAAAAAAAAAA"],["alpha",1245191902,"Sjge\n3nIqtvkS"]],[5,6],"invalid signer"],
+    ["",[["nel",3431504663,"zIibFwUCARJU"]],[],[],"malformed note"],
+    ["",[["nel",2239332590,"hXmA7nA7hew="]],[["Señor",2338493947,"AAAA\nAAAA"],["plus+name",908002705,"AAAAAAAAAAAA"]],[7,6],"malformed note"],
+    ["﻿bom\n",[["Señor",1616705883,"AAA"],["",2420635543,"kEf3lzhyink="]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"ubF2x8s="],["Señor",1982473344,"diok\ngDA="]],[["nel",3677427382,"2zEWtuBFWlQt"]],[5],"invalid signer"],
+    ["a\n\nb\n",[["",192941341,"AAAAAAAAAAAA"]],[],[],"malformed note"],
+    ["x\n\n",[],[["alpha",1245191902,"AAAA\nAAAA"],["",3202840859,"vud5G4M="]],[5,4],"invalid signer"],
+    ["\n",[],[],[7],"","7f0a0ae2809420e697a5e69cac20454851793241486e36715431646d6134466c54657341514c784943592f2b51626c527334586f7a5276456548767056774246642b6849706f312b35697749306843454a2f54644473305663714c45396f666e654d6263477932776f3d0a"],
+    ["hello\n",[["Señor",516462828,"HsiY7J19"],["日本",276050648,"AAAAAAAA"]],[["",2420635543,"AAAAAAAA"],["x﻿y",4206666793,"AAAA\nAAAA"]],[3,1],"invalid signer"],
+    ["x\n\n",[],[["bad name",3115415239,"ubF2x/s="]],[4,7,4],"invalid signer"],
+    ["\u0001ctl\n",[],[],[3],"invalid signer"],
+    ["",[],[["plus+name",2690770399,"oGHl37872vyi"]],[5],"malformed note"],
+    ["﻿bom\n",[["bad name",1885784621,"AAA"],["nel",2239332590,"hXmA\n7sQ="]],[],[],"malformed note"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["",[],[["x﻿y",1066588065,""],["日本",276050648,"EHQy2A=="]],[3],"malformed note"],
+    ["﻿bom\n",[["Señor",516462828,"HsiY7A=="]],[["alpha",1245191902,"Sjge\n3g=="]],[],"","efbbbf626f6d0a0ae28094205365c3b16f72204873695937413d3d0ae2809420616c70686120536a67650a33673d3d0a"],
+    ["",[["alpha",1245191902,"Sjge3v3q"]],[],[6,2,7],"malformed note"],
+    ["café 日本語 🌲\n",[["nel",2239332590,"AAAAAAAAAAAA"]],[["plus+name",2690770399,"!!!!"],["alpha",1245191902,"Sjge3rvQFvJV"]],[0,4,7],"invalid signer"],
+    ["",[["bad name",2156478020,"gIk+ROiBX2XB"],["alpha",2999337967,"ssZD\n7+8C+Q=="]],[],[1,5,6],"malformed note"],
+    ["a\nb\n\n",[],[["plus+name",4021780492,"77eA\nDDsylYY="]],[4,6,3],"invalid signer"],
+    ["café 日本語 🌲\n",[["nel",2239332590,"hXmA7lMyNOQP"],["plus+name",2690770399,"AAA="]],[],[5,4],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["",2420635543,"kEf3l+w/kJ4="],["bad name",2805051935,"AAA="]],[0],"malformed note"],
+    ["﻿bom\n",[["bad name",4292386798,"AAAA\nAAAA"],["x﻿y",4206666793,"AA==\n"]],[["Señor",516462828,"AAA="]],[7],"malformed note"],
+    ["﻿bom\n",[["Señor",2525227335,"loPp\nR44t"],["Señor",516462828,"AAAA"]],[],[7,1],"","efbbbf626f6d0a0ae28094205365c3b16f72206c6f50700a523434740ae2809420e697a5e69cac20454851793247725477735a6579683965346444716b6f2b562f7659733649312b697376783676376d34765550444d5841315636635873364e5a4e486e666e4d4274354d2f30506a2f676a6e477a646e6a546b466a656833577877513d0ae28094205365c3b16f722048736959374c622f79534e563063486853426455536856396247694a6d47734b4e69353835452b75726b33794849654a6e507a686f524865765070776f4e6b5a37584e68507455506955454434735934766f33596a6774644667493d0a"],
+    ["no newline",[["",2420635543,"AAAAAAAAAAAA"]],[],[0],"malformed note"],
+    ["a\nb\n\n",[["alpha",1245191902,"Sjge3g=="]],[],[],"","610a620a0a0ae2809420616c70686120536a676533673d3d0a"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"+rykKcHHfA=="],["日本",276050648,"EHQy\n2M5VSAV1"]],[["bad name",2566762927,"mP2xr4gnb4FV"]],[],"malformed note"],
+    ["cr\r\n",[["nel",1347069419,"UEql66Zg"],["alpha",1245191902,"Sjge3roV"]],[],[6,0,1],"invalid signer"],
+    ["\n",[["plus+name",2690770399,"AAAAAAAA"],["日本",703344752,"KewwcJkr"]],[["nel",2239332590,"AAAA"]],[1],"malformed note"],
+    ["\n",[["alpha",1245191902,"Sjge3k2irQ=="]],[["x﻿y",4206666793,"+rykKXPZhjRN"],["x﻿y",1202243125,"AAA="]],[],"malformed note"],
+    ["a\n\nb\n",[["日本",3107770840,"AAAAAAAA"],["",3947206722,"!!!!"]],[],[4],"invalid signer"],
+    ["cr\r\n",[["日本",276050648,"EHQy\n2O+c"]],[["alpha",1753277124,"aIDi\nxL7RUw=="],["alpha",1815637075,"bDhsU2Tt"]],[1,2],"","63720d0a0ae2809420e697a5e69cac20454851790a324f2b630ae2809420616c70686120614944690a784c375255773d3d0ae2809420616c7068612062446873553254740ae28094205365c3b16f722048736959374e5846316d6e4575582b4254616e306e6a435572344e4b52652b717a31724656666f56674946445570776c6c6b643568392b4c6558594c5178364a42764969696a747371645930567433316c302b61735861737641773d0ae280942078efbbbf79202b72796b4b5a533957615736493966424c5061733567544b62626c2b4e2f6e764f5a546f304d4b7a45382b6c71486e6f524170534b4d4779766b6f7868354e685361374c764b58664d436c646546516178475845685065334177633d0a"],
+    ["\u0001ctl\n",[],[],[],"","0163746c0a0a"],
+    ["\n",[["",2420635543,"kEf3l8P2YhM="]],[["plus+name",2690770399,"oGHl33st"],["",2420635543,"kEf3lwLu/Hw="]],[],"malformed note"],
+    ["a\n\nb\n",[],[["",2845601296,"qZxuECLy"]],[],"malformed note"],
+    ["cr\r\n",[["",1560891460,"XQlQRE1+jQ=="]],[],[],"malformed note"],
+    ["cr\r\n",[],[],[0],"","63720d0a0ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0a"],
+    ["﻿bom\n",[],[],[4,0,0],"invalid signer"],
+    ["cr\r\n",[["alpha",1245191902,"A"],["日本",276050648,"EHQy2FY1"]],[],[6,5],"invalid signer"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"!!!!"]],[["x﻿y",4206666793,"+ryk\nKT2R3VI="],["alpha",2342305435,"i5y+mw=="]],[2],"","610a620a0a0ae2809420616c706861206935792b6d773d3d0ae280942078efbbbf79202b72796b4b5833664c7849583537537248754953684e6c6747476235717871505451426a526b4a61304f4e744a664679654d3878486b467634737952515971634c657151634f56512f35546a7a374b6b504650666749626c5977413d0a"],
+    ["﻿bom\n",[["bad name",3115415239,"ubF2\nx6s92/z8"],["x﻿y",4206666793,"+rykKa0="]],[],[2,2],"malformed note"],
+    ["",[["Señor",3385248458,"ycbKyrcLes6P"]],[["x﻿y",4206666793,"+rykKQ=="]],[],"malformed note"],
+    ["",[["x﻿y",4206666793,"+rykKQ=="]],[["Señor",1151059602,"AAA"],["nel",2239332590,"hXmA7iguTx0="]],[0,0],"malformed note"],
+    ["\n",[],[["nel",2239332590,"hXmA7iV3wREJ"]],[5],"invalid signer"],
+    ["café 日本語 🌲\n",[["日本",276050648,"EHQy2GrW"],["",2420635543,"!!!!"]],[],[5,5,0],"invalid signer"],
+    ["",[],[["日本",276050648,"EHQy2Om6V0A="]],[5,3],"malformed note"],
+    ["﻿bom\n",[["nel",2239332590,"hXmA7g=="]],[["日本",276050648,"EHQy2BclPA=="],["Señor",516462828,"HsiY7IT8ChDz"]],[],"malformed note"],
+    ["a\n\nb\n",[],[["日本",1711453573,"ZgK1ha12"],["bad name",3115415239,"AAA"]],[],"malformed note"],
+    ["\n",[],[],[4,7],"invalid signer"],
+    ["\n",[["x﻿y",4206666793,"AAA="],["bad name",1045116503,"AA==\n"]],[["nel",2239332590,"hXmA7pIFEw=="]],[4],"invalid signer"],
+    ["\n",[],[["plus+name",3209169540,"AAAAAAAAAAAA"],["plus+name",2690770399,"oGHl3w=="]],[],"malformed note"],
+    ["hello\n",[],[["plus+name",2690770399,"oGHl\n3wUVEA=="]],[],"malformed note"],
+    ["x\n\n",[],[["bad name",2419488592,"kDZ3\nUJ4="]],[2],"malformed note"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["\u0001ctl\n",[["日本",1286684871,"TLFAxz84Hw=="]],[["Señor",516462828,"AAAAAAAA"],["日本",276050648,"AAAAAAAAAAAA"]],[1],"malformed note"],
+    ["\n",[],[["bad name",84776977,"BQ2Y\nEbLH7jE="]],[6],"invalid signer"],
+    ["x\n\n",[["x﻿y",217546435,""],["",2420635543,"kEf3lzX7"]],[["x﻿y",4206666793,"+rykKc5LBn8="]],[0,4],"invalid signer"],
+    ["hello\n",[["日本",1480014004,"WDc4tIqTAw=="]],[["日本",276050648,"EHQy2K0u5A=="]],[5,6,3],"invalid signer"],
+    ["\n",[["",3642777811,"2SBg\n03pk"],["日本",276050648,"AAAAAAAAAAAA"]],[["bad name",1842897094,"bdhgxg=="],["Señor",2438573584,"kVmuEGPCuQ=="]],[5,3],"invalid signer"],
+    ["a\n\nb\n",[["plus+name",2690770399,"!!!!"]],[["日本",276050648,"EHQy\n2BQ="]],[0],"malformed note"],
+    ["",[["bad name",3115415239,"ubF2\nx3Fj"]],[],[7,4],"malformed note"],
+    ["",[["x﻿y",4206666793,"+rykKQ=="]],[],[],"malformed note"],
+    ["﻿bom\n",[["日本",276050648,"EHQy2On7jMao"]],[],[7,5],"invalid signer"],
+    ["\u0001ctl\n",[["alpha",1245191902,"Sjge3sY="]],[["alpha",1245191902,"Sjge\n3k0iSAY="],["alpha",1245191902,"AAAAAAAA"]],[4,2],"invalid signer"],
+    ["",[["Señor",2592569907,"mod6Mw=="],["bad name",4261134574,"/fvA\n7hg="]],[["Señor",516462828,"HsiY7A=="],["x﻿y",4206666793,"+rykKV7mYc9b"]],[3,4,0],"malformed note"],
+    ["\n",[["nel",2239332590,"AAAAAAAAAAAA"]],[["nel",2239332590,"hXmA7uX/"]],[5,1,4],"invalid signer"],
+    ["a\n\nb\n",[["nel",2239332590,"A"]],[["",250485595,"Du4bW6w="]],[6,4,1],"invalid signer"],
+    ["hello\n",[["alpha",1245191902,"Sjge3g=="]],[],[3,6],"invalid signer"],
+    ["no newline",[],[["nel",366920853,"A"],["plus+name",3104483056,"uQqm8LQ="]],[6,2],"malformed note"],
+    ["a\nb\n\n",[["plus+name",2690770399,"oGHl351tDSs="]],[["alpha",1245191902,"Sjge3ob4sKBj"],["Señor",516462828,"HsiY\n7GvP"]],[0,0,3],"invalid signer"],
+    ["a\n\nb\n",[["x﻿y",4206666793,"+ryk\nKYNS"],["",2420635543,"AAAAAAAA"]],[["alpha",1245191902,"Sjge3g=="]],[],"malformed note"],
+    ["x\n\n",[["Señor",1974491412,"dbBZFKCxyw=="]],[["Señor",3459076099,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["",2420635543,"kEf3lzmnB3I="]],[1,5,4],"invalid signer"],
+    ["x\n\n",[["x﻿y",4206666793,"+rykKRrgxOEI"]],[["",2420635543,"kEf3l3BBEg=="],["alpha",1760695706,"AA==\n"]],[7],"malformed note"],
+    ["hello\n",[["",236147465,"DhNTCXWQ8stM"],["x﻿y",3703139873,"3LluISs+mmU="]],[["alpha",1245191902,"AAAAAAAA"],["plus+name",4156604316,"98C/nIc="]],[],"malformed note"],
+    ["a\nb\n\n",[["plus+name",1704101529,"ZZKGmQ=="],["bad name",3115415239,"ubF2x8Mf"]],[["nel",2239332590,""],["Señor",516462828,"HsiY7KlR/MOE"]],[4],"invalid signer"],
+    ["x\n\n",[["日本",276050648,"EHQy2A4LUw=="],["",2420635543,"kEf3lyU="]],[],[],"malformed note"],
+    ["",[["plus+name",2690770399,"oGHl3ysDkw=="]],[],[6,7,0],"malformed note"],
+    ["\u0001ctl\n",[],[["nel",2239332590,"hXmA7g=="]],[6,0],"invalid signer"],
+    ["a\n\nb\n",[["alpha",2246250159,"heMO\nr4xFZjE3"]],[],[1],"","610a0a620a0ae2809420616c7068612068654d4f0a723478465a6a45330ae28094205365c3b16f7220487369593749325a3674705a6a665455564d526e447843355250436f766d617948366a7353414732576f334e6f394d666462314e7252652f6e36484d42703536317966515a3139793438464a6b6737625247593751634e574241493d0a"],
+    ["",[["Señor",516462828,"HsiY7Poa7KN6"]],[["bad name",3115415239,"AA==\n"],["plus+name",2304105150,""]],[7],"malformed note"],
+    ["\u0001ctl\n",[["bad name",3115415239,"ubF2xx3nVQ=="]],[["plus+name",2690770399,"AAAAAAAAAAAA"],["alpha",1245191902,"Sjge3vp1CdHn"]],[2],"malformed note"],
+    ["cr\r\n",[["nel",2239332590,"AA==\n"],["nel",2239332590,"hXmA\n7jLv"]],[["nel",2071247025,"e3S4\nsQ=="],["alpha",1245191902,"Sjge3l9Hw2M="]],[],"malformed note"],
+    ["a\n\nb\n",[["alpha",1245191902,"AAA"]],[["bad name",3115415239,"AAAAAAAA"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"+rykKQ=="],["日本",276050648,"AAAAAAAA"]],[],[3,0],"invalid signer"],
+    ["cr\r\n",[],[["日本",276050648,""],["日本",276050648,"EHQy2JNazCU="]],[],"malformed note"],
+    ["no newline",[["Señor",3756785205,"3+v+NQ=="],["plus+name",2690770399,"oGHl\n3w=="]],[],[],"malformed note"],
+    ["a\nb\n\n",[],[["plus+name",2690770399,"oGHl39ziH/gL"]],[],"malformed note"],
+    ["",[],[],[5,1,5],"malformed note"],
+    ["no newline",[],[["x﻿y",3171106857,"vQNA\nKTRLQA=="]],[2,7],"malformed note"],
+    ["x\n\n",[["",2420635543,"AAAA\nAAAA"]],[["日本",2660820125,"npjknYnjB0HW"],["",2420635543,"kEf3l+U="]],[3,4,3],"invalid signer"],
+    ["\n",[["alpha",1245191902,"AAA"]],[["",2420635543,"kEf3l6Bcng=="]],[7,0],"malformed note"],
+    ["",[["日本",276050648,"EHQy2O/edQ=="]],[],[1,1,4],"malformed note"],
+    ["a\nb\n\n",[["Señor",516462828,"HsiY7Ir6Kg=="]],[],[2,0],"","610a620a0a0ae28094205365c3b16f722048736959374972364b673d3d0ae280942078efbbbf79202b72796b4b5833664c7849583537537248754953684e6c6747476235717871505451426a526b4a61304f4e744a664679654d3878486b467634737952515971634c657151634f56512f35546a7a374b6b504650666749626c5977413d0ae2809420616c70686120536a6765336e32686a3250634e336270647972495a746c57545273414c536671526b6f53313143376353452b705248344a77706d7047774c63646b574e4e7645734a33734b69543838394d67394e43776a50484e6653316c4751513d0a"],
+    ["",[["nel",1899108808,"cTIZ\nyFQ="]],[],[4,6],"malformed note"],
+    ["\u0001ctl\n",[],[],[],"","0163746c0a0a"],
+    ["a\nb\n\n",[["",2781580377,"pcuMWb8="]],[["",2420635543,"kEf3lwY1DA=="]],[],"malformed note"],
+    ["no newline",[["Señor",2686011415,"oBlI\nFw=="],["nel",914191790,"Nn11rg=="]],[["",512392786,"Hop+Ut0/R5F/"],["",2420635543,"kEf3lwU="]],[3,0],"malformed note"],
+    ["cr\r\n",[["bad name",3115415239,"AAAA"],["bad name",844270269,"MlKKvbk65BI="]],[["nel",1461883230,"VyKR\nXlI="],["",3238801040,"A"]],[],"malformed note"],
+    ["a\nb\n\n",[["nel",2239332590,"hXmA\n7g=="]],[],[6],"invalid signer"],
+    ["hello\n",[["Señor",516462828,"HsiY7HIp"],["plus+name",961264220,"OUu6XA=="]],[["日本",276050648,"AAA="],["",200910464,"AAAA\nAAAA"]],[],"malformed note"],
+    ["a\n\nb\n",[],[["日本",276050648,"EHQy2CRIXx/o"]],[2],"","610a0a620a0ae2809420e697a5e69cac20454851793243524958782f6f0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0a"],
+    ["café 日本語 🌲\n",[],[["plus+name",3253277340,"wekS\nnJ/d"]],[4,5],"invalid signer"],
+    ["café 日本語 🌲\n",[["plus+name",2690770399,"oGHl30IXGTdG"],["Señor",2034345049,"AA==\n"]],[["Señor",516462828,"HsiY\n7KRo5g=="]],[],"malformed note"],
+    ["﻿bom\n",[["plus+name",2993459301,"smyQZQ=="],["x﻿y",3378778151,"yWQQJ/My"]],[["",2420635543,"kEf3lwqiGw=="]],[],"malformed note"],
+    ["\n",[],[],[4],"invalid signer"],
+    ["cr\r\n",[["",2420635543,"A"]],[["Señor",1406277363,"AAA="]],[3,2,7],"invalid signer"],
+    ["﻿bom\n",[],[["Señor",19604775,"ASslJzM="],["x﻿y",4206666793,"+rykKXfR"]],[3,6,4],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[2,1,3],"invalid signer"],
+    ["x\n\n",[],[["plus+name",479515697,"HJTUMRUufUo="]],[4,3],"invalid signer"],
+    ["\u0001ctl\n",[],[["nel",2239332590,"hXmA\n7g=="]],[1,0,5],"invalid signer"],
+    ["no newline",[],[["",3497428563,"0HaGU0tjWg=="],["nel",2239332590,"hXmA7n7VL8k="]],[],"malformed note"],
+    ["hello\n",[],[["Señor",516462828,"HsiY7Ika"],["",3232906719,"wLI936fNx9c="]],[5,2],"invalid signer"],
+    ["no newline",[["alpha",2226150689,"hLBdISnMow=="],["x﻿y",2716649644,"oezIrLtw1MKh"]],[["Señor",1347360046,"UE8V\nLvZ6"],["plus+name",2690770399,"oGHl38t6JiVp"]],[7],"malformed note"],
+    ["café 日本語 🌲\n",[["x﻿y",3455090375,"zfB+x9A5aQ=="],["日本",1004120958,"O9mrfoixsA=="]],[],[6,7],"invalid signer"],
+    ["cr\r\n",[["",2066637969,"AA==\n"],["x﻿y",4206666793,"+ryk\nKV8zrA=="]],[],[],"malformed note"],
+    ["\u0001ctl\n",[],[],[],"","0163746c0a0a"],
+    ["hello\n",[],[],[0,4],"invalid signer"],
+    ["x\n\n",[],[],[5],"invalid signer"],
+    ["no newline",[],[],[2,7],"malformed note"],
+    ["﻿bom\n",[],[],[4],"invalid signer"],
+    ["",[],[["alpha",1978169966,"deh6\nbgZk9w=="]],[2],"malformed note"],
+    ["x\n\n",[],[["",2420635543,"AAA="],["",2420635543,"kEf3lw=="]],[2,4],"invalid signer"],
+    ["\n",[],[["plus+name",2690770399,"oGHl3w=="],["x﻿y",958431942,"AAA"]],[],"malformed note"],
+    ["x\n\n",[["",47006923,"As1Ey+hZ"]],[["nel",2239332590,""],["",2420635543,"kEf3l2ZMeg=="]],[7],"malformed note"],
+    ["a\n\nb\n",[],[],[3],"invalid signer"],
+    ["﻿bom\n",[["",2420635543,"AAAA"]],[],[2],"malformed note"],
+    ["\u0001ctl\n",[],[["",2420635543,"kEf3l5qBPG4="],["plus+name",2690770399,"oGHl3xuA"]],[0],"malformed note"],
+    ["\n",[],[],[],"","0a0a"],
+    ["",[["nel",2278998934,"h9bDluA="]],[["x﻿y",4206666793,""],["alpha",1245191902,"AAAA\nAAAA"]],[],"malformed note"],
+    ["cr\r\n",[["",2537015392,"lzfIYA=="]],[],[4,6],"invalid signer"],
+    ["hello\n",[["",2420635543,""],["bad name",1196619117,"R1L1bTE1T07W"]],[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[5,6],"invalid signer"],
+    ["a\n\nb\n",[],[["nel",2239332590,"hXmA\n7hY="],["日本",276050648,"EHQy2A=="]],[6,6,0],"invalid signer"],
+    ["no newline",[],[["nel",2869273182,"qwWiXo8/4w=="],["Señor",516462828,"AAAAAAAA"]],[1,3,3],"malformed note"],
+    ["a\n\nb\n",[["日本",276050648,"!!!!"],["plus+name",263941634,"AAAAAAAAAAAA"]],[],[7,5,0],"invalid signer"],
+    ["no newline",[],[["plus+name",2690770399,"oGHl3wS/ExM="],["",3678451525,"20C3RSYy"]],[3],"malformed note"],
+    ["",[["plus+name",2690770399,"oGHl\n3w=="],["alpha",1245191902,"Sjge3n2w"]],[["Señor",516462828,""],["日本",276050648,"EHQy2JGp"]],[],"malformed note"],
+    ["\u0001ctl\n",[["Señor",516462828,"AAAA"]],[["",2420635543,"kEf3lw=="]],[],"malformed note"],
+    ["",[["plus+name",2690770399,"!!!!"]],[],[4],"malformed note"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["cr\r\n",[["alpha",1245191902,"Sjge3k4LjbU="]],[],[2,3],"invalid signer"],
+    ["x\n\n",[["Señor",516462828,"HsiY7Lk="],["Señor",2133903343,""]],[],[1],"malformed note"],
+    ["a\n\nb\n",[],[],[6],"invalid signer"],
+    ["a\n\nb\n",[],[["bad name",3115415239,""],["plus+name",2690770399,"oGHl38r7lzKc"]],[6,3,1],"invalid signer"],
+    ["a\n\nb\n",[],[],[4,6],"invalid signer"],
+    ["﻿bom\n",[],[["",2420635543,""]],[7],"malformed note"],
+    ["",[["nel",2239332590,"hXmA\n7lA="],["alpha",789982396,"A"]],[["x﻿y",514719597,"Hq3/bc0Qcv0="],["x﻿y",4206666793,"+rykKUWCXQ=="]],[4,4,5],"malformed note"],
+    ["\u0001ctl\n",[["",610787121,"AAA"]],[["nel",2239332590,"hXmA7uQOgg=="],["alpha",1245191902,"AAAA\nAAAA"]],[3,0,7],"invalid signer"],
+    ["x\n\n",[["Señor",516462828,"HsiY\n7CCS2A=="]],[["Señor",516462828,"HsiY7Hw+"],["x﻿y",4206666793,"AAA="]],[6,4,0],"invalid signer"],
+    ["no newline",[],[["日本",276050648,"EHQy2FQaP4Hh"],["",2930925783,"rrJg1w3WwQ=="]],[7,5,6],"malformed note"],
+    ["no newline",[["x﻿y",1719700519,"ZoCMJ7A="]],[["Señor",3896382801,"6D4V\nUVsl"]],[2,1,6],"malformed note"],
+    ["x\n\n",[["Señor",2040899261,"eaWmvQ=="]],[],[4,3],"invalid signer"],
+    ["no newline",[["nel",2239332590,"hXmA7tc="],["plus+name",2690770399,"oGHl38bd"]],[["x﻿y",4206666793,"AAA"]],[],"malformed note"],
+    ["cr\r\n",[["bad name",3115415239,"ubF2xw8aBtg="],["bad name",3115415239,"ubF2x34="]],[["日本",276050648,"EHQy\n2OVhttMH"],["nel",2239332590,"hXmA\n7jTxKA=="]],[],"malformed note"],
+    ["a\n\nb\n",[["plus+name",2690770399,"oGHl3/ZAT1tw"],["",414308464,"A"]],[],[6,6,7],"invalid signer"],
+    ["x\n\n",[["alpha",1245191902,"Sjge3qL6wg=="],["Señor",1401058087,"U4JzJ0KP"]],[["x﻿y",4206666793,"+rykKXVAZaw="],["bad name",571933419,"IhcC6+x4QFM="]],[1,3],"invalid signer"],
+    ["\u0001ctl\n",[["x﻿y",4206666793,"AAAAAAAAAAAA"],["alpha",1245191902,"AA==\n"]],[["x﻿y",4206666793,"+rykKYI="]],[6,1,2],"invalid signer"],
+    ["\n",[["alpha",1245191902,"AAA="],["x﻿y",3941878471,"AAAA\nAAAA"]],[],[6,6,7],"invalid signer"],
+    ["\n",[["bad name",3115415239,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["",2420635543,"kEf3\nl9SpL43D"]],[],"malformed note"],
+    ["x\n\n",[],[],[3,2,1],"invalid signer"],
+    ["\n",[["alpha",1484285222,"WHhlJlWUwNcV"]],[["日本",276050648,"EHQy2Bs="],["alpha",1245191902,"Sjge\n3k3Yn5A="]],[3,1],"invalid signer"],
+    ["hello\n",[],[["nel",2239332590,"hXmA\n7nCoGA=="]],[4,2,7],"invalid signer"],
+    ["no newline",[["x﻿y",4206666793,"+rykKYzJd1O5"]],[["plus+name",2690770399,"oGHl3+/p"]],[3,7],"malformed note"],
+    ["\u0001ctl\n",[["日本",3277323355,"w1f8W24="]],[],[],"","0163746c0a0ae2809420e697a5e69cac20773166385732343d0a"],
+    ["\n",[["bad name",3115415239,"ubF2\nx68e"],["日本",1783246305,"akot4crOGcwK"]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["plus+name",18596255,"AAA="],["",2420635543,"kEf3lw=="]],[["",2420635543,"AAA="]],[5,5,5],"invalid signer"],
+    ["\n",[],[["nel",2900855527,"rOeK\n56K5O/Q="]],[0,5],"invalid signer"],
+    ["\u0001ctl\n",[["nel",2048001167,"AAAAAAAA"]],[["x﻿y",4206666793,"+rykKQpbQnq4"],["Señor",1005866676,"O/RO\ntFY="]],[],"malformed note"],
+    ["x\n\n",[["日本",2055782827,"AA==\n"]],[],[],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"+rykKaZam01Q"],["bad name",312206780,"AAAAAAAAAAAA"]],[],[],"malformed note"],
+    ["no newline",[["bad name",2954288551,"sBbdp+jCVg=="],["alpha",1245191902,"AAA"]],[],[6,4],"malformed note"],
+    ["",[],[["",421159331,"A"]],[5,4],"malformed note"],
+    ["cr\r\n",[],[],[7,0,0],"","63720d0a0ae2809420e697a5e69cac204548517932446f647250494a6d58343434386b74496273534d5236507070356d6b4d427469774d70504d4c5a316b676256564a4d6b556d472f3565456a432b7957534f772f48363950416439634268363349574f76694f4354516b3d0ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0a"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3l/xBipA="],["x﻿y",812632155,"AA==\n"]],[],[3],"invalid signer"],
+    ["\n",[["bad name",3115415239,"ubF2x9kz"]],[["alpha",1245191902,"Sjge3pqU"],["x﻿y",4206666793,"+rykKQ=="]],[2,6,5],"invalid signer"],
+    ["\u0001ctl\n",[["日本",276050648,"EHQy\n2EY8I0LT"],["bad name",3115415239,"ubF2x9ed+Q=="]],[["",2420635543,"A"]],[2,0,6],"invalid signer"],
+    ["﻿bom\n",[],[["日本",276050648,"EHQy2MQnAw=="],["alpha",1245191902,"Sjge3icukTmf"]],[],"","efbbbf626f6d0a0ae2809420e697a5e69cac2045485179324d516e41773d3d0ae2809420616c70686120536a6765336963756b546d660a"],
+    ["cr\r\n",[["bad name",127225223,"AAAA"]],[],[],"malformed note"],
+    ["﻿bom\n",[["",2420635543,"AAA"],["Señor",516462828,"!!!!"]],[["plus+name",2690770399,"AA==\n"]],[3,6,4],"invalid signer"],
+    ["",[["x﻿y",4206666793,"AAA="]],[],[6,7,6],"malformed note"],
+    ["\n",[],[["x﻿y",1168684043,"A"]],[],"malformed note"],
+    ["a\nb\n\n",[["alpha",1245191902,"Sjge3kC1YA=="]],[["Señor",2173157266,"gYe/kiQ73VoO"]],[7,2,6],"invalid signer"],
+    ["﻿bom\n",[["bad name",3115415239,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["plus+name",2690770399,"oGHl\n3ys="],["nel",2239332590,"hXmA\n7mc="]],[1],"malformed note"],
+    ["x\n\n",[],[["Señor",516462828,"HsiY7Pt1"]],[0],"","780a0a0ae28094205365c3b16f722048736959375074310ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0a"],
+    ["\u0001ctl\n",[],[["plus+name",1328367980,"AAAA"]],[2,3,5],"invalid signer"],
+    ["a\n\nb\n",[["x﻿y",4206666793,"+rykKdrnQUFi"],["",1207535505,"R/mHkVsETQ=="]],[["nel",2239332590,"!!!!"]],[4],"invalid signer"],
+    ["﻿bom\n",[],[["",2420635543,"AAAA\nAAAA"],["bad name",3115415239,"AAAAAAAA"]],[2,5],"invalid signer"],
+    ["\n",[],[],[3],"invalid signer"],
+    ["café 日本語 🌲\n",[["",3244898674,"AAAA"]],[["日本",52653520,"AAAAAAAAAAAA"]],[6],"invalid signer"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3lxo="]],[["",2420635543,"kEf3\nl1w="],["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[4],"invalid signer"],
+    ["café 日本語 🌲\n",[["x﻿y",2227860930,"hMp1wrai"],["x﻿y",2202682104,"g0pC+C1sakY="]],[],[3],"invalid signer"],
+    ["\n",[],[["nel",2239332590,"AAAAAAAA"],["nel",2239332590,"hXmA\n7ll9XA=="]],[3,4],"invalid signer"],
+    ["\u0001ctl\n",[["Señor",516462828,"HsiY7NU1"]],[],[],"","0163746c0a0ae28094205365c3b16f722048736959374e55310a"],
+    ["a\n\nb\n",[],[],[2,6,6],"invalid signer"],
+    ["\n",[["alpha",1245191902,"Sjge3s5HSg=="]],[],[5],"invalid signer"],
+    ["hello\n",[],[],[3,2,3],"invalid signer"],
+    ["x\n\n",[],[["nel",2239332590,"AAAAAAAA"],["x﻿y",4206666793,"+ryk\nKQ=="]],[],"malformed note"],
+    ["\n",[["plus+name",2690770399,"oGHl3/JTB60Z"]],[["plus+name",2690770399,"oGHl34VnKIO5"],["日本",34874698,""]],[],"malformed note"],
+    ["\u0001ctl\n",[["Señor",516462828,"HsiY7CzE"]],[],[0,7,4],"invalid signer"],
+    ["no newline",[["nel",2239332590,"hXmA7pfCFIv9"],["",2420635543,"kEf3\nl7Kh5vA="]],[["alpha",1245191902,"Sjge3tXtrQ=="]],[5,2,6],"malformed note"],
+    ["\n",[["",2420635543,"!!!!"]],[["日本",276050648,"EHQy\n2G4="]],[2,7,2],"malformed note"],
+    ["\u0001ctl\n",[["plus+name",2729489382,"AAA="],["plus+name",2240008150,"hYPP\n1jcpxjvX"]],[["alpha",1245191902,"Sjge3nY="]],[],"malformed note"],
+    ["",[["日本",276050648,"EHQy2MP3sQ=="]],[["日本",276050648,"EHQy2O90"]],[5,4],"malformed note"],
+    ["no newline",[["x﻿y",4206666793,"+rykKVKy"]],[],[],"malformed note"],
+    ["no newline",[],[["bad name",3115415239,"ubF2x/pd8PYI"]],[7,0,3],"malformed note"],
+    ["café 日本語 🌲\n",[["Señor",3195727000,""]],[["Señor",1848278963,"AAA"],["bad name",3115415239,"ubF2x3YIrA4="]],[3,2],"invalid signer"],
+    ["no newline",[["日本",2729137463,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["",2420635543,"AAA="]],[],[],"malformed note"],
+    ["hello\n",[["日本",1683413125,"ZFbYhdbxhQ=="]],[],[6,1,5],"invalid signer"],
+    ["a\n\nb\n",[["",2420635543,"AAA"],["plus+name",2690770399,"oGHl37g="]],[],[5,2,5],"invalid signer"],
+    ["a\n\nb\n",[["bad name",3115415239,"ubF2xxcUJ2b0"]],[],[],"malformed note"],
+    ["cr\r\n",[],[],[1,0,0],"","63720d0a0ae28094205365c3b16f722048736959374e5846316d6e4575582b4254616e306e6a435572344e4b52652b717a31724656666f56674946445570776c6c6b643568392b4c6558594c5178364a42764969696a747371645930567433316c302b61735861737641773d0ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0a"],
+    ["café 日本語 🌲\n",[["日本",2514520188,"AAAA\nAAAA"]],[["x﻿y",4206666793,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["hello\n",[["日本",276050648,"AAAAAAAA"],["bad name",3115415239,"ubF2xw=="]],[["Señor",516462828,"HsiY7A=="],["x﻿y",4206666793,"+rykKTeaqVM="]],[],"malformed note"],
+    ["a\n\nb\n",[["plus+name",2690770399,"oGHl\n39q3"],["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[7,5],"invalid signer"],
+    ["a\n\nb\n",[],[],[7,4,3],"invalid signer"],
+    ["no newline",[["alpha",1245191902,"Sjge\n3rvD"]],[["bad name",3115415239,"A"],["plus+name",2690770399,"oGHl\n33Vr4A=="]],[7,7,0],"malformed note"],
+    ["hello\n",[],[],[1],"","68656c6c6f0a0ae28094205365c3b16f72204873695937453538466a4b4e4c6b53532b354a582b35336a79776e67617075312b6c6d30427a6563767a6f6855537547695a5a31317032786a6b6668484b6c6f6b37366c436b53764f66522f693665785772375949464f426341673d0a"],
+    ["café 日本語 🌲\n",[],[],[5,6,3],"invalid signer"],
+    ["\n",[["bad name",3115415239,"ubF2\nx+xZ"],["",2420635543,"kEf3lzo="]],[["nel",2239332590,"!!!!"],["日本",276050648,"AA==\n"]],[6,0,3],"invalid signer"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"HsiY7A=="]],[["bad name",3115415239,"AAA"]],[2],"malformed note"],
+    ["x\n\n",[["",999705230,"O5ZKjg=="]],[["日本",276050648,"EHQy2MTY"],["",2420635543,"kEf3l68="]],[],"malformed note"],
+    ["no newline",[["x﻿y",4206666793,"AAA="],["nel",2239332590,"hXmA7uY5Vfc="]],[["",2420635543,"kEf3l1wkshI="]],[4],"malformed note"],
+    ["cr\r\n",[["alpha",3623491061,"AAAAAAAAAAAA"],["日本",3853360852,"5a2e1Gk="]],[],[7],"malformed note"],
+    ["no newline",[["",921437522,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[5,2],"malformed note"],
+    ["a\n\nb\n",[["bad name",3657357716,"2f7ZlEsDWQ=="]],[["nel",1385823206,"Upn7\n5tgK"]],[4,3],"invalid signer"],
+    ["no newline",[["Señor",1806197422,"a6hirmC8UGSI"]],[],[4,4,7],"malformed note"],
+    ["café 日本語 🌲\n",[["x﻿y",282767429,"ENqwRQ=="]],[["plus+name",3458478388,"ziQxNME="],["bad name",270239524,""]],[3],"invalid signer"],
+    ["hello\n",[],[["x﻿y",4206666793,"+rykKXsb"]],[5,6,6],"invalid signer"],
+    ["cr\r\n",[],[["日本",2163926960,"AA==\n"],["Señor",516462828,"HsiY7LbHrA=="]],[6],"invalid signer"],
+    ["a\n\nb\n",[],[["日本",2664514237,"ntFCvQ=="]],[7,3],"invalid signer"],
+    ["no newline",[["日本",305464828,"EjUF/A=="]],[["alpha",1245191902,"!!!!"]],[0,3],"malformed note"],
+    ["﻿bom\n",[],[["nel",2239332590,"hXmA7qrGleNA"],["日本",276050648,"EHQy2A=="]],[5,1,3],"invalid signer"],
+    ["\n",[],[],[1,0,5],"invalid signer"],
+    ["﻿bom\n",[["Señor",516462828,"AAAAAAAA"]],[["Señor",839125810,"MgQL\nMhEB"]],[5,6,0],"invalid signer"],
+    ["a\n\nb\n",[["bad name",3034708058,"tOH4Wg=="]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[],[["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[6,0],"invalid signer"],
+    ["\n",[],[["日本",2056735592,"AAAA"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["日本",276050648,"EHQy2IEgGneC"]],[["bad name",3115415239,"ubF2x13sGZU="],["日本",276050648,"EHQy\n2ChDNQ=="]],[3,6,6],"invalid signer"],
+    ["café 日本語 🌲\n",[["alpha",1245191902,"Sjge3vRd6nZI"],["nel",2239332590,"hXmA7lRIh9ov"]],[["Señor",516462828,"HsiY7Lymg48="],["Señor",516462828,""]],[2,2],"malformed note"],
+    ["a\n\nb\n",[],[["",3919396638,"6Z0/\nHg=="],["nel",2239332590,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["hello\n",[["x﻿y",4206666793,"+ryk\nKZbnufE="]],[["plus+name",2690770399,"oGHl\n31s="]],[6,1],"invalid signer"],
+    ["﻿bom\n",[["x﻿y",4206666793,"+rykKTH/"],["nel",2239332590,"hXmA\n7g=="]],[["x﻿y",1356152255,"UNU9\nv+CJ"]],[4,3,0],"invalid signer"],
+    ["\n",[["alpha",3895954934,"6DeN\n9lix"]],[["alpha",1245191902,"Sjge3goyfgQ="]],[6],"invalid signer"],
+    ["a\n\nb\n",[["日本",276050648,"EHQy2A=="],["Señor",1441115280,"AAAA\nAAAA"]],[],[],"malformed note"],
+    ["a\n\nb\n",[],[["plus+name",2690770399,"AAA"],["x﻿y",134266975,"AAA"]],[1,5],"invalid signer"],
+    ["hello\n",[["",2968668834,"AA==\n"],["x﻿y",4206666793,"+rykKQ=="]],[["x﻿y",4206666793,"+rykKSLx3BU="],["",2420635543,"kEf3lw=="]],[0,6,5],"invalid signer"],
+    ["no newline",[["",1372111025,"!!!!"]],[["bad name",3115415239,"ubF2x3yf"],["",2420635543,"kEf3lxeeOm4="]],[3],"malformed note"],
+    ["hello\n",[["bad name",3115415239,"AAAA"]],[["alpha",1245191902,"Sjge\n3uBOdQ=="],["bad name",2509309125,"lZEExUO06qM="]],[7,2,3],"invalid signer"],
+    ["no newline",[["x﻿y",4206666793,"AAAA"]],[["nel",2239332590,"hXmA7g=="]],[],"malformed note"],
+    ["x\n\n",[["日本",2053910203,"emwu\nuw=="],["alpha",1245191902,"Sjge3jOcmg=="]],[["bad name",3115415239,"AAAA\nAAAA"],["plus+name",813008117,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0a"],
+    ["a\nb\n\n",[],[["x﻿y",4206666793,"+rykKWHU1tg="]],[6,1],"invalid signer"],
+    ["a\n\nb\n",[["日本",276050648,"EHQy\n2PA="]],[["alpha",2986743596,"AAA"],["alpha",1245191902,"AAAAAAAAAAAA"]],[5,4,7],"invalid signer"],
+    ["\u0001ctl\n",[["nel",2239332590,"hXmA7urPqAXr"]],[["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[3,2],"invalid signer"],
+    ["",[["plus+name",2690770399,"oGHl3+kt"]],[["alpha",1245191902,"!!!!"]],[],"malformed note"],
+    ["\n",[],[["日本",276050648,"AA==\n"]],[7,6],"invalid signer"],
+    ["hello\n",[],[["alpha",1245191902,"Sjge3hmR4dZ/"]],[6,0,5],"invalid signer"],
+    ["hello\n",[["",2420635543,"AAA="]],[["x﻿y",4206666793,"+rykKQ=="]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"AAAAAAAA"],["x﻿y",4206666793,"AAA="]],[["plus+name",2690770399,"oGHl3yQBWWY="],["nel",2239332590,"hXmA7lyi1Ec1"]],[3,3],"invalid signer"],
+    ["hello\n",[["日本",276050648,"EHQy\n2EEa6WRJ"],["日本",276050648,"EHQy2A=="]],[["Señor",1349917428,"AAAA"]],[7,6,4],"invalid signer"],
+    ["\n",[["Señor",2397792436,"jutotKSNRQ=="]],[["plus+name",2690770399,"oGHl31U4"],["Señor",516462828,""]],[4],"invalid signer"],
+    ["﻿bom\n",[],[],[3],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["alpha",1245191902,"Sjge3gdEHiqn"],["日本",276050648,"A"]],[],"malformed note"],
+    ["\n",[["",2420635543,"kEf3l0PWvQ=="]],[],[0],"malformed note"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"ubF2x0VQeRD+"]],[["",2420635543,"kEf3\nlzu89A=="]],[4],"invalid signer"],
+    ["\u0001ctl\n",[["",2420635543,"kEf3\nl2k="]],[["alpha",1696427453,"ZR1tvexqGA=="],["bad name",845968960,"Mmx2\nQA=="]],[],"malformed note"],
+    ["\u0001ctl\n",[["nel",2239332590,"AAAA\nAAAA"]],[["",2322823662,"inN57iOqTKg="]],[5,0],"invalid signer"],
+    ["\n",[],[],[],"","0a0a"],
+    ["x\n\n",[["bad name",3115415239,"ubF2x01s"]],[["x﻿y",4206666793,""]],[3,5],"invalid signer"],
+    ["no newline",[["Señor",516462828,"HsiY\n7C/D"],["bad name",3115415239,"ubF2\nxw=="]],[["nel",2239332590,"hXmA7g=="]],[4],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[4,4],"invalid signer"],
+    ["no newline",[["alpha",2913824851,"ra1wU6ST"],["plus+name",2690770399,"oGHl3ww="]],[],[6,6,4],"malformed note"],
+    ["no newline",[["bad name",3115415239,"ubF2\nxw=="]],[],[2,4],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",3544710785,"00f+gfh4c+IK"],["日本",276050648,"EHQy2KBOGQDq"]],[],[0],"","610a620a0a0ae280942078efbbbf79203030662b67666834632b494b0ae2809420e697a5e69cac2045485179324b424f475144710ae2809420616c70686120536a6765336e32686a3250634e336270647972495a746c57545273414c536671526b6f53313143376353452b705248344a77706d7047774c63646b574e4e7645734a33734b69543838394d67394e43776a50484e6653316c4751513d0a"],
+    ["x\n\n",[["日本",3387543114,"!!!!"]],[],[4,3],"invalid signer"],
+    ["\n",[],[],[7,1,2],"","0a0ae2809420e697a5e69cac2045485179324d56362b554331646973445a4f6836446c4456596566412f6c65616e454336646b50334474544d424f44797950454c57752b616a6276766c51597138747a50747069662b3154646c6e77374f7661586831706965674d3d0ae28094205365c3b16f72204873695937497733796d4e6b73426d6e6b564e444266584455514b6850503230654848344d4d704658636d646f4b7059706f6841656e7733346a3572706665377139623548594a6d75757a4d65615a536e6d307035357a314e77633d0ae280942078efbbbf79202b72796b4b64334978716b6562497a717a724f44734e716667696d4162396662687061703555526e754c624d7070645a34766f466c367948534363612f4e575872586d5563344a2f6176523152444448534e7068756a62575341773d0a"],
+    ["a\nb\n\n",[],[],[5],"invalid signer"],
+    ["cr\r\n",[],[["x﻿y",4206666793,"+rykKQ=="],["plus+name",2690770399,"oGHl3w=="]],[],"malformed note"],
+    ["﻿bom\n",[["x﻿y",3859972973,"5hKD\nbY0Cew=="]],[["",3983594215,"7XDS57W2"],["",2420635543,"kEf3l3J6"]],[],"malformed note"],
+    ["",[["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["alpha",683741864,"AAAAAAAAAAAA"]],[],[5,3],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY7IQ7"]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["nel",2533709866,"AA==\n"]],[["x﻿y",4206666793,"+ryk\nKQ=="],["bad name",3115415239,""]],[],"malformed note"],
+    ["a\n\nb\n",[["nel",3590137346,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["Señor",3351751804,"x8esfA=="]],[7,6],"invalid signer"],
+    ["﻿bom\n",[["日本",276050648,""]],[],[3,3,4],"invalid signer"],
+    ["no newline",[["alpha",18270034,"ARbHUtMB"]],[["Señor",448019834,"AAAAAAAA"]],[],"malformed note"],
+    ["\u0001ctl\n",[],[["alpha",1245191902,""],["x﻿y",4206666793,"+rykKfET"]],[],"malformed note"],
+    ["﻿bom\n",[["plus+name",2690770399,"oGHl31tToQ=="],["bad name",3115415239,"ubF2x1U="]],[["bad name",3115415239,"ubF2\nx0sn"],["Señor",2766433290,"pORs\nCg=="]],[1],"malformed note"],
+    ["a\n\nb\n",[["nel",2239332590,"hXmA\n7uRMOw=="]],[],[4,2,4],"invalid signer"],
+    ["\u0001ctl\n",[["x﻿y",4206666793,"+rykKT6NukUu"],["nel",2239332590,"A"]],[],[],"malformed note"],
+    ["hello\n",[["alpha",1173237718,"Re4v\n1lkCbdM="],["Señor",516462828,"AAA"]],[["日本",60456212,"A5p9FEWXGPA="],["",2420635543,"kEf3l18ImrU="]],[2],"malformed note"],
+    ["﻿bom\n",[["Señor",118269557,"Bwymdaqcf6Bk"]],[["alpha",1576666392,""]],[2,5,6],"invalid signer"],
+    ["no newline",[["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["日本",276050648,"EHQy2ObjNQ=="]],[["nel",2239332590,"hXmA7rc="],["",2420635543,"kEf3\nlzvh52s="]],[4,0,7],"malformed note"],
+    ["",[["plus+name",4234348815,"/GMJDw=="],["",2420635543,"A"]],[["nel",1132416618,"Q39Oag=="]],[],"malformed note"],
+    ["\n",[["bad name",3115415239,""]],[["bad name",3115415239,"ubF2x1oZbN+R"],["日本",276050648,"EHQy2NBx"]],[5,7],"invalid signer"],
+    ["x\n\n",[],[["",2451213637,"A"]],[0,6,3],"invalid signer"],
+    ["no newline",[["x﻿y",2040563421,"eaCG3Q=="],["",2420635543,"AAA"]],[],[4,5],"malformed note"],
+    ["\u0001ctl\n",[],[["plus+name",508814441,"HlPkadXDh1k="]],[4,0],"invalid signer"],
+    ["no newline",[["alpha",1245191902,"AAA"]],[["plus+name",2690770399,"AAAA\nAAAA"]],[6,2],"malformed note"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"AA==\n"],["nel",183428991,"Cu7nf4Uzwv5V"]],[["",2420635543,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["x\n\n",[],[],[6],"invalid signer"],
+    ["",[["bad name",3115415239,"ubF2xzgwK1k="]],[],[2],"malformed note"],
+    ["a\nb\n\n",[["日本",1831213553,"bSYZ8Q=="],["x﻿y",4206666793,"+ryk\nKWI="]],[],[3],"invalid signer"],
+    ["cr\r\n",[["",2420635543,"kEf3l+E5"],["",2420635543,"kEf3lw=="]],[],[],"malformed note"],
+    ["x\n\n",[["",3199041754,"vq2A\n2g=="]],[],[],"malformed note"],
+    ["",[["bad name",3115415239,"ubF2x4R3i3GL"],["plus+name",2690770399,"A"]],[["nel",2239332590,"hXmA7ijz"],["nel",2239332590,"AAAA\nAAAA"]],[4,4],"malformed note"],
+    ["x\n\n",[],[["plus+name",2690770399,"!!!!"],["日本",1322359757,"TtGb\nzWhWl0A="]],[],"malformed note"],
+    ["no newline",[],[["Señor",516462828,"HsiY7J4="],["日本",276050648,"EHQy2AFI4g=="]],[4],"malformed note"],
+    ["a\n\nb\n",[["",2420635543,"AAAA"]],[["alpha",1245191902,"Sjge3g=="]],[1],"malformed note"],
+    ["\n",[],[["nel",2239332590,"hXmA7q+pSd74"]],[2,2,2],"malformed note"],
+    ["cr\r\n",[["日本",276050648,"EHQy2EEQL7qv"]],[],[0],"","63720d0a0ae2809420e697a5e69cac2045485179324545514c3771760ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0a"],
+    ["cr\r\n",[],[],[2,2,4],"invalid signer"],
+    ["",[["nel",3942823491,"6wK2Qw4o"]],[],[4],"malformed note"],
+    ["cr\r\n",[],[["alpha",1245191902,"Sjge3uql"]],[5,0],"invalid signer"],
+    ["﻿bom\n",[["x﻿y",4206666793,"+ryk\nKewI"],["Señor",1167750879,"AAAAAAAAAAAA"]],[["bad name",3115415239,"ubF2xwNAcw=="],["plus+name",2690770399,"oGHl36RDVXZx"]],[7],"malformed note"],
+    ["x\n\n",[],[["nel",1043112417,"Piyh4Q=="],["bad name",3115415239,"ubF2xw=="]],[1],"malformed note"],
+    ["﻿bom\n",[["日本",276050648,"EHQy2FnnRg=="],["",330354662,"!!!!"]],[["nel",2239332590,"AAA"]],[7],"malformed note"],
+    ["\n",[["",2420635543,"kEf3l0Y="]],[["x﻿y",883772645,"NK1M5dQYgZI="]],[1,7],"malformed note"],
+    ["no newline",[["bad name",3115415239,"ubF2x4kKDm5n"]],[["alpha",867947226,"M7vS2g3MGQ=="]],[5],"malformed note"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"HsiY\n7A=="],["x﻿y",4206666793,"AAAA\nAAAA"]],[["Señor",3495156233,"AA==\n"],["nel",2879214455,"AAA="]],[1],"malformed note"],
+    ["\u0001ctl\n",[["",2420635543,"kEf3l1c="]],[["Señor",516462828,""]],[6,6,3],"invalid signer"],
+    ["",[["x﻿y",4206666793,"+rykKQ=="],["plus+name",2690770399,"oGHl\n3xXOmw=="]],[["nel",2239332590,"hXmA7gBxSfI="],["nel",2239332590,"hXmA\n7nhZLDY="]],[4,2,0],"malformed note"],
+    ["hello\n",[],[["plus+name",2690770399,"oGHl\n37c8"]],[3],"invalid signer"],
+    ["x\n\n",[["Señor",4268297110,"/mkL\nlpGs8w=="]],[["bad name",3115415239,"ubF2x+cP8Ek="],["nel",2616967242,"m/vASpEmVwP5"]],[4,2],"invalid signer"],
+    ["café 日本語 🌲\n",[["plus+name",2594857903,"AAA="],["bad name",838087466,"AAA="]],[["",2420635543,"kEf3l9TgktQ="]],[0,0,2],"malformed note"],
+    ["x\n\n",[["Señor",516462828,"HsiY\n7DYUdwgX"],["Señor",84614407,""]],[],[3,2,7],"invalid signer"],
+    ["hello\n",[],[["alpha",3687354634,"28iRCgFRe9/T"]],[],"","68656c6c6f0a0ae2809420616c70686120323869524367465265392f540a"],
+    ["\n",[["日本",1525897298,"!!!!"]],[["nel",2239332590,"AAAA\nAAAA"],["alpha",973419518,"OgUz/rGV"]],[1],"malformed note"],
+    ["a\nb\n\n",[],[["nel",2239332590,"hXmA7i8Bow=="]],[3,1],"invalid signer"],
+    ["",[["Señor",516462828,"HsiY7MJX4LA="]],[["nel",2239332590,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["\u0001ctl\n",[],[["plus+name",2690770399,"AAA"],["plus+name",2690770399,"oGHl\n3w=="]],[1,1],"malformed note"],
+    ["﻿bom\n",[["",2420635543,"AAAA"]],[],[2,3],"invalid signer"],
+    ["hello\n",[],[["bad name",3115415239,"ubF2\nxxLZgF0="],["plus+name",3002521764,""]],[1],"malformed note"],
+    ["﻿bom\n",[["x﻿y",4257829928,"/clUKA=="],["bad name",3115415239,"AA==\n"]],[["plus+name",2690770399,"oGHl31HFU+A="]],[],"malformed note"],
+    ["﻿bom\n",[["alpha",1905611839,"cZVUPwk="],["plus+name",3684656746,"259mas8="]],[["日本",611394327,"JHEj\nF4lf+A=="]],[],"malformed note"],
+    ["\u0001ctl\n",[],[["Señor",4211990671,"+w3g\nj/b5ZQ=="],["alpha",519147737,"HvGQ\n2Q=="]],[6],"invalid signer"],
+    ["hello\n",[["nel",2938393136,"ryRSMA=="],["plus+name",1011973154,"PFF8IpbV"]],[],[0,0],"malformed note"],
+    ["no newline",[["日本",276050648,"EHQy2CIm4A=="]],[["Señor",516462828,"HsiY\n7A=="]],[5,2,2],"malformed note"],
+    ["\n",[],[["日本",2770314166,"AAA"],["Señor",516462828,"HsiY7CexdJkh"]],[4],"invalid signer"],
+    ["no newline",[],[],[5,0],"malformed note"],
+    ["hello\n",[["日本",276050648,"AAAA\nAAAA"]],[],[],"malformed note"],
+    ["\u0001ctl\n",[["bad name",3115415239,"ubF2xw=="],["Señor",516462828,"AAAA\nAAAA"]],[["plus+name",2690770399,"oGHl3zHKLimT"]],[],"malformed note"],
+    ["",[],[["alpha",2169975993,"gVc0uY8="]],[4,5],"malformed note"],
+    ["",[["plus+name",2690770399,"oGHl33VbgQY="],["",2420635543,""]],[],[2,6],"malformed note"],
+    ["\n",[["plus+name",2690770399,""],["plus+name",867799930,"AAAAAAAA"]],[],[2],"malformed note"],
+    ["﻿bom\n",[["Señor",516462828,"AAAA\nAAAA"]],[["x﻿y",4206666793,"+rykKfk="]],[1,7,5],"invalid signer"],
+    ["\n",[["plus+name",3645523018,"2UpESr9SY/Yq"],["x﻿y",4206666793,"AAAA"]],[["plus+name",205384029,"DD3pXXQLwVg="],["bad name",3115415239,"ubF2x1BL"]],[5,2],"invalid signer"],
+    ["\u0001ctl\n",[["alpha",1245191902,"AAAAAAAA"],["nel",3684932605,"AAA"]],[],[3,6,1],"invalid signer"],
+    ["﻿bom\n",[["nel",2239332590,"AAA="]],[],[0],"malformed note"],
+    ["no newline",[["nel",2239332590,"hXmA7lp4"]],[["alpha",1245191902,"Sjge3g3wcw=="]],[2,1,0],"malformed note"],
+    ["x\n\n",[["日本",1760644778,"aPFOqua2bLlp"]],[["",2420635543,"kEf3\nlzrm4HwX"],["",2420635543,"kEf3\nl1Hk"]],[2],"malformed note"],
+    ["",[],[],[1,7],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"+ryk\nKXxFoCk="]],[["alpha",1245191902,"Sjge3iE="],["nel",2915520430,"rcdPrg0BKy9b"]],[5,4,3],"invalid signer"],
+    ["",[["日本",276050648,"EHQy2A=="]],[],[4,5,5],"malformed note"],
+    ["hello\n",[["nel",2239332590,"hXmA\n7u8B"],["日本",276050648,"EHQy2CCUkgk="]],[["Señor",1811261090,"a/Wmoj0="],["日本",276050648,"EHQy2Mc="]],[],"malformed note"],
+    ["\n",[["Señor",1127995182,"QzvX\nLhwa"],["alpha",1245191902,"Sjge3v2VkA=="]],[["plus+name",2057713566,"eqY3\nnqmVmQ=="]],[],"malformed note"],
+    ["x\n\n",[],[],[],"","780a0a0a"],
+    ["\n",[["nel",2239332590,"hXmA7kHqxw=="],["nel",2239332590,"hXmA\n7vES3A=="]],[["nel",2239332590,"AAA"]],[4,6,2],"invalid signer"],
+    ["a\n\nb\n",[["日本",3957351764,"6+BlVJN7AQ=="],["Señor",516462828,"AAAA\nAAAA"]],[],[7,5],"invalid signer"],
+    ["no newline",[["",1541496866,""],["nel",2239332590,"hXmA7vjhio+R"]],[["日本",2101000200,"AAA="]],[1],"malformed note"],
+    ["\u0001ctl\n",[],[],[7,0],"","0163746c0a0ae2809420e697a5e69cac2045485179324f56346f6f626b63322f33306e6165556e666c356e4c42585341586b6f6c77574a4a47562f6857614f57634e596b7243376e6d455a6139757769355852646e7065755431415255326b546e6b775533506348546d77453d0ae2809420616c70686120536a67653372774f30674e584b62756b794c45514872386c6f38697a507769364c4b692f5a3731317949416573656874556b75326c6e4f2f54444c6f70435259796e4778746e445a716854526c50754453636e614b7a62375541343d0a"],
+    ["\n",[],[["alpha",1245191902,"AAA"],["日本",3335007826,"xsguUv1hCYw="]],[3,2,5],"invalid signer"],
+    ["x\n\n",[["plus+name",2690770399,"oGHl\n3/Ub+g=="],["Señor",516462828,"HsiY\n7IiM"]],[],[1],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"AAAAAAAA"],["x﻿y",4206666793,"AA==\n"]],[["Señor",516462828,"HsiY7OEG69+K"]],[6],"invalid signer"],
+    ["a\nb\n\n",[],[],[3,0,2],"invalid signer"],
+    ["café 日本語 🌲\n",[["plus+name",2690770399,"AAAA"],["nel",2239332590,"A"]],[["nel",2239332590,"hXmA7phacg4="],["x﻿y",823605112,""]],[7,6,2],"invalid signer"],
+    ["\n",[["plus+name",2690770399,"oGHl\n32x9vQ=="]],[],[2,3],"invalid signer"],
+    ["\u0001ctl\n",[],[["Señor",516462828,"AAAAAAAAAAAA"],["bad name",3115415239,"ubF2x7IFa6w="]],[4,5],"invalid signer"],
+    ["a\nb\n\n",[["Señor",428801169,"GY78kV6/CLJI"],["x﻿y",4206666793,"+rykKbNyXc8="]],[["bad name",128301449,"B6W5iWKb"]],[],"malformed note"],
+    ["\n",[],[],[6,0],"invalid signer"],
+    ["no newline",[["Señor",516462828,"AAAAAAAA"]],[],[6],"malformed note"],
+    ["",[["日本",276050648,"EHQy\n2C/v"]],[["",2420635543,"AA==\n"]],[],"malformed note"],
+    ["hello\n",[],[["日本",276050648,"AAAA"],["nel",2239332590,"hXmA7g=="]],[3,2],"invalid signer"],
+    ["x\n\n",[],[["日本",276050648,"A"],["日本",176888555,"!!!!"]],[],"malformed note"],
+    ["a\n\nb\n",[["nel",2239332590,"hXmA\n7v7kxwA="]],[["alpha",1245191902,"AAA="]],[6,6,7],"invalid signer"],
+    ["\n",[["日本",276050648,""]],[["",2420635543,"kEf3l8tyw8c="],["plus+name",2328927546,"AAAAAAAAAAAA"]],[1],"malformed note"],
+    ["﻿bom\n",[],[],[1,6],"invalid signer"],
+    ["hello\n",[],[["nel",2239332590,"hXmA7g=="],["plus+name",2690770399,"AAAA\nAAAA"]],[4,1],"invalid signer"],
+    ["\n",[["alpha",1245191902,"Sjge3q8="]],[["x﻿y",4206666793,"AA==\n"],["Señor",516462828,"HsiY7C2jU0k="]],[6],"invalid signer"],
+    ["x\n\n",[["bad name",2098040345,"fQ2OGQ=="],["plus+name",2690770399,"AAA="]],[["bad name",4243211796,"/OpGFA=="],["nel",3042141559,"AAAAAAAA"]],[3,4],"invalid signer"],
+    ["\n",[["",1341173233,"T/Ct8Ug="],["plus+name",2690770399,"oGHl\n38dT2Cg="]],[["plus+name",2156313606,"gIa8Blx+EA=="],["nel",1433400095,"VW/zHx0="]],[4,5],"invalid signer"],
+    ["café 日本語 🌲\n",[["alpha",3671493325,"2taKzXM59WI="]],[["nel",3438854112,"zPi/4Cbj"]],[0],"malformed note"],
+    ["\u0001ctl\n",[],[["nel",2239332590,"hXmA7vnh2wQ="],["日本",276050648,"A"]],[6,7],"invalid signer"],
+    ["﻿bom\n",[],[["alpha",1245191902,"Sjge3g=="]],[7,5],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["alpha",842869351,"AA==\n"],["bad name",3115415239,"ubF2x5qLJw=="]],[1,4,4],"invalid signer"],
+    ["\n",[["日本",276050648,"EHQy\n2KGl"],["bad name",3115415239,"A"]],[],[7,7],"malformed note"],
+    ["a\nb\n\n",[],[],[7,2,7],"","610a620a0a0ae2809420e697a5e69cac204548517932484e743937784a72377437313663396b37472b724843776d334431327754526f7168547758506f5a556f683838723150683737496a792f596c554743506641545242336f506e52635768516a62634f317843386b776b3d0ae280942078efbbbf79202b72796b4b5833664c7849583537537248754953684e6c6747476235717871505451426a526b4a61304f4e744a664679654d3878486b467634737952515971634c657151634f56512f35546a7a374b6b504650666749626c5977413d0ae2809420e697a5e69cac204548517932484e743937784a72377437313663396b37472b724843776d334431327754526f7168547758506f5a556f683838723150683737496a792f596c554743506641545242336f506e52635768516a62634f317843386b776b3d0a"],
+    ["x\n\n",[],[["Señor",516462828,"AAAAAAAA"]],[7,0],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY7P3x"]],[["alpha",1245191902,"Sjge\n3s8="],["nel",2239332590,"AAAAAAAA"]],[7],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[1,7],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0ae28094205365c3b16f722048736959374e414432633148386a7935674b494d4d6a51526447424230686d484937344e474e7957797149393378323837795665453066646a686f584c6a343562574e5146645730787a787135424d482b4650703075672f3251553d0ae2809420e697a5e69cac2045485179324d62416d6d764e43334865306f42524d68586b4e326a324e77324d3963436a5a34554731705569336d5933434f614c72782f587953592b594563506e4c62323438306a674e6f6a376e6e55667538372f416c345477553d0a"],
+    ["\n",[["nel",2239332590,"AAA"]],[],[3,1],"invalid signer"],
+    ["hello\n",[["alpha",1245191902,"Sjge3j7LEnOj"]],[],[],"","68656c6c6f0a0ae2809420616c70686120536a6765336a374c456e4f6a0a"],
+    ["x\n\n",[],[],[],"","780a0a0a"],
+    ["﻿bom\n",[],[["日本",3308119641,"xS3mWQ=="],["x﻿y",4206666793,"AAA="]],[4],"invalid signer"],
+    ["no newline",[["nel",2239332590,""]],[["Señor",516462828,"HsiY7A=="],["nel",2239332590,"hXmA7tUD5F8="]],[0,3],"malformed note"],
+    ["",[["bad name",1170482498,"RcQl\nQjqgfIak"]],[["Señor",516462828,"HsiY\n7AM="],["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[6,3],"malformed note"],
+    ["\u0001ctl\n",[["alpha",1245191902,"Sjge\n3g=="],["x﻿y",4206666793,"+rykKQ=="]],[["Señor",516462828,"HsiY7EI="]],[2,3],"invalid signer"],
+    ["a\nb\n\n",[["bad name",3252598237,"wd61\n3Q=="]],[],[2,5],"invalid signer"],
+    ["a\nb\n\n",[["Señor",516462828,"HsiY7LDy"],["日本",276050648,"AAA="]],[],[1,3,0],"invalid signer"],
+    ["",[],[["nel",1510848739,"Wg24\n45NRVcQ="],["bad name",3115415239,"ubF2xyY="]],[6],"malformed note"],
+    ["a\n\nb\n",[["Señor",1947281469,"dBEoPfa1SPks"]],[["x﻿y",3216786857,"v7xFqQ=="]],[3],"invalid signer"],
+    ["no newline",[],[],[5,4,1],"malformed note"],
+    ["\u0001ctl\n",[],[["x﻿y",4206666793,"+rykKdU="],["alpha",1245191902,"Sjge\n3oA2"]],[5,7],"invalid signer"],
+    ["hello\n",[["bad name",4233700566,"/Fkk1nI="],["plus+name",4138530347,"9qz2K66lt0HX"]],[["x﻿y",3197710900,"vpky\nNAGaTQ=="],["bad name",3115415239,"ubF2\nx7Y="]],[7,7],"malformed note"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"AAAAAAAAAAAA"]],[["alpha",1245191902,"Sjge3sdz7xYD"]],[],"malformed note"],
+    ["\n",[],[["日本",2772827660,"pUX+DED77p4="],["nel",2239332590,"AAAA"]],[4],"invalid signer"],
+    ["a\n\nb\n",[["Señor",516462828,"HsiY7CsrUw=="]],[["x﻿y",4206666793,"+rykKV5K"]],[],"","610a0a620a0ae28094205365c3b16f7220487369593743737255773d3d0ae280942078efbbbf79202b72796b4b56354b0a"],
+    ["x\n\n",[],[["x﻿y",4206666793,"+rykKfYpdA=="],["Señor",516462828,"HsiY7A=="]],[4,5,0],"invalid signer"],
+    ["a\n\nb\n",[["日本",276050648,"EHQy2O4e1dw="],["alpha",1245191902,"Sjge3hLA/DHG"]],[["日本",322747782,"Ezy9hoNn6e0="]],[7],"","610a0a620a0ae2809420616c70686120536a676533684c412f4448470ae2809420e697a5e69cac20457a7939686f4e6e3665303d0ae2809420e697a5e69cac20454851793247664c57305959372b6c43717a6b4a475965644e544541506c44506238665a337372424b5447644338564f6b2f47547232637a764c69732f576c4676614d32576841424e6879566d39586d43466936775435524c776f3d0a"],
+    ["\u0001ctl\n",[],[["",2420635543,"kEf3l+lZVIk="]],[0],"malformed note"],
+    ["\n",[["Señor",2965027502,"sLq6\nrjvhnjE="],["nel",1414304952,"VEyU\nuG1BlB/q"]],[],[7,1],"malformed note"],
+    ["a\n\nb\n",[["x﻿y",4206666793,"+rykKddRlh8="]],[],[],"","610a0a620a0ae280942078efbbbf79202b72796b4b6464526c68383d0a"],
+    ["cr\r\n",[["alpha",1245191902,"Sjge\n3uBmQI4="],["日本",276050648,"EHQy2IR1l9UJ"]],[["bad name",328346935,"AAAA"],["",2026626431,"eMvd\nf3I="]],[1,6],"invalid signer"],
+    ["\n",[["x﻿y",4206666793,"+rykKXmw"]],[["bad name",3115415239,"ubF2x4sR"]],[6],"invalid signer"],
+    ["\n",[["日本",276050648,"EHQy\n2OqC"]],[],[2,5,2],"invalid signer"],
+    ["x\n\n",[],[["plus+name",2690770399,"oGHl3w=="]],[],"malformed note"],
+    ["",[["bad name",465873757,"!!!!"],["bad name",3115415239,"ubF2xw=="]],[],[7],"malformed note"],
+    ["﻿bom\n",[["bad name",3697763620,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["nel",2239332590,"hXmA7g=="]],[],"malformed note"],
+    ["\u0001ctl\n",[],[["alpha",274439093,"A"],["Señor",3581023823,"AAA="]],[1,3],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["",2873338469,"q0Oq\nZeQ96Uc="]],[5],"invalid signer"],
+    ["\n",[["Señor",404107416,"AA==\n"],["alpha",1245191902,"AAAA\nAAAA"]],[["bad name",3115415239,"ubF2x9MzHRM="]],[],"malformed note"],
+    ["",[],[],[6,6,3],"malformed note"],
+    ["\u0001ctl\n",[],[["nel",2239332590,"hXmA7u35Eg=="],["alpha",1245191902,"Sjge\n3izqEw4="]],[2],"malformed note"],
+    ["hello\n",[["alpha",1245191902,"Sjge3hpe"]],[["alpha",3452917366,"zc9WdkMrfQ=="]],[3,5,6],"invalid signer"],
+    ["﻿bom\n",[["nel",2700207035,"AAA"],["bad name",1830697620,"bR46lJ+d"]],[["nel",2239332590,"hXmA7lh9"]],[0,1],"malformed note"],
+    ["hello\n",[["Señor",3812601611,"4z+v\nCw=="]],[["",3189622815,"vh3IHyM70Ic="],["bad name",3115415239,"ubF2x78+zA=="]],[],"malformed note"],
+    ["\u0001ctl\n",[["Señor",516462828,"AAAAAAAAAAAA"],["x﻿y",4206666793,"+rykKd4yBsU="]],[],[4],"invalid signer"],
+    ["\u0001ctl\n",[["bad name",3115415239,"ubF2x/I="]],[],[5],"invalid signer"],
+    ["cr\r\n",[["Señor",516462828,"AAA"],["x﻿y",1586416965,"Xo7NRT9ihw=="]],[],[1,5],"invalid signer"],
+    ["\n",[],[],[],"","0a0a"],
+    ["﻿bom\n",[["Señor",1077150902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["日本",525819025,"H1dckQ=="]],[],[3],"invalid signer"],
+    ["a\nb\n\n",[],[["bad name",3115415239,"AAAA\nAAAA"],["plus+name",358798857,"FWLWCcZc8A=="]],[0,1],"malformed note"],
+    ["\n",[],[["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["x﻿y",4206666793,"+rykKTFX"]],[5,0,5],"invalid signer"],
+    ["",[],[["bad name",3115415239,"AAAA"]],[0],"malformed note"],
+    ["cr\r\n",[["x﻿y",4206666793,"+ryk\nKQ=="]],[["bad name",3115415239,"!!!!"]],[3,1],"invalid signer"],
+    ["no newline",[["x﻿y",4206666793,"AAAAAAAAAAAA"],["bad name",3115415239,"ubF2x6RhfA=="]],[["bad name",3988000262,"7bQOBtTQR3A="],["x﻿y",4206666793,"+rykKTM="]],[0],"malformed note"],
+    ["no newline",[["bad name",3115415239,"ubF2x09c"],["bad name",3115415239,"AAAA"]],[["nel",1911451867,"ce5w2w=="]],[1],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"AAAAAAAA"]],[["",2420635543,"AAAAAAAAAAAA"]],[3,2],"invalid signer"],
+    ["\u0001ctl\n",[["nel",408491327,""],["x﻿y",3258941807,"AA==\n"]],[],[6],"invalid signer"],
+    ["\u0001ctl\n",[["",2420635543,"kEf3l7OT2Nc="],["x﻿y",4206666793,"!!!!"]],[["",2420635543,"kEf3\nlyfZWjpe"]],[],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY\n7EXOJZZ0"]],[["alpha",2385040099,"jijS40EKyEo="]],[4,3],"malformed note"],
+    ["cr\r\n",[],[["日本",276050648,"AAA="],["nel",3784045316,"!!!!"]],[],"malformed note"],
+    ["\n",[],[],[1,7,6],"invalid signer"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"ubF2x25MpQ=="],["plus+name",3222507477,"wBOP1dA="]],[],[],"malformed note"],
+    ["a\n\nb\n",[["plus+name",2690770399,"oGHl3w=="],["日本",276050648,"A"]],[["alpha",1245191902,""],["alpha",1245191902,"Sjge3h0WPXRO"]],[5,6,2],"invalid signer"],
+    ["hello\n",[],[["x﻿y",4206666793,"+rykKRnOapA="]],[],"","68656c6c6f0a0ae280942078efbbbf79202b72796b4b526e4f6170413d0a"],
+    ["﻿bom\n",[],[],[2],"","efbbbf626f6d0a0ae280942078efbbbf79202b72796b4b564243712f445030305a5144526a4d77507978362f6f657737332f7672433578315339367738564433787a4a63342b7665464d67732b7072597a44534b32664f4b345732423147307146786b7a434e495039616377733d0a"],
+    ["hello\n",[],[["plus+name",191918561,"C3Bx\n4a2rj+M="]],[3,0],"invalid signer"],
+    ["",[["x﻿y",3687915984,"29Eh\n0Mfy6Q=="],["nel",2239332590,"AAAA\nAAAA"]],[["bad name",3115415239,"ubF2\nx2E6m43U"]],[4,0,4],"malformed note"],
+    ["",[],[["日本",276050648,"EHQy\n2MhrPNA="]],[2,2],"malformed note"],
+    ["\n",[["alpha",1245191902,"AAAA"],["日本",2447104420,"kdvZpJGFKPA="]],[],[5,6,2],"invalid signer"],
+    ["hello\n",[["日本",276050648,"AA==\n"]],[],[],"malformed note"],
+    ["cr\r\n",[["plus+name",3026030204,"tF2O\nfCo="]],[["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["日本",276050648,"EHQy2NqYiQ=="]],[4,1,1],"invalid signer"],
+    ["\n",[],[["日本",3537102968,"AAAA"]],[0],"malformed note"],
+    ["a\n\nb\n",[],[["",3186095410,"vef1\nMp9gDQ=="],["Señor",516462828,"AA==\n"]],[2,2,4],"invalid signer"],
+    ["cr\r\n",[],[["plus+name",2690770399,"oGHl3zMAi+qi"],["日本",4020245341,"76ATXTzh"]],[6],"invalid signer"],
+    ["﻿bom\n",[["x﻿y",4206666793,"AA==\n"]],[["nel",2239332590,"A"],["alpha",1245191902,"A"]],[],"malformed note"],
+    ["\n",[],[],[],"","7f0a0a"],
+    ["cr\r\n",[],[],[2],"","63720d0a0ae280942078efbbbf79202b72796b4b5a533957615736493966424c5061733567544b62626c2b4e2f6e764f5a546f304d4b7a45382b6c71486e6f524170534b4d4779766b6f7868354e685361374c764b58664d436c646546516178475845685065334177633d0a"],
+    ["a\nb\n\n",[],[["alpha",1245191902,"Sjge\n3plyptyN"],["alpha",1245191902,"AA==\n"]],[1,4,4],"invalid signer"],
+    ["﻿bom\n",[["日本",276050648,"EHQy\n2KWwhR1n"],["x﻿y",4206666793,"!!!!"]],[["Señor",516462828,"HsiY7BoaTg=="],["bad name",1494507394,"WRRfgmbHjM7d"]],[4,2,0],"invalid signer"],
+    ["\n",[["x﻿y",4206666793,"!!!!"]],[],[6],"invalid signer"],
+    ["",[["Señor",3642135444,"2RaTlP6P"]],[["Señor",516462828,"HsiY7Pg="],["",2420635543,"A"]],[],"malformed note"],
+    ["\n",[],[],[4],"invalid signer"],
+    ["",[],[["日本",4041303970,"AAA="],["plus+name",2690770399,"AAA="]],[2],"malformed note"],
+    ["a\n\nb\n",[["日本",4083585119,"82aQ\nX2U="],["",3789063154,"4diD8ukZ"]],[["plus+name",4059319062,"8fRLFg0="],["plus+name",2690770399,"oGHl36JTzzSq"]],[5],"invalid signer"],
+    ["a\nb\n\n",[["日本",276050648,"AAAA"],["bad name",3174949282,"vT3hokl9Kg=="]],[],[],"malformed note"],
+    ["hello\n",[],[["bad name",3115415239,"ubF2\nxw=="]],[],"malformed note"],
+    ["hello\n",[["Señor",516462828,"HsiY\n7A=="],["",1127370290,"QzJOMt5vudE="]],[["bad name",3115415239,"AAAA"],["bad name",2583582193,"AAA"]],[7,4,1],"invalid signer"],
+    ["﻿bom\n",[["Señor",516462828,"HsiY\n7NzEEFoY"],["alpha",1591124085,"Xtag\ndQ=="]],[["x﻿y",4206666793,"+rykKW3+Cis="]],[0],"","efbbbf626f6d0a0ae28094205365c3b16f7220487369590a374e7a4545466f590ae2809420616c70686120587461670a64513d3d0ae280942078efbbbf79202b72796b4b57332b4369733d0ae2809420616c70686120536a676533767255526847527971694738674e34564a4a714c45726f514a584c4a6d4736473753377361574c485a59343047754f6444624d6853736e367746434471456b63657350374773783938764c632b7862724d726f3967303d0a"],
+    ["café 日本語 🌲\n",[["alpha",1245191902,"Sjge3g=="]],[["Señor",3627176952,"2DJT+Hh9OaZB"]],[1,3],"invalid signer"],
+    ["",[["x﻿y",2323313136,"AAAA\nAAAA"],["Señor",516462828,"HsiY7C8="]],[],[0,3,7],"malformed note"],
+    ["hello\n",[["x﻿y",344193604,"A"],["nel",2239332590,"AAAA\nAAAA"]],[],[4,2,5],"invalid signer"],
+    ["\n",[],[["Señor",516462828,"HsiY7GlYt2k="]],[],"","0a0ae28094205365c3b16f72204873695937476c5974326b3d0a"],
+    ["hello\n",[],[["alpha",1245191902,"AAAA\nAAAA"]],[],"malformed note"],
+    ["cr\r\n",[],[["Señor",516462828,"HsiY7HeW3ZZP"],["日本",3069471690,"AAA"]],[5],"invalid signer"],
+    ["\u0001ctl\n",[["plus+name",2690770399,"AAAA\nAAAA"],["日本",276050648,"EHQy\n2CNibA=="]],[],[],"malformed note"],
+    ["cr\r\n",[["",2420635543,"AAAA"],["Señor",516462828,"HsiY7OL6"]],[],[2,5,2],"invalid signer"],
+    ["\n",[["",2692643904,"oH58\nQKfz4U6j"]],[["",2420635543,"kEf3l42F52c="]],[2,2,6],"invalid signer"],
+    ["x\n\n",[["",2420635543,"kEf3lw=="],["Señor",516462828,"HsiY7MA="]],[["alpha",1903989697,"cXyTwY2H"]],[3,6],"invalid signer"],
+    ["﻿bom\n",[["bad name",2444406412,"AAAA\nAAAA"]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[6,6,3],"invalid signer"],
+    ["\u0001ctl\n",[],[],[4],"invalid signer"],
+    ["no newline",[],[["日本",3936477163,"6qHf65oVUA=="]],[],"malformed note"],
+    ["",[["",2420635543,"kEf3lw=="]],[["日本",276050648,"EHQy2GtU"],["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],"malformed note"],
+    ["\n",[["nel",55986159,"A1ZH70A="]],[["plus+name",1058635444,"Pxl+tKQu"]],[],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY7Os="]],[],[1],"malformed note"],
+    ["café 日本語 🌲\n",[["plus+name",1687146235,"ZI/O+w=="],["x﻿y",4206666793,"+rykKaEcSQ4="]],[["x﻿y",4206666793,"+rykKQlQwz0="]],[2],"malformed note"],
+    ["",[],[["alpha",2298486438,"A"]],[],"malformed note"],
+    ["hello\n",[["",3929426655,"6jZK35fxbR8="]],[],[6,3,2],"invalid signer"],
+    ["\n",[],[],[1,3,5],"invalid signer"],
+    ["x\n\n",[["x﻿y",1178099922,"Rjhg0lQ="]],[],[3,1,2],"invalid signer"],
+    ["a\nb\n\n",[["nel",2239332590,"hXmA7mQ="],["x﻿y",4206666793,"+rykKXzmaO22"]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["nel",2239332590,"hXmA7kI="]],[],[0],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY7O8O"]],[],[1],"malformed note"],
+    ["no newline",[],[["Señor",516462828,"HsiY7JHQabW4"],["日本",1957287833,"dKnXmQ=="]],[4,0,4],"malformed note"],
+    ["",[["alpha",1245191902,"Sjge3kBeSQ=="]],[["x﻿y",4206666793,"AAAAAAAAAAAA"],["bad name",3115415239,"ubF2\nx6onpM0="]],[],"malformed note"],
+    ["hello\n",[],[["x﻿y",4206666793,"+ryk\nKZBp/Fw="],["plus+name",3275198661,"wzeQxQy4N7g="]],[6,0],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["x﻿y",3234942018,"wNFMQqWtDA=="],["",2420635543,"AAA="]],[],"malformed note"],
+    ["﻿bom\n",[["bad name",3115415239,"ubF2\nx8YiB2MN"]],[["x﻿y",1716400046,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[6,3],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["x﻿y",772626157,"Lg1W7atRbQ=="]],[4,1,4],"invalid signer"],
+    ["",[["x﻿y",4206666793,"AAA="],["x﻿y",4206666793,"+rykKQ=="]],[["Señor",1875988345,"b9FP\neRQ="]],[1,4],"malformed note"],
+    ["a\n\nb\n",[["Señor",4216078837,"AAAAAAAA"],["nel",2239332590,"hXmA7hAr/Q=="]],[],[6,1],"invalid signer"],
+    ["hello\n",[["",2420635543,"AAA"]],[["bad name",4183673237,"+V3J\nlWPbH5fp"]],[2,4,4],"invalid signer"],
+    ["café 日本語 🌲\n",[["",2420635543,"AAA="]],[["nel",2239332590,"hXmA7g=="],["bad name",3115415239,"ubF2x+aS"]],[2,5],"invalid signer"],
+    ["\u0001ctl\n",[["日本",276050648,"EHQy2A=="]],[["日本",276050648,"EHQy2Co="]],[],"","0163746c0a0ae2809420e697a5e69cac204548517932413d3d0ae2809420e697a5e69cac204548517932436f3d0a"],
+    ["",[["alpha",1245191902,"AAAAAAAAAAAA"],["alpha",1245191902,"Sjge\n3kM="]],[],[1],"malformed note"],
+    ["a\n\nb\n",[],[["nel",2239332590,"hXmA7i69"],["x﻿y",4206666793,"+rykKeVO4w=="]],[0,6],"invalid signer"],
+    ["\n",[],[["bad name",3115415239,"!!!!"]],[7],"malformed note"],
+    ["café 日本語 🌲\n",[["Señor",2498747939,"AAAA"],["bad name",199454189,"C+Nt7aaCKw=="]],[],[7,5,2],"invalid signer"],
+    ["a\n\nb\n",[["nel",2239332590,"hXmA7gj9Sups"]],[],[1,0],"malformed note"],
+    ["﻿bom\n",[["x﻿y",4206666793,"+rykKRswPxs="],["plus+name",2690770399,"AA==\n"]],[["bad name",3115415239,"ubF2x5nYWvc="],["nel",2239332590,"hXmA7g=="]],[6,0,4],"invalid signer"],
+    ["x\n\n",[["",2420635543,"AAAAAAAAAAAA"]],[["bad name",3115415239,"ubF2x+mSDQo="]],[3],"invalid signer"],
+    ["no newline",[["bad name",3115415239,"ubF2\nx1IOD6Wm"]],[["bad name",3115415239,"AAAAAAAA"],["",2183330269,"giL53S8="]],[4],"malformed note"],
+    ["\n",[["Señor",2081594670,"fBKdLsrYhAg="],["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["alpha",1245191902,"Sjge3g=="]],[3],"invalid signer"],
+    ["﻿bom\n",[["x﻿y",4206666793,"AA==\n"],["Señor",3655664030,"2eUBnqw="]],[["alpha",980776192,"OnV1AI8="]],[],"malformed note"],
+    ["no newline",[["Señor",516462828,"HsiY7Nsc3/g="],["x﻿y",4206666793,"+rykKRk="]],[],[],"malformed note"],
+    ["a\nb\n\n",[["bad name",3115415239,"ubF2x60="]],[["bad name",3115415239,"ubF2xyyy"],["",2420635543,"kEf3l417TE4="]],[6,6],"invalid signer"],
+    ["a\n\nb\n",[["alpha",1245191902,"Sjge3k/tBrQ="],["alpha",1245191902,"AAA"]],[["plus+name",2690770399,"oGHl30/Q9HRD"],["",2420635543,"kEf3l7hxYNI="]],[0,4,6],"invalid signer"],
+    ["hello\n",[["Señor",516462828,"HsiY7EUUCQ=="],["",2420635543,"kEf3\nlw3Yfck="]],[["nel",2239332590,"hXmA7v0WoQ=="]],[5,1,3],"invalid signer"],
+    ["\n",[],[],[],"","0a0a"],
+    ["cr\r\n",[],[["alpha",3342728093,"xz37nfQ="],["alpha",3850843330,"5Yc0wg=="]],[5,0],"invalid signer"],
+    ["hello\n",[["x﻿y",3397568027,"yoLGGw=="]],[["alpha",1245191902,"Sjge\n3g=="]],[2,2,2],"","68656c6c6f0a0ae280942078efbbbf7920796f4c4747773d3d0ae2809420616c70686120536a67650a33673d3d0ae280942078efbbbf79202b72796b4b65666d49364d352f7442375a684741393938434850547974332b68386d576d79762f662f6f31364934536965686b505a464c6967346665385152346e69422b65447a433358544c72774265796871744941374a6d41343d0ae280942078efbbbf79202b72796b4b65666d49364d352f7442375a684741393938434850547974332b68386d576d79762f662f6f31364934536965686b505a464c6967346665385152346e69422b65447a433358544c72774265796871744941374a6d41343d0ae280942078efbbbf79202b72796b4b65666d49364d352f7442375a684741393938434850547974332b68386d576d79762f662f6f31364934536965686b505a464c6967346665385152346e69422b65447a433358544c72774265796871744941374a6d41343d0a"],
+    ["﻿bom\n",[],[],[5],"invalid signer"],
+    ["hello\n",[["alpha",1245191902,"Sjge3g=="],["",2420635543,"kEf3lw=="]],[["日本",276050648,"EHQy2PpVlQ=="]],[],"malformed note"],
+    ["x\n\n",[["bad name",3115415239,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["bad name",4037994711,"8K7o1wB+oLzu"]],[],[],"malformed note"],
+    ["hello\n",[["plus+name",2690770399,"oGHl\n3/3X3w=="]],[["alpha",1245191902,"Sjge3tSPAA=="],["plus+name",2690770399,"oGHl3yRC2I6m"]],[3,3],"invalid signer"],
+    ["",[["",2420635543,"kEf3l4w="],["",219498543,"DRVIL1apUg=="]],[],[3],"malformed note"],
+    ["\n",[],[],[4],"invalid signer"],
+    ["\n",[["nel",2239332590,"hXmA7g=="],["alpha",1245191902,"!!!!"]],[["日本",3977372130,""],["bad name",1091708127,"QRIk3/Gmgkxe"]],[7],"malformed note"],
+    ["a\n\nb\n",[],[["plus+name",2690770399,"AAA"],["x﻿y",4206666793,"!!!!"]],[1],"malformed note"],
+    ["\n",[["",2433245791,"kQhiXwwYB4Gp"]],[],[],"malformed note"],
+    ["\u0001ctl\n",[["alpha",1540835913,"W9dKSVK9OQ=="]],[["x﻿y",4206666793,"AAAAAAAA"]],[6],"invalid signer"],
+    ["hello\n",[["Señor",516462828,"HsiY7NA="]],[["",2420635543,"kEf3l4tRHQUZ"]],[],"malformed note"],
+    ["",[],[["bad name",471149435,"HBUrew=="]],[0],"malformed note"],
+    ["\n",[["plus+name",2690770399,"oGHl\n3/w="],["Señor",516462828,"HsiY7A=="]],[["x﻿y",4206666793,"+rykKQO7jA=="]],[0,2,2],"malformed note"],
+    ["hello\n",[],[],[0,7],"","68656c6c6f0a0ae2809420616c70686120536a676533756b6e37583955754931353459474a4e6d5232463070556d6e777833792f42485756734339677a3266536e6649705a397577482b574254364277633477302b42364d3539684d587641394132463343523059456d77383d0ae2809420e697a5e69cac2045485179324d4f4e616a4f392f50417172737479504d547251386264356e454343727741753774447151314a6d68313173366d6e7958746359347076456b6d58514545725a554533534c7a30545a4476364f48326373397852514d3d0a"],
+    ["\u0001ctl\n",[["plus+name",2690770399,"oGHl\n3w=="]],[["nel",2239332590,"hXmA7kcTFps="],["",2420635543,"!!!!"]],[1],"malformed note"],
+    ["x\n\n",[["nel",3208841573,"AAA="],["alpha",1245191902,"Sjge3ps="]],[],[1],"malformed note"],
+    ["a\n\nb\n",[["",4065011953,"8kso\n8b/dgQ=="],["",2966397989,"AA==\n"]],[["x﻿y",4206666793,"+rykKT07ig=="]],[],"malformed note"],
+    ["cr\r\n",[["",3571353712,"1N6I\ncHLtZ7ae"]],[["nel",3300303741,"xLajfVNi"],["x﻿y",4206666793,"+rykKelfhw=="]],[1],"malformed note"],
+    ["x\n\n",[["Señor",516462828,"AAA"],["Señor",516462828,"AAA"]],[["",2420635543,"!!!!"],["bad name",3115415239,"AAAAAAAA"]],[6,4,0],"invalid signer"],
+    ["x\n\n",[["bad name",3602538829,"1rphTbrU"]],[["",2420635543,"kEf3l/SPXPc="],["nel",2239332590,"hXmA7pM="]],[1,6,3],"invalid signer"],
+    ["a\nb\n\n",[],[["nel",2239332590,"hXmA7jntfiK/"]],[7,2],"malformed note"],
+    ["hello\n",[["alpha",1245191902,"Sjge3nY="]],[],[3],"invalid signer"],
+    ["a\nb\n\n",[],[["bad name",2860672762,"AAAA"]],[6],"invalid signer"],
+    ["\u0001ctl\n",[["",2420635543,""],["plus+name",749216073,"AAAAAAAAAAAA"]],[["",1679259701,"ZBd4\nNUU="]],[6],"invalid signer"],
+    ["no newline",[["日本",276050648,"EHQy2A=="]],[["nel",462367441,"AAA="]],[7,7],"malformed note"],
+    ["",[],[["x﻿y",3397059732,"ynsElGQ1"]],[7,2,4],"malformed note"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"ubF2\nxxH3"],["Señor",2245577765,"hdjM\nJQ=="]],[["alpha",716911400,"AAA"],["x﻿y",4206666793,"AAAA"]],[],"malformed note"],
+    ["hello\n",[["alpha",1245191902,"AAA="]],[],[5,7,5],"invalid signer"],
+    ["cr\r\n",[],[["plus+name",3327619725,"xldy\njae8OLnB"]],[],"malformed note"],
+    ["\n",[],[["Señor",516462828,"HsiY7A=="]],[0,5],"invalid signer"],
+    ["\n",[["bad name",3115415239,"ubF2\nxw=="]],[["plus+name",2690770399,"oGHl\n3zE95/g="]],[],"malformed note"],
+    ["a\nb\n\n",[["Señor",1972399333,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["日本",276050648,"EHQy2DGVUg=="],["alpha",1245191902,"Sjge3r+C"]],[4,1,3],"invalid signer"],
+    ["cr\r\n",[["nel",2239332590,"A"]],[["plus+name",2690770399,"AA==\n"],["nel",2239332590,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"HsiY7ECseg=="]],[["nel",3514170734,"AAAAAAAAAAAA"]],[4,2,0],"invalid signer"],
+    ["\n",[],[["x﻿y",4206666793,"+ryk\nKSVUmAk="],["plus+name",2690770399,"oGHl3w=="]],[2,0,4],"invalid signer"],
+    ["a\nb\n\n",[["plus+name",2690770399,"oGHl3zJSWceh"]],[["x﻿y",4206666793,"+rykKdAiI50D"]],[0],"malformed note"],
+    ["café 日本語 🌲\n",[["日本",2231826287,"hQb3bw=="],["nel",2239332590,"hXmA\n7rEV"]],[["日本",1847789722,"biMImjIDSUjG"]],[],"malformed note"],
+    ["a\nb\n\n",[],[["Señor",3128378203,"undDW/Vnbw=="]],[],"","610a620a0a0ae28094205365c3b16f7220756e6444572f566e62773d3d0a"],
+    ["no newline",[["Señor",3500560620,"0KZQ7BvnEjI="]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["",2420635543,"AAA="],["nel",2239332590,"AAAAAAAA"]],[],[6,6],"invalid signer"],
+    ["\u0001ctl\n",[],[["Señor",516462828,"HsiY7A=="]],[],"","0163746c0a0ae28094205365c3b16f72204873695937413d3d0a"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"AA==\n"]],[["x﻿y",4206666793,"+rykKQ=="],["日本",903323033,"AAAA"]],[],"malformed note"],
+    ["hello\n",[["日本",276050648,"EHQy\n2FE="],["bad name",2849446608,"qdca\n0BzH7EFp"]],[],[],"malformed note"],
+    ["\n",[["Señor",516462828,"HsiY7Iw="],["plus+name",2690770399,"oGHl3+2KLg=="]],[["alpha",1245191902,"Sjge\n3g=="]],[4,2,0],"invalid signer"],
+    ["\u0001ctl\n",[["日本",276050648,"EHQy2KEN"],["alpha",1245191902,"Sjge3sI="]],[],[6,6],"invalid signer"],
+    ["\n",[],[["",2931934230,"rsHEFmg="],["nel",2239332590,""]],[2],"malformed note"],
+    ["no newline",[["",641301192,"AAA"],["x﻿y",3305960787,"AAAA"]],[["Señor",516462828,"HsiY7A=="]],[],"malformed note"],
+    ["",[["Señor",900457468,"!!!!"],["plus+name",2690770399,"oGHl3wg="]],[["x﻿y",4206666793,"+rykKQ=="],["Señor",516462828,"AAA"]],[4],"malformed note"],
+    ["\u0001ctl\n",[],[["日本",4166978353,"AAA"],["日本",255791941,"Dz8TRe9S"]],[3],"invalid signer"],
+    ["cr\r\n",[["Señor",516462828,"!!!!"],["nel",2239332590,"!!!!"]],[["x﻿y",4206666793,"AAAA\nAAAA"],["x﻿y",4206666793,"AAA"]],[],"malformed note"],
+    ["a\nb\n\n",[["bad name",3115415239,"ubF2x9YbZA=="],["alpha",1245191902,"AAAA"]],[["nel",2547512482,"!!!!"],["日本",798547117,"AA==\n"]],[1,2],"malformed note"],
+    ["\n",[],[["日本",276050648,"EHQy2Dv9BgQ="]],[1],"","7f0a0ae2809420e697a5e69cac2045485179324476394267513d0ae28094205365c3b16f72204873695937414a44466f4e41386e7a4258686173593853553759796d587475444f6558757475596f5035496b33795a34467832524f4d67794c354f744a33777042395172395037544a35582b4b6d37306a4b6650584c536a7041553d0a"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"ubF2\nx4jLiZCb"]],[["alpha",1245191902,"Sjge3ic="],["",2420635543,"kEf3l0+0ndr1"]],[0],"malformed note"],
+    ["no newline",[["",1965352370,"dSTl\nsg=="],["x﻿y",4206666793,"AAA="]],[],[5,5],"malformed note"],
+    ["no newline",[],[["alpha",1245191902,"Sjge3ulW"],["plus+name",2690770399,"!!!!"]],[7,0,3],"malformed note"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3lwjNrw=="],["x﻿y",4206666793,"+rykKafDphw="]],[],[0,2,0],"malformed note"],
+    ["no newline",[],[["",2420635543,"AAAA"]],[0,0,7],"malformed note"],
+    ["cr\r\n",[["alpha",1245191902,"Sjge\n3to="]],[["日本",276050648,"EHQy2NwJ"],["plus+name",3892125909,"5/0g1culXX1h"]],[7,0,1],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[1,6],"invalid signer"],
+    ["﻿bom\n",[],[],[],"","efbbbf626f6d0a0a"],
+    ["cr\r\n",[],[],[1],"","63720d0a0ae28094205365c3b16f722048736959374e5846316d6e4575582b4254616e306e6a435572344e4b52652b717a31724656666f56674946445570776c6c6b643568392b4c6558594c5178364a42764969696a747371645930567433316c302b61735861737641773d0a"],
+    ["hello\n",[["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["plus+name",2690770399,"oGHl\n30CJ"]],[],[7,7],"malformed note"],
+    ["a\n\nb\n",[["bad name",1940156594,"c6Rw\nsnAX"],["Señor",516462828,"HsiY7NW9"]],[["x﻿y",4206666793,"AA==\n"]],[],"malformed note"],
+    ["﻿bom\n",[["日本",3365332225,"!!!!"],["bad name",3115415239,"ubF2xzI="]],[],[6,3,2],"invalid signer"],
+    ["a\n\nb\n",[["nel",2239332590,"!!!!"],["bad name",3115415239,"!!!!"]],[["",2420635543,"kEf3lyOWSHEW"],["bad name",1570858489,"AAAAAAAAAAAA"]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"hXmA7viJ9A=="]],[["plus+name",2690770399,"oGHl\n3+rH57CA"],["bad name",3115415239,"AAA"]],[],"malformed note"],
+    ["﻿bom\n",[],[["alpha",1245191902,"Sjge3g=="]],[],"","efbbbf626f6d0a0ae2809420616c70686120536a676533673d3d0a"],
+    ["﻿bom\n",[],[],[4,4,0],"invalid signer"],
+    ["\n",[["Señor",704731700,"KgFaNA=="]],[["alpha",1245191902,"Sjge\n3oSVSV1Z"]],[3,1],"invalid signer"],
+    ["a\n\nb\n",[["Señor",850058688,"MqrdwHw+aw=="],["",154300371,"CTJv0zFQMpc/"]],[],[],"malformed note"],
+    ["\n",[["plus+name",2690770399,"oGHl\n3/mv"],["plus+name",2045978335,"AAAAAAAA"]],[["",2420635543,"AAAA"]],[],"malformed note"],
+    ["a\nb\n\n",[],[["x﻿y",4206666793,"+rykKQ=="]],[],"","610a620a0a0ae280942078efbbbf79202b72796b4b513d3d0a"],
+    ["\u0001ctl\n",[["日本",276050648,"EHQy\n2EzDxA=="],["",905778922,"A"]],[],[5,0,2],"invalid signer"],
+    ["",[],[],[7,2,3],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[7,5,1],"invalid signer"],
+    ["a\n\nb\n",[["",2420635543,"A"]],[["alpha",1245191902,"Sjge3h+jFaU="]],[2],"malformed note"],
+    ["cr\r\n",[["nel",2239332590,"hXmA7mT3WofG"],["",2420635543,"kEf3\nl2vfQg=="]],[["alpha",1245191902,"A"]],[],"malformed note"],
+    ["x\n\n",[["日本",276050648,"AAAA"]],[["",2420635543,"kEf3\nl6I="],["bad name",3115415239,""]],[1,3],"invalid signer"],
+    ["café 日本語 🌲\n",[["",2420635543,"AAAA\nAAAA"]],[["Señor",516462828,"AAA"],["alpha",417181216,"AAAAAAAA"]],[4],"invalid signer"],
+    ["﻿bom\n",[["plus+name",2690770399,"oGHl34qqyu0="],["plus+name",1658044721,"YtPBMbae"]],[["x﻿y",4206666793,"+rykKdA="],["x﻿y",3003776966,"AAAAAAAA"]],[],"malformed note"],
+    ["﻿bom\n",[],[["x﻿y",4206666793,"AAAA"],["bad name",3115415239,"ubF2xxGdpg=="]],[],"malformed note"],
+    ["\n",[["",253048576,"DxU3AA=="]],[],[0,4],"invalid signer"],
+    ["\u0001ctl\n",[],[],[3],"invalid signer"],
+    ["a\n\nb\n",[["",2923547932,"rkHNHHXsyQ=="],["Señor",516462828,"HsiY\n7LPg"]],[["x﻿y",1890274716,"AAA="],["plus+name",2690770399,"oGHl\n3w=="]],[2],"malformed note"],
+    ["\u0001ctl\n",[["bad name",3115415239,"!!!!"],["",213173698,"DLTF\nwg=="]],[["nel",2239332590,"hXmA\n7k3y3Q=="]],[5],"invalid signer"],
+    ["\n",[["日本",276050648,"EHQy2H+spQ=="],["日本",276050648,"EHQy2MfzlFve"]],[["日本",2988668271,"siN1b2r0OUk="]],[2,3,0],"invalid signer"],
+    ["café 日本語 🌲\n",[["alpha",1245191902,"Sjge3o3Y5h0="],["x﻿y",4206666793,"AAAAAAAA"]],[],[],"malformed note"],
+    ["\n",[["Señor",2853358222,"AAAA"]],[["",3819005095,"46Fkp7AM/Cye"],["bad name",3115415239,"AAAA\nAAAA"]],[4,1,4],"invalid signer"],
+    ["\u0001ctl\n",[["x﻿y",4206666793,"AAAA"]],[["日本",276050648,"EHQy2Kf/"]],[6],"invalid signer"],
+    ["\n",[["日本",276050648,"EHQy2Io="],["",2420635543,"kEf3l4Zr"]],[["",2420635543,"kEf3\nl7eN"],["nel",1601995428,"X3yC\npM3LO4f4"]],[5,5,5],"invalid signer"],
+    ["",[["nel",571036935,"IglVBw=="],["",2420635543,"!!!!"]],[["plus+name",2690770399,"oGHl3wg="]],[],"malformed note"],
+    ["",[["x﻿y",4206666793,"AAAA"],["x﻿y",4206666793,"+rykKRk="]],[],[],"malformed note"],
+    ["\n",[],[["nel",3997629356,"7kb7rBH1SkgF"],["plus+name",2690770399,""]],[],"malformed note"],
+    ["",[["日本",276050648,"EHQy2FuB"]],[["plus+name",2690770399,"oGHl3w=="],["",991613761,"AAAAAAAAAAAA"]],[1],"malformed note"],
+    ["\n",[],[["nel",2239332590,"hXmA7iD3HzKg"],["Señor",440859232,"Gkb6YA=="]],[2,6],"invalid signer"],
+    ["\n",[["x﻿y",4206666793,"AAAAAAAA"],["alpha",3574573952,"AA==\n"]],[["Señor",516462828,"HsiY\n7Io="]],[1,3],"invalid signer"],
+    ["x\n\n",[["plus+name",2690770399,"oGHl3xsF2iw="],["x﻿y",4206666793,"+rykKQ=="]],[],[0,4],"invalid signer"],
+    ["no newline",[["plus+name",2690770399,"oGHl3wvp7g=="],["nel",2368636239,"AAAAAAAAAAAA"]],[["nel",4227446861,"+/m4\nTQ=="]],[5,0,3],"malformed note"],
+    ["no newline",[],[],[],"malformed note"],
+    ["﻿bom\n",[["x﻿y",2312491687,"idXS\np5kGvkER"]],[["x﻿y",4206666793,"AAAAAAAAAAAA"],["Señor",516462828,"AAAA\nAAAA"]],[0],"malformed note"],
+    ["\n",[["Señor",516462828,"HsiY7Gz9uyY="]],[],[0],"","0a0ae28094205365c3b16f72204873695937477a397579593d0ae2809420616c70686120536a6765336d4830504a5246344f4e63384a4b774d38506779323637517559776f7a4a513566714e375655454f38694f67666f4e4758673062595079394c486679586136687873554c4e416638473331684e673374584c566541593d0a"],
+    ["cr\r\n",[["",2420635543,"kEf3l+J/h/w="],["x﻿y",4206666793,"+rykKaU="]],[],[0],"malformed note"],
+    ["a\nb\n\n",[],[["",2420635543,"!!!!"],["",2420635543,"kEf3\nl7cSLQ=="]],[5],"invalid signer"],
+    ["",[],[["日本",276050648,"AAA"]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[2,3],"invalid signer"],
+    ["hello\n",[],[["Señor",516462828,"HsiY7Hg="],["bad name",3115415239,"ubF2xw=="]],[2,7],"malformed note"],
+    ["x\n\n",[["日本",276050648,"EHQy2J2+vA=="]],[["x﻿y",1376601853,"AAA"],["alpha",1245191902,"AAAA"]],[],"malformed note"],
+    ["cr\r\n",[["alpha",3484002508,""]],[["nel",2239332590,"hXmA\n7g=="]],[2,6,6],"invalid signer"],
+    ["a\nb\n\n",[["日本",437222281,"Gg97iTuf"]],[["plus+name",4050727376,"8XEx0Pi2fA=="]],[],"malformed note"],
+    ["a\nb\n\n",[],[["",4025132534,"7+ql9g=="]],[3],"invalid signer"],
+    ["\n",[["plus+name",2363498058,"jOAeSvE="],["Señor",2683533006,"n/N2\nzkwWH+aY"]],[["nel",1025552659,"PSCxE8op"],["日本",276050648,""]],[6,2],"invalid signer"],
+    ["a\nb\n\n",[["日本",276050648,"!!!!"],["alpha",1245191902,"Sjge3piw"]],[],[0],"malformed note"],
+    ["a\n\nb\n",[],[["bad name",3115415239,"ubF2x62n"],["alpha",1245191902,"Sjge\n3g=="]],[2,6,7],"invalid signer"],
+    ["",[["plus+name",863334311,"M3VvpyR+Xg=="]],[["",3017072619,"s9Tf\n6w=="]],[3,0],"malformed note"],
+    ["a\nb\n\n",[["日本",276050648,"EHQy2AZk"],["",4092057902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["alpha",1245191902,"AAA="],["alpha",1245191902,"Sjge3hZO"]],[7],"malformed note"],
+    ["no newline",[],[],[],"malformed note"],
+    ["x\n\n",[],[],[],"","780a0a0a"],
+    ["\n",[["nel",2601087,"ACewfw=="]],[["日本",276050648,"EHQy2EFehsc="]],[],"malformed note"],
+    ["x\n\n",[["alpha",1245191902,"AAAAAAAA"],["日本",276050648,"AAA="]],[],[],"malformed note"],
+    ["\n",[["bad name",3115415239,"ubF2x6/YThbz"],["x﻿y",3316395813,"xawvJUCmMUTt"]],[],[4,4,3],"invalid signer"],
+    ["",[],[["x﻿y",4206666793,"+rykKRfk8AXA"],["plus+name",2889697357,"rD1ITTO7"]],[3],"malformed note"],
+    ["a\n\nb\n",[],[["x﻿y",4206666793,"+rykKQ=="]],[0],"","610a0a620a0ae280942078efbbbf79202b72796b4b513d3d0ae2809420616c70686120536a676533763749324e4969696c306655746a696c5773336e4464492b636b6f614b5252723633466837786776474b716356526f5761486b37454658704b5a327778724f7968507768684b687857695970547467734a317676776f3d0a"],
+    ["﻿bom\n",[["alpha",2711241926,"oZpExnU="],["alpha",1245191902,"Sjge\n3hNt"]],[["nel",2415844431,"AA==\n"]],[],"malformed note"],
+    ["",[],[],[2,4],"malformed note"],
+    ["hello\n",[["日本",276050648,""],["x﻿y",4206666793,"+rykKcU="]],[["日本",276050648,"AAA="],["nel",2239332590,"hXmA7t3O4Xs="]],[3,2],"invalid signer"],
+    ["a\nb\n\n",[],[],[7],"","610a620a0a0ae2809420e697a5e69cac204548517932484e743937784a72377437313663396b37472b724843776d334431327754526f7168547758506f5a556f683838723150683737496a792f596c554743506641545242336f506e52635768516a62634f317843386b776b3d0a"],
+    ["\n",[["nel",2239332590,"A"],["bad name",2173594236,"gY5qfMs="]],[["Señor",516462828,"HsiY7CTc"]],[],"malformed note"],
+    ["a\n\nb\n",[],[],[7,2,2],"","610a0a620a0ae2809420e697a5e69cac20454851793247664c57305959372b6c43717a6b4a475965644e544541506c44506238665a337372424b5447644338564f6b2f47547232637a764c69732f576c4676614d32576841424e6879566d39586d43466936775435524c776f3d0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0a"],
+    ["a\n\nb\n",[],[],[2,0],"","610a0a620a0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0ae2809420616c70686120536a676533763749324e4969696c306655746a696c5773336e4464492b636b6f614b5252723633466837786776474b716356526f5761486b37454658704b5a327778724f7968507768684b687857695970547467734a317676776f3d0a"],
+    ["﻿bom\n",[["plus+name",2690770399,"oGHl\n34SooGs="]],[["nel",2239332590,"hXmA7t5fGQG8"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["bad name",797207176,"L4RqiCaDKPY="]],[["plus+name",2690770399,"oGHl354="]],[2,3],"invalid signer"],
+    ["\n",[["nel",2239332590,"hXmA\n7qho5Q0="]],[["x﻿y",4206666793,"+rykKV1H"]],[],"malformed note"],
+    ["hello\n",[["日本",276050648,"EHQy\n2H2BSA=="],["plus+name",2548375770,"l+Ug2imcWw=="]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["alpha",3691658524,"3Ao9HKPm7g=="]],[["x﻿y",2633630687,"nPoD31AkOT4="],["nel",2239332590,"hXmA7g=="]],[1,6],"invalid signer"],
+    ["\u0001ctl\n",[["plus+name",1028111981,"PUe+bYc="],["bad name",3115415239,"AA==\n"]],[["bad name",1421303636,"VLdf\nVKA6nO1a"],["x﻿y",4206666793,""]],[5],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[2,6,2],"invalid signer"],
+    ["\n",[],[["nel",2444647724,"kbZd\nLA0="],["alpha",2390223973,"jnfs\nZbhzKA=="]],[6,2,2],"invalid signer"],
+    ["﻿bom\n",[["plus+name",2358716247,"jJcnVyetSQ=="]],[["日本",1696167219,"ZRl1M+POMp8="],["bad name",3115415239,"!!!!"]],[5,2,5],"invalid signer"],
+    ["hello\n",[["",2420635543,"kEf3l2Q="],["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["alpha",1245191902,"Sjge3uQ="]],[],"malformed note"],
+    ["\u0001ctl\n",[["plus+name",3034649468,"tOET\nfA=="]],[["",2420635543,"kEf3l4I="],["日本",697729522,"AAAA"]],[],"malformed note"],
+    ["x\n\n",[["Señor",516462828,"HsiY7ApS"]],[["alpha",1245191902,"AA==\n"],["nel",2239332590,"!!!!"]],[3,0],"invalid signer"],
+    ["a\nb\n\n",[],[["日本",276050648,"EHQy2OWW"]],[4,4,5],"invalid signer"],
+    ["hello\n",[["bad name",647243905,"AAAAAAAA"],["alpha",1245191902,"AAAAAAAA"]],[["alpha",1245191902,"Sjge3k7g5A=="],["日本",826905931,"MUmVS6s="]],[2,1,7],"malformed note"],
+    ["x\n\n",[["alpha",3731246795,"3mZOyw=="],["日本",276050648,"A"]],[],[4],"invalid signer"],
+    ["x\n\n",[["bad name",3115415239,"ubF2x9s6Quk="]],[],[0,5,7],"invalid signer"],
+    ["\n",[],[["alpha",1245191902,"Sjge\n3oo="],["bad name",3115415239,"ubF2\nxygLNg=="]],[],"malformed note"],
+    ["\n",[["bad name",3115415239,"A"],["bad name",3115415239,"ubF2x1oLCus="]],[["nel",2239332590,"hXmA\n7qaDQpg="]],[7,7,4],"invalid signer"],
+    ["no newline",[["日本",276050648,"EHQy\n2DW5"]],[["alpha",1245191902,"Sjge3g8="],["x﻿y",4206666793,"+rykKQ0gUv7c"]],[7,0],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",621661910,"JQ3O\n1g82C1aB"]],[],[4,5],"invalid signer"],
+    ["x\n\n",[["plus+name",2006904309,"d57t9Q1XWw=="],["",2420635543,"kEf3l9boabLU"]],[],[],"malformed note"],
+    ["\n",[["",2420635543,"kEf3l3U="]],[["bad name",3115415239,"ubF2x80y2ws="]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"hXmA7i9EOblG"],["alpha",1245191902,"Sjge\n3lQ="]],[["日本",2878741760,"q5YdAFo="],["Señor",516462828,"AAAAAAAAAAAA"]],[5,1,2],"invalid signer"],
+    ["x\n\n",[["nel",2504164427,"lUKESw=="]],[],[],"malformed note"],
+    ["a\nb\n\n",[],[],[],"","610a620a0a0a"],
+    ["café 日本語 🌲\n",[],[],[5,1,1],"invalid signer"],
+    ["cr\r\n",[["bad name",3115415239,"ubF2\nxxX/"]],[["nel",2239332590,"AAA"],["bad name",3115415239,"ubF2x9NrdA=="]],[1],"malformed note"],
+    ["\n",[],[],[4,6,4],"invalid signer"],
+    ["\u0001ctl\n",[["alpha",1654435401,"AAA"],["nel",2239332590,"hXmA7g=="]],[["plus+name",2690770399,"oGHl3yDtJCgm"],["日本",276050648,"EHQy2Ek="]],[5,3],"invalid signer"],
+    ["café 日本語 🌲\n",[["",4179979907,"AAAA"],["",2946746048,"r6PGwBxr"]],[["日本",276050648,""],["Señor",516462828,"HsiY7BU="]],[0],"malformed note"],
+    ["a\nb\n\n",[["Señor",4276349770,"AAA"],["x﻿y",4206666793,"AAAAAAAA"]],[],[1],"malformed note"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["\n",[["",848220536,"AA==\n"],["日本",276050648,"EHQy2O4="]],[],[2,0],"malformed note"],
+    ["\u0001ctl\n",[],[["",2420635543,"kEf3\nlw=="]],[1,4],"invalid signer"],
+    ["",[],[["x﻿y",1446952189,""]],[3,5,7],"malformed note"],
+    ["\u0001ctl\n",[],[["",2420635543,"!!!!"],["plus+name",2690770399,"oGHl38CgxDLi"]],[1,5],"invalid signer"],
+    ["﻿bom\n",[],[["plus+name",2690770399,"oGHl34k="]],[0,4],"invalid signer"],
+    ["a\n\nb\n",[["alpha",1245191902,"Sjge\n3qw="]],[["x﻿y",4206666793,"+rykKb0mMg=="]],[],"","610a0a620a0ae2809420616c70686120536a67650a3371773d0ae280942078efbbbf79202b72796b4b62306d4d673d3d0a"],
+    ["cr\r\n",[],[["日本",276050648,"!!!!"]],[4,2],"invalid signer"],
+    ["no newline",[["bad name",3115415239,"ubF2\nx4PerA=="]],[["x﻿y",84187826,"BQSasiff"]],[4],"malformed note"],
+    ["cr\r\n",[["plus+name",1910882051,"ceW/A54eVzin"],["alpha",1245191902,"Sjge3s+e"]],[["bad name",3115415239,"ubF2\nxwo="]],[1,6,3],"invalid signer"],
+    ["hello\n",[["",2420635543,"AAAAAAAA"]],[["",2420635543,"AAAAAAAA"],["alpha",1245191902,"Sjge3ph8"]],[],"malformed note"],
+    ["\u0001ctl\n",[["",2420635543,"!!!!"]],[["alpha",1245191902,"Sjge3g=="]],[0],"malformed note"],
+    ["cr\r\n",[],[],[4],"invalid signer"],
+    ["cr\r\n",[["",2420635543,"kEf3l4Nn8Q=="]],[["x﻿y",2277466300,"AAAA"],["",2420635543,"AAAAAAAA"]],[7],"malformed note"],
+    ["no newline",[["nel",2239332590,"AAA="],["x﻿y",4206666793,"+rykKW8="]],[["bad name",1192939576,"RxrQ\nOBBISQ=="],["alpha",1245191902,"Sjge3jJFlMg="]],[],"malformed note"],
+    ["hello\n",[["日本",928150876,"N1J1\nXA=="],["x﻿y",4206666793,"+rykKRzKvAA+"]],[],[],"","68656c6c6f0a0ae2809420e697a5e69cac204e314a310a58413d3d0ae280942078efbbbf79202b72796b4b527a4b7641412b0a"],
+    ["\n",[],[],[6],"invalid signer"],
+    ["",[],[],[0],"malformed note"],
+    ["a\nb\n\n",[["alpha",1245191902,"Sjge3lM="],["alpha",449276868,"!!!!"]],[],[],"malformed note"],
+    ["\n",[],[["nel",2239332590,"hXmA7pqySg=="],["bad name",3115415239,"ubF2xw=="]],[6,0,4],"invalid signer"],
+    ["\u0001ctl\n",[["",2420635543,"AAAA"],["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["日本",276050648,"EHQy2J8="]],[1,5],"invalid signer"],
+    ["﻿bom\n",[["alpha",1245191902,"Sjge3lM8"]],[],[],"","efbbbf626f6d0a0ae2809420616c70686120536a6765336c4d380a"],
+    ["no newline",[],[],[1],"malformed note"],
+    ["",[["bad name",3115415239,"ubF2x18="]],[["Señor",516462828,"HsiY7KQ2Vw=="]],[7,7],"malformed note"],
+    ["\n",[["日本",276050648,"EHQy2GlP"]],[["x﻿y",4206666793,"+rykKSe89x3U"]],[0],"","0a0ae2809420e697a5e69cac204548517932476c500ae280942078efbbbf79202b72796b4b536538397833550ae2809420616c70686120536a6765336d4830504a5246344f4e63384a4b774d38506779323637517559776f7a4a513566714e375655454f38694f67666f4e4758673062595079394c486679586136687873554c4e416638473331684e673374584c566541593d0a"],
+    ["x\n\n",[["x﻿y",518504274,"Hue/UrgIDsD2"]],[["plus+name",2690770399,"oGHl36sk"]],[0,2,6],"invalid signer"],
+    ["﻿bom\n",[["nel",2239332590,"hXmA7g=="]],[],[0,3,1],"invalid signer"],
+    ["cr\r\n",[["alpha",1034971398,"PbBpBhMu"]],[["plus+name",2690770399,"oGHl\n3wIScg=="],["bad name",3115415239,"ubF2x+KSiQ=="]],[],"malformed note"],
+    ["x\n\n",[["x﻿y",3463695278,"znPLrqZLTg=="]],[],[5,3,2],"invalid signer"],
+    ["",[["plus+name",2690770399,"oGHl31Q="],["plus+name",2690770399,"AAAA"]],[["日本",276050648,"A"],["",2420635543,"kEf3\nl6M="]],[],"malformed note"],
+    ["﻿bom\n",[["nel",2239332590,"hXmA7n4xtZhM"]],[],[3,2,4],"invalid signer"],
+    ["﻿bom\n",[["plus+name",4267091384,"/laluH5u"],["",2420635543,"kEf3l5FMBw=="]],[],[0,0],"malformed note"],
+    ["",[],[["bad name",3115415239,"ubF2\nxw=="]],[6,3,5],"malformed note"],
+    ["café 日本語 🌲\n",[],[["日本",276050648,"AA==\n"]],[2],"malformed note"],
+    ["no newline",[],[["日本",276050648,"EHQy\n2GKf"],["alpha",4269845863,"AAA="]],[],"malformed note"],
+    ["\n",[["nel",516414840,"Hsfd\neNAnpk4="],["nel",3495195058,"0FRxst682bo="]],[["日本",3751412114,"35oBkuddXn1w"]],[0,3,7],"invalid signer"],
+    ["﻿bom\n",[],[["plus+name",1269518802,""]],[6,1],"invalid signer"],
+    ["cr\r\n",[["nel",2239332590,"AAA="]],[],[],"malformed note"],
+    ["no newline",[["Señor",516462828,"AA==\n"],["",2420635543,"kEf3\nl2Zz"]],[],[0],"malformed note"],
+    ["\u0001ctl\n",[["bad name",3115415239,"AAA="]],[["日本",17013266,"AQOaEnj+"]],[5],"invalid signer"],
+    ["no newline",[["",2420635543,"kEf3lw5zX6Ih"],["nel",2239332590,"hXmA7tArlnI="]],[],[],"malformed note"],
+    ["\n",[["",2420635543,"kEf3l1VmKxE="]],[],[0,2,7],"malformed note"],
+    ["a\n\nb\n",[],[["Señor",516462828,""]],[4,5,3],"invalid signer"],
+    ["\n",[["plus+name",928699970,"AAA="],["",2995828058,"spC1\nWs/U"]],[["Señor",516462828,"HsiY7A=="]],[0,6],"invalid signer"],
+    ["a\n\nb\n",[["",2420635543,"AAAA"]],[],[],"malformed note"],
+    ["﻿bom\n",[["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["x﻿y",4206666793,"A"]],[],[4],"invalid signer"],
+    ["cr\r\n",[["x﻿y",4206666793,"!!!!"],["nel",2239332590,"hXmA\n7g=="]],[["x﻿y",215732550,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[6,4],"invalid signer"],
+    ["\u0001ctl\n",[["plus+name",2690770399,"oGHl370SjA=="]],[["Señor",516462828,"AAAA"],["plus+name",2690770399,"oGHl3+AyDXFt"]],[1],"malformed note"],
+    ["﻿bom\n",[["nel",577108793,"ImX7OcX7iQth"],["plus+name",2690770399,"oGHl39+ZUps="]],[["nel",2239332590,"hXmA\n7g=="]],[4],"invalid signer"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"+rykKeRxFKYk"]],[["Señor",516462828,"HsiY7A=="],["x﻿y",344551067,"FIlumzIr"]],[0,4,2],"invalid signer"],
+    ["",[["x﻿y",2543279441,"l5ddUQ=="],["alpha",1245191902,"Sjge3iTL"]],[],[5,7,3],"malformed note"],
+    ["no newline",[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["",2420635543,"kEf3l0O9dg=="]],[["x﻿y",3920497143,"6a4J\n9zumBTuQ"],["",2420635543,"kEf3l5I="]],[6,5],"malformed note"],
+    ["café 日本語 🌲\n",[["alpha",867979682,"M7xRos4="]],[["bad name",1388633348,"UsTd\nBOSL4BWI"],["Señor",2753687160,"AAAAAAAA"]],[0,6,2],"invalid signer"],
+    ["no newline",[["Señor",516462828,"HsiY\n7FRQ"]],[["plus+name",2690770399,"oGHl3zNneg=="]],[2,7,5],"malformed note"],
+    ["\n",[],[["",2420635543,"kEf3\nl9hq"]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"hXmA7iex"],["nel",2134817296,"AA==\n"]],[["x﻿y",4206666793,"+rykKcM="]],[],"malformed note"],
+    ["﻿bom\n",[["nel",1739163046,"Z6mF\npls4X/TY"],["plus+name",2690770399,""]],[["",2420635543,"kEf3l7Ppow=="]],[0],"malformed note"],
+    ["a\nb\n\n",[["alpha",1245191902,"Sjge3uRL9Gqf"]],[["",2420635543,"kEf3l7U="]],[0,0,3],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[7,3],"invalid signer"],
+    ["",[["alpha",2657018890,"nl7kCrUCaZg="]],[["plus+name",3347919620,"x40zBG50NFTb"]],[5],"malformed note"],
+    ["x\n\n",[["x﻿y",4206666793,"+ryk\nKQn9ZFsK"],["Señor",819348770,"AAA="]],[["x﻿y",674604110,"AA==\n"],["",2420635543,"kEf3\nlw=="]],[6,5,5],"invalid signer"],
+    ["no newline",[["nel",2239332590,"AAAA"]],[["plus+name",2690770399,"oGHl3yKDGP4="],["",2420635543,"kEf3l5UJoiMR"]],[5,5,6],"malformed note"],
+    ["\n",[["nel",2239332590,""]],[["x﻿y",2451849584,"kiRBcJPZlGg="],["plus+name",2926412670,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[7,0],"malformed note"],
+    ["a\nb\n\n",[["plus+name",2643752555,"nZR2aw=="]],[],[6,6,1],"invalid signer"],
+    ["cr\r\n",[["bad name",2686460815,"oCAjj4lmHa4="]],[],[],"malformed note"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["",[["bad name",616030499,"JLfh\nI4VDHA=="],["alpha",1059541965,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[],"malformed note"],
+    ["a\nb\n\n",[],[],[5,6],"invalid signer"],
+    ["cr\r\n",[],[["日本",276050648,"EHQy2Oq43w=="],["",2420635543,"kEf3\nl21k"]],[1,4,0],"invalid signer"],
+    ["a\nb\n\n",[["bad name",3115415239,"ubF2xxysHA=="],["bad name",690132139,"KSKUq7U="]],[["alpha",1245191902,"Sjge\n3g=="],["nel",1637296291,"AAA"]],[2],"malformed note"],
+    ["\u0001ctl\n",[["bad name",3115415239,"ubF2x0nX"],["bad name",4061077105,"8g8ecQ=="]],[],[2],"malformed note"],
+    ["",[],[["",2420635543,"kEf3l0aH"]],[],"malformed note"],
+    ["x\n\n",[],[["",3434533729,"A"],["plus+name",2690770399,"oGHl334t0QY="]],[],"malformed note"],
+    ["﻿bom\n",[["日本",276050648,"EHQy\n2Ps="],["x﻿y",3534372233,"0qo9iRk="]],[],[5,6],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["",2420635543,"kEf3\nl0T4H1A="],["Señor",516462828,"AAA"]],[6],"invalid signer"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"+rykKazhtTgi"],["",2420635543,"kEf3l/Y207Y="]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[["nel",2239332590,"AAA="],["Señor",516462828,"HsiY7C0pCAq/"]],[["日本",276050648,"EHQy2JaAm/bw"]],[],"malformed note"],
+    ["hello\n",[["nel",2239332590,"AAA="]],[],[5,1,5],"invalid signer"],
+    ["\u0001ctl\n",[["alpha",1245191902,"Sjge3jrf"],["日本",3708960990,"AAAAAAAAAAAA"]],[["nel",2239332590,"hXmA7jMCkg=="]],[1],"malformed note"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"AAA="],["",1263683247,"S1JGrwRZRQ=="]],[["日本",276050648,"EHQy2Gg="]],[5,2],"invalid signer"],
+    ["",[["Señor",516462828,"AA==\n"],["x﻿y",3945726479,"6y8C\nDyKBfQ=="]],[["bad name",3115415239,""]],[2,6],"malformed note"],
+    ["﻿bom\n",[],[["bad name",1527792655,"AA==\n"],["x﻿y",1990231655,"AAAAAAAA"]],[3,2],"invalid signer"],
+    ["cr\r\n",[],[],[],"","63720d0a0a"],
+    ["﻿bom\n",[["plus+name",2690770399,"oGHl3wm4"]],[],[2],"malformed note"],
+    ["hello\n",[["日本",276050648,"AAAA\nAAAA"]],[["bad name",2850564591,"qegp7w=="]],[7,3],"invalid signer"],
+    ["",[["nel",2239332590,"hXmA7poBYyhX"]],[["bad name",3115415239,"AAAA"],["alpha",1245191902,"AAAAAAAA"]],[6,0,3],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"+rykKQ=="],["alpha",3300187279,"xLTcjxubBFOC"]],[],[7,7],"","7f0a0ae280942078efbbbf79202b72796b4b513d3d0ae2809420616c70686120784c54636a78756242464f430ae2809420e697a5e69cac20454851793241486e36715431646d6134466c54657341514c784943592f2b51626c527334586f7a5276456548767056774246642b6849706f312b35697749306843454a2f54644473305663714c45396f666e654d6263477932776f3d0ae2809420e697a5e69cac20454851793241486e36715431646d6134466c54657341514c784943592f2b51626c527334586f7a5276456548767056774246642b6849706f312b35697749306843454a2f54644473305663714c45396f666e654d6263477932776f3d0a"],
+    ["cr\r\n",[],[["日本",276050648,"EHQy2OQ="]],[4,1,6],"invalid signer"],
+    ["\n",[["日本",276050648,"EHQy2Dxo8kZ4"],["plus+name",2690770399,"AAAA\nAAAA"]],[["plus+name",3703352647,"3Lyt\nR+RT0ar5"],["x﻿y",1427714236,"AAA"]],[],"malformed note"],
+    ["\n",[],[["x﻿y",2404556126,"AAAAAAAAAAAA"]],[2,7],"malformed note"],
+    ["",[["x﻿y",2623926820,"AAAAAAAA"],["plus+name",1169644393,"RbdbaQ=="]],[["",4036998857,"8J+2\nyTMu"]],[0],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[0,2],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0ae2809420616c70686120536a676533734143664b3072476e4b376a7172752f564e4941735373554c502b365734633433665642433345326d684275346158424e356d55754f793670434542734c3645734c574f58774c58307355464b777563794d397351673d0ae280942078efbbbf79202b72796b4b63524f6565306468795844444a7263574f52503236724348385a2f466952614944524f44536c676d456a6255724661457936652f464e70646a6d67444d787942327952537872697a796f6b374e6a696937776f6377773d0a"],
+    ["\u0001ctl\n",[["Señor",516462828,"!!!!"],["nel",3011685190,"s4KrRiuP"]],[["plus+name",2690770399,"oGHl34DipQ=="],["Señor",516462828,"AAAAAAAA"]],[5,3,0],"invalid signer"],
+    ["café 日本語 🌲\n",[["x﻿y",4206666793,"+rykKSeSgNdc"]],[],[3,0,6],"invalid signer"],
+    ["a\nb\n\n",[["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[],"malformed note"],
+    ["cr\r\n",[["bad name",2594519390,"mqU5XkHE8A=="]],[["bad name",3115415239,"AAA"]],[],"malformed note"],
+    ["",[["Señor",2491366621,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["x﻿y",4206666793,"+rykKdpepQ=="]],[["日本",276050648,"EHQy2Gs="]],[],"malformed note"],
+    ["x\n\n",[["nel",1049580139,"Po9Sa8tCM6o="]],[],[3,5,5],"invalid signer"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3lw=="]],[],[0],"malformed note"],
+    ["﻿bom\n",[["bad name",75022287,"AAA"],["alpha",1245191902,"Sjge\n3onmqeEO"]],[["日本",276050648,"EHQy\n2HC5hg=="]],[3,5,4],"invalid signer"],
+    ["no newline",[["",2420635543,"!!!!"]],[["日本",276050648,"EHQy\n2LSMiL4="]],[3,4,0],"malformed note"],
+    ["\n",[["日本",276050648,"AAA="],["Señor",897297601,"NXuswY81"]],[["bad name",157885299,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["nel",2239332590,"!!!!"]],[6,6,3],"invalid signer"],
+    ["x\n\n",[["nel",2239332590,"hXmA7g=="],["x﻿y",4206666793,"AA==\n"]],[["nel",2239332590,"AAA="]],[],"malformed note"],
+    ["﻿bom\n",[["日本",438534284,"GiOAjA=="],["plus+name",178225285,"A"]],[["bad name",552142586,"AAA="],["bad name",3115415239,"ubF2x2evcdLz"]],[7,0],"malformed note"],
+    ["﻿bom\n",[["plus+name",2690770399,""]],[],[2],"malformed note"],
+    ["",[["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["",2420635543,"AAAA\nAAAA"]],[["plus+name",2690770399,"oGHl33oWDJA="]],[],"malformed note"],
+    ["",[["日本",276050648,"EHQy\n2Hs="],["bad name",2270192364,""]],[],[0,4,3],"malformed note"],
+    ["hello\n",[["nel",2239332590,"!!!!"],["x﻿y",4206666793,"+rykKeJ4dQU="]],[],[],"malformed note"],
+    ["\n",[],[],[2,4,3],"invalid signer"],
+    ["x\n\n",[],[["alpha",1245191902,"Sjge\n3g4YZIf6"]],[2,0,2],"","780a0a0ae280942078efbbbf79202b72796b4b644a41343974444a7a614b322f332f64384753554858305957415573323245383766437864735a6b554435337a7a534f534568694e472b6c7163705858514456574a37595742354d38714f745a7832573564746577673d0ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0ae280942078efbbbf79202b72796b4b644a41343974444a7a614b322f332f64384753554858305957415573323245383766437864735a6b554435337a7a534f534568694e472b6c7163705858514456574a37595742354d38714f745a7832573564746577673d0a"],
+    ["hello\n",[["x﻿y",525749367,"AAAAAAAA"]],[["Señor",2978299019,"AAA="]],[7],"malformed note"],
+    ["\u0001ctl\n",[["alpha",1245191902,"Sjge3gO4uH4="]],[["bad name",3115415239,"AAAA\nAAAA"]],[2,5,2],"invalid signer"],
+    ["cr\r\n",[["x﻿y",4206666793,"AA==\n"]],[["Señor",2903093462,"AAAA"]],[7,2],"malformed note"],
+    ["\n",[],[["nel",2239332590,"hXmA7g=="]],[2],"malformed note"],
+    ["a\n\nb\n",[],[],[2,2],"","610a0a620a0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0a"],
+    ["\n",[["nel",3889943574,"59vUFncj+pA="],["Señor",516462828,"HsiY7Ch+dw=="]],[["x﻿y",4206666793,"+rykKQ=="]],[5,7,0],"invalid signer"],
+    ["x\n\n",[],[],[6],"invalid signer"],
+    ["no newline",[["alpha",1245191902,"AAA"]],[["nel",2239332590,"hXmA7hj+"],["bad name",3115415239,"AAAA"]],[4],"malformed note"],
+    ["",[["Señor",2334649251,"iyfr\now=="]],[["x﻿y",4206666793,"+rykKQo="]],[6,3],"malformed note"],
+    ["",[],[["plus+name",2690770399,"oGHl\n3zRP"]],[1,2,2],"malformed note"],
+    ["café 日本語 🌲\n",[["nel",1507850588,"A"]],[["alpha",1245191902,"Sjge3tHG"],["Señor",516462828,"AAAA"]],[3],"invalid signer"],
+    ["\n",[],[["plus+name",2690770399,"AAA="],["alpha",1245191902,"Sjge3rHM"]],[],"malformed note"],
+    ["no newline",[["",2420635543,"kEf3\nl/g="]],[],[],"malformed note"],
+    ["hello\n",[],[["bad name",2633607550,"nPmpfp2fJ75T"]],[0,6,3],"invalid signer"],
+    ["﻿bom\n",[["bad name",3115415239,"ubF2\nx0s="],["x﻿y",4206666793,"+rykKQ=="]],[["nel",405296696,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[7,4,5],"invalid signer"],
+    ["a\nb\n\n",[["Señor",516462828,"AAAAAAAAAAAA"]],[["日本",276050648,"EHQy\n2D/whhk="]],[7,3],"invalid signer"],
+    ["x\n\n",[["x﻿y",4206666793,"AAAAAAAAAAAA"],["alpha",2529371873,"AAA"]],[["plus+name",3297225101,"AAA="],["bad name",3519853800,"0cy06M/4hw=="]],[7,2,3],"invalid signer"],
+    ["cr\r\n",[["alpha",1245191902,"Sjge3t/cnmA="]],[],[7,5,0],"invalid signer"],
+    ["\n",[],[["bad name",3115415239,"AAA="]],[],"malformed note"],
+    ["",[],[],[5],"malformed note"],
+    ["a\n\nb\n",[["Señor",516462828,"HsiY7Ch1"]],[["nel",2239332590,"hXmA7gw="]],[0,1,2],"malformed note"],
+    ["\u0001ctl\n",[["日本",276050648,"EHQy2Jm3Wr/3"],["alpha",1245191902,"Sjge3i8B"]],[],[5],"invalid signer"],
+    ["x\n\n",[],[],[2,7],"","780a0a0ae280942078efbbbf79202b72796b4b644a41343974444a7a614b322f332f64384753554858305957415573323245383766437864735a6b554435337a7a534f534568694e472b6c7163705858514456574a37595742354d38714f745a7832573564746577673d0ae2809420e697a5e69cac2045485179324d414b4e784e79357555623148663850665048314e7658395a70786651683470544541413251483674786a3976467a314c325273786d7377612b7a6e357a6e70457877585a4b564c53476832667744685979326e67343d0a"],
+    ["cr\r\n",[["plus+name",3165341328,"!!!!"],["bad name",3115415239,"ubF2x7Y="]],[["日本",820207770,"!!!!"]],[],"malformed note"],
+    ["no newline",[],[],[],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"+ryk\nKTETCXwj"]],[["bad name",3115415239,"ubF2xzU6BJTw"],["plus+name",2690770399,"oGHl37rnl+jv"]],[1,6,7],"invalid signer"],
+    ["café 日本語 🌲\n",[["",1697787400,"AAAA\nAAAA"],["",418420825,"A"]],[["alpha",1245191902,"!!!!"],["alpha",1245191902,"Sjge\n3nlE"]],[7,5],"invalid signer"],
+    ["\n",[["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["",2420635543,"kEf3l8/Y3xas"]],[],"malformed note"],
+    ["hello\n",[],[["x﻿y",4206666793,"+rykKcGpDVvQ"],["Señor",516462828,"AAAA"]],[7,0,2],"malformed note"],
+    ["\n",[],[["",2420635543,"kEf3\nlw8="],["",2667179481,"nvnt2VVD1g=="]],[5,0,1],"invalid signer"],
+    ["\u0001ctl\n",[["",948280779,"OIWdy3KWyPvV"]],[["alpha",1333541717,"T3w7VQXf"],["Señor",516462828,"HsiY7BBIyE2D"]],[3,4],"invalid signer"],
+    ["",[],[["alpha",1245191902,"AAA"]],[4,0],"malformed note"],
+    ["hello\n",[],[["Señor",516462828,"HsiY7PuoHpE="]],[7,1,3],"invalid signer"],
+    ["no newline",[],[["plus+name",2690770399,"oGHl3w=="],["",2420635543,"kEf3l7I60AI="]],[],"malformed note"],
+    ["hello\n",[],[["Señor",741312086,"LC+G\nVlbmyA=="]],[6],"invalid signer"],
+    ["a\nb\n\n",[["日本",276050648,"EHQy\n2H8="]],[["alpha",3136949331,"uvoMU0+bwA=="],["",2420635543,"kEf3lw=="]],[1],"malformed note"],
+    ["x\n\n",[["",2420635543,"!!!!"],["nel",3875589737,"5wDOaQ=="]],[["alpha",3327044461,"AAAAAAAA"]],[],"malformed note"],
+    ["hello\n",[["日本",3852104827,"5Zp0\neyi4"]],[["alpha",1245191902,"AAAA"]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"hXmA7pM="]],[["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[3],"invalid signer"],
+    ["cr\r\n",[["alpha",1245191902,"Sjge3u9XexSv"],["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[6,6,1],"invalid signer"],
+    ["",[],[["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["x﻿y",3724644191,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],"malformed note"],
+    ["hello\n",[["alpha",3626393920,""],["nel",2239332590,"AAAAAAAA"]],[["Señor",516462828,"HsiY7GXw"],["Señor",4114727645,""]],[5],"invalid signer"],
+    ["a\nb\n\n",[["日本",276050648,"EHQy2Mo="],["Señor",2782051461,"pdK8hW6t"]],[["alpha",1245191902,"Sjge3oU2"]],[5,1,7],"invalid signer"],
+    ["café 日本語 🌲\n",[["x﻿y",2823520859,"qEuCW2TJ1A=="],["nel",2239332590,"hXmA\n7gPPAOqk"]],[],[5,2,5],"invalid signer"],
+    ["\n",[["",2420635543,"kEf3\nl6ly7MUI"]],[["nel",2239332590,"!!!!"],["nel",2239332590,"hXmA7g=="]],[7],"malformed note"],
+    ["hello\n",[["plus+name",2690770399,"oGHl\n3xrnbLQ="],["bad name",2899261021,"rM82XQ=="]],[["plus+name",2690770399,"oGHl\n3zg1Nz4="],["x﻿y",1469549326,"V5eLDqieaGA="]],[],"malformed note"],
+    ["hello\n",[["plus+name",2690770399,"oGHl3w=="],["",2420635543,"kEf3lzwW"]],[["x﻿y",4206666793,"AAAAAAAAAAAA"],["nel",2239332590,"hXmA7ianMQ=="]],[],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"+rykKQ=="]],[["alpha",1245191902,"AAA="],["x﻿y",4206666793,"+rykKVY="]],[],"malformed note"],
+    ["no newline",[["日本",3618237517,"16nsTfA="]],[["Señor",516462828,"HsiY7Pw="],["nel",2239332590,"hXmA\n7iut1mIu"]],[7,4],"malformed note"],
+    ["no newline",[["alpha",1245191902,"Sjge\n3gw="],["日本",276050648,"EHQy2A=="]],[],[3],"malformed note"],
+    ["no newline",[],[],[],"malformed note"],
+    ["",[["日本",64407492,"A9bHxBk="],["x﻿y",3331209324,"AAAA"]],[["日本",276050648,"AAAAAAAAAAAA"]],[7,0],"malformed note"],
+    ["\n",[["Señor",516462828,"HsiY\n7OvdMA=="]],[["Señor",516462828,"HsiY7I0="],["Señor",516462828,"AAA="]],[5],"invalid signer"],
+    ["﻿bom\n",[],[["bad name",3115415239,"ubF2x94rGIs="]],[2,2,1],"malformed note"],
+    ["\n",[],[["日本",2284992022,"iDI2FjLRzA4="],["alpha",1245191902,"Sjge3po="]],[6,2,0],"invalid signer"],
+    ["\n",[["bad name",363845479,"Fa/XZ6aOKp4="],["Señor",516462828,"HsiY\n7JDmBA=="]],[["Señor",516462828,"HsiY\n7A=="],["bad name",3115415239,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[7,6],"invalid signer"],
+    ["hello\n",[["日本",1667873580,"AAA"],["alpha",1245191902,"Sjge3t9iqQx7"]],[["Señor",1456217500,"VswdnPHMjwrW"],["nel",2239332590,"hXmA7rY="]],[],"malformed note"],
+    ["hello\n",[],[["alpha",4162623121,"+ByWka8="]],[7,3],"invalid signer"],
+    ["\n",[["bad name",3115415239,"ubF2x1gyr8t1"],["日本",276050648,"EHQy2Amj"]],[["日本",276050648,"EHQy2A=="]],[3,2,1],"invalid signer"],
+    ["x\n\n",[],[["nel",1729925151,"ZxyQ\nH52x"]],[7,6],"invalid signer"],
+    ["\n",[],[["nel",2239332590,"hXmA7h5izsw="],["nel",2239332590,"hXmA7gzH"]],[1],"malformed note"],
+    ["cr\r\n",[["x﻿y",2423698756,"kHa1RA=="]],[["bad name",790818755,"LyLvwz3M"],["x﻿y",4206666793,"+rykKWJwbR4c"]],[3,1],"invalid signer"],
+    ["a\nb\n\n",[["",2247487069,"hfXuXXA2tQ7v"],["",2711198052,"oZmZZGAn"]],[],[2,1],"malformed note"],
+    ["café 日本語 🌲\n",[["plus+name",2690770399,"AAAAAAAA"]],[],[5,5],"invalid signer"],
+    ["hello\n",[["nel",4151148899,"922BY12XTRk="],["nel",916949489,"NqeJ8Tphsg=="]],[["bad name",3115415239,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[4,6,4],"invalid signer"],
+    ["a\nb\n\n",[],[["plus+name",2690770399,"oGHl37KxDQ=="],["x﻿y",1228408986,"STgI\nmkk="]],[1,7],"malformed note"],
+    ["﻿bom\n",[["plus+name",2690770399,"oGHl34Sp"],["nel",3839243855,"5NY2\nT2nSFEPK"]],[["x﻿y",852945831,"Mtbr\np/seHA=="]],[7,4],"invalid signer"],
+    ["",[["plus+name",2269680779,"h0iUi/ayNYc="],["日本",276050648,"EHQy2A=="]],[],[7],"malformed note"],
+    ["café 日本語 🌲\n",[],[["x﻿y",1077327907,"QDa4IzKu"],["bad name",3115415239,"AAAAAAAA"]],[0,0,2],"malformed note"],
+    ["a\nb\n\n",[],[["plus+name",2690770399,"AAAA\nAAAA"]],[],"malformed note"],
+    ["\u0001ctl\n",[["",3469018785,""],["Señor",2011617510,"d+bY5t/3mmPx"]],[],[],"malformed note"],
+    ["cr\r\n",[["alpha",1802985584,"a3dgcA=="],["日本",276050648,"EHQy2EU="]],[["Señor",516462828,"HsiY7A=="]],[3,2],"invalid signer"],
+    ["﻿bom\n",[["bad name",790833296,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["x﻿y",4187655694,"+ZqODiM="]],[7],"malformed note"],
+    ["\n",[["",2420635543,"kEf3lw=="],["bad name",3115415239,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["",3075804551,"t1UNh8xZqwGJ"],["",2420635543,"AAA"]],[2],"malformed note"],
+    ["\n",[["nel",2745727217,"o6h48VMUmA=="]],[["bad name",3115415239,"ubF2x0Cx"],["日本",276050648,"AAAA"]],[],"malformed note"],
+    ["\u0001ctl\n",[],[],[4,7,6],"invalid signer"],
+    ["",[["alpha",1245191902,"Sjge3n0="],["alpha",1245191902,"Sjge3iUK"]],[["Señor",516462828,"HsiY\n7MIa"]],[3],"malformed note"],
+    ["café 日本語 🌲\n",[["alpha",1245191902,"Sjge3g9pfQyO"]],[["x﻿y",4206666793,"AAAA\nAAAA"],["x﻿y",1203611628,"R72n7Bcx7uc="]],[3],"invalid signer"],
+    ["cr\r\n",[["alpha",1245191902,"Sjge3muLCg=="],["alpha",1245191902,"Sjge3jIU"]],[["日本",3542235867,"AAAAAAAA"],["nel",2287346236,""]],[],"malformed note"],
+    ["x\n\n",[["x﻿y",4206666793,"!!!!"]],[["x﻿y",4206666793,"+rykKfSh"],["Señor",2777689872,"pZAvEDyI"]],[7,3],"invalid signer"],
+    ["\u0001ctl\n",[],[["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],"malformed note"],
+    ["a\nb\n\n",[],[["plus+name",439541297,"GjLeMVU+JrsE"],["plus+name",576056108,"IlXrLIE="]],[2,6,1],"invalid signer"],
+    ["hello\n",[["nel",2239332590,"hXmA\n7sFrw0c="]],[],[7,6,4],"invalid signer"],
+    ["cr\r\n",[["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["bad name",2467884396,"kxjtbGPJsiw="]],[["Señor",516462828,"HsiY7JnUhUE="],["alpha",1245191902,"Sjge3g=="]],[4,2,0],"invalid signer"],
+    ["\n",[["",2420635543,"AAAAAAAAAAAA"],["",2420635543,"kEf3l6PS"]],[],[],"malformed note"],
+    ["a\n\nb\n",[["",2420635543,"kEf3\nl62d"],["plus+name",2690770399,"oGHl37ZIi/Vw"]],[["Señor",3077519669,"t285Nd7heoo="]],[0],"malformed note"],
+    ["\u0001ctl\n",[["",2420635543,"kEf3l8Xdvg=="],["alpha",1245191902,"Sjge3pzaq6Q="]],[["bad name",249488060,"AA==\n"],["bad name",3115415239,"ubF2x6wpIUXI"]],[6],"invalid signer"],
+    ["a\n\nb\n",[],[["bad name",373427443,"FkIM812j4w8="],["alpha",1832768204,"bT3S\nzG0="]],[4,0,7],"invalid signer"],
+    ["\u0001ctl\n",[["日本",276050648,"EHQy\n2HeeUA=="]],[["nel",2239332590,"hXmA7pKJ"],["plus+name",2690770399,"AAA"]],[3],"invalid signer"],
+    ["a\nb\n\n",[],[],[0,3,7],"invalid signer"],
+    ["﻿bom\n",[["x﻿y",4206666793,"+rykKWwz"],["nel",2239332590,"hXmA7g=="]],[["",2420635543,"AAAAAAAAAAAA"],["plus+name",2690770399,"AAAAAAAAAAAA"]],[2,1],"malformed note"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"HsiY7EU="],["日本",898312356,"NYsopJY="]],[["plus+name",2690770399,"oGHl31L+aw=="]],[6,1,3],"invalid signer"],
+    ["\n",[["nel",2239332590,"AAAA\nAAAA"],["日本",276050648,"EHQy2BgH"]],[["plus+name",2690770399,"oGHl\n35g3TOIS"]],[1,7],"malformed note"],
+    ["x\n\n",[["plus+name",338513374,"AAAA"]],[["日本",276050648,"AAAAAAAAAAAA"]],[4],"invalid signer"],
+    ["a\n\nb\n",[["日本",2952172467,"r/aTs6X6"],["alpha",1245191902,"AA==\n"]],[["日本",3023603862,"tDiIlg=="],["alpha",1245191902,"Sjge3g=="]],[6,5],"invalid signer"],
+    ["",[],[],[3,3],"malformed note"],
+    ["",[["Señor",1326990593,"TxhFAQ=="]],[["nel",2239332590,"!!!!"]],[7,1],"malformed note"],
+    ["a\nb\n\n",[],[["nel",2319141955,"ijtMQxCRpGk="],["x﻿y",4206666793,"AAAAAAAA"]],[2],"malformed note"],
+    ["no newline",[["日本",276050648,"AAA"],["Señor",516462828,"HsiY\n7A=="]],[["nel",2239332590,"hXmA7jqE"]],[2,5],"malformed note"],
+    ["hello\n",[["日本",276050648,"EHQy2J8OQgw9"]],[["",387126384,"FxMU\ncIoVxg=="]],[1,5,1],"invalid signer"],
+    ["﻿bom\n",[["nel",2239332590,"hXmA7g=="],["alpha",1245191902,"AAAAAAAA"]],[["bad name",3115415239,"ubF2\nxw=="]],[1,3,5],"invalid signer"],
+    ["no newline",[["",128720175,"AAAAAAAAAAAA"]],[],[5,5],"malformed note"],
+    ["cr\r\n",[["Señor",516462828,"HsiY7JQ="],["nel",2239332590,"hXmA\n7g=="]],[],[7,3,4],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0a"],
+    ["\u0001ctl\n",[["x﻿y",4206666793,"+rykKWUC"],["日本",1401569934,"U4pC\njv1sciOv"]],[["Señor",3520271398,"0dMUJg=="],["x﻿y",4206666793,"+rykKYm5"]],[2,0,0],"","0163746c0a0ae2809420e697a5e69cac20553470430a6a76317363694f760ae28094205365c3b16f722030644d554a673d3d0ae280942078efbbbf79202b72796b4b5a6d44393875334b43662f4a724d335951664d555532514a61486543527465754f61455a713673416e3147774d324750356d32337976476e6f496f78454e4357463545383957523864326e314d34504c76693264416f3d0ae2809420616c70686120536a67653372774f30674e584b62756b794c45514872386c6f38697a507769364c4b692f5a3731317949416573656874556b75326c6e4f2f54444c6f70435259796e4778746e445a716854526c50754453636e614b7a62375541343d0ae2809420616c70686120536a67653372774f30674e584b62756b794c45514872386c6f38697a507769364c4b692f5a3731317949416573656874556b75326c6e4f2f54444c6f70435259796e4778746e445a716854526c50754453636e614b7a62375541343d0a"],
+    ["",[],[],[6],"malformed note"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3lw=="]],[["alpha",313441372,"Eq68XA3e1l4="],["",3501839991,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[0],"malformed note"],
+    ["cr\r\n",[["nel",2239332590,"hXmA7r5o"]],[],[2,2,5],"invalid signer"],
+    ["",[["alpha",3349508481,"x6Vx\ngTh38tI="],["alpha",1245191902,"Sjge3i8="]],[["x﻿y",4206666793,"+rykKTs8"]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["日本",276050648,"EHQy2MhrjA=="]],[["x﻿y",4206666793,"AAA"]],[7,2],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0ae2809420e697a5e69cac2045485179324d62416d6d764e43334865306f42524d68586b4e326a324e77324d3963436a5a34554731705569336d5933434f614c72782f587953592b594563506e4c62323438306a674e6f6a376e6e55667538372f416c345477553d0ae280942078efbbbf79202b72796b4b63524f6565306468795844444a7263574f52503236724348385a2f466952614944524f44536c676d456a6255724661457936652f464e70646a6d67444d787942327952537872697a796f6b374e6a696937776f6377773d0a"],
+    ["",[["日本",276050648,"EHQy2KmXbQ=="]],[["Señor",2525123466,"loJT\nig=="],["x﻿y",4206666793,"+rykKQE="]],[2],"malformed note"],
+    ["a\n\nb\n",[["plus+name",2690770399,"oGHl3w=="],["nel",2239332590,"AAA"]],[],[1,1,2],"malformed note"],
+    ["",[],[["plus+name",2690770399,"oGHl37Mq2w=="]],[6,4,4],"malformed note"],
+    ["\n",[],[["Señor",516462828,"HsiY7OYA8K0="],["alpha",1245191902,"AA==\n"]],[0,7,1],"","7f0a0ae2809420616c70686120536a6765336d374f335a765350443061676b5033626a6158657473356764652f79777a7533757a38466a516b374b356c6148684f353639784b7433672f376e314a78424a396a49675253756f4f4752375a58544c776969734177633d0ae2809420e697a5e69cac20454851793241486e36715431646d6134466c54657341514c784943592f2b51626c527334586f7a5276456548767056774246642b6849706f312b35697749306843454a2f54644473305663714c45396f666e654d6263477932776f3d0ae28094205365c3b16f72204873695937414a44466f4e41386e7a4258686173593853553759796d587475444f6558757475596f5035496b33795a34467832524f4d67794c354f744a33777042395172395037544a35582b4b6d37306a4b6650584c536a7041553d0a"],
+    ["cr\r\n",[],[["x﻿y",4206666793,"AA==\n"]],[5],"invalid signer"],
+    ["\n",[],[],[],"","0a0a"],
+    ["hello\n",[["日本",276050648,"EHQy2P971vSQ"],["",2420635543,"AAAAAAAAAAAA"]],[],[],"malformed note"],
+    ["\u0001ctl\n",[],[["日本",276050648,"EHQy\n2KRE"]],[5,5],"invalid signer"],
+    ["hello\n",[["x﻿y",1604002869,"X5skNahqlxs="],["plus+name",59495636,"A4vU\n1ADY"]],[["plus+name",2690770399,"oGHl36UM"],["",2420635543,"kEf3l3g="]],[3],"invalid signer"],
+    ["\n",[],[],[],"","7f0a0a"],
+    ["a\nb\n\n",[["alpha",1245191902,"Sjge3pI="]],[],[4,1,2],"invalid signer"],
+    ["cr\r\n",[],[],[6],"invalid signer"],
+    ["hello\n",[["x﻿y",4206666793,"+ryk\nKTl0KA6i"]],[["x﻿y",272750434,"EEHXYp/h"],["plus+name",63853659,"AAAA"]],[2,3],"invalid signer"],
+    ["\u0001ctl\n",[["nel",2239332590,"hXmA7psk"],["plus+name",1403203115,"U6MuKw=="]],[["",2420635543,"AA==\n"]],[6,4],"invalid signer"],
+    ["a\n\nb\n",[["plus+name",2690770399,"oGHl3x+9wHfB"]],[],[],"malformed note"],
+    ["\n",[["plus+name",3225369030,"wD85xjfh"]],[["",2420635543,"AAAA\nAAAA"],["nel",3690191139,"AA==\n"]],[7,7],"malformed note"],
+    ["x\n\n",[["bad name",3214059346,"v5KnUoc="],["bad name",3115415239,"AAAA\nAAAA"]],[["Señor",2059216651,"er0nCy+0"]],[4],"invalid signer"],
+    ["﻿bom\n",[["x﻿y",1044417333,"PkCLNT0="]],[["bad name",3115415239,"AAAAAAAAAAAA"],["",2420635543,"kEf3lw=="]],[4,7],"invalid signer"],
+    ["a\nb\n\n",[["Señor",516462828,"HsiY7A=="],["x﻿y",4206666793,"+rykKaw="]],[],[],"","610a620a0a0ae28094205365c3b16f72204873695937413d3d0ae280942078efbbbf79202b72796b4b61773d0a"],
+    ["x\n\n",[["日本",276050648,"EHQy2PDpIlgr"]],[],[1],"","780a0a0ae2809420e697a5e69cac204548517932504470496c67720ae28094205365c3b16f722048736959374c4d6e354c794b6b6752347a4d74507130526e7233426933415147557462574e374358426a48515056742f555a7771737333585a73536746677051554d78792f664264354c342f624a73414237656c375443363167383d0a"],
+    ["\u0001ctl\n",[["nel",2239332590,"AAAA"],["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["alpha",2483265624,"lAOgWO08ZE4="]],[5],"invalid signer"],
+    ["\n",[["plus+name",3833034490,"5Hd2+jrCJA=="],["",2420635543,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["nel",2239332590,"hXmA7v0="]],[7],"malformed note"],
+    ["café 日本語 🌲\n",[],[["Señor",516462828,""]],[1],"","636166c3a920e697a5e69cace8aa9e20f09f8cb20a0ae28094205365c3b16f722048736959374e414432633148386a7935674b494d4d6a51526447424230686d484937344e474e7957797149393378323837795665453066646a686f584c6a343562574e5146645730787a787135424d482b4650703075672f3251553d0a"],
+    ["café 日本語 🌲\n",[["bad name",3370261867,"yOIda71J"]],[["nel",3367750685,"yLvMHeKZNQ=="]],[1,4],"invalid signer"],
+    ["cr\r\n",[["",3475704105,"zysJKa+yHw=="],["x﻿y",4206666793,"+rykKYQ="]],[["日本",276050648,"EHQy\n2P4="],["",3413979563,"AAAA"]],[1,7],"malformed note"],
+    ["﻿bom\n",[["日本",276050648,"!!!!"],["",535677928,"H+3L6Jog"]],[["日本",2184066652,"gi42XAQnGkrB"]],[],"malformed note"],
+    ["\n",[["plus+name",771342508,"LfnA\nrPk="],["plus+name",2690770399,"AAA="]],[["nel",2010271601,"d9JPcTE="],["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[1,1],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[1,6,1],"invalid signer"],
+    ["\u0001ctl\n",[],[],[1],"","0163746c0a0ae28094205365c3b16f7220487369593747356d677464543267556653464f74765643346f644a433455746e2b6a724f4d6b7253734a474552354353697037384b4b317a562b364a64474376467852683745354a4c6a7a53305039636b524e4b565673777a41673d0a"],
+    ["no newline",[["nel",929477662,"N2a0Hg=="],["nel",2239332590,"hXmA7gO4Ow=="]],[["alpha",1855500714,"bpixqhZhg9g="],["bad name",3115415239,"ubF2xw=="]],[0,6,2],"malformed note"],
+    ["\u0001ctl\n",[],[["nel",2812376852,"AAAA\nAAAA"]],[3],"invalid signer"],
+    ["a\n\nb\n",[],[["bad name",3785339610,"AAA"],["",2420635543,"kEf3l+yArYbm"]],[],"malformed note"],
+    ["﻿bom\n",[],[["x﻿y",149965268,"AAAAAAAA"],["日本",276050648,"AAAAAAAAAAAA"]],[2],"malformed note"],
+    ["x\n\n",[],[["Señor",516462828,"HsiY7HQ="]],[0,7],"","780a0a0ae28094205365c3b16f7220487369593748513d0ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0ae2809420e697a5e69cac2045485179324d414b4e784e79357555623148663850665048314e7658395a70786651683470544541413251483674786a3976467a314c325273786d7377612b7a6e357a6e70457877585a4b564c53476832667744685979326e67343d0a"],
+    ["a\n\nb\n",[["nel",2239332590,"hXmA7rO+Y7c="]],[],[],"malformed note"],
+    ["hello\n",[],[["",671401529,"KATGOQ=="],["alpha",1245191902,"Sjge3sy9GA=="]],[3,6],"invalid signer"],
+    ["a\n\nb\n",[],[],[4],"invalid signer"],
+    ["no newline",[],[["Señor",3517994,"ADWuKg=="]],[6,7],"malformed note"],
+    ["hello\n",[["nel",1670708994,"AAAA\nAAAA"],["Señor",516462828,"HsiY\n7A=="]],[["",2420635543,"kEf3l9P5rQ=="]],[],"malformed note"],
+    ["a\n\nb\n",[["bad name",3115415239,"ubF2x+fji4Oj"]],[["bad name",3115415239,"AAAAAAAA"],["bad name",3115415239,"ubF2xw=="]],[7,4],"invalid signer"],
+    ["",[["bad name",2072338152,"AAAA\nAAAA"]],[["alpha",162365418,"Ca1/\n6qkgQMrK"],["日本",3843926818,"5R2rIlJ9auMM"]],[3],"malformed note"],
+    ["﻿bom\n",[["bad name",1440246062,"VdhpLh4L"],["",501941224,"HesD6BfZMMO5"]],[],[0,1],"malformed note"],
+    ["a\n\nb\n",[["alpha",399427903,"F87JPw=="],["",2420635543,"!!!!"]],[["alpha",1432248668,"VV5hXEZRZ5g="]],[],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"+rykKXzY"],["Señor",516462828,"HsiY7MBnFjc="]],[["nel",3874773161,"!!!!"],["alpha",1245191902,"Sjge3g=="]],[1,6],"invalid signer"],
+    ["no newline",[["alpha",1245191902,"Sjge3m0w9A=="],["日本",276050648,"A"]],[["nel",1644472151,"YgSnV7vZR4DP"],["x﻿y",4206666793,"AAAA"]],[3,4,6],"malformed note"],
+    ["﻿bom\n",[["x﻿y",4206666793,"+rykKaol4w=="]],[["",2915533754,"rceD\nug=="],["日本",276050648,"EHQy\n2O8="]],[2],"malformed note"],
+    ["x\n\n",[["",2420635543,"kEf3l7uVxA=="]],[["日本",276050648,"EHQy\n2LOMmLg="]],[],"malformed note"],
+    ["\n",[],[["alpha",1245191902,"AAA"],["alpha",1245191902,"A"]],[5],"invalid signer"],
+    ["no newline",[["alpha",1245191902,"Sjge3g=="],["日本",2466964291,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["Señor",3454262661,"zePdhQxQ3B0Y"],["Señor",2958821691,"sFwJ\nOwSfdCc="]],[3,1,0],"malformed note"],
+    ["no newline",[["nel",2239332590,"hXmA7jd9"],["alpha",1971860071,"AAAA\nAAAA"]],[["plus+name",2690770399,"oGHl3w=="]],[1,5],"malformed note"],
+    ["",[["日本",276050648,"EHQy2JwT"]],[["plus+name",2690770399,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["",2035829368,"eVhKeM3lXA=="]],[1],"malformed note"],
+    ["a\n\nb\n",[],[["Señor",516462828,"AA==\n"],["Señor",893823803,"NUarO4ZR"]],[6],"invalid signer"],
+    ["﻿bom\n",[["plus+name",2690770399,"oGHl35eW"],["x﻿y",4206666793,"AAA"]],[["Señor",516462828,"AAAA"]],[3,1],"invalid signer"],
+    ["﻿bom\n",[["",3534846805,"0rF7VQMc78n+"]],[],[3,7,1],"invalid signer"],
+    ["hello\n",[["Señor",516462828,"HsiY7K1dubpS"]],[["bad name",3115415239,"A"],["",1120158041,"QsRBWYI="]],[5,4,4],"invalid signer"],
+    ["a\nb\n\n",[],[["",2420635543,"AAAAAAAAAAAA"]],[7],"malformed note"],
+    ["﻿bom\n",[["nel",3890185489,"59+F\nEUZU"],["日本",2051043675,"ekBxWw=="]],[["nel",2239332590,"hXmA7mEXfA=="]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["plus+name",1876464212,"AAAAAAAA"]],[],[7],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"+rykKSI5"]],[["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[3,7],"invalid signer"],
+    ["a\nb\n\n",[["bad name",3115415239,"ubF2xw=="]],[["bad name",2667729437,"nwJSHQ=="],["bad name",2455809986,"AAA"]],[4],"invalid signer"],
+    ["no newline",[],[["plus+name",2690770399,"AAA="],["plus+name",4043967560,"8QoMSB1fKxY="]],[4,6],"malformed note"],
+    ["\n",[["nel",3092938222,"A"]],[],[6,0],"invalid signer"],
+    ["x\n\n",[],[["Señor",516462828,"A"]],[],"malformed note"],
+    ["cr\r\n",[["nel",2239332590,"hXmA7ok/"],["nel",2017576011,""]],[],[7,2,6],"invalid signer"],
+    ["\n",[["bad name",3115415239,"ubF2\nx030"]],[["x﻿y",1563678419,"XTPW05s="],["nel",2239332590,"hXmA\n7nF61hA9"]],[5],"invalid signer"],
+    ["cr\r\n",[],[["日本",276050648,"EHQy2E+MkCI="],["Señor",1858424024,"bsVM2JeL"]],[6,0,0],"invalid signer"],
+    ["\n",[["Señor",516462828,"AAAA"],["x﻿y",4206666793,"+ryk\nKW2Rng=="]],[["日本",276050648,"AAAAAAAA"]],[],"malformed note"],
+    ["",[],[["plus+name",2690770399,"oGHl3/Wa9bph"],["日本",276050648,"AAA"]],[5],"malformed note"],
+    ["\n",[["Señor",516462828,"A"]],[["plus+name",2690770399,"A"]],[5,5,7],"invalid signer"],
+    ["cr\r\n",[["",4211483675,"+wYkG8M="],["x﻿y",3662290495,"2koePxtFXA=="]],[],[],"malformed note"],
+    ["",[["plus+name",2690770399,"oGHl37JlP5g="],["Señor",516462828,"HsiY7A=="]],[],[],"malformed note"],
+    ["no newline",[],[],[5,0,1],"malformed note"],
+    ["\u0001ctl\n",[["alpha",2896465253,"rKSNZSs+Cs6t"],["日本",276050648,"!!!!"]],[["",2420635543,"kEf3l9Y="]],[3],"invalid signer"],
+    ["hello\n",[["bad name",3161897662,"vHa6\nvoFN39U="]],[["x﻿y",4206666793,"AAAAAAAA"],["Señor",516462828,"AAAAAAAAAAAA"]],[3,3,4],"invalid signer"],
+    ["x\n\n",[],[],[],"","780a0a0a"],
+    ["a\n\nb\n",[["bad name",1301395159,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["日本",276050648,"EHQy2PZauSI="]],[7,2],"malformed note"],
+    ["no newline",[["bad name",3115415239,"ubF2x10HZw=="]],[["日本",2245228641,"hdN4YakPrA=="],["日本",276050648,"EHQy2C4/"]],[1],"malformed note"],
+    ["\n",[["nel",2988422728,"AAA="]],[["bad name",689707301,"KRwZ\nJYjIWQw="],["alpha",16960220,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[4,3,4],"invalid signer"],
+    ["no newline",[["alpha",1245191902,"Sjge3lOM"],["bad name",545680550,"IIZs\npjE="]],[],[],"malformed note"],
+    ["café 日本語 🌲\n",[],[["x﻿y",728231999,"AA==\n"]],[6],"invalid signer"],
+    ["x\n\n",[["nel",2239332590,"hXmA7v/lF2I="]],[["Señor",583166639,"IsJqr2VpYzY="],["x﻿y",1897773985,"cR27ob3R"]],[1,4,3],"invalid signer"],
+    ["a\n\nb\n",[["plus+name",3287372945,"w/FU\nka0Q2g=="],["plus+name",2690770399,"oGHl3wBpsg=="]],[["bad name",550040407,"IMjzVw=="],["alpha",298540505,"AAAA"]],[3,6,3],"invalid signer"],
+    ["a\nb\n\n",[["bad name",3115415239,"ubF2xw=="],["Señor",516462828,"AA==\n"]],[["nel",1973626829,"AAAA"],["alpha",1245191902,"Sjge\n3rdT9EA="]],[3],"invalid signer"],
+    ["a\n\nb\n",[],[],[2],"","610a0a620a0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0a"],
+    ["cr\r\n",[["alpha",1700040119,"ZVSN\ntw=="],["Señor",516462828,"HsiY7A=="]],[["alpha",1245191902,"Sjge3lIe3RQ="],["alpha",1245191902,"Sjge3rfl"]],[1,2],"","63720d0a0ae2809420616c706861205a56534e0a74773d3d0ae2809420616c70686120536a6765336c49653352513d0ae2809420616c70686120536a67653372666c0ae28094205365c3b16f722048736959374e5846316d6e4575582b4254616e306e6a435572344e4b52652b717a31724656666f56674946445570776c6c6b643568392b4c6558594c5178364a42764969696a747371645930567433316c302b61735861737641773d0ae280942078efbbbf79202b72796b4b5a533957615736493966424c5061733567544b62626c2b4e2f6e764f5a546f304d4b7a45382b6c71486e6f524170534b4d4779766b6f7868354e685361374c764b58664d436c646546516178475845685065334177633d0a"],
+    ["no newline",[],[["",30020960,"AAA"],["",2420635543,"kEf3lx5BfMA="]],[6,1],"malformed note"],
+    ["",[],[["日本",276050648,"EHQy2ObxclVd"],["alpha",1245191902,"Sjge\n3g=="]],[6,0,0],"malformed note"],
+    ["hello\n",[["Señor",1348175576,"UFuG2A=="]],[["bad name",3115415239,"ubF2xw=="],["alpha",252767242,"DxDsCo0="]],[7,0,3],"invalid signer"],
+    ["﻿bom\n",[["alpha",1245191902,"Sjge3oCEokuR"]],[["alpha",3336409385,"AAA="]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["",2341651031,"AA==\n"],["bad name",3115415239,"ubF2\nxw=="]],[["x﻿y",4206666793,"+ryk\nKTbwnykk"]],[],"malformed note"],
+    ["x\n\n",[["nel",2126122593,"A"],["alpha",1245191902,"Sjge\n3g=="]],[["x﻿y",4206666793,"+rykKeA7"],["",2420635543,"kEf3lxw="]],[],"malformed note"],
+    ["\n",[],[["bad name",3115415239,"ubF2\nx6an3wJw"]],[6,5,2],"invalid signer"],
+    ["\n",[],[["alpha",3930470163,"6kY3\nE8uFYg=="]],[],"","7f0a0ae2809420616c70686120366b59330a4538754659673d3d0a"],
+    ["no newline",[["Señor",516462828,"HsiY7HcO"],["plus+name",2690770399,"oGHl3yLfFA=="]],[["x﻿y",4206666793,"+rykKRBW2KfS"],["nel",4281272057,"AAA"]],[],"malformed note"],
+    ["\u0001ctl\n",[],[["x﻿y",4206666793,"+rykKfQ="],["日本",3019855293,"s/9VvQ=="]],[5,4],"invalid signer"],
+    ["﻿bom\n",[["plus+name",3137280861,"uv8bXXc="],["Señor",2324470160,"ioyZkEg="]],[["bad name",3784572994,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[1],"malformed note"],
+    ["no newline",[["nel",2239332590,"hXmA7uE="],["",2420635543,""]],[["",2420635543,"kEf3\nl6FX"],["nel",2239332590,"hXmA7rK36HI="]],[],"malformed note"],
+    ["hello\n",[["plus+name",2272153927,"h25RRw=="]],[],[4,2,1],"invalid signer"],
+    ["a\n\nb\n",[["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["Señor",516462828,"HsiY7A=="]],[7],"","610a0a620a0ae28094205365c3b16f72204873695937413d3d0ae2809420e697a5e69cac20454851793247664c57305959372b6c43717a6b4a475965644e544541506c44506238665a337372424b5447644338564f6b2f47547232637a764c69732f576c4676614d32576841424e6879566d39586d43466936775435524c776f3d0a"],
+    ["\u0001ctl\n",[["日本",990369532,""]],[["",2420635543,"kEf3l1GUWA=="]],[2,6,7],"invalid signer"],
+    ["a\n\nb\n",[],[],[2],"","610a0a620a0ae280942078efbbbf79202b72796b4b516146455a30326a6e30565970306c4a6d5155306c42356467434f504c35504874634f476433415057577361785a5662726b64535a475a426f2f575563496436786258536833556e6c546a5a472f336a674c315451513d0a"],
+    ["a\n\nb\n",[["nel",2239332590,"!!!!"],["Señor",160688070,"CZPnxs0Igw=="]],[],[7,6],"invalid signer"],
+    ["cr\r\n",[["plus+name",2690770399,"AAA"],["plus+name",2690770399,"oGHl36A="]],[],[],"malformed note"],
+    ["\u0001ctl\n",[["plus+name",2690770399,"oGHl3wEORsbo"]],[["alpha",1361897736,"USzpCA=="],["",4170674131,"+Jdv0ydA"]],[7],"malformed note"],
+    ["\n",[],[["alpha",1245191902,"Sjge3iwhEV8c"],["nel",89200576,"BVEX\nwA=="]],[1,1,5],"invalid signer"],
+    ["cr\r\n",[["alpha",1245191902,"AAAA"]],[["日本",1963948439,"AAA="],["alpha",3585097633,"1bA/oZV0SQ=="]],[7,1],"malformed note"],
+    ["café 日本語 🌲\n",[],[],[5],"invalid signer"],
+    ["x\n\n",[],[["x﻿y",571140069,""],["plus+name",2690770399,"oGHl3w=="]],[2],"malformed note"],
+    ["café 日本語 🌲\n",[],[["bad name",753674750,"LOwp\n/mTpzjo="],["plus+name",2690770399,"AAA="]],[7,5],"invalid signer"],
+    ["a\nb\n\n",[["nel",2239332590,"hXmA7pc="],["nel",2239332590,"A"]],[["nel",1128947543,"Q0pfV8kK5g=="],["alpha",1245191902,"Sjge\n3g=="]],[4],"invalid signer"],
+    ["",[],[["alpha",3417454999,"y7I5lw=="],["Señor",516462828,"AA==\n"]],[5],"malformed note"],
+    ["x\n\n",[],[["nel",2239332590,"hXmA\n7q4="]],[],"malformed note"],
+    ["\u0001ctl\n",[["nel",2638998111,"nUvqXxlqK6M="]],[["x﻿y",3290871142,"xCa1Zj0tuSbs"],["alpha",1245191902,"Sjge\n3us+kw8="]],[6,7,5],"invalid signer"],
+    ["no newline",[["plus+name",1575437050,"AA==\n"],["",684666144,"KM8tIA=="]],[["alpha",2489557267,"lGOhE4Ko"]],[7,4,1],"malformed note"],
+    ["",[],[["日本",4170433944,"+JPFmL55kqgF"],["nel",2239332590,"AAA="]],[],"malformed note"],
+    ["\n",[["alpha",1245191902,"AAAA\nAAAA"]],[],[2],"malformed note"],
+    ["café 日本語 🌲\n",[],[["",2420635543,"kEf3\nl5F3N9o="]],[3,0,2],"invalid signer"],
+    ["no newline",[["plus+name",2690770399,"AAAA"]],[["x﻿y",4206666793,"+ryk\nKddjsg=="],["plus+name",2690770399,"oGHl3w=="]],[3,0,4],"malformed note"],
+    ["a\n\nb\n",[["bad name",3425203874,"AAAA\nAAAA"],["x﻿y",1294129470,"A"]],[["alpha",337796320,"FCJc4A=="],["alpha",1245191902,"Sjge3g=="]],[3,1],"invalid signer"],
+    ["a\n\nb\n",[],[["日本",546104969,"IIzm\nic5zyxYm"],["",2420635543,"kEf3\nl4Ie4w=="]],[6,1],"invalid signer"],
+    ["x\n\n",[["nel",2239332590,"hXmA\n7tG9C0fX"]],[],[],"malformed note"],
+    ["",[],[["nel",2239332590,"hXmA7jY="]],[2,5],"malformed note"],
+    ["\n",[],[],[3,6],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["nel",2239332590,"hXmA\n7h4="],["nel",2239332590,"hXmA7lxLpJEo"]],[5],"invalid signer"],
+    ["hello\n",[],[["Señor",2189775804,"goVTvPI="]],[3],"invalid signer"],
+    ["x\n\n",[],[["",2420635543,"AA==\n"]],[3,7],"invalid signer"],
+    ["",[["bad name",3115415239,"ubF2x62UpacZ"],["Señor",581757394,"A"]],[],[1],"malformed note"],
+    ["",[["nel",308162331,"El4vG7M="],["x﻿y",1566505902,"XV77riVV"]],[["alpha",926402122,"NzfGSoHELA=="]],[7,4,0],"malformed note"],
+    ["a\nb\n\n",[],[],[],"","610a620a0a0a"],
+    ["no newline",[["x﻿y",4206666793,"+rykKb6+"],["x﻿y",4206666793,"A"]],[["",3620999980,"AA==\n"],["nel",914240811,"Nn41K08="]],[4,7,2],"malformed note"],
+    ["x\n\n",[["",2420635543,"kEf3lw=="],["bad name",485705902,"AAAAAAAAAAAA"]],[["bad name",3646251361,"2VVh\nYQ=="],["bad name",3115415239,"AA==\n"]],[5,1,3],"invalid signer"],
+    ["x\n\n",[["x﻿y",4206666793,"+rykKb9zJw=="],["nel",1808638700,"a82i7A=="]],[["alpha",1245191902,"Sjge3pWK"],["alpha",3147295620,"u5frhPItAWUf"]],[0,3],"invalid signer"],
+    ["﻿bom\n",[["nel",2239332590,"AAA="]],[["日本",276050648,"EHQy2FrBv40="],["",2420635543,"kEf3l8fO2oo="]],[],"malformed note"],
+    ["a\nb\n\n",[],[["Señor",516462828,"AAAAAAAA"],["plus+name",2690770399,"oGHl\n3w=="]],[6,6,1],"invalid signer"],
+    ["\u0001ctl\n",[["nel",2239332590,"hXmA7g=="]],[["alpha",1245191902,"AAAAAAAAAAAA"]],[4],"invalid signer"],
+    ["café 日本語 🌲\n",[["日本",276050648,"AAA="]],[["x﻿y",461365243,"G3/f+7fY"]],[3],"invalid signer"],
+    ["café 日本語 🌲\n",[["alpha",1245191902,"Sjge3rvq"],["",2420635543,"AAAAAAAA"]],[["Señor",516462828,"HsiY7GlvLEjt"]],[5,6,2],"invalid signer"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,"ubF2x+Y0NrQ="],["Señor",516462828,"HsiY7J/r2KSu"]],[],[3],"invalid signer"],
+    ["a\nb\n\n",[],[],[],"","610a620a0a0a"],
+    ["cr\r\n",[],[],[4],"invalid signer"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["no newline",[["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[],[5],"malformed note"],
+    ["",[["alpha",1245191902,"Sjge\n3iFdDavy"]],[["alpha",1245191902,"AAAAAAAAAAAA"]],[1,6],"malformed note"],
+    ["x\n\n",[["日本",1190423514,"RvRr2gKZJtI="]],[],[],"","780a0a0ae2809420e697a5e69cac205276527232674b5a4a74493d0a"],
+    ["x\n\n",[["x﻿y",4206666793,"+rykKam2CQ=="]],[],[5,4],"invalid signer"],
+    ["\n",[["",2420635543,"kEf3l/S1"],["nel",3750937966,"35LFbnRPbyM="]],[],[0],"malformed note"],
+    ["",[["x﻿y",1539003669,"W7tVFWVw"]],[["Señor",516462828,"HsiY\n7KyLwapx"]],[4,3],"malformed note"],
+    ["x\n\n",[["plus+name",2690770399,"AA==\n"]],[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["x﻿y",4206666793,"+rykKUfZM9FH"]],[1],"malformed note"],
+    ["cr\r\n",[],[["nel",2239332590,"hXmA7ghvKw=="]],[6,2],"invalid signer"],
+    ["\n",[["",2124911207,"fqeS\nZy4T0c3x"],["x﻿y",4206666793,"AAA"]],[],[],"malformed note"],
+    ["x\n\n",[["alpha",1245191902,"Sjge3rN8cHQn"]],[],[0],"","780a0a0ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0a"],
+    ["no newline",[["bad name",3115415239,"AAAAAAAA"],["",3893982292,"AAAA"]],[["x﻿y",709694744,"Kk0VGGYJhw=="]],[3,4,5],"malformed note"],
+    ["",[["",128529542,"B6k0hu4="],["plus+name",2690770399,"AAAAAAAA"]],[["日本",276050648,"EHQy\n2DIUrQ=="],["x﻿y",4206666793,"+rykKW4RTbIq"]],[4,0,3],"malformed note"],
+    ["no newline",[["bad name",683343820,"AAAAAAAA"],["plus+name",2690770399,"oGHl31D+"]],[["plus+name",2690770399,"oGHl3zSA4g=="]],[7,6],"malformed note"],
+    ["x\n\n",[],[["bad name",1395177872,"Uyi5\nkChVMg=="],["Señor",1174116917,"RfuaNWY="]],[5],"invalid signer"],
+    ["\n",[],[],[2,6,4],"invalid signer"],
+    ["hello\n",[["bad name",3115415239,"AAA"]],[["日本",276050648,"EHQy\n2DI="],["plus+name",2690770399,"oGHl\n34DpvhkW"]],[5,2],"invalid signer"],
+    ["\u0001ctl\n",[["plus+name",3272457344,"ww28gGLE"],["日本",3001537466,"sufTuu8B"]],[],[3,2,1],"invalid signer"],
+    ["no newline",[["bad name",3115415239,"ubF2x9Iy"],["bad name",3115415239,"ubF2x6xxVcu/"]],[["plus+name",3288997547,"xAoeqxPM0Wg="],["日本",1405325798,"U8OR5v/4qg=="]],[],"malformed note"],
+    ["x\n\n",[["alpha",1645440001,"YhNsAfQ="],["日本",276050648,"AAA"]],[["plus+name",2690770399,"AAA="]],[6,6],"invalid signer"],
+    ["cr\r\n",[],[],[0,0,5],"invalid signer"],
+    ["hello\n",[["nel",2239332590,"hXmA7v3u5UM="]],[["x﻿y",4206666793,""],["Señor",842581737,"MjjG6Q=="]],[3,1],"invalid signer"],
+    ["hello\n",[["日本",276050648,"A"]],[],[3,0],"invalid signer"],
+    ["a\n\nb\n",[["bad name",3115415239,"ubF2\nx4qE"]],[["",2420635543,"kEf3lypn8Q=="]],[7,7],"malformed note"],
+    ["\n",[],[],[0,1],"","0a0ae2809420616c70686120536a6765336d4830504a5246344f4e63384a4b774d38506779323637517559776f7a4a513566714e375655454f38694f67666f4e4758673062595079394c486679586136687873554c4e416638473331684e673374584c566541593d0ae28094205365c3b16f72204873695937497733796d4e6b73426d6e6b564e444266584455514b6850503230654848344d4d704658636d646f4b7059706f6841656e7733346a3572706665377139623548594a6d75757a4d65615a536e6d307035357a314e77633d0a"],
+    ["cr\r\n",[["日本",276050648,"EHQy2Iq2"]],[["alpha",3935073272,"6oxz+A4="],["nel",2239332590,"hXmA7uOc0g=="]],[],"malformed note"],
+    ["",[["x﻿y",4206666793,"+rykKbxnmBU="]],[],[4],"malformed note"],
+    ["a\nb\n\n",[["alpha",264080013,"D72KjTs="]],[["alpha",1245191902,"Sjge\n3p5LjQ=="],["x﻿y",4206666793,"+rykKQ=="]],[],"","610a620a0a0ae2809420616c706861204437324b6a54733d0ae2809420616c70686120536a67650a3370354c6a513d3d0ae280942078efbbbf79202b72796b4b513d3d0a"],
+    ["\n",[["alpha",1245191902,"AAAAAAAA"]],[],[],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"+rykKX8hI0Q="]],[],[2,5],"invalid signer"],
+    ["\n",[["plus+name",2690770399,"oGHl32Lk"]],[["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["Señor",516462828,"HsiY7I0ENx6X"]],[1,6],"invalid signer"],
+    ["\n",[],[["bad name",3115415239,"ubF2\nx2l3ATuO"]],[5,0,5],"invalid signer"],
+    ["\n",[["x﻿y",4206666793,"+rykKQ=="],["",2420635543,"AAAA"]],[],[],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",2980396175,"saU8jzdk8A=="],["Señor",2711090101,"!!!!"]],[["bad name",309680998,"AAAAAAAA"]],[],"malformed note"],
+    ["",[["nel",2239332590,"hXmA\n7mFfEqc="],["日本",276050648,"EHQy2A=="]],[["Señor",516462828,"AA==\n"]],[3,7],"malformed note"],
+    ["x\n\n",[["plus+name",1946227404,"A"]],[["",3888048622,"577p7pT0KKNQ"],["bad name",3078487308,"AAAA"]],[6],"invalid signer"],
+    ["hello\n",[["alpha",1245191902,"Sjge3t8="],["bad name",3115415239,"ubF2xy8SADsL"]],[["alpha",1245191902,"Sjge3hHEBFQ="]],[4,3],"invalid signer"],
+    ["\u0001ctl\n",[],[],[3,7],"invalid signer"],
+    ["\n",[],[["",2420635543,"AAAAAAAAAAAA"]],[7],"malformed note"],
+    ["﻿bom\n",[["bad name",3115415239,"ubF2x5ZPKq8="],["plus+name",2016184553,"AAAAAAAA"]],[],[3],"invalid signer"],
+    ["\n",[["plus+name",2690770399,"oGHl397V"]],[["日本",276050648,"EHQy\n2Os+"]],[2,5],"invalid signer"],
+    ["\n",[],[["bad name",3115415239,"ubF2xz9M"]],[4,5],"invalid signer"],
+    ["café 日本語 🌲\n",[],[["plus+name",2690770399,"oGHl3y/M9DE="]],[2,3],"invalid signer"],
+    ["﻿bom\n",[["nel",3945264923,"6yf3Gw=="]],[["plus+name",2690770399,"oGHl3wyWcH0A"],["日本",276050648,"EHQy2GU="]],[0,6],"invalid signer"],
+    ["a\nb\n\n",[],[["alpha",1489929134,"WM6Drhj58g=="]],[1,1],"","610a620a0a0ae2809420616c70686120574d364472686a3538673d3d0ae28094205365c3b16f72204873695937506d704f572b736a6f396c306b7a3852692b4654345a7a58424a5678334b427861573457426d394c5031546a6778626d594852616233544e484a537952566c63697455545271512f2b562f67595a374d6e6f764767493d0ae28094205365c3b16f72204873695937506d704f572b736a6f396c306b7a3852692b4654345a7a58424a5678334b427861573457426d394c5031546a6778626d594852616233544e484a537952566c63697455545271512f2b562f67595a374d6e6f764767493d0a"],
+    ["\n",[],[["Señor",516462828,"HsiY7JzR"],["日本",610596504,"AAAA\nAAAA"]],[],"malformed note"],
+    ["﻿bom\n",[["bad name",3548062715,"03sj+w=="]],[["Señor",516462828,"!!!!"]],[6,3,2],"invalid signer"],
+    ["a\n\nb\n",[["alpha",1245191902,"Sjge3g=="],["alpha",1245191902,"Sjge3vEx"]],[["nel",551404101,"IN3CRcE="]],[1,5,1],"invalid signer"],
+    ["cr\r\n",[],[["bad name",3115415239,"ubF2\nx2iMnCw="],["Señor",2648049601,"AA==\n"]],[],"malformed note"],
+    ["cr\r\n",[],[["Señor",4687355,"AEeF\n+2dT"],["日本",1808490040,"a8teOJI="]],[0,7],"","63720d0a0ae28094205365c3b16f7220414565460a2b3264540ae2809420e697a5e69cac20613874654f4a493d0ae2809420616c70686120536a67653369786c377866354b7752346967444878724d2f4a33417253416b326d4e63377a3958577051666d4846504b78534a4a5557694e4734383542546e69463635442f46665a2b7261794d52633138767572415854483877303d0ae2809420e697a5e69cac204548517932446f647250494a6d58343434386b74496273534d5236507070356d6b4d427469774d70504d4c5a316b676256564a4d6b556d472f3565456a432b7957534f772f48363950416439634268363349574f76694f4354516b3d0a"],
+    ["",[],[["alpha",1245191902,"Sjge3qU="],["Señor",516462828,"HsiY7A=="]],[3,1,7],"malformed note"],
+    ["\n",[],[["plus+name",2690770399,"oGHl37E="]],[1],"malformed note"],
+    ["x\n\n",[["x﻿y",4206666793,"+rykKfezvWU="],["plus+name",3690271710,"2/UT3lk7d7xP"]],[],[6,5],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[1,7,4],"invalid signer"],
+    ["\n",[["plus+name",2311817322,"icuIauHFnA=="]],[],[2,7],"malformed note"],
+    ["\n",[["bad name",96520633,"BcDJuQ=="],["",2420635543,"kEf3l0xOSCg="]],[["日本",276050648,"EHQy2JMe"],["bad name",3115415239,"AAAA\nAAAA"]],[7,4],"invalid signer"],
+    ["café 日本語 🌲\n",[["x﻿y",2497173648,"lNfY\nkDeVbj1O"],["x﻿y",784025440,"LrtHYFKlagOK"]],[],[3],"invalid signer"],
+    ["\u0001ctl\n",[],[["nel",2239332590,"hXmA7ieWlViw"]],[],"malformed note"],
+    ["\u0001ctl\n",[["",2420635543,"kEf3l/lg"]],[["alpha",1245191902,"Sjge3szV"],["alpha",1038401194,"PeS+qvk2"]],[3,3,5],"invalid signer"],
+    ["\n",[["日本",1227284584,"SSbgaA=="],["bad name",2493526009,"lKAv+Rj4"]],[["x﻿y",4206666793,"+rykKYk="],["Señor",789818194,"LxOr\nUnL3Id0="]],[7],"malformed note"],
+    ["a\nb\n\n",[["x﻿y",4206666793,"+ryk\nKQ=="]],[["日本",3445846592,"zWNy\nQBe93tug"],["Señor",516462828,"HsiY\n7Gg3hQ=="]],[6,1,5],"invalid signer"],
+    ["\n",[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["nel",2419998901,"kD5Atb6j"],["",2420635543,"kEf3lxETjEo="]],[1,0,3],"invalid signer"],
+    ["\n",[],[],[1],"","7f0a0ae28094205365c3b16f72204873695937414a44466f4e41386e7a4258686173593853553759796d587475444f6558757475596f5035496b33795a34467832524f4d67794c354f744a33777042395172395037544a35582b4b6d37306a4b6650584c536a7041553d0a"],
+    ["",[["bad name",3115415239,"!!!!"]],[],[2],"malformed note"],
+    ["﻿bom\n",[["日本",276050648,"EHQy2LiQ"]],[["Señor",2512229877,"AAAAAAAA"],["bad name",3115415239,"AAA="]],[5,3,0],"invalid signer"],
+    ["hello\n",[],[["bad name",3115415239,""]],[1],"malformed note"],
+    ["cr\r\n",[],[["bad name",3115415239,"AAAAAAAA"]],[5],"invalid signer"],
+    ["hello\n",[],[],[4,5],"invalid signer"],
+    ["a\n\nb\n",[],[["alpha",1245191902,"AAA="],["plus+name",2690770399,"!!!!"]],[3],"invalid signer"],
+    ["x\n\n",[],[["nel",2239332590,"hXmA7rAZ"],["Señor",516462828,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[0],"malformed note"],
+    ["hello\n",[["",2061762378,"AAA="]],[["Señor",1411952357,"AA==\n"],["alpha",1245191902,"AAA"]],[],"malformed note"],
+    ["\n",[],[],[2,6],"invalid signer"],
+    ["café 日本語 🌲\n",[["bad name",3115415239,""]],[["nel",1941375814,"c7cL\nRkw="],["bad name",3115415239,"ubF2x7vc"]],[2],"malformed note"],
+    ["a\n\nb\n",[["plus+name",2690770399,"oGHl3yHRnq8="],["Señor",516462828,"HsiY7MI="]],[["nel",1252281511,"SqRMp9yEQA=="]],[],"malformed note"],
+    ["﻿bom\n",[["bad name",3115415239,"ubF2x6YX3Q=="],["plus+name",2690770399,"AA==\n"]],[],[7,6],"invalid signer"],
+    ["\n",[["nel",2239332590,"hXmA7vzrnG2n"],["日本",1121262709,"QtUcdTk="]],[["",2420635543,"AA==\n"]],[2],"malformed note"],
+    ["﻿bom\n",[],[],[2,6,2],"invalid signer"],
+    ["x\n\n",[],[["",2420635543,"kEf3\nl61VGA=="],["",2803652271,"AAA"]],[0,3],"invalid signer"],
+    ["\n",[],[],[7],"","0a0ae2809420e697a5e69cac2045485179324d56362b554331646973445a4f6836446c4456596566412f6c65616e454336646b50334474544d424f44797950454c57752b616a6276766c51597138747a50747069662b3154646c6e77374f7661586831706965674d3d0a"],
+    ["﻿bom\n",[],[["x﻿y",2092069950,"fLJ0PmE="],["nel",3983216479,"7WsPXw=="]],[6,3],"invalid signer"],
+    ["﻿bom\n",[],[],[],"","efbbbf626f6d0a0a"],
+    ["hello\n",[["bad name",3115415239,"ubF2x/uO/D4="],["Señor",516462828,"HsiY\n7MA="]],[["",2453251940,"kjmnZM0q"],["plus+name",2690770399,"oGHl3008UK+6"]],[],"malformed note"],
+    ["hello\n",[],[["alpha",1245191902,"Sjge3g=="],["Señor",670391261,"AAAA"]],[2],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"!!!!"]],[],[0,0],"malformed note"],
+    ["﻿bom\n",[["Señor",748477144,"LJza2EvIfw=="]],[["",2420635543,"kEf3\nl8xB"]],[],"malformed note"],
+    ["\n",[["",2420635543,"kEf3lw=="]],[["日本",276050648,"EHQy2P80tXap"],["alpha",1245191902,"AAAA"]],[4,5,6],"invalid signer"],
+    ["\n",[["日本",1861364509,"bvIrHaF+7d4="],["Señor",29485023,"AcHn36L+dQ=="]],[["bad name",3115415239,"!!!!"]],[],"malformed note"],
+    ["a\n\nb\n",[["nel",2239332590,"hXmA7qHxabg="],["nel",2239332590,"hXmA7svD"]],[],[1,0,1],"malformed note"],
+    ["hello\n",[["日本",276050648,"EHQy2AwLb9s="]],[],[5,0,3],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[1,5],"invalid signer"],
+    ["x\n\n",[],[["Señor",2850944206,"qe30zg=="]],[7,1,0],"","780a0a0ae28094205365c3b16f7220716533307a673d3d0ae2809420e697a5e69cac2045485179324d414b4e784e79357555623148663850665048314e7658395a70786651683470544541413251483674786a3976467a314c325273786d7377612b7a6e357a6e70457877585a4b564c53476832667744685979326e67343d0ae28094205365c3b16f722048736959374c4d6e354c794b6b6752347a4d74507130526e7233426933415147557462574e374358426a48515056742f555a7771737333585a73536746677051554d78792f664264354c342f624a73414237656c375443363167383d0ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0a"],
+    ["\n",[["alpha",1245191902,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["x﻿y",4206666793,"+rykKfdrZcCv"],["nel",2230978328,"AAAAAAAA"]],[3],"invalid signer"],
+    ["﻿bom\n",[["日本",3955476092,"68PG\nfHprDQ=="],["x﻿y",855119383,"AA==\n"]],[],[0,2,3],"invalid signer"],
+    ["\n",[["x﻿y",4206666793,""]],[["bad name",3115415239,"ubF2xw=="]],[5,4,6],"invalid signer"],
+    ["no newline",[["",2420635543,"kEf3l+pQEVRf"]],[],[3,1],"malformed note"],
+    ["cr\r\n",[],[],[6,2,2],"invalid signer"],
+    ["",[["alpha",1813749316,"bBueRDU="],["plus+name",2690770399,"oGHl3w=="]],[["nel",2239332590,"hXmA7mMcUQ=="]],[7,0,6],"malformed note"],
+    ["hello\n",[],[],[5],"invalid signer"],
+    ["cr\r\n",[],[],[5],"invalid signer"],
+    ["no newline",[],[],[4,6],"malformed note"],
+    ["x\n\n",[["bad name",4257951373,"!!!!"],["bad name",3115415239,"ubF2xywY"]],[["plus+name",2690770399,"AAAAAAAAAAAA"]],[1,1],"malformed note"],
+    ["cr\r\n",[["nel",2239332590,"AAAAAAAAAAAA"]],[["alpha",1245191902,"Sjge3to2"]],[],"malformed note"],
+    ["cr\r\n",[],[],[1,5],"invalid signer"],
+    ["a\nb\n\n",[],[],[4,3],"invalid signer"],
+    ["a\n\nb\n",[["x﻿y",4206666793,"+rykKQ=="]],[["x﻿y",4206666793,"AAAA"],["",3334501586,"xsB0\n0qyQvb4="]],[],"malformed note"],
+    ["x\n\n",[],[["Señor",516462828,"!!!!"],["日本",276050648,"EHQy2ID2"]],[5,5,2],"invalid signer"],
+    ["\n",[],[],[2,3],"invalid signer"],
+    ["x\n\n",[["x﻿y",4206666793,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["x﻿y",4206666793,"AAAAAAAA"]],[5,2,2],"invalid signer"],
+    ["no newline",[["plus+name",2690770399,"oGHl35HltUOj"]],[["",2420635543,"AAAAAAAAAAAA"],["nel",2683097604,"AA==\n"]],[5],"malformed note"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3l6L0"]],[],[],"malformed note"],
+    ["\u0001ctl\n",[["",2420635543,"!!!!"],["Señor",516462828,"A"]],[["plus+name",2690770399,"oGHl3yXkOlw="],["bad name",3115415239,"ubF2x+yBVdEY"]],[],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"+rykKbsO9hA="]],[["日本",276050648,"EHQy\n2A=="]],[0,4,6],"invalid signer"],
+    ["a\nb\n\n",[["x﻿y",2494894852,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["bad name",3115415239,"ubF2xyvq2CQZ"],["日本",659281096,"J0vU\nyDGrjg=="]],[],"malformed note"],
+    ["hello\n",[["",2420635543,"kEf3\nl8fEFQ=="],["nel",2239332590,"hXmA7rFCzg=="]],[["日本",2996475926,"spqY\nFo8="],["alpha",1245191902,"A"]],[],"malformed note"],
+    ["\n",[["x﻿y",4206666793,"AAAA"],["Señor",516462828,"AAAAAAAA"]],[],[1,2,0],"","7f0a0ae28094205365c3b16f72204873695937414a44466f4e41386e7a4258686173593853553759796d587475444f6558757475596f5035496b33795a34467832524f4d67794c354f744a33777042395172395037544a35582b4b6d37306a4b6650584c536a7041553d0ae280942078efbbbf79202b72796b4b54425939584d6e4152384c3576726f4b33576f444233484e4b76436e41374e594d4956324d4f666b477444617a383275695768777665335a686a6c4e694c795963624a6e45363376374b484f4d4368683037774267733d0ae2809420616c70686120536a6765336d374f335a765350443061676b5033626a6158657473356764652f79777a7533757a38466a516b374b356c6148684f353639784b7433672f376e314a78424a396a49675253756f4f4752375a58544c776969734177633d0a"],
+    ["café 日本語 🌲\n",[["plus+name",2690770399,"oGHl3wHZ"]],[["Señor",516462828,"HsiY7Kwra+Ms"]],[],"malformed note"],
+    ["\n",[["日本",276050648,"EHQy2HkVGg=="],["plus+name",2690770399,"oGHl32A="]],[["x﻿y",4206666793,"+rykKQ=="]],[],"malformed note"],
+    ["\u0001ctl\n",[],[["Señor",516462828,"AAA"],["plus+name",2690770399,"A"]],[],"malformed note"],
+    ["x\n\n",[["Señor",516462828,"HsiY7MEt36Fu"],["Señor",516462828,"HsiY\n7NUgYeOj"]],[],[7,0],"","780a0a0ae28094205365c3b16f722048736959374d4574333646750ae28094205365c3b16f7220487369590a374e556759654f6a0ae2809420e697a5e69cac2045485179324d414b4e784e79357555623148663850665048314e7658395a70786651683470544541413251483674786a3976467a314c325273786d7377612b7a6e357a6e70457877585a4b564c53476832667744685979326e67343d0ae2809420616c70686120536a6765336b2f6e6f4a4e52326e34364c754d64682f71414a5041712b457a494f334473734c7a38545835793959515279474e385a51305567644d394843516c35345044657939715046665447456f326f537573756646326b51413d0a"],
+    ["a\n\nb\n",[["bad name",1871227529,"b4iqiWYfcA=="],["bad name",3115415239,"AAAA\nAAAA"]],[["alpha",1245191902,"Sjge3oFTz8TX"],["bad name",3115415239,"ubF2xw=="]],[5,2],"invalid signer"],
+    ["no newline",[["nel",2239332590,"hXmA7sh74g=="]],[],[],"malformed note"],
+    ["x\n\n",[["x﻿y",4206666793,"AAAAAAAAAAAA"],["日本",276050648,"A"]],[["alpha",1245191902,"AAAAAAAAAAAA"],["plus+name",2690770399,"AA==\n"]],[2,5],"invalid signer"],
+    ["a\nb\n\n",[["alpha",1245191902,"AAA="],["",2420635543,"AAAA"]],[["Señor",3495468730,"0FieuqaBZg=="],["plus+name",2690770399,"oGHl\n34GYUA=="]],[2],"malformed note"],
+    ["café 日本語 🌲\n",[],[["plus+name",2690770399,"oGHl3zA="],["alpha",1245191902,"Sjge\n3hMqpvU="]],[],"malformed note"],
+    ["x\n\n",[["日本",276050648,"AAA="]],[["alpha",1245191902,"Sjge3g=="],["",2420635543,"AA==\n"]],[0,2,6],"invalid signer"],
+    ["cr\r\n",[],[["bad name",3115415239,"ubF2x+8="]],[],"malformed note"],
+    ["",[["x﻿y",4096821262,"9DCI\nDpQ="]],[],[],"malformed note"],
+    ["cr\r\n",[],[["Señor",516462828,"HsiY\n7DNRfAg="]],[1],"","63720d0a0ae28094205365c3b16f722048736959374e5846316d6e4575582b4254616e306e6a435572344e4b52652b717a31724656666f56674946445570776c6c6b643568392b4c6558594c5178364a42764969696a747371645930567433316c302b61735861737641773d0a"],
+    ["\n",[["alpha",1245191902,"Sjge3q4ZLLs="]],[],[5,4],"invalid signer"],
+    ["\u0001ctl\n",[["bad name",2149058609,"gBgI\nMdeijQ=="],["plus+name",2690770399,"AAAAAAAAAAAA"]],[],[2,0],"malformed note"],
+    ["﻿bom\n",[],[],[],"","efbbbf626f6d0a0a"],
+    ["",[],[["bad name",3115415239,"ubF2xxOKaz5z"]],[3],"malformed note"],
+    ["\n",[["alpha",1322472958,"AA==\n"],["nel",2239332590,"AAAAAAAAAAAA"]],[],[1],"malformed note"],
+    ["\u0001ctl\n",[],[],[0],"","0163746c0a0ae2809420616c70686120536a67653372774f30674e584b62756b794c45514872386c6f38697a507769364c4b692f5a3731317949416573656874556b75326c6e4f2f54444c6f70435259796e4778746e445a716854526c50754453636e614b7a62375541343d0a"],
+    ["hello\n",[],[["bad name",2431168729,"kOiw2ag="],["bad name",4123288456,"9cRjiJw="]],[4,2],"invalid signer"],
+    ["a\n\nb\n",[["",2420635543,"kEf3\nl/KSvNU="],["日本",276050648,"EHQy\n2K+i"]],[["bad name",3115415239,"ubF2xxnSQTH7"]],[4,7],"invalid signer"],
+    ["a\nb\n\n",[["",2420635543,"AAAA\nAAAA"],["日本",276050648,"EHQy\n2Md/kpU="]],[],[4],"invalid signer"],
+    ["no newline",[],[["alpha",3468322639,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["Señor",516462828,"HsiY7Lo="]],[],"malformed note"],
+    ["\n",[["nel",2239332590,"hXmA\n7p7Y"],["",2420635543,"kEf3l7hd0Ks="]],[["alpha",1245191902,"Sjge3mbJ6A=="]],[1],"malformed note"],
+    ["café 日本語 🌲\n",[["",2420635543,"kEf3l3TjsQ=="]],[["plus+name",2690770399,"oGHl37A7f/qS"],["bad name",3115415239,"ubF2\nx3TG"]],[7],"malformed note"],
+    ["a\nb\n\n",[],[["Señor",3584911902,"1a1qHnmX"],["bad name",3115415239,"AAA"]],[],"malformed note"],
+    ["no newline",[["x﻿y",4206666793,"+rykKQ=="]],[["alpha",1245191902,"Sjge3rrvjRs="]],[0,3,2],"malformed note"],
+    ["\n",[["plus+name",2690770399,"A"],["nel",2239332590,"hXmA7tNAnro="]],[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["x﻿y",4206666793,"!!!!"]],[3],"invalid signer"],
+    ["x\n\n",[["x﻿y",1567595118,"XW+abmk="]],[["x﻿y",4206666793,"+rykKah5"],["日本",276050648,"!!!!"]],[],"malformed note"],
+    ["﻿bom\n",[["bad name",3502933998,"AAA"]],[],[2,6,4],"invalid signer"],
+    ["a\nb\n\n",[["bad name",3115415239,"ubF2x/oG"]],[["Señor",516462828,"HsiY7A=="]],[5],"invalid signer"],
+    ["a\nb\n\n",[["nel",2239332590,""],["nel",2591562043,"AAAAAAAAAAAA"]],[["plus+name",3337588896,"AAAA"],["x﻿y",4206666793,"+ryk\nKZGkbCc="]],[],"malformed note"],
+    ["x\n\n",[],[],[3,3],"invalid signer"],
+    ["x\n\n",[["日本",276050648,"EHQy\n2CQGcQ=="],["bad name",3115415239,"AAAAAAAA"]],[],[4,5,6],"invalid signer"],
+    ["\n",[["plus+name",2553346505,"mDD5\nyTrtr8I="]],[["",2420635543,"kEf3lxrRAQ=="]],[2,7],"malformed note"],
+    ["",[],[],[6,5],"malformed note"],
+    ["a\nb\n\n",[["Señor",516462828,"HsiY\n7DPFzg=="],["x﻿y",4206666793,"+ryk\nKTA="]],[],[],"","610a620a0a0ae28094205365c3b16f7220487369590a374450467a673d3d0ae280942078efbbbf79202b72796b0a4b54413d0a"],
+    ["no newline",[],[["nel",2239332590,"hXmA7nCp0xo="],["plus+name",2690770399,"oGHl3w=="]],[],"malformed note"],
+    ["x\n\n",[["",2420635543,"AAAA"]],[],[2,5,7],"invalid signer"],
+    ["a\n\nb\n",[["bad name",3115415239,"ubF2x94mM/E="]],[["日本",1649609571,"AAAA"],["Señor",516462828,"HsiY7LhE"]],[6],"invalid signer"],
+    ["a\nb\n\n",[],[["",2420635543,"kEf3\nl4/EGAk="],["",4086285935,"84/G\nbw=="]],[0],"malformed note"],
+    ["no newline",[["alpha",1245191902,"Sjge3hoi"]],[["x﻿y",4206666793,"+rykKdvxQmzJ"],["alpha",1245191902,"Sjge3g=="]],[6,7],"malformed note"],
+    ["a\nb\n\n",[["bad name",3115415239,"AAA"]],[],[1],"malformed note"],
+    ["café 日本語 🌲\n",[["alpha",3576727120,"1TCGUKc="]],[["alpha",1245191902,"A"]],[3],"invalid signer"],
+    ["\u0001ctl\n",[["alpha",3336988236,"xuZmTIA="],["x﻿y",2569979276,"mS7FjN7aYYI="]],[["nel",2239332590,"!!!!"],["Señor",993959276,"!!!!"]],[7],"malformed note"],
+    ["\n",[["日本",276050648,"EHQy2OF/BQ=="]],[["alpha",1854560036,"bopXJN47pQ=="]],[5],"invalid signer"],
+    ["",[["x﻿y",2388222259,"jllhMwRKIlM="],["nel",2239332590,"hXmA\n7g=="]],[["",2420635543,"kEf3l+Q="]],[0,0],"malformed note"],
+    ["",[["plus+name",435919353,"GfuZ+VyqnA=="]],[["x﻿y",1470136783,"A"]],[7,6],"malformed note"],
+    ["cr\r\n",[],[["x﻿y",4206666793,"AAAAAAAA"],["bad name",3115415239,"ubF2\nx1gr"]],[4],"invalid signer"],
+    ["x\n\n",[["",2420635543,"kEf3l7M="]],[["日本",4273030707,"/rFGMwxjEw=="],["",2420635543,"kEf3lyAAyKc="]],[0,3],"invalid signer"],
+    ["﻿bom\n",[["alpha",1245191902,"AAA"]],[],[],"malformed note"],
+    ["hello\n",[["日本",276050648,"EHQy2EY5ep/0"]],[["Señor",1587676598,"XqIFtqMzdg=="]],[7,6,4],"invalid signer"],
+    ["\n",[],[],[],"","7f0a0a"],
+    ["no newline",[["bad name",1881647162,"cCeo\nOg=="],["plus+name",3547130799,"AAA"]],[["nel",2231285391,"AAAA"],["nel",2239332590,"hXmA7lLu"]],[],"malformed note"],
+    ["a\n\nb\n",[["nel",2239332590,"hXmA7g=="],["Señor",516462828,"HsiY7DA="]],[],[5],"invalid signer"],
+    ["a\nb\n\n",[["Señor",4176312073,"AAAAAAAA"],["日本",276050648,"EHQy2Na0dr8="]],[],[0],"malformed note"],
+    ["\u0001ctl\n",[["bad name",3115415239,"ubF2\nx0M="],["x﻿y",4206666793,"AAAAAAAA"]],[],[7,0,3],"invalid signer"],
+    ["x\n\n",[["alpha",224783972,"DWXuZHWn3r0="],["x﻿y",4206666793,"AA==\n"]],[["",2420635543,"AAA="],["",2420635543,"kEf3lw=="]],[3,6,5],"invalid signer"],
+    ["﻿bom\n",[],[],[0,1],"","efbbbf626f6d0a0ae2809420616c70686120536a676533767255526847527971694738674e34564a4a714c45726f514a584c4a6d4736473753377361574c485a59343047754f6444624d6853736e367746434471456b63657350374773783938764c632b7862724d726f3967303d0ae28094205365c3b16f722048736959374c622f79534e563063486853426455536856396247694a6d47734b4e69353835452b75726b33794849654a6e507a686f524865765070776f4e6b5a37584e68507455506955454434735934766f33596a6774644667493d0a"],
+    ["a\n\nb\n",[["nel",2239332590,"AAAA\nAAAA"],["plus+name",2690770399,"oGHl3w=="]],[["x﻿y",4206666793,"+ryk\nKdRQoW4="]],[3,2],"invalid signer"],
+    ["\u0001ctl\n",[["日本",1602456220,"X4OKnA=="]],[["Señor",3714020609,"3V91AWQ="]],[3],"invalid signer"],
+    ["\n",[],[["Señor",516462828,"HsiY7Bc="],["plus+name",2690770399,"!!!!"]],[2,5,1],"invalid signer"],
+    ["\n",[],[],[1,3,1],"invalid signer"],
+    ["",[["x﻿y",4206666793,"+rykKXTcpDQ="]],[],[2,6,2],"malformed note"],
+    ["a\nb\n\n",[["日本",276050648,"AAAA"],["x﻿y",976825391,"AA==\n"]],[["Señor",516462828,"HsiY7K0Drw=="],["alpha",1245191902,"Sjge3sfBl/jQ"]],[2,0],"malformed note"],
+    ["\n",[["Señor",516462828,"AAAA"],["plus+name",2690770399,"oGHl33IP7CQ="]],[["plus+name",2692213418,"oHfqqryJvdmQ"],["",2420635543,"kEf3lw=="]],[2,7],"malformed note"],
+    ["x\n\n",[["Señor",516462828,"HsiY7ABj"]],[["日本",276050648,"AA==\n"],["",1421112376,"VLR0OGSo"]],[0],"malformed note"],
+    ["\n",[],[["nel",2239332590,""],["nel",2354423061,"!!!!"]],[4],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[4,4],"invalid signer"],
+    ["hello\n",[],[],[],"","68656c6c6f0a0a"],
+    ["\n",[["nel",2239332590,"hXmA7lEahw=="]],[["plus+name",2690770399,"!!!!"]],[2,7],"malformed note"],
+    ["no newline",[],[["x﻿y",3595067315,"1khfswvB"],["x﻿y",4206666793,"AAA="]],[],"malformed note"],
+    ["hello\n",[["bad name",3115415239,"ubF2x7ADAw=="]],[],[5,5,7],"invalid signer"],
+    ["a\nb\n\n",[],[["日本",3453032110,"zdEWrho3"]],[6,5],"invalid signer"],
+    ["\n",[["nel",2239332590,""]],[["Señor",516462828,"A"],["Señor",516462828,"AAAA"]],[1,6],"invalid signer"],
+    ["café 日本語 🌲\n",[["nel",2239332590,"!!!!"],["x﻿y",2939395473,"rzOd\nkcMHcA=="]],[["x﻿y",4206666793,"+rykKZ690Ro="],["",2420635543,"kEf3\nlw=="]],[],"malformed note"],
+    ["cr\r\n",[],[],[5,6],"invalid signer"],
+    ["",[["日本",276050648,"EHQy2MiOvH4v"],["Señor",516462828,"HsiY7ITP"]],[["plus+name",2690770399,"oGHl\n3w=="]],[3,7],"malformed note"],
+    ["cr\r\n",[["Señor",516462828,"AAAA\nAAAA"],["alpha",1245191902,"Sjge\n3g=="]],[],[5],"invalid signer"],
+    ["",[["bad name",3115415239,"AAAA\nAAAA"],["alpha",1857160565,"AAAA"]],[["x﻿y",4206666793,"+rykKQ=="],["",2420635543,"kEf3lx7105jW"]],[5,1],"malformed note"],
+    ["x\n\n",[],[],[1,7],"","780a0a0ae28094205365c3b16f722048736959374c4d6e354c794b6b6752347a4d74507130526e7233426933415147557462574e374358426a48515056742f555a7771737333585a73536746677051554d78792f664264354c342f624a73414237656c375443363167383d0ae2809420e697a5e69cac2045485179324d414b4e784e79357555623148663850665048314e7658395a70786651683470544541413251483674786a3976467a314c325273786d7377612b7a6e357a6e70457877585a4b564c53476832667744685979326e67343d0a"],
+    ["a\nb\n\n",[["日本",276050648,"EHQy2GY="]],[["bad name",3115415239,"A"],["x﻿y",4206666793,"+ryk\nKV2FHi0x"]],[3,5,4],"invalid signer"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"HsiY\n7MZZU0s="],["alpha",1245191902,"AAAA"]],[],[],"malformed note"],
+    ["﻿bom\n",[["alpha",1245191902,"AAAA\nAAAA"],["日本",276050648,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["日本",276050648,"A"],["alpha",1245191902,"AAA"]],[],"malformed note"],
+    ["x\n\n",[],[["",3513383972,"0Wn8JACLCzc="]],[3,4],"invalid signer"],
+    ["no newline",[],[["x﻿y",4206666793,"+rykKUPnRng="]],[3,1],"malformed note"],
+    ["cr\r\n",[],[["nel",2239332590,"hXmA\n7i8="]],[2,0,1],"malformed note"],
+    ["cr\r\n",[["plus+name",68539416,"BBXUGPHv"]],[],[0,7,1],"malformed note"],
+    ["﻿bom\n",[],[["Señor",516462828,"AAAA\nAAAA"],["alpha",1245191902,"Sjge3pLj9ZU="]],[5,0],"invalid signer"],
+    ["a\nb\n\n",[["plus+name",2690770399,"AAA"]],[["",2420635543,"A"],["alpha",1884420324,""]],[7,2,5],"invalid signer"],
+    ["café 日本語 🌲\n",[["Señor",516462828,"HsiY7HER"],["x﻿y",914109813,"Nnw1dS2m"]],[["bad name",3115415239,"ubF2x1o="],["日本",276050648,"EHQy2A=="]],[6],"invalid signer"],
+    ["﻿bom\n",[],[["bad name",3115415239,"ubF2xw=="],["alpha",1245191902,"Sjge3rE="]],[0,0,7],"malformed note"],
+    ["a\nb\n\n",[],[],[6,0],"invalid signer"],
+    ["a\nb\n\n",[["日本",2205823422,"g3oxvg=="]],[],[7,7,7],"","610a620a0a0ae2809420e697a5e69cac2067336f7876673d3d0ae2809420e697a5e69cac204548517932484e743937784a72377437313663396b37472b724843776d334431327754526f7168547758506f5a556f683838723150683737496a792f596c554743506641545242336f506e52635768516a62634f317843386b776b3d0ae2809420e697a5e69cac204548517932484e743937784a72377437313663396b37472b724843776d334431327754526f7168547758506f5a556f683838723150683737496a792f596c554743506641545242336f506e52635768516a62634f317843386b776b3d0ae2809420e697a5e69cac204548517932484e743937784a72377437313663396b37472b724843776d334431327754526f7168547758506f5a556f683838723150683737496a792f596c554743506641545242336f506e52635768516a62634f317843386b776b3d0a"],
+    ["\n",[],[["bad name",1604322789,"AAAAAAAA"],["nel",2239332590,"AAA="]],[7,1],"malformed note"],
+    ["a\n\nb\n",[["",2420635543,"kEf3\nlwo="],["Señor",516462828,"AA==\n"]],[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[0,0,3],"invalid signer"],
+    ["﻿bom\n",[["",2301478815,"iS3Hn84="]],[["日本",571186762,"IgueSuFy7Q=="],["alpha",1245191902,"AA==\n"]],[2,4,3],"invalid signer"],
+    ["\u0001ctl\n",[],[],[],"","0163746c0a0a"],
+    ["\u0001ctl\n",[["nel",3703442881,"3L4NwSBBcQ=="]],[["日本",276050648,"EHQy2ETD"],["x﻿y",284532754,"EPWgEuQ="]],[4],"invalid signer"],
+    ["café 日本語 🌲\n",[],[],[3,1,5],"invalid signer"],
+    ["no newline",[["plus+name",2690770399,"oGHl\n35Ga"],["bad name",3227157943,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="]],[["x﻿y",4206666793,"AAA="]],[2,2],"malformed note"],
+    ["a\nb\n\n",[],[],[],"","610a620a0a0a"],
+    ["a\n\nb\n",[["nel",2239332590,"hXmA7qknyw=="],["nel",715238474,"KqGsSp07224="]],[["nel",2239332590,"hXmA7m8G"],["日本",1513701061,"!!!!"]],[0,4],"invalid signer"],
+    ["a\nb\n\n",[["日本",276050648,"EHQy2JWWQ4qA"],["x﻿y",4206666793,"+ryk\nKQs34dg="]],[["x﻿y",4206666793,"+rykKc4="],["",2420635543,"AAAA"]],[7,4],"invalid signer"],
+    ["",[["x﻿y",4206666793,"+rykKb/h"]],[["Señor",516462828,"HsiY7BOY"],["plus+name",2690770399,"AAAA"]],[],"malformed note"],
+    ["a\n\nb\n",[["",2420635543,"kEf3\nl2k="]],[["",1536282487,"W5HP\nd+AvJFo="]],[7],"malformed note"],
+    ["\u0001ctl\n",[["",2420635543,"kEf3\nl0jYnQ=="]],[["alpha",1463762193,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["nel",2239332590,"hXmA7g=="]],[],"malformed note"],
+    ["café 日本語 🌲\n",[["日本",681894375,"AAAA"],["bad name",3115415239,"ubF2xwteLhQ="]],[["alpha",1245191902,"Sjge\n3v45wJmk"]],[],"malformed note"],
+    ["\n",[["日本",276050648,"EHQy\n2JeB"]],[["Señor",516462828,"HsiY7A=="],["x﻿y",4206666793,""]],[],"malformed note"],
+    ["hello\n",[],[],[6,3,2],"invalid signer"],
+    ["cr\r\n",[],[["日本",276050648,"AAAAAAAAAAAA"]],[0],"malformed note"],
+    ["\n",[],[["bad name",3115415239,"ubF2x3LKjflu"],["日本",276050648,"EHQy2A=="]],[2,3,6],"invalid signer"],
+    ["hello\n",[],[["nel",2239332590,"x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM="],["bad name",3115415239,"ubF2x8zvDw=="]],[],"malformed note"]
+  ]
+}
