@@ -1,12 +1,27 @@
 {
+  // Biome is the repository's formatter, linter and import sorter: `bun run lint` checks,
+  // `bun run lint:fix` repairs, the pre-commit hook (.githooks/pre-commit) checks what is staged,
+  // and the editor settings (.vscode/settings.json) format on save with the same binary.
+  //
+  // What Biome covers: TypeScript and JavaScript (src/, scripts/, the site and the examples),
+  // JSON and JSONC (package.json, tsconfig*.json, wrangler.jsonc, this file) and CSS (the site's
+  // styles and the browser example's). HTML files are linted but not formatted: Biome 2.5 still
+  // marks its HTML formatter experimental and opt-in, and it would rewrite both of this
+  // repository's pages (void elements lose their `/>`, inline text is re-wrapped). Go is
+  // formatted by gofmt, and Markdown and YAML are not formatted by any tool; .editorconfig
+  // carries their basic conventions. Nothing below may change what the formatter prints for the
+  // files already in the repository, because other work in flight would conflict with a rewrite.
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": {
+    // Files that git ignores (node_modules, dist, .upstream, ...) are not Biome's business.
     "enabled": true,
     "clientKind": "git",
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!dist", "!fixtures/data", "!**/.wrangler", "!**/node_modules"]
+    // Fixtures are generated and byte-exact, so Biome must not touch them. The other entries
+    // repeat what .gitignore already says, for runs outside a git checkout.
+    "includes": ["**", "!dist", "!fixtures/data", "!**/.wrangler", "!**/node_modules", "!.upstream"]
   },
   "formatter": {
     "enabled": true,
@@ -25,6 +40,11 @@
       "indentStyle": "space",
       "indentWidth": 2
     }
+  },
+  "html": {
+    // See the note at the top: lint yes, format not yet.
+    "formatter": { "enabled": false },
+    "linter": { "enabled": true }
   },
   "assist": {
     "actions": {
