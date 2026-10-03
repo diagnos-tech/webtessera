@@ -3,6 +3,7 @@ module github.com/diagnos-tech/webtessera/fixtures/gen
 go 1.24.0
 
 require (
+	filippo.io/edwards25519 v1.1.0
 	github.com/transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c
 	github.com/transparency-dev/merkle v0.0.2
 	github.com/transparency-dev/tessera v0.0.0

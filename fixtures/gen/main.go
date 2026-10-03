@@ -99,6 +99,13 @@ func main() {
 	written["client_log.json"] = true
 	fmt.Printf("wrote client_log.json\n")
 
+	// The differential corpora (differential*.go) have their own compact,
+	// one-record-per-line writer.
+	if err := writeDifferentialFixtures(*outDir, written); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+
 	// Remove stale fixtures so that deleting a generator case cannot leave an
 	// orphaned file behind that a test might still be asserting against.
 	stale, err := staleFiles(*outDir, written)

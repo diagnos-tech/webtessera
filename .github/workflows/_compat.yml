@@ -1,6 +1,7 @@
 # Compatibility with upstream Go Tessera, which is this project's reason to exist: the golden
-# fixtures must be reproducible from the pinned upstream commit, and Go and TypeScript must
-# read each other's logs.
+# fixtures and differential corpora must be reproducible from the pinned upstream commit, Go
+# and TypeScript must read each other's logs, and every upstream test must have a port. (The
+# differential corpora themselves are replayed by the unit, browser and workerd jobs.)
 #
 # Reusable workflow, called by ci.yml.
 name: Compatibility
@@ -53,3 +54,22 @@ jobs:
       - uses: ./.github/actions/setup-go-upstream
       - run: pnpm build
       - run: pnpm interop
+
+  # Every upstream Go test, example, fuzz target and benchmark must have a TypeScript test of the
+  # same name, or an allow-list entry that cites the ADR deciding why not (ADR-0217). This is
+  # what stops a ported file from silently dropping one of upstream's tests.
+  parity:
+    name: Upstream test parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The script uses only Node built-ins and the Go toolchain, so the workspace dependencies
+      # are not needed. Go lists upstream's tests, which fetches its modules (about a minute).
+      - uses: ./.github/actions/setup
+        with:
+          install: "false"
+      - uses: ./.github/actions/setup-go-upstream
+      - run: pnpm test:parity
