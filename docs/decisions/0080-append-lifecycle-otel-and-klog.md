@@ -1,6 +1,6 @@
 # ADR-0080: `append_lifecycle.ts`/`await.ts`/`antispam.ts` drop OpenTelemetry and klog; keep the stats data-structures as logic
 
-- **Status:** proposed
+- **Status:** accepted; its "keep the stats data-structures as logic" part is superseded by ADR-0181 (proposed, review pending)
 - **Date:** 2026-08-19
 - **Author:** append-lifecycle contributor
 - **Upstream reference:** `append_lifecycle.go` (lines 39-210, and the `.Record`/`.Add` call sites throughout), `otel.go`, `await.go`, `antispam.go`
@@ -126,3 +126,15 @@ would silently accept mismatched signer names.
   `0080-append-lifecycle-otel-and-lru.md` (now `-otel-and-klog.md` for the OTel/klog refs in
   `append_lifecycle.ts`/`await.ts`, and `0081-antispam-lru-subset-not-hashicorp.md` for the LRU ref
   in `antispam.ts`).
+
+## Update (2026-10-02)
+
+Status changed from "proposed" to "accepted" on the strength of the approved verdict recorded
+above (no new review was made), and the part of the decision that kept the stats structures as
+logic is superseded by ADR-0181: `idxAt`, `integrationStats` (`sample`, `latency`,
+`updateStats`, `statsDecorator`) and `followerStats` are deleted, with their wiring in
+`newAppender`. That follows the reviewer's recorded reservation above: with emission gone, the two
+always-on loops read the storage several times a second (on this port's `ObjectStore` driver,
+each `integratedSize`/`nextIndex` call reads and parses `.state/treeState`) for values nobody
+reads. The rest of this ADR stands: OTel and klog are dropped, `terminator.largestIssued` and
+`CheckpointPublisher`'s work are kept, and `WithCheckpointSigner`'s `klog.Exitf` is a throw.

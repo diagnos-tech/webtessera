@@ -28,7 +28,7 @@ import { checkpointUnsafe } from "./internal/parse/parse.ts";
 type readCheckpointFn = (signal?: AbortSignal) => Promise<Uint8Array>;
 
 /**
- * newPublicationAwaiter provides a PublicationAwaiter that can be cancelled
+ * newPublicationAwaiter provides an PublicationAwaiter that can be cancelled
  * using the provided signal. The PublicationAwaiter will poll every `pollPeriodMs`
  * to fetch checkpoints using the `readCheckpoint` function.
  *
@@ -42,7 +42,7 @@ export function newPublicationAwaiter(
 	signal?: AbortSignal,
 ): PublicationAwaiter {
 	const a = new PublicationAwaiter();
-	void a._pollLoop(readCheckpoint, pollPeriodMs, signal);
+	void a.pollLoop(readCheckpoint, pollPeriodMs, signal);
 	return a;
 }
 
@@ -67,13 +67,15 @@ export function newPublicationAwaiter(
  * pending resolvers woken on each poll update (or on cancellation). The condition is
  * re-checked after each wake exactly as `Cond.Wait` requires, so the semantics are preserved;
  * no lock guards `size`/`checkpoint`/`err` because every read and write of them is synchronous
- * (docs/decisions/0004-errors-context-and-concurrency.md).
+ * (docs/decisions/0004-errors-context-and-concurrency.md). Go's nil `checkpoint` slice is an
+ * empty Uint8Array here; await only returns it when a poll has set it together with a size,
+ * so a successful await never returns the empty value.
  */
 export class PublicationAwaiter {
 	// size, checkpoint, and err keep track of the latest size and checkpoint
 	// (or error) seen by the poller.
 	#size = 0n;
-	#checkpoint: Uint8Array | undefined = undefined;
+	#checkpoint: Uint8Array = new Uint8Array(0);
 	#err: unknown = undefined;
 
 	// waiters holds the resolvers of clients currently blocked in await(). Broadcast resolves
@@ -93,13 +95,13 @@ export class PublicationAwaiter {
 	 * Port note: Go returns `(Index, []byte, error)`; the port returns `[Index, checkpoint]`
 	 * and throws on error (docs/decisions/0004-errors-context-and-concurrency.md).
 	 */
-	async await(future: IndexFuture, signal?: AbortSignal): Promise<[Index, Uint8Array | undefined]> {
+	async await(future: IndexFuture, signal?: AbortSignal): Promise<[Index, Uint8Array]> {
 		const i = await future();
 
 		while (this.#size <= i.index && this.#err === undefined && !signal?.aborted) {
 			await this.#wait();
 		}
-		// Ensure we propagate the cancellation error, if any.
+		// Ensure we propogate the signal's abort error, if any.
 		if (signal?.aborted) {
 			this.#err = signal.reason;
 		}
@@ -110,16 +112,17 @@ export class PublicationAwaiter {
 	}
 
 	/**
-	 * _pollLoop MUST be called as a background task when constructing a PublicationAwaiter
+	 * pollLoop MUST be called as a background task when constructing an PublicationAwaiter
 	 * and will run continually until its signal is cancelled. It wakes up every
 	 * `pollPeriodMs` to check if there are clients blocking. If there are, it requests
 	 * the latest checkpoint from the log, parses the tree size, and releases all clients
 	 * that were blocked on an index smaller than this tree size.
 	 *
-	 * @internal
+	 * @internal Unexported in Go; public only because newPublicationAwaiter, a module-level
+	 * function, starts it (ADR-0010).
 	 */
-	async _pollLoop(readCheckpoint: readCheckpointFn, pollPeriodMs: number, signal?: AbortSignal): Promise<void> {
-		let cp: Uint8Array | undefined;
+	async pollLoop(readCheckpoint: readCheckpointFn, pollPeriodMs: number, signal?: AbortSignal): Promise<void> {
+		let cp: Uint8Array = new Uint8Array(0);
 		let cpErr: unknown;
 		let cpSize = 0n;
 		for (let done = false; !done; ) {
@@ -128,7 +131,7 @@ export class PublicationAwaiter {
 			try {
 				await sleep(pollPeriodMs, signal);
 			} catch {
-				cp = undefined;
+				cp = new Uint8Array(0);
 				cpSize = 0n;
 				cpErr = signal?.reason;
 				done = true;
@@ -139,7 +142,7 @@ export class PublicationAwaiter {
 					cp = await readCheckpoint(signal);
 					cpErr = undefined;
 				} catch (err) {
-					cp = undefined;
+					cp = new Uint8Array(0);
 					cpErr = err;
 				}
 				if (cpErr !== undefined && errorIs(cpErr, ErrNotExist)) {
@@ -149,7 +152,7 @@ export class PublicationAwaiter {
 					cpSize = 0n;
 				} else {
 					try {
-						cpSize = checkpointUnsafe(cp ?? new Uint8Array(0)).size;
+						cpSize = checkpointUnsafe(cp).size;
 					} catch (err) {
 						cpSize = 0n;
 						cpErr = err;

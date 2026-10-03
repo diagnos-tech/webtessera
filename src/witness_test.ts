@@ -1,4 +1,3 @@
-// Copyright 2025 The Tessera authors. All Rights Reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Ported from tessera/witness_test.go @ 4a6d9f9
+// Ported from tessera/witness_test.go @ 4a6d9f9, part of Tessera (Apache-2.0, see NOTICE).
 //
-// Copyright note: upstream's witness_test.go has no copyright header of its own. The
-// Tessera-authors line above follows witness.go, the file it tests.
+// Copyright note: upstream's witness_test.go carries no copyright or licence header, so, per
+// PORTING.md §9 ("keep the upstream copyright year and holder exactly as the original file has
+// it"), none is invented for it here; see
+// docs/decisions/0187-witness-test-header-follows-upstream.md.
 //
 // Port note: BenchmarkWitnessGroupSatisfaction is not ported -- see
 // docs/decisions/0034-go-benchmarks-not-ported.md.
@@ -177,6 +178,31 @@ describe("TestWitnessGroup_URLs", () => {
 			const gotURLs = [...tC.group.endpoints().keys()].sort();
 			const wantURLs = [...tC.expectedURLs].sort();
 			expect(gotURLs).toEqual(wantURLs);
+		});
+	}
+});
+
+// Port additions: newWitness's handling of the root URL it is given.
+describe("newWitness (port additions)", () => {
+	it("keeps a fragment after the joined path, as Go's JoinPath and String do", () => {
+		const w = newWitness(wit1_vkey, new URL("https://example.com/x#frag"));
+		expect(w.url).toBe("https://example.com/x/add-checkpoint#frag");
+	});
+
+	// docs/decisions/0185-witness-urls-require-https.md
+	const accepted = ["https://example.com/", "http://localhost/", "http://127.0.0.1:8080/", "http://[::1]/"];
+	for (const u of accepted) {
+		it(`accepts ${u}`, () => {
+			expect(newWitness(wit1_vkey, new URL(u)).url.endsWith("/add-checkpoint")).toBe(true);
+		});
+	}
+
+	const rejected = ["http://example.com/", "http://192.168.1.1/", "ws://localhost/", "file:///tmp/witness"];
+	for (const u of rejected) {
+		it(`rejects ${u}`, () => {
+			expect(() => newWitness(wit1_vkey, new URL(u))).toThrow(
+				"must use https (http is accepted only for a loopback host)",
+			);
 		});
 	}
 });

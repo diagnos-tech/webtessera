@@ -1,6 +1,6 @@
 # ADR-0044: `ct_only.ts` lands without its append-lifecycle half, and temporarily carries its own `identityHash`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** ct contributor
 - **Upstream reference:** `ct_only.go`, `lifecycle.go:101-105`, `entry.go`, `append_lifecycle.go`, `migrate.go`
@@ -166,3 +166,9 @@ and Merkle leaf hashes Go recorded.
   are ported with matching cases and values, including the upstream "Preertificate" typo.
   25/25 tests pass. This ADR's own counts are accurate (its "34" note was not present; the
   count error was in ADR-0043 and PORTING-MAP, now fixed).
+
+## Update (2026-10-02)
+
+Status changed from "proposed" to "accepted" on the strength of the approved verdict recorded
+above; no new review was made. The temporary items this ADR describes were closed by ADR-0055
+(`identityHash`), ADR-0059 (`convertCTEntry`) and ADR-0130 (the rest; still proposed).

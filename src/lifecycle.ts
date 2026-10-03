@@ -94,8 +94,20 @@ export interface Follower {
 	 *
 	 * Implementations should keep track of their progress such that they can pick-up where they left off
 	 * if e.g. the binary is restarted.
+	 *
+	 * Port note: Go always starts Follow on a goroutine of its own (`go f.Follow(ctx, r)` in both
+	 * NewAppender and MigrationTarget.Migrate), so it may run for as long as ctx lives and has no
+	 * caller to return an error to. The port keeps that contract: newAppender and
+	 * MigrationTarget.migrate start follow as a detached task, after their own synchronous work, and
+	 * never await it. An implementation therefore
+	 *   - must not block: long-running work returns a Promise and awaits between steps;
+	 *   - owns its own errors: a throw or rejection escaping follow surfaces as an unhandled
+	 *     rejection, the JavaScript analogue of a panicking goroutine, and does not reach the caller
+	 *     of newAppender or migrate;
+	 *   - is bound to signal: it must return once signal is aborted.
+	 * See docs/decisions/0180-follower-follow-is-a-detached-task.md.
 	 */
-	follow(reader: LogReader, signal?: AbortSignal): void;
+	follow(reader: LogReader, signal?: AbortSignal): void | Promise<void>;
 
 	/**
 	 * entriesProcessed reports the progress of the follower, returning the total number of log entries
@@ -123,7 +135,13 @@ export interface Antispam {
 	follower(idHasher: (entryBundle: Uint8Array) => Uint8Array[]): Follower;
 }
 
-/** identityHash calculates the antispam identity hash for the provided (single) leaf entry data. */
+/**
+ * identityHash calculates the antispam identity hash for the provided (single) leaf entry data.
+ *
+ * @internal Unexported in Go; exported here because entry.ts and ct_only.ts, which stand in
+ * for other files of the same Go package, call it (ADR-0010, ADR-0055). Not re-exported from
+ * any package barrel.
+ */
 export function identityHash(data: Uint8Array): Uint8Array {
 	return sha256(data);
 }
@@ -132,10 +150,12 @@ export function identityHash(data: Uint8Array): Uint8Array {
  * defaultIDHasher returns a list of identity hashes corresponding to entries in the provided bundle.
  * Currently, these are simply SHA256 hashes of the raw byte of each entry.
  *
- * Port note: unexported in Go and untested there (lifecycle.go has no lifecycle_test.go
- * upstream). Exported here so lifecycle_test.ts can exercise it directly, the same reason
- * ADR-0044 exports ct_only.go's otherwise-unexported bundle parsers. Not re-exported from
- * any package barrel, so it stays off the published API surface.
+ * @internal Unexported in Go and untested there (lifecycle.go has no lifecycle_test.go
+ * upstream). Exported here so that append_lifecycle.ts and migrate_lifecycle.ts, which stand
+ * in for other files of the same Go package, can use it as their default, and so that
+ * lifecycle_test.ts can exercise it directly, the same reason ADR-0044 exports ct_only.go's
+ * otherwise-unexported bundle parsers (ADR-0010). Not re-exported from any package barrel, so
+ * it stays off the published API surface.
  */
 export function defaultIDHasher(bundle: Uint8Array): Uint8Array[] {
 	const eb = new EntryBundle();
@@ -153,7 +173,7 @@ export function defaultIDHasher(bundle: Uint8Array): Uint8Array[] {
 /**
  * defaultMerkleLeafHasher parses a C2SP tlog-tile bundle and returns the Merkle leaf hashes of each entry it contains.
  *
- * Port note: see defaultIDHasher above — exported for the same reason.
+ * @internal See defaultIDHasher above: exported for the same reason.
  */
 export function defaultMerkleLeafHasher(bundle: Uint8Array): Uint8Array[] {
 	const eb = new EntryBundle();

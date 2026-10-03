@@ -26,12 +26,17 @@ import {
 	memoizeFuture,
 	newAppender,
 	newAppendOptions,
+	WitnessOptions,
 } from "./append_lifecycle.ts";
+import type { FetchFn } from "./client/fetcher.ts";
 import { type Entry, newEntry } from "./entry.ts";
-import { toUTF8 } from "./internal/gostd/bytes.ts";
+import { fromUTF8, toUTF8 } from "./internal/gostd/bytes.ts";
 import { ErrNotExist } from "./internal/gostd/errors.ts";
-import type { LogReader } from "./lifecycle.ts";
-import { newSigner, type Signer } from "./vendor/note/note.ts";
+import { sleep } from "./internal/gostd/sync.ts";
+import type { Follower, LogReader } from "./lifecycle.ts";
+import { newSignerForCosignatureV1, newVerifierForCosignatureV1 } from "./vendor/formats/note/note_cosigv1.ts";
+import { generateKey, newSigner, newVerifier, open, type Signer, sign, verifierList } from "./vendor/note/note.ts";
+import { newWitness, newWitnessGroup, WitnessGroup } from "./witness.ts";
 
 function messageOf(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
@@ -81,6 +86,19 @@ describe("memoizeFuture (port additions)", () => {
 		await f();
 		await f();
 		await f();
+		expect(calls).toBe(1);
+	});
+
+	it("caches a synchronous throw from the delegate and rethrows it on every call, as sync.OnceValues re-panics", () => {
+		let calls = 0;
+		const boom = new Error("boom");
+		const delegate: IndexFuture = (): Promise<Index> => {
+			calls++;
+			throw boom;
+		};
+		const f = memoizeFuture(delegate);
+		expect(() => f()).toThrow(boom);
+		expect(() => f()).toThrow(boom);
 		expect(calls).toBe(1);
 	});
 
@@ -154,6 +172,21 @@ describe("TestAppendOptionsValid", () => {
 			}
 		});
 	}
+});
+
+// Port addition: TestAppendOptionsValid only checks that the message contains the option name.
+// The port converts its millisecond intervals back to Go's nanosecond time.Duration for `%d`, so
+// pin the whole text against what Go prints for the same options.
+it("AppendOptions.valid renders intervals as Go's time.Duration nanoseconds (port addition)", () => {
+	const o = newAppendOptions()
+		.withCheckpointSigner(mustCreateSigner(testSignerKey))
+		.withCheckpointInterval(10_000)
+		.withCheckpointRepublishInterval(9_000);
+	expect(() => o.valid()).toThrow(
+		new Error(
+			"invalid AppendOptions: WithCheckpointRepublishInterval (9000000000) is smaller than WithCheckpointInterval (10000000000)",
+		),
+	);
 });
 
 // Port addition: the accessors are the contract storage drivers rely on; pin the defaults from
@@ -253,6 +286,89 @@ describe("newAppender (port additions)", () => {
 		}
 	});
 
+	it("makes an add that arrives during shutdown wait for shutdown to finish, then fail without reaching the driver", async () => {
+		let rawCalls = 0;
+		const rawAdd: AddFn = (): IndexFuture => {
+			rawCalls++;
+			return async (): Promise<Index> => ({ index: 5n, isDup: false });
+		};
+		let published = false;
+		const reader: LogReader = {
+			...fakeReader(),
+			readCheckpoint: async (): Promise<Uint8Array> => {
+				if (!published) {
+					throw ErrNotExist;
+				}
+				return toUTF8("origin\n6\nqINS1GRFhWHwdkUeqLEoP4yEMkTBBzxBkGwGQlVlVcs=\n");
+			},
+		};
+		const opts = newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey));
+
+		const ctrl = new AbortController();
+		try {
+			const { appender, shutdown } = await newAppender(fakeDriver(rawAdd, reader), opts, ctrl.signal);
+			await appender.add(newEntry(toUTF8("first")))();
+			expect(rawCalls).toBe(1);
+
+			// Shutdown now waits for a checkpoint covering index 5, which is not published yet.
+			const shutdownDone = shutdown();
+			await sleep(20);
+			let outcome: string | undefined;
+			const late = appender
+				.add(newEntry(toUTF8("late")))()
+				.then(
+					() => "resolved",
+					(err: unknown) => messageOf(err),
+				)
+				.then((o) => {
+					outcome = o;
+				});
+			await sleep(150);
+			// Go's Add would still be blocked on the read lock that Shutdown's write lock excludes.
+			expect(outcome).toBeUndefined();
+
+			published = true;
+			await shutdownDone;
+			await late;
+			expect(outcome).toBe("appender has been shut down");
+			expect(rawCalls).toBe(1);
+		} finally {
+			ctrl.abort();
+		}
+	});
+
+	it("starts each follower as a detached task that newAppender does not wait for", async () => {
+		const rawAdd: AddFn = (): IndexFuture => async (): Promise<Index> => ({ index: 1n, isDup: false });
+		const reader = fakeReader();
+		let gotReader: LogReader | undefined;
+		let gotSignal: AbortSignal | undefined;
+		const follower: Follower = {
+			name: () => "never-finishes",
+			follow: (r: LogReader, signal?: AbortSignal): Promise<void> => {
+				gotReader = r;
+				gotSignal = signal;
+				// Like a real follower, it runs until its signal is aborted, and newAppender must
+				// not wait for it.
+				return new Promise<void>(() => {});
+			},
+			entriesProcessed: async (): Promise<bigint> => 0n,
+		};
+		const opts = newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey));
+		opts.followers.push(follower);
+
+		const ctrl = new AbortController();
+		try {
+			await newAppender(fakeDriver(rawAdd, reader), opts, ctrl.signal);
+			await sleep(0);
+			expect(gotReader).toBe(reader);
+			expect(gotSignal?.aborted).toBe(false);
+			ctrl.abort();
+			expect(gotSignal?.aborted).toBe(true);
+		} finally {
+			ctrl.abort();
+		}
+	});
+
 	it("throws when the driver does not implement the Appender lifecycle", async () => {
 		await expect(
 			newAppender({}, newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey))),
@@ -262,6 +378,105 @@ describe("newAppender (port additions)", () => {
 	it("throws when opts is null", async () => {
 		const rawAdd: AddFn = (): IndexFuture => async (): Promise<Index> => ({ index: 1n, isDup: false });
 		await expect(newAppender(fakeDriver(rawAdd, fakeReader()), null)).rejects.toThrow("opts cannot be nil");
+	});
+});
+
+// Port additions: checkpointPublisher's snapshot of the options (Go's value receiver) and its
+// fail-open behaviour for errors other than a policy failure (ADR-0183).
+describe("AppendOptions.checkpointPublisher (port additions)", () => {
+	const testVerifierKey = "example.com/log/testdata+33d7b496+AeHTu4Q3hEIMHNqc6fASMsq3rKNx280NI+oO5xCFkkSx";
+	const witnessVkey = "Wit1+55ee4561+AVhZSmQj9+SoL+p/nN0Hh76xXmF7QcHfytUrI1XfSClk";
+	const witnessSkey = "PRIVATE+KEY+Wit1+55ee4561+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE";
+	const root = new Uint8Array(32).fill(7);
+
+	function reader(): LogReader {
+		return {
+			readCheckpoint: async (): Promise<Uint8Array> => {
+				throw ErrNotExist;
+			},
+			readTile: async (): Promise<Uint8Array> => {
+				throw new Error("no tiles here");
+			},
+			readEntryBundle: async (): Promise<Uint8Array> => new Uint8Array(0),
+			nextIndex: async (): Promise<bigint> => 0n,
+			integratedSize: async (): Promise<bigint> => 0n,
+		};
+	}
+
+	const noFetch: FetchFn = async (): Promise<Response> => {
+		throw new Error("unexpected witness request");
+	};
+
+	function oneWitness(): WitnessGroup {
+		return newWitnessGroup(1, newWitness(witnessVkey, new URL("https://witness.example/")));
+	}
+
+	async function signedOnly(size: bigint): Promise<Uint8Array> {
+		const o = newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey));
+		return o.checkpointPublisher(reader(), noFetch)(size, root);
+	}
+
+	it("keeps using the options it was created with when they are changed later", async () => {
+		const o = newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey));
+		const publish = o.checkpointPublisher(reader(), noFetch);
+		// Neither a new signer nor a witness policy reaches a publisher that already exists.
+		o.withCheckpointSigner(newSigner(generateKey(undefined, "other.example/log").skey));
+		o.withWitnesses(oneWitness(), new WitnessOptions({ failOpen: false }));
+
+		const cp = await publish(5n, root);
+		const n = open(cp, verifierList(newVerifier(testVerifierKey)));
+		expect(n.sigs).toHaveLength(1);
+		expect(cp).toEqual(await signedOnly(5n));
+	});
+
+	it("publishes the partial checkpoint when failing open on a policy failure, as Go does", async () => {
+		const o = newAppendOptions()
+			.withCheckpointSigner(mustCreateSigner(testSignerKey))
+			.withWitnesses(oneWitness(), new WitnessOptions({ failOpen: true }));
+
+		// The only witness cannot be reached, so the partial checkpoint carries no cosignature.
+		const cp = await o.checkpointPublisher(reader(), noFetch)(5n, root);
+
+		expect(cp).toEqual(await signedOnly(5n));
+	});
+
+	// A witness that cosigns, and a policy whose evaluation throws: the gateway then fails with an
+	// error that is not a PolicyNotSatisfiedError, the case for which Go's Witness returns nil.
+	const cosigner = newSignerForCosignatureV1(witnessSkey);
+	const cosigningFetch: FetchFn = async (_url: string, init?: RequestInit): Promise<Response> => {
+		const req = fromUTF8(init?.body as Uint8Array);
+		const cp = req.slice(req.indexOf("\n\n") + 2);
+		const text = cp.slice(0, cp.indexOf("\n\n") + 1);
+		const cosigned = fromUTF8(sign({ text }, cosigner));
+		return new Response(cosigned.slice(text.length + 1), { status: 200 });
+	};
+	function explodingPolicy(): WitnessGroup {
+		const component = {
+			satisfied: (): boolean => {
+				throw new Error("policy evaluation failed");
+			},
+			endpoints: () => new Map([["https://witness.example/add-checkpoint", newVerifierForCosignatureV1(witnessVkey)]]),
+		};
+		return new WitnessGroup([component], 1);
+	}
+
+	it("publishes the log-signed checkpoint when failing open on an error other than a policy failure", async () => {
+		const o = newAppendOptions()
+			.withCheckpointSigner(mustCreateSigner(testSignerKey))
+			.withWitnesses(explodingPolicy(), new WitnessOptions({ failOpen: true }));
+
+		const cp = await o.checkpointPublisher(reader(), cosigningFetch)(5n, root);
+
+		expect(cp.length).toBeGreaterThan(0);
+		expect(cp).toEqual(await signedOnly(5n));
+	});
+
+	it("still fails on that error when not failing open", async () => {
+		const o = newAppendOptions()
+			.withCheckpointSigner(mustCreateSigner(testSignerKey))
+			.withWitnesses(explodingPolicy(), new WitnessOptions({ failOpen: false }));
+
+		await expect(o.checkpointPublisher(reader(), cosigningFetch)(5n, root)).rejects.toThrow("policy evaluation failed");
 	});
 });
 

@@ -18,31 +18,25 @@
 // Port note: klog request logging is dropped, matching every other package in this
 // port -- docs/decisions/0070-witness-and-migrate-drop-otel-and-klog.md. `github.com/cenkalti/backoff/v5`
 // (worker retry policy) is a third-party dependency outside this port's allow-list
-// (PORTING.md §7); `retryWithBackoff` below reproduces the shape of its default policy
-// without being a byte-for-byte port -- see docs/decisions/0073-migrate-retry-backoff.md.
+// (PORTING.md §7); `retryWithBackoff` at the end of this file reproduces the behaviour of the
+// `backoff.Retry` call the worker makes -- see docs/decisions/0073-migrate-retry-backoff.md.
 // There is no `migrate_test.go` upstream (this file's coverage comes from Tessera's
 // `integration/` end-to-end suite, which needs a real storage `Driver`). `migrate_test.ts`
-// here is new, covering exactly the pure logic reachable without a driver:
-// `populateWork`'s chunking arithmetic. See
+// here is new, covering the logic reachable without a driver -- see
 // docs/decisions/0074-migrate-untestable-without-driver.md.
 
 import { range } from "./api/layout/index.ts";
 import type { EntryBundleFetcherFunc } from "./client/index.ts";
-import { throwIfAborted } from "./internal/gostd/errors.ts";
 import { ErrGroup, sleep } from "./internal/gostd/sync.ts";
-
-/** errText renders an error the way Go's `%v` verb does. */
-function errText(err: unknown): string {
-	return err instanceof Error ? err.message : String(err);
-}
 
 /**
  * setEntryBundleFunc is the signature of a function which can durably store a serialised
  * entry bundle at the given index/partial size.
  *
- * Port note: unexported in Go (`setEntryBundleFunc`); kept unexported here too, since
- * nothing outside this file needs it -- `migrate_lifecycle.ts` passes `writer.setEntryBundle`
- * (a bound method matching this shape) directly to `newCopier`.
+ * Port note: Go declares this type without a doc comment; this one only describes it. It
+ * is kept unexported, since nothing outside this file needs it -- `migrate_lifecycle.ts`
+ * passes `writer.setEntryBundle` (a bound method matching this shape) directly to
+ * `newCopier`.
  */
 type setEntryBundleFunc = (index: bigint, partial: number, bundle: Uint8Array, signal?: AbortSignal) => Promise<void>;
 
@@ -50,7 +44,9 @@ type setEntryBundleFunc = (index: bigint, partial: number, bundle: Uint8Array, s
  * newCopier constructs a copier ready to migrate entry bundles from a source log into a
  * target Driver.
  *
- * @internal Go's `copier` is unexported; exported here (ADR-0010's pattern) so
+ * Port note: Go declares this function without a doc comment; this one only describes it.
+ *
+ * @internal Go's `newCopier` is unexported; exported here (ADR-0010's pattern) so
  * `migrate_lifecycle.ts` -- a different TypeScript module standing in for the same Go
  * package -- and `migrate_test.ts` can reach it. Not re-exported from `src/index.ts`.
  */
@@ -58,90 +54,23 @@ export function newCopier(
 	numWorkers: number,
 	setEntryBundle: setEntryBundleFunc,
 	getEntryBundle: EntryBundleFetcherFunc,
-): Copier {
-	return new Copier(setEntryBundle, getEntryBundle, numWorkers);
+): copier {
+	return new copier(setEntryBundle, getEntryBundle, numWorkers);
 }
 
 /**
- * bundle represents the address of an individual entry bundle.
+ * copier controls the migration work.
  *
- * @internal Go's `bundle` is unexported; exported here (ADR-0010's pattern) so
- * `populateWork`'s return type is reachable from `migrate_test.ts`.
+ * Port note: Go's `todo chan bundle` (buffered to numWorkers) is not a field here: work is
+ * handed out by the generator populateWork returns, and the worker count it would have
+ * carried as the channel's capacity is kept as `#numWorkers` instead
+ * (docs/decisions/0077-copier-work-distribution-is-a-shared-generator.md).
+ *
+ * @internal Go's `copier` is unexported; exported here (ADR-0010's pattern) as newCopier's
+ * return type, which `migrate_lifecycle.ts` and `migrate_test.ts` use. Not re-exported from
+ * `src/index.ts`.
  */
-export interface Bundle {
-	readonly index: bigint;
-	readonly partial: number;
-}
-
-/**
- * populateWork yields the bundle work items needed to copy the half-open entry range
- * `[from, treeSize)`, mirroring Go's `populateWork`'s use of `layout.Range`.
- *
- * Port note: Go's `populateWork` runs in its own goroutine, pushing each item onto the
- * buffered `todo` channel that `worker` goroutines drain concurrently -- the channel's
- * capacity (`numWorkers`) bounds how far the producer can run ahead of the slowest
- * consumer. Here `populateWork` is a plain synchronous generator instead, and
- * `Copier.copy` has every worker call `.next()` on the *same* generator object directly.
- * This is safe with no lock: `Generator.next()` runs synchronously to its next `yield`,
- * and JavaScript's single-threaded, run-to-completion semantics mean no two `.next()`
- * calls can ever interleave, so each work item still goes to exactly one worker. It is
- * also simpler and no less memory-bounded than Go's channel, since nothing is
- * materialized ahead of demand either way. See
- * docs/decisions/0077-copier-work-distribution-is-a-shared-generator.md for the full
- * reasoning, and docs/decisions/0074-migrate-untestable-without-driver.md for what this
- * change means for what can and cannot be tested without a storage driver.
- *
- * @internal Go's `populateWork` is unexported and has no direct upstream test (there is
- * no migrate_test.go); exported here specifically so `migrate_test.ts` can pin the
- * chunking arithmetic, where an off-by-one would duplicate or skip entries during a real
- * migration. Not re-exported from `src/index.ts`.
- */
-export function* populateWork(from: bigint, treeSize: bigint): Generator<Bundle> {
-	for (const ri of range(from, treeSize - from, treeSize)) {
-		yield { index: ri.index, partial: ri.partial };
-	}
-}
-
-/**
- * retryWithBackoff calls fn, retrying with exponential backoff and jitter between
- * attempts if it throws, up to maxTries attempts in total.
- *
- * Port note: stands in for `github.com/cenkalti/backoff/v5`'s
- * `backoff.Retry(ctx, fn, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewExponentialBackOff()))`.
- * The parameters below (500ms initial interval, 1.5x multiplier, 60s cap, 50% jitter) are
- * that library's own documented defaults, reproduced here rather than imported, since it
- * is a third-party dependency outside this port's allow-list (PORTING.md §7). This is not
- * a byte-for-byte port of its jitter algorithm -- nothing in this package asserts on
- * retry timing, there being no upstream migrate_test.go to assert it in the first place.
- * See docs/decisions/0073-migrate-retry-backoff.md.
- */
-async function retryWithBackoff<T>(maxTries: number, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-	const initialIntervalMs = 500;
-	const multiplier = 1.5;
-	const maxIntervalMs = 60_000;
-	const randomizationFactor = 0.5;
-
-	let intervalMs = initialIntervalMs;
-	let lastErr: unknown;
-	for (let attempt = 1; attempt <= maxTries; attempt++) {
-		throwIfAborted(signal);
-		try {
-			return await fn();
-		} catch (err) {
-			lastErr = err;
-			if (attempt === maxTries) {
-				break;
-			}
-			const jitter = intervalMs * randomizationFactor * (Math.random() * 2 - 1);
-			await sleep(Math.max(0, intervalMs + jitter), signal);
-			intervalMs = Math.min(intervalMs * multiplier, maxIntervalMs);
-		}
-	}
-	throw lastErr;
-}
-
-/** copier controls the migration work. */
-export class Copier {
+export class copier {
 	readonly #setEntryBundle: setEntryBundleFunc;
 	readonly #getEntryBundle: EntryBundleFetcherFunc;
 	readonly #numWorkers: number;
@@ -160,6 +89,8 @@ export class Copier {
 	 * package -- needs the equivalent of that `.Store()` call, and the exported accessor
 	 * below (`bundlesCopied()`, Go: `BundlesCopied()`) collides on name with a flattened
 	 * private field.
+	 *
+	 * @internal
 	 */
 	_bundlesCopied = 0n;
 
@@ -183,9 +114,9 @@ export class Copier {
 			throw new Error(`from size ${fromSize} > source size ${sourceSize}`);
 		}
 
-		const todo = populateWork(fromSize, sourceSize);
+		const todo = this.populateWork(fromSize, sourceSize);
 
-		// Do the copying.
+		// Do the copying
 		const eg = new ErrGroup();
 		for (let i = 0; i < this.#numWorkers; i++) {
 			eg.go(() => this.#worker(todo, signal));
@@ -197,23 +128,50 @@ export class Copier {
 		}
 	}
 
-	/** bundlesCopied returns the number of bundles from the source present in the target. */
+	/** Progress returns the number of bundles from the source present in the target. */
 	bundlesCopied(): bigint {
 		return this._bundlesCopied;
 	}
 
 	/**
-	 * worker undertakes work items from the todo generator.
+	 * populateWork sends entries to the `todo` work channel.
+	 * Each entry corresponds to an individual entryBundle which needs to be copied.
+	 *
+	 * Port note: Go's `populateWork` runs in its own goroutine, pushing each item onto the
+	 * buffered `todo` channel that `worker` goroutines drain concurrently -- the channel's
+	 * capacity (`numWorkers`) bounds how far the producer can run ahead of the slowest
+	 * consumer. Here `populateWork` returns a synchronous generator instead (the "`todo`
+	 * work channel" above), and `copy` has every worker call `.next()` on the *same*
+	 * generator object directly. This is safe with no lock: `Generator.next()` runs
+	 * synchronously to its next `yield`, and JavaScript's single-threaded, run-to-completion
+	 * semantics mean no two `.next()` calls can ever interleave, so each work item still goes
+	 * to exactly one worker. It is also no less memory-bounded than Go's channel, since
+	 * nothing is materialized ahead of demand either way. See
+	 * docs/decisions/0077-copier-work-distribution-is-a-shared-generator.md.
+	 *
+	 * @internal Go's `populateWork` is unexported and has no direct upstream test (there is
+	 * no migrate_test.go); public here specifically so `migrate_test.ts` can pin the
+	 * chunking arithmetic, where an off-by-one would duplicate or skip entries during a real
+	 * migration (ADR-0010).
+	 */
+	*populateWork(from: bigint, treeSize: bigint): Generator<bundle> {
+		for (const ri of range(from, treeSize - from, treeSize)) {
+			yield { index: ri.index, partial: ri.partial };
+		}
+	}
+
+	/**
+	 * worker undertakes work items from the `todo` channel.
 	 *
 	 * It will attempt to retry failed operations several times before giving up, this should help
 	 * deal with any transient errors which may occur.
 	 */
-	async #worker(todo: Generator<Bundle>, signal?: AbortSignal): Promise<void> {
+	async #worker(todo: Generator<bundle>, signal?: AbortSignal): Promise<void> {
 		for (let next = todo.next(); !next.done; next = todo.next()) {
 			const b = next.value;
-			await retryWithBackoff(
+			const n = await retryWithBackoff(
 				10,
-				async () => {
+				async (): Promise<bigint> => {
 					let d: Uint8Array;
 					try {
 						d = await this.#getEntryBundle(b.index, b.partial, signal);
@@ -225,10 +183,119 @@ export class Copier {
 					} catch (err) {
 						throw new Error(`failed to store entrybundle ${b.index} (p=${b.partial}): ${errText(err)}`);
 					}
+					return 1n;
 				},
 				signal,
 			);
-			this._bundlesCopied += 1n;
+			this._bundlesCopied += n;
 		}
 	}
+}
+
+/**
+ * bundle represents the address of an individual entry bundle.
+ *
+ * Port note: Go declares this struct between copier's and copier's methods; TypeScript keeps
+ * methods inside the class body, so it follows the class.
+ *
+ * @internal Go's `bundle` is unexported; exported here (ADR-0010's pattern) so
+ * `populateWork`'s return type is reachable from `migrate_test.ts`.
+ */
+export interface bundle {
+	readonly index: bigint;
+	readonly partial: number;
+}
+
+/**
+ * retryWithBackoff calls operation until it succeeds, maxTries attempts have been made, the
+ * signal is aborted, or the retries have taken longer than defaultMaxElapsedTimeMs, sleeping
+ * an exponentially growing, randomised interval between attempts.
+ *
+ * Port note: stands in for the call the worker makes,
+ * `backoff.Retry(ctx, operation, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewExponentialBackOff()))`
+ * from `github.com/cenkalti/backoff/v5` v5.0.3, a third-party dependency outside this port's
+ * allow-list (PORTING.md §7). It follows that version's `Retry` step for step: the operation
+ * always runs at least once; after a failure it stops with the operation's error once
+ * maxTries attempts have been made, with the signal's reason (Go: `context.Cause(ctx)`) if
+ * the signal is aborted, and with the operation's error again if the next wait would take
+ * the total past `DefaultMaxElapsedTime` (15 minutes); a signal aborted during the wait
+ * ends it with the signal's reason. The waits follow `ExponentialBackOff`'s defaults and its
+ * arithmetic in nanoseconds (500ms initial interval, 1.5x multiplier, 60s cap on the
+ * interval, ±50% jitter). `PermanentError` and `RetryAfterError` are not reproduced, as the
+ * worker's operation never returns either. The random source is `Math.random`, so the
+ * exact waits differ from run to run, as they do in Go. See
+ * docs/decisions/0073-migrate-retry-backoff.md.
+ */
+async function retryWithBackoff<T>(maxTries: number, operation: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+	const b = new exponentialBackOff();
+	const startedAt = Date.now();
+	for (let numTries = 1; ; numTries++) {
+		// Execute the operation.
+		try {
+			return await operation();
+		} catch (err) {
+			// Stop retrying if maximum tries exceeded.
+			if (maxTries > 0 && numTries >= maxTries) {
+				throw err;
+			}
+
+			// Stop retrying if context is cancelled.
+			if (signal?.aborted) {
+				throw signal.reason;
+			}
+
+			// Calculate next backoff duration.
+			const nextMs = b.nextBackOffMs();
+
+			// Stop retrying if maximum elapsed time exceeded.
+			if (Date.now() - startedAt + nextMs > defaultMaxElapsedTimeMs) {
+				throw err;
+			}
+
+			// Wait for the next backoff period or context cancellation. sleep rejects with the
+			// signal's reason, which is Go's context.Cause(ctx).
+			await sleep(nextMs, signal);
+		}
+	}
+}
+
+// defaultMaxElapsedTimeMs is backoff v5.0.3's DefaultMaxElapsedTime (15 * time.Minute), the
+// bound Retry applies when no WithMaxElapsedTime option is given.
+const defaultMaxElapsedTimeMs = 15 * 60 * 1000;
+
+/**
+ * exponentialBackOff is backoff v5.0.3's ExponentialBackOff with the defaults
+ * NewExponentialBackOff sets. Intervals are kept in nanoseconds, as Go's time.Duration
+ * keeps them, so the truncations match; only the value handed to sleep is milliseconds.
+ */
+class exponentialBackOff {
+	static readonly initialIntervalNs = 500 * 1_000_000;
+	static readonly randomizationFactor = 0.5;
+	static readonly multiplier = 1.5;
+	static readonly maxIntervalNs = 60 * 1_000 * 1_000_000;
+
+	// Go: Reset(), which Retry calls before the first attempt.
+	#currentIntervalNs = exponentialBackOff.initialIntervalNs;
+
+	nextBackOffMs(): number {
+		const current = this.#currentIntervalNs;
+		const delta = exponentialBackOff.randomizationFactor * current;
+		const minInterval = current - delta;
+		const maxInterval = current + delta;
+		// Get a random value from the range [minInterval, maxInterval]. Go adds 1 so that the
+		// upper bound itself can be chosen.
+		const nextNs = Math.trunc(minInterval + Math.random() * (maxInterval - minInterval + 1));
+		// Check for overflow, if overflow is detected set the current interval to the max interval.
+		if (current >= exponentialBackOff.maxIntervalNs / exponentialBackOff.multiplier) {
+			this.#currentIntervalNs = exponentialBackOff.maxIntervalNs;
+		} else {
+			this.#currentIntervalNs = Math.trunc(current * exponentialBackOff.multiplier);
+		}
+		return nextNs / 1_000_000;
+	}
+}
+
+/** errText renders an error the way Go's `%v` verb does. */
+function errText(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
 }

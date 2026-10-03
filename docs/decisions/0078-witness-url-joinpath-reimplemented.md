@@ -80,3 +80,33 @@ absolute ones.
   own doc comment explicitly says client-side/relative URLs are out of scope, and no test exercises
   a relative witness URL — acceptable and documented. Scoped single-caller helper, not a general
   `path` module — right call.
+
+## Update (2026-10-02)
+
+The URL handling described above was changed, and one statement in it was wrong:
+
+- **The URL is kept as written.** Go's `url.Parse` followed by `JoinPath(...).String()` keeps a
+  witness URL as written apart from lower-casing the scheme: `https://EXAMPLE.com:443/x` becomes
+  `https://EXAMPLE.com:443/x/add-checkpoint`. Passing the string through the platform `URL` type
+  lower-cased the host and dropped the default port. `newWitnessGroupFromPolicy` now keeps the
+  string, and `urlJoinPath` works on it directly: it lower-cases the scheme, keeps the authority,
+  query and fragment, and joins the path the way `JoinPath` does (including keeping one trailing
+  slash). `newWitness`, whose signature takes a `URL`, joins onto `witnessRoot.href` the same way.
+  Port additions in `witness_policy_test.ts` and `witness_test.ts` pin the results against Go's
+  output for the same inputs.
+- **Relative URLs are still rejected**, now together with absolute URLs that have no `//`
+  authority (`https:example.com`), which Go parses as opaque and renders without the joined path.
+  The platform parser (`URL.canParse`) is used only for that check. Go's own check for control
+  characters runs first, with Go's error text.
+- **Correction:** the Consequences said a relative witness URL "throws a `TypeError` from the
+  `URL` constructor". It did not: the constructor's `TypeError` was caught and rethrown as
+  `invalid witness URL "...": <message>`, with a message that differed between runtimes. The
+  error is now `invalid witness URL "<url>": parse "<url>": not an absolute URL with a "//"
+  authority`, the same everywhere, wrapping its cause with `wrapError` as Go wraps with `%w`.
+- **Still not reproduced:** Go re-escapes a path, userinfo, host or fragment that is not validly
+  percent-encoded (non-ASCII bytes, for example) and rejects some malformed URLs the platform
+  parser accepts (an invalid escape such as `%zz`, an invalid character in the host) with its own
+  error text. This port keeps such bytes as written and relies on the platform parser's
+  acceptance.
+- `goPathJoin` now ignores empty elements, as `path.Join` does.
+- Witness URLs are additionally restricted to https, or http to a loopback host, by ADR-0185.

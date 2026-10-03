@@ -17,13 +17,24 @@
 //
 // Port note: `net/http`'s `*http.Client` has no meaning here; witness.go itself never
 // uses one (that is internal/witness/witness.go's job, see src/internal/witness/witness.ts).
-// `bufio.Scanner`/`bytes.Buffer` become a plain string split; `url.URL.JoinPath` has no
-// JavaScript/DOM equivalent (the platform `URL` type does not implement it), so a small
-// scoped `pathJoin` helper reproduces Go's `path.Join`/`path.Clean` semantics for exactly
-// the shapes this file needs -- see that helper's own comment.
+// `bufio.Scanner`/`bytes.Buffer` become the scanLines generator below, which keeps the
+// scanner's line splitting and its 64 KiB line limit. `url.Parse` and `(*url.URL).JoinPath`
+// have no JavaScript/DOM equivalent that keeps a URL as written (the platform `URL` type
+// normalises it), so small scoped helpers at the end of this file reproduce what this file
+// needs of them -- see their own comments and
+// docs/decisions/0078-witness-url-joinpath-reimplemented.md.
+//
+// Port note: three deliberate hardening divergences from Go live in this file:
+// newWitnessGroupFromPolicy rejects a group that names the same child twice, two witnesses
+// with the same verifier key, and an explicit group threshold of 0
+// (docs/decisions/0184-witness-policy-rejects-ambiguous-quorums.md); and newWitness accepts
+// only https witness URLs, or http to a loopback host
+// (docs/decisions/0185-witness-urls-require-https.md).
 
-import { fromUTF8 } from "./internal/gostd/bytes.ts";
+import { fromBase64, fromUTF8, toHex } from "./internal/gostd/bytes.ts";
+import { SentinelError, wrapError } from "./internal/gostd/errors.ts";
 import { parseUint, quote } from "./internal/gostd/strconv.ts";
+import { cut, fields as splitFields, trimSpace } from "./internal/gostd/strings.ts";
 import { newVerifierForCosignatureV1 } from "./vendor/formats/note/note_cosigv1.ts";
 import { open, type Verifier, verifierList } from "./vendor/note/note.ts";
 
@@ -58,19 +69,24 @@ interface policyComponent {
  */
 export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 	const components = new Map<string, policyComponent>();
+	// witnessKeys maps each witness's public key to the witness name it was first given, for
+	// the duplicate-key check (ADR-0184).
+	const witnessKeys = new Map<string, string>();
 
 	let quorumName = "";
-	for (const rawLine of scanLines(p)) {
-		let line = rawLine.trim();
-		const hashIdx = line.indexOf("#");
-		if (hashIdx >= 0) {
-			line = line.slice(0, hashIdx);
+	// Port note: a line longer than bufio.Scanner's 64 KiB limit ends the loop with Go's
+	// `scanner.Err()`, bufio.ErrTooLong, which scanLines throws when the loop reaches it.
+	for (const text of scanLines(p)) {
+		let line = trimSpace(text);
+		const i = line.indexOf("#");
+		if (i >= 0) {
+			line = line.slice(0, i);
 		}
 		if (line === "") {
 			continue;
 		}
 
-		const fields = line.split(/\s+/).filter((s) => s.length > 0);
+		const fields = splitFields(line);
 		const keyword = fields[0] as string;
 		switch (keyword) {
 			case "log":
@@ -93,18 +109,26 @@ export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 				if (components.has(name)) {
 					throw new Error(`duplicate component name: ${quote(name)}`);
 				}
-				let witnessURL: URL;
+				let witnessURL: string;
 				try {
-					witnessURL = new URL(witnessURLStr);
+					witnessURL = parseWitnessURL(witnessURLStr);
 				} catch (err) {
-					throw new Error(`invalid witness URL ${quote(witnessURLStr)}: ${errText(err)}`);
+					throw wrapError(`invalid witness URL ${quote(witnessURLStr)}`, err);
 				}
 				let w: Witness;
 				try {
-					w = newWitness(vkey, witnessURL);
+					w = newWitnessFromRoot(vkey, witnessURL);
 				} catch (err) {
-					throw new Error(`invalid witness config ${quote(line)}: ${errText(err)}`);
+					throw wrapError(`invalid witness config ${quote(line)}`, err);
 				}
+				// Port note: hardening with no Go counterpart (ADR-0184). Two witness names for one
+				// key would let that key count twice towards a group's threshold.
+				const key = verifierKeyID(vkey);
+				const sameKey = witnessKeys.get(key);
+				if (sameKey !== undefined) {
+					throw new Error(`witness ${quote(name)} has the same verifier key as witness ${quote(sameKey)}`);
+				}
+				witnessKeys.set(key, name);
 				components.set(name, w);
 				break;
 			}
@@ -135,17 +159,26 @@ export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 						try {
 							i = parseUint(N, 10, 8);
 						} catch (err) {
-							throw new Error(`invalid threshold ${quote(N)} for group ${quote(name)}: ${errText(err)}`);
+							throw wrapError(`invalid threshold ${quote(N)} for group ${quote(name)}`, err);
+						}
+						// Port note: hardening with no Go counterpart (ADR-0184). A group that needs
+						// no signatures is written `quorum none`, not as a threshold of 0.
+						if (i === 0n) {
+							throw new Error(`invalid threshold ${quote(N)} for group ${quote(name)}: must be at least 1`);
 						}
 						n = Number(i);
 						break;
 					}
 				}
-				if (childrenNames.length < n) {
-					throw new Error(`group with ${childrenNames.length} children cannot have threshold ${n}`);
+				const c = childrenNames.length;
+				if (n > c) {
+					throw new Error(`group with ${c} children cannot have threshold ${n}`);
 				}
 
 				const children: policyComponent[] = [];
+				// Port note: hardening with no Go counterpart (ADR-0184). A child named twice would
+				// count twice towards the group's threshold.
+				const seen = new Set<string>();
 				for (const cName of childrenNames) {
 					if (isBadName(cName)) {
 						throw new Error(`invalid component name ${quote(cName)}`);
@@ -154,6 +187,10 @@ export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 					if (child === undefined) {
 						throw new Error(`unknown component ${quote(cName)} in group definition`);
 					}
+					if (seen.has(cName)) {
+						throw new Error(`repeated component ${quote(cName)} in group definition`);
+					}
+					seen.add(cName);
 					children.push(child);
 				}
 				const wg = newWitnessGroup(n, ...children);
@@ -193,26 +230,6 @@ export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 	}
 }
 
-/**
- * scanLines splits p into lines the way `bufio.NewScanner(bytes.NewBuffer(p))`'s default
- * `ScanLines` split function does: one entry per line, the trailing `\n` (and a `\r`
- * immediately before it) stripped, and no trailing empty entry for data that ends with a
- * final newline.
- */
-function scanLines(p: Uint8Array): string[] {
-	const text = fromUTF8(p);
-	const lines = text.split("\n");
-	if (lines.length > 0 && lines[lines.length - 1] === "") {
-		lines.pop();
-	}
-	return lines.map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
-}
-
-/** errText renders an error the way Go's `%v` verb does. */
-function errText(err: unknown): string {
-	return err instanceof Error ? err.message : String(err);
-}
-
 const keywords = new Set(["witness", "group", "any", "all", "none", "quorum", "log"]);
 
 function isBadName(n: string): boolean {
@@ -222,11 +239,30 @@ function isBadName(n: string): boolean {
 /**
  * newWitness returns a Witness given a verifier key and the root URL for where this
  * witness can be reached.
+ *
+ * Port note: throws unless the witness URL uses https, or http to a loopback host, as
+ * hardening with no Go counterpart (docs/decisions/0185-witness-urls-require-https.md). The
+ * endpoint is joined onto `witnessRoot.href`, which the platform URL type has already
+ * normalised; newWitnessGroupFromPolicy keeps a policy's URL as written instead.
  */
 export function newWitness(vkey: string, witnessRoot: URL): Witness {
+	return newWitnessFromRoot(vkey, witnessRoot.href);
+}
+
+/**
+ * newWitnessFromRoot is newWitness for a witness root URL held as a string, which is how
+ * newWitnessGroupFromPolicy keeps it so that the URL is not normalised (see parseWitnessURL).
+ *
+ * Port note: the https check is hardening with no Go counterpart, see
+ * docs/decisions/0185-witness-urls-require-https.md.
+ */
+function newWitnessFromRoot(vkey: string, witnessRoot: string): Witness {
 	const v = newVerifierForCosignatureV1(vkey);
+
 	const u = urlJoinPath(witnessRoot, "/add-checkpoint");
-	return new Witness(v, u.toString());
+	checkWitnessURL(u);
+
+	return new Witness(v, u);
 }
 
 /**
@@ -278,6 +314,9 @@ export class Witness implements policyComponent {
  * considered fungible.
  */
 export function newWitnessGroup(n: number, ...children: policyComponent[]): WitnessGroup {
+	// Port note: Go panics here; the port throws (ADR-0004). Go formats the children slice with
+	// %s, which prints each child's fields, including the address of its verifier's function, so
+	// that text cannot be reproduced; the port prints how many children there are instead.
 	if (n < 0 || n > children.length) {
 		throw new Error(`threshold of ${n} outside bounds for children ${children.length}`);
 	}
@@ -353,30 +392,162 @@ export class WitnessGroup implements policyComponent {
 }
 
 /**
- * urlJoinPath reproduces Go's `(*url.URL).JoinPath` for the shapes this file needs: an
- * absolute `u` (path already starting with "/", which every witness root URL is, since it
- * came from `new URL(...)`) joined with further path elements.
+ * scanLines yields the lines of p the way `bufio.NewScanner(bytes.NewBuffer(p))` with its
+ * default `ScanLines` split function scans them: one line per `\n`, with the `\n` and a `\r`
+ * immediately before it removed, and no empty final line for data that ends with a newline.
+ * Like the scanner, it gives up with bufio.ErrTooLong when it reaches a line of
+ * bufio.MaxScanTokenSize (64 KiB) bytes or more, counting a `\r` before the newline but not
+ * the newline itself, after yielding every line before it.
+ */
+function* scanLines(p: Uint8Array): Generator<string> {
+	let start = 0;
+	while (start < p.length) {
+		const nl = p.indexOf(0x0a, start);
+		const end = nl < 0 ? p.length : nl;
+		if (end - start >= maxScanTokenSize) {
+			throw errTooLong;
+		}
+		const lineEnd = end > start && p[end - 1] === 0x0d ? end - 1 : end;
+		yield fromUTF8(p.subarray(start, lineEnd));
+		start = end + 1;
+	}
+}
+
+/** maxScanTokenSize is bufio.MaxScanTokenSize, the longest line a default bufio.Scanner accepts. */
+const maxScanTokenSize = 64 * 1024;
+
+/** errTooLong stands in for bufio.ErrTooLong, which newWitnessGroupFromPolicy returns unwrapped. */
+const errTooLong = new SentinelError("bufio.Scanner: token too long");
+
+/**
+ * verifierKeyID identifies the Ed25519 public key in an already-validated cosignature/v1
+ * vkey, whatever name and algorithm byte it is published under: both algorithm bytes
+ * newVerifierForCosignatureV1 accepts verify the same signatures for a given key.
+ */
+function verifierKeyID(vkey: string): string {
+	const [, afterName] = cut(vkey, "+");
+	const [, key64] = cut(afterName, "+");
+	return toHex(fromBase64(key64).subarray(1));
+}
+
+/**
+ * parseWitnessURL checks a witness URL from a policy file and returns it unchanged.
  *
- * Port note: the platform `URL` type has no `.JoinPath` equivalent. This is *not* a
- * general port of Go's `path` package (no other file in this port needs one) -- it
- * implements exactly `path.Join` followed by `path.Clean`'s slash-collapsing and `.`/`..`
- * resolution, which is all `JoinPath` calls internally, scoped to the one call site below
- * (`newWitness` joining `/add-checkpoint` onto a witness root that may itself already have
- * a path prefix, per witness_test.go's `TestWitnessGroup_URLs`). See
+ * Port note: Go parses it with `url.Parse` and later writes it back out with
+ * `(*url.URL).String`, which keeps the URL as written apart from lower-casing the scheme.
+ * The platform `URL` type normalises far more: it lower-cases the host, drops a default port
+ * and rewrites some paths. So the string itself is kept, and the platform parser is used
+ * only to reject what is not an absolute URL. That rejection is a narrowing of Go, whose
+ * url.Parse accepts relative references too; a witness URL must be absolute and have a
+ * `//` authority. Go's own check for control characters is kept, with Go's error text. See
  * docs/decisions/0078-witness-url-joinpath-reimplemented.md.
  */
-function urlJoinPath(u: URL, ...elem: string[]): URL {
-	const joined = goPathJoin(u.pathname, ...elem);
-	const out = new URL(u.toString());
-	out.pathname = joined;
+function parseWitnessURL(rawURL: string): string {
+	const [u] = cut(rawURL, "#");
+	for (let i = 0; i < u.length; i++) {
+		const c = u.charCodeAt(i);
+		if (c < 0x20 || c === 0x7f) {
+			throw new Error(`parse ${quote(u)}: net/url: invalid control character in URL`);
+		}
+	}
+	const colon = rawURL.indexOf(":");
+	if (!URL.canParse(rawURL) || !rawURL.startsWith("//", colon + 1)) {
+		throw new Error(`parse ${quote(u)}: not an absolute URL with a "//" authority`);
+	}
+	return rawURL;
+}
+
+/**
+ * urlJoinPath reproduces Go's `url.Parse(rawURL)` followed by `.JoinPath(elem...).String()`
+ * for an absolute URL with a `//` authority, which is every URL parseWitnessURL accepts and
+ * every `URL.href` newWitness can be given: the scheme is lower-cased, the authority, query
+ * and fragment are kept as written, and the path is joined with elem the way JoinPath joins
+ * it (path.Join, keeping one trailing slash when the last element has one, and making the
+ * path rooted when there is a host).
+ *
+ * Port note: Go also re-escapes a path, userinfo, host or fragment that is not validly
+ * percent-encoded (non-ASCII bytes, for example); this keeps such bytes as written. See
+ * docs/decisions/0078-witness-url-joinpath-reimplemented.md.
+ */
+function urlJoinPath(rawURL: string, ...elem: string[]): string {
+	const [beforeFragment, fragment] = cut(rawURL, "#");
+	const [beforeQuery, query, hasQuery] = cut(beforeFragment, "?");
+	const colon = beforeQuery.indexOf(":");
+	const scheme = beforeQuery.slice(0, colon).toLowerCase();
+	const hierarchical = beforeQuery.slice(colon + 3);
+	const slash = hierarchical.indexOf("/");
+	const authority = slash < 0 ? hierarchical : hierarchical.slice(0, slash);
+	const path = slash < 0 ? "" : hierarchical.slice(slash);
+	const host = authority.slice(authority.lastIndexOf("@") + 1);
+
+	const elems = [path, ...elem];
+	let p: string;
+	if (!path.startsWith("/")) {
+		p = goPathJoin(`/${path}`, ...elem).slice(1);
+	} else {
+		p = goPathJoin(...elems);
+	}
+	if ((elems[elems.length - 1] as string).endsWith("/") && !p.endsWith("/")) {
+		p += "/";
+	}
+
+	let out = `${scheme}://${authority}`;
+	if (p !== "" && !p.startsWith("/") && host !== "") {
+		out += "/";
+	}
+	out += p;
+	if (hasQuery) {
+		out += `?${query}`;
+	}
+	if (fragment !== "") {
+		out += `#${fragment}`;
+	}
 	return out;
 }
 
-/** goPathJoin mirrors Go's `path.Join`: join elements with "/", then Clean the result. */
-function goPathJoin(...elem: string[]): string {
-	return goPathClean(elem.join("/"));
+/**
+ * checkWitnessURL throws unless u, as fetch will read it, is an https URL, or an http URL
+ * whose host is a loopback address.
+ *
+ * Port note: hardening with no Go counterpart, see
+ * docs/decisions/0185-witness-urls-require-https.md. The check reads u with the platform URL
+ * parser because that is the parser fetch uses, so what is checked is where requests go.
+ */
+function checkWitnessURL(u: string): void {
+	let parsed: URL;
+	try {
+		parsed = new URL(u);
+	} catch (err) {
+		throw wrapError(`witness URL ${quote(u)} is not a valid URL`, err);
+	}
+	if (parsed.protocol === "https:") {
+		return;
+	}
+	if (parsed.protocol === "http:" && isLoopbackHost(parsed.hostname)) {
+		return;
+	}
+	throw new Error(`witness URL ${quote(u)} must use https (http is accepted only for a loopback host)`);
 }
 
+/**
+ * isLoopbackHost reports whether hostname, as the platform URL parser normalises it, is
+ * localhost, an address in 127.0.0.0/8, or ::1.
+ */
+function isLoopbackHost(hostname: string): boolean {
+	return hostname === "localhost" || hostname === "[::1]" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+}
+
+/**
+ * goPathJoin mirrors Go's `path.Join`: empty elements are ignored, the rest are joined with
+ * "/" and the result is Cleaned; if every element is empty the result is "".
+ */
+function goPathJoin(...elem: string[]): string {
+	const first = elem.findIndex((e) => e !== "");
+	if (first < 0) {
+		return "";
+	}
+	return goPathClean(elem.slice(first).join("/"));
+}
 /** goPathClean mirrors Go's `path.Clean`, scoped to the rooted (absolute) paths this file produces. */
 function goPathClean(p: string): string {
 	if (p === "") {

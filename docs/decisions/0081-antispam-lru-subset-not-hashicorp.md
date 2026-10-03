@@ -1,6 +1,6 @@
 # ADR-0081: `antispam.ts` ports the LRU subset it needs instead of adding `hashicorp/golang-lru`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** append-lifecycle contributor
 - **Upstream reference:** `antispam.go` (imports `github.com/hashicorp/golang-lru/v2`)
@@ -101,3 +101,8 @@ deterministic, collision-free string encoding of the 32-byte identity, which is 
   (×3) and `TestDedupDoesNotCacheError` pass and match Go's values. Agree `gostd/` is the wrong home
   (it is stdlib-only; hashicorp is third-party) and that a `package.json` dep does not clear
   PORTING.md §7's "there is no other way" bar for a 3-method usage.
+
+## Update (2026-10-02)
+
+Status changed from "proposed" to "accepted" on the strength of the approved verdict recorded
+above; no new review was made.

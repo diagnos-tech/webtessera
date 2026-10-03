@@ -20,8 +20,11 @@
 // plus otel.go's tracer/meter and every klog.* call, are dropped from this port. See
 // docs/decisions/0080-append-lifecycle-otel-and-klog.md, which extends the precedent set by
 // docs/decisions/0051-storage-internal-drops-otel-and-klog.md and 0061-otel-tracing-dropped.md.
-// The sampling/latency data structures (idxAt, integrationStats, followerStats) are ported as
-// logic; only their metric emission is removed — that ADR records exactly which parts were kept.
+// The data structures and loops that existed only to feed those metrics (idxAt,
+// integrationStats with its statsDecorator and updateStats loop, and followerStats) are not
+// ported either: with their only sink gone they would poll the storage forever for numbers
+// nobody reads. See docs/decisions/0181-dead-instrumentation-is-deleted.md, which supersedes
+// the "keep as logic" part of ADR-0080.
 
 import { newInMemoryDedup } from "./antispam.ts";
 import * as layout from "./api/layout/index.ts";
@@ -30,7 +33,7 @@ import type { Entry } from "./entry.ts";
 import { fromUTF8 } from "./internal/gostd/bytes.ts";
 import { ErrNotExist, errorIs, throwIfAborted, wrapError } from "./internal/gostd/errors.ts";
 import { quote } from "./internal/gostd/strconv.ts";
-import { sleep, ticker } from "./internal/gostd/sync.ts";
+import { Mutex, sleep } from "./internal/gostd/sync.ts";
 import { checkpointUnsafe } from "./internal/parse/parse.ts";
 import { newWitnessGateway, PolicyNotSatisfiedError } from "./internal/witness/witness.ts";
 import { type Antispam, defaultIDHasher, type Follower, type LogReader } from "./lifecycle.ts";
@@ -207,16 +210,20 @@ export async function newAppender(
 			a.add = dec(a.add);
 		}
 	}
-	const sd = new integrationStats();
-	a.add = sd.statsDecorator(a.add);
+	// Port note: Go wraps a.Add with integrationStats.statsDecorator here, starts a followerStats
+	// goroutine beside each follower and an updateStats goroutine for the appender. All three
+	// exist only to feed OpenTelemetry metrics, which this port drops, so they are not ported
+	// (docs/decisions/0181-dead-instrumentation-is-deleted.md).
+	//
 	// Background lifetime is bound to `signal`; when absent, a never-aborting signal stands in for
 	// Go's context.Background()-style unbounded lifetime.
 	const bgSignal = signal ?? new AbortController().signal;
 	for (const f of opts.followers) {
-		f.follow(r, bgSignal);
-		void followerStats(f, (s?: AbortSignal) => r.integratedSize(s), bgSignal);
+		// Go: `go f.Follow(ctx, r)`. Started as a detached task so that neither a synchronous throw
+		// nor a rejection reaches this function; see Follower.follow's contract in lifecycle.ts and
+		// docs/decisions/0180-follower-follow-is-a-detached-task.md.
+		void Promise.resolve().then(() => f.follow(r, bgSignal));
 	}
-	void sd.updateStats(r, bgSignal);
 	const t = new terminator(a.add, (s?: AbortSignal) => r.readCheckpoint(s));
 	// TODO(mhutchinson): move this into the decorators
 	a.add = (entry: Entry, sig?: AbortSignal): IndexFuture => {
@@ -232,185 +239,66 @@ export async function newAppender(
 }
 
 /**
- * memoizeFuture wraps an IndexFuture delegate with logic to ensure that the delegate is called at
- * most once.
+ * memoizeFuture wraps an AddFn delegate with logic to ensure that the delegate is called at most
+ * once.
  *
- * Port note: Go uses `sync.OnceValues`, which caches the `(Index, error)` result. A native Promise
- * already caches its own resolution (value or rejection) and shares it among all callers, so
- * memoizing the Promise returned by the first `delegate()` call gives the identical "called at most
- * once" contract, including for concurrent callers.
+ * Port note: Go uses `sync.OnceValues`, which caches the `(Index, error)` result and, if the
+ * delegate panics, re-panics with the same value on every call. A native Promise already caches
+ * its own resolution (value or rejection) and shares it among all callers, so memoizing the
+ * Promise returned by the first `delegate()` call gives the identical "called at most once"
+ * contract, including for concurrent callers; a delegate that throws synchronously instead of
+ * returning a Promise has its error cached and rethrown on every call, as OnceValues does with a
+ * panic.
+ *
+ * @internal Unexported in Go; exported only so append_lifecycle_test.ts can reach it (ADR-0010).
+ * Not re-exported from any package barrel.
  */
 export function memoizeFuture(delegate: IndexFuture): IndexFuture {
+	let called = false;
 	let promise: Promise<Index> | undefined;
+	let threw = false;
+	let thrown: unknown;
 	return (): Promise<Index> => {
-		promise ??= delegate();
-		return promise;
+		if (!called) {
+			called = true;
+			try {
+				promise = delegate();
+			} catch (err) {
+				threw = true;
+				thrown = err;
+			}
+		}
+		if (threw) {
+			throw thrown;
+		}
+		return promise as Promise<Index>;
 	};
-}
-
-/**
- * followerStats periodically samples a follower's progress against the integrated tree size.
- *
- * Port note: with OTel emission dropped (ADR-0080), the two `.Record` calls that reported
- * `EntriesProcessed` and the lag (`size - processed`) are removed, along with `f.Name()` and the
- * attributes, which fed only those metrics and the (dropped) klog error logging. What remains is
- * the poll loop itself, ported faithfully; it currently has no observable effect until metric
- * emission is restored. Go: `func followerStats(ctx, f, size)`.
- */
-async function followerStats(
-	f: Follower,
-	size: (signal?: AbortSignal) => Promise<bigint>,
-	signal: AbortSignal,
-): Promise<void> {
-	await ticker(200, signal, async () => {
-		try {
-			await f.entriesProcessed(signal);
-		} catch {
-			// Go: klog.Errorf(...); continue
-			return;
-		}
-		try {
-			await size(signal);
-		} catch {
-			// Go: klog.Errorf(...)
-		}
-		// OTel emission (followerEntriesProcessed / followerLag) dropped per ADR-0080.
-	});
-}
-
-/** idxAt represents an index first seen at a particular time. */
-interface idxAt {
-	readonly idx: bigint;
-	/** at is the epoch-millis timestamp the sample was taken (Go: time.Time from time.Now()). */
-	readonly at: number;
-}
-
-/**
- * integrationStats knows how to track integration performance.
- *
- * Currently, this tracks integration latency only.
- * The integration latency tracking works via a "sample & consume" mechanism, whereby an add decorator
- * will record an assigned index along with the time it was assigned. An asynchronous process will
- * periodically compare the sample with the current integrated tree size, and if the sampled index is
- * found to be covered by the tree the elapsed period is recorded and the sample "consumed".
- *
- * Only one sample may be held at a time.
- *
- * Port note: Go emits the computed latency to OTel; that emission is dropped (ADR-0080). The
- * sample/consume data structure and its timing logic are kept, exactly as ported below.
- */
-class integrationStats {
-	// indexSample points to a sampled idxAt, or undefined if there has been no sample made _or_ the sample was consumed.
-	//
-	// Port note: Go uses atomic.Pointer for cross-goroutine safety; JavaScript is single-threaded and
-	// runs to completion, so a plain nullable field with a synchronous compare-and-set is sufficient
-	// and no atomic/lock is needed (docs/decisions/0004-errors-context-and-concurrency.md).
-	#indexSample: idxAt | undefined = undefined;
-
-	/** sample creates a new sample with the provided index if no sample is already held. */
-	sample(idx: bigint): void {
-		// Go: i.indexSample.CompareAndSwap(nil, &idxAt{...}) — set only if currently empty.
-		if (this.#indexSample === undefined) {
-			this.#indexSample = { idx, at: Date.now() };
-		}
-	}
-
-	/**
-	 * latency will check whether the provided tree size is larger than the currently sampled index (if one exists),
-	 * and, if so, "consume" the sample and return the elapsed interval since the sample was taken.
-	 *
-	 * The returned bool is true if a sample exists and whose index is lower than the provided tree size, and
-	 * false otherwise.
-	 *
-	 * Port note: returns `[durationMs, ok]`; Go returns `(time.Duration, bool)`.
-	 */
-	latency(size: bigint): [number, boolean] {
-		const ia = this.#indexSample;
-		// If there _is_ a sample...
-		if (ia !== undefined) {
-			// and the sampled index is lower than the tree size
-			if (ia.idx < size) {
-				// then reset the sample store here so that we're able to accept a future sample.
-				this.#indexSample = undefined;
-			}
-			return [Date.now() - ia.at, true];
-		}
-		return [0, false];
-	}
-
-	/**
-	 * updateStats periodically checks the current integrated tree size and attempts to
-	 * consume any held sample.
-	 *
-	 * This is a long running function, exiting only when the provided signal is aborted.
-	 *
-	 * Port note: the `appenderIntegratedSize`/`appenderIntegrateLatency`/`appenderNextIndex`
-	 * emissions are dropped (ADR-0080). The reads and the sample-consuming `latency(s)` call are
-	 * kept, as they are the behavioural half of the sample/consume mechanism.
-	 */
-	async updateStats(r: LogReader | undefined, signal: AbortSignal): Promise<void> {
-		if (r === undefined) {
-			// Go: klog.Warning("updateStates: nil logreader provided, not updating stats")
-			return;
-		}
-		await ticker(100, signal, async () => {
-			let s: bigint;
-			try {
-				s = await r.integratedSize(signal);
-			} catch {
-				// Go: klog.Errorf("IntegratedSize: %v", err); continue
-				return;
-			}
-			// appenderIntegratedSize.Record dropped per ADR-0080.
-			// The elapsed duration fed only the (dropped) appenderIntegrateLatency metric; the call
-			// is kept for its sample-consuming side effect.
-			this.latency(s);
-			try {
-				await r.nextIndex(signal);
-			} catch {
-				// Go: klog.Errorf("NextIndex: %v", err)
-			}
-			// appenderNextIndex.Record dropped per ADR-0080.
-		});
-	}
-
-	/**
-	 * statsDecorator wraps a delegate AddFn with code to update integration stats.
-	 *
-	 * Port note: the add-count/duration metric emission and the pushback/error attribute
-	 * bucketing are dropped (ADR-0080). Only the success-path sampling survives. Go additionally
-	 * samples index 0 on the error path (a consequence of `idx` being the zero Index when
-	 * `err != nil`); the throw model rethrows before reaching the sample line, so the port does
-	 * not — an unobservable difference given the emission is dropped.
-	 */
-	statsDecorator(delegate: AddFn): AddFn {
-		return (entry: Entry, signal?: AbortSignal): IndexFuture => {
-			const f = delegate(entry, signal);
-
-			return async (): Promise<Index> => {
-				const idx = await f();
-				if (!idx.isDup) {
-					this.sample(idx.index);
-				}
-				return idx;
-			};
-		};
-	}
 }
 
 class terminator {
 	readonly #delegate: AddFn;
 	readonly #readCheckpoint: (signal?: AbortSignal) => Promise<Uint8Array>;
 
-	// Port note: Go guards `stopped` with a sync.RWMutex so that no in-flight Add setup can
-	// interleave with Shutdown. Both terminator.add's body and the synchronous prefix of
-	// terminator.shutdown (setting stopped and reading largestIssued) contain no `await`, so under
-	// JavaScript's run-to-completion semantics they cannot interleave, and per
-	// docs/decisions/0004-errors-context-and-concurrency.md no lock is required: an add can never
-	// observe a half-applied shutdown. The atomic.Uint64 largestIssued likewise collapses to a plain
-	// field, updated with a synchronous compare-and-set.
+	// This mutex guards the stopped state. We use this instead of an atomic.Boolean
+	// to get the property that no readers of this state can have the lock when the
+	// write gets it. This means that no in-flight Add operations will be occurring on
+	// Shutdown.
+	//
+	// Port note: Go's sync.RWMutex becomes gostd's Mutex, which shutdown holds for its whole body
+	// as Go holds the write lock: across the polling loop's sleeps and checkpoint reads, not just
+	// while it sets stopped. add takes no lock of its own: its body never awaits, so no add can be
+	// part-way through when shutdown takes the lock, which is the property quoted above. What Go's
+	// read lock also does is make an Add that arrives during Shutdown wait until Shutdown returns.
+	// An AddFn returns its future synchronously, so here it is that add's future which waits for
+	// the lock before failing. See the 2026-10-02 update to
+	// docs/decisions/0083-append-lifecycle-structural-mappings.md.
+	readonly #mu = new Mutex();
 	#stopped = false;
+
 	// largestIssued tracks the largest index allocated by this appender.
+	//
+	// Port note: Go's atomic.Uint64 collapses to a plain field, updated with a synchronous
+	// compare-and-set that no other task can interleave with (ADR-0004).
 	#largestIssued = 0n;
 
 	constructor(delegate: AddFn, readCheckpoint: (signal?: AbortSignal) => Promise<Uint8Array>) {
@@ -420,7 +308,10 @@ class terminator {
 
 	add(entry: Entry, signal?: AbortSignal): IndexFuture {
 		if (this.#stopped) {
+			// Go would still be blocked in RLock while a Shutdown holds the write lock.
+			const unblocked = this.#mu.do((): void => {});
 			return async (): Promise<Index> => {
+				await unblocked;
 				throw new Error("appender has been shut down");
 			};
 		}
@@ -444,34 +335,37 @@ class terminator {
 	 * After this returns, any calls to add will fail.
 	 */
 	async shutdown(signal?: AbortSignal): Promise<void> {
-		this.#stopped = true;
-		const maxIndex = this.#largestIssued;
-		if (maxIndex === 0n) {
-			// special case no work done
-			return;
-		}
-		let sleepTimeMs = 0;
-		for (;;) {
-			// select { case <-ctx.Done(): return ctx.Err(); default: time.Sleep(sleepTime) }
-			throwIfAborted(signal);
-			await sleep(sleepTimeMs, signal);
-			sleepTimeMs = 100; // after the first time, ensure we sleep in any other loops
-
-			let cp: Uint8Array;
-			try {
-				cp = await this.#readCheckpoint(signal);
-			} catch (err) {
-				if (!errorIs(err, ErrNotExist)) {
-					throw err;
-				}
-				continue;
-			}
-			const { size } = checkpointUnsafe(cp);
-			// Go: klog.V(1).Infof("Shutting down, waiting for checkpoint committing to size %d ...")
-			if (size > maxIndex) {
+		// Go: t.mu.Lock(); defer t.mu.Unlock()
+		return this.#mu.do(async (): Promise<void> => {
+			this.#stopped = true;
+			const maxIndex = this.#largestIssued;
+			if (maxIndex === 0n) {
+				// special case no work done
 				return;
 			}
-		}
+			let sleepTimeMs = 0;
+			for (;;) {
+				// select { case <-ctx.Done(): return ctx.Err(); default: time.Sleep(sleepTime) }
+				throwIfAborted(signal);
+				await sleep(sleepTimeMs, signal);
+				sleepTimeMs = 100; // after the first time, ensure we sleep in any other loops
+
+				let cp: Uint8Array;
+				try {
+					cp = await this.#readCheckpoint(signal);
+				} catch (err) {
+					if (!errorIs(err, ErrNotExist)) {
+						throw err;
+					}
+					continue;
+				}
+				const { size } = checkpointUnsafe(cp);
+				// Go: klog.V(1).Infof("Shutting down, waiting for checkpoint committing to size %d ...")
+				if (size > maxIndex) {
+					return;
+				}
+			}
+		});
 	}
 }
 
@@ -561,9 +455,13 @@ export class AppendOptions {
 	/**
 	 * valid throws if an invalid combination of options has been set, and returns normally otherwise.
 	 *
-	 * Port note: Go returns an error; the port throws (docs/decisions/0004). The `%d` durations in
-	 * Go print the time.Duration nanosecond count; here they print the millisecond values this port
-	 * stores (docs/decisions/0004-errors-context-and-concurrency.md's Duration→ms mapping).
+	 * Port note: Go returns an error; the port throws (docs/decisions/0004). Go's `%d` prints a
+	 * time.Duration as its nanosecond count, so the intervals, which this port stores in
+	 * milliseconds, are converted back to nanoseconds for the message, keeping its text
+	 * byte-identical to Go's.
+	 *
+	 * @internal Unexported in Go; public here because newAppender, a module-level function, calls
+	 * it, and the ported tests do (ADR-0010).
 	 */
 	valid(): void {
 		if (this.#newCP === undefined) {
@@ -571,7 +469,7 @@ export class AppendOptions {
 		}
 		if (this.#checkpointRepublishInterval > 0 && this.#checkpointRepublishInterval < this.#checkpointInterval) {
 			throw new Error(
-				`invalid AppendOptions: WithCheckpointRepublishInterval (${this.#checkpointRepublishInterval}) is smaller than WithCheckpointInterval (${this.#checkpointInterval})`,
+				`invalid AppendOptions: WithCheckpointRepublishInterval (${goDuration(this.#checkpointRepublishInterval)}) is smaller than WithCheckpointInterval (${goDuration(this.#checkpointInterval)})`,
 			);
 		}
 	}
@@ -587,6 +485,9 @@ export class AppendOptions {
 	 * the DefaultAntispamInMemorySize as the value here.
 	 *
 	 * For more details on how the antispam mechanism works, including tuning guidance, see docs/design/antispam.md.
+	 *
+	 * Port note: docs/design/antispam.md is upstream's document, not this repository's:
+	 * https://github.com/transparency-dev/tessera/blob/4a6d9f9da21fe7d160d0ee5b800f78b60c3e5640/docs/design/antispam.md
 	 */
 	withAntispam(inMemEntries: number, as: Antispam | null): AppendOptions {
 		this.addDecorators.push(newInMemoryDedup(inMemEntries));
@@ -597,19 +498,32 @@ export class AppendOptions {
 		return this;
 	}
 
-	/** checkpointPublisher returns a function which should be used to create, sign, and potentially witness a new checkpoint. */
+	/**
+	 * checkpointPublisher returns a function which should be used to create, sign, and potentially witness a new checkpoint.
+	 *
+	 * Port note: Go declares this on a value receiver, so the returned closure works on a copy of
+	 * the options taken when CheckpointPublisher is called; later With* calls do not reach it. The
+	 * port takes the same snapshot of the three fields the closure reads.
+	 */
 	checkpointPublisher(
 		lr: LogReader,
 		httpClient: FetchFn,
 	): (size: bigint, root: Uint8Array, signal?: AbortSignal) => Promise<Uint8Array> {
+		const newCP = this.#newCP;
+		const witnesses = this.#witnesses;
+		const witnessOpts = new WitnessOptions({
+			timeout: this.#witnessOpts.timeout,
+			failOpen: this.#witnessOpts.failOpen,
+		});
 		return async (size: bigint, root: Uint8Array, signal?: AbortSignal): Promise<Uint8Array> => {
-			if (this.#newCP === undefined) {
-				// Unreachable when valid() has been enforced (WithCheckpointSigner must be set).
+			if (newCP === undefined) {
+				// Go calls the nil func and panics; unreachable when valid() has been enforced
+				// (WithCheckpointSigner must be set).
 				throw new Error("newCP: WithCheckpointSigner must be set");
 			}
 			let cp: Uint8Array;
 			try {
-				cp = this.#newCP(size, root);
+				cp = newCP(size, root);
 			} catch (err) {
 				throw new Error(`newCP: ${messageOf(err)}`);
 			}
@@ -637,7 +551,7 @@ export class AppendOptions {
 					}
 				}
 				const wg = newWitnessGateway(
-					this.#witnesses,
+					witnesses,
 					httpClient,
 					oldSize,
 					(level: bigint, index: bigint, p: number, s?: AbortSignal) => lr.readTile(level, index, p, s),
@@ -648,30 +562,37 @@ export class AppendOptions {
 				// Port note: AbortSignal.timeout would be the one-line equivalent, but its timer
 				// cannot be cancelled, so every checkpoint publication would leave one pending
 				// for the full timeout. That keeps a Durable Object or a test runner busy long
-				// after the work is done; clearing the timer in `finally` is what `cancel()` does.
+				// after the work is done. The `finally` below does what Go's deferred cancel()
+				// does: it clears the timer and cancels the derived signal, so witness requests
+				// still in flight once the policy is decided are abandoned rather than left to run
+				// until the timeout.
 				const timeout = new AbortController();
 				const timer = setTimeout(
 					() => timeout.abort(new DOMException("signal timed out", "TimeoutError")),
-					this.#witnessOpts.timeout,
+					witnessOpts.timeout,
 				);
 				const witnessSignal = signal === undefined ? timeout.signal : AbortSignal.any([signal, timeout.signal]);
 
+				const signed = cp;
 				try {
 					cp = await wg.witness(cp, witnessSignal);
 				} catch (err) {
-					if (!this.#witnessOpts.failOpen) {
+					if (!witnessOpts.failOpen) {
 						// appenderWitnessRequests.Add(error) dropped per ADR-0080.
 						throw err;
 					}
 					// Go: klog.Warningf("WitnessGateway: failing-open despite error: %v", err).
-					// Fail open: Go reassigns cp to whatever wg.Witness returned even on error — the
-					// partial (under-cosigned) checkpoint for a policy failure, or nil for an early
-					// failure (bad checkpoint / proof builder). Mirror that: recover the partial
-					// checkpoint where the error carries one, else fall back to an empty checkpoint as
-					// Go's nil return would (see ADR-0082).
-					cp = err instanceof PolicyNotSatisfiedError ? err.checkpoint : new Uint8Array(0);
+					// Go goes on to publish whatever wg.Witness returned alongside the error: the
+					// partial (under-cosigned) checkpoint for a policy failure, which
+					// PolicyNotSatisfiedError carries here (ADR-0082).
+					//
+					// Port note: for any other error Go's wg.Witness returns nil, and Go would publish
+					// that. The port publishes the log-signed checkpoint it already holds instead, see
+					// docs/decisions/0183-fail-open-keeps-the-signed-checkpoint.md.
+					cp = err instanceof PolicyNotSatisfiedError ? err.checkpoint : signed;
 				} finally {
 					clearTimeout(timer);
+					timeout.abort();
 				}
 				// appenderWitnessRequests / appenderWitnessedSize / appenderWitnessHistogram emission dropped per ADR-0080.
 			}
@@ -906,4 +827,16 @@ function typeName(d: unknown): string {
 // messageOf renders a caught value the way Go's `%v` renders an error (no wrapping).
 function messageOf(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
+}
+
+// goDuration renders a millisecond interval the way Go's `%d` renders the equivalent
+// time.Duration: as a whole number of nanoseconds.
+function goDuration(ms: number): string {
+	if (Number.isInteger(ms)) {
+		return (BigInt(ms) * 1_000_000n).toString();
+	}
+	if (Number.isFinite(ms)) {
+		return BigInt(Math.round(ms * 1_000_000)).toString();
+	}
+	return String(ms);
 }
