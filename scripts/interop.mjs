@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// `pnpm interop`: proves, against Tessera's own Go code at the pinned commit, that every storage
+// `bun run interop`: proves, against Tessera's own Go code at the pinned commit, that every storage
 // backend that runs in Node writes logs Tessera accepts and reproduces, and carries on logs
 // Tessera wrote. docs/compatibility.md explains how this fits with the golden fixtures and the
 // per-backend golden suite; docs/decisions/0162-bidirectional-go-interop-harness.md records the

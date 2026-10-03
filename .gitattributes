@@ -2,7 +2,7 @@
 # the Go generator reads upstream files, so LF everywhere keeps them reproducible.
 * text=auto eol=lf
 
-# Golden fixtures are produced by `pnpm fixtures` and must never be edited by
+# Golden fixtures are produced by `bun run fixtures` and must never be edited by
 # hand. GitHub collapses generated files in pull-request diffs; the diffs are
 # deliberately NOT suppressed (no `-diff`), because a changed fixture is a
 # change to the compatibility evidence and a reviewer must be able to read it.
@@ -10,7 +10,7 @@ fixtures/data/** linguist-generated=true
 
 # Lockfile: generated, but dependency changes are security-relevant, so keep
 # its diffs readable too.
-pnpm-lock.yaml linguist-generated=true
+bun.lock linguist-generated=true
 fixtures/gen/go.sum linguist-generated=true
 
 # The fixture generator is a Go module inside a TypeScript repository.

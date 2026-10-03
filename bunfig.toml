@@ -1,0 +1,22 @@
+# Bun's configuration for this repository: https://bun.com/docs/runtime/bunfig
+#
+# Bun is the package manager and script runner here. What it does not do is run the library's
+# tests: Vitest runs on Node (see docs/decisions/0240-bun-as-package-manager-and-script-runner.md).
+
+[install]
+# Isolated, pnpm-style node_modules: each package sees only the dependencies it declares, so an
+# import of something nobody listed fails here instead of working by accident (a "phantom"
+# dependency, the classic way a library ships a broken import). The alternative, "hoisted",
+# flattens everything the way npm does and hides that mistake.
+#
+# Bun 1.3 already picks isolated for a new workspace, but the choice is made from the lockfile's
+# `configVersion` and a tool that rewrites the lockfile can lose it, so it is stated here, where
+# it also gets a reason.
+linker = "isolated"
+
+[run]
+# `bun run vitest` starts the binary its `#!/usr/bin/env node` line names, so Vitest executes on
+# Node, which is what the project supports and tests (Node 22 and 24, Vitest's Chromium and
+# workerd pools). A personal ~/.bunfig.toml with `bun = true` would silently move every such
+# script onto Bun's runtime; the project's own setting wins over it.
+bun = false

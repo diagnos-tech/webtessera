@@ -1,6 +1,6 @@
 {
   // Type-checks the demo against the built package, exactly as an application that
-  // installed webtessera from npm would see it. `pnpm build` runs it before bundling.
+  // installed webtessera from npm would see it. `bun run build` runs it before bundling.
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",

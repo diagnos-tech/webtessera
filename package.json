@@ -28,7 +28,11 @@
   "engines": {
     "node": ">=22"
   },
-  "packageManager": "pnpm@10.28.0",
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "examples/*",
+    "site"
+  ],
   "files": [
     "dist",
     "!dist/**/*_test.*",
@@ -68,18 +72,19 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "test": "pnpm run test:unit && pnpm run test:workers && pnpm run test:browser",
+    "test": "bun run test:unit && bun run test:workers && bun run test:browser",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:workers": "vitest run --config vitest.workers.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:services": "vitest run --config vitest.services.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
-    "upstream": "node scripts/fetch-upstream.mjs",
-    "fixtures": "node scripts/fetch-upstream.mjs && cd fixtures/gen && go run . -out ../data",
+    "upstream": "bun scripts/fetch-upstream.mjs",
+    "fixtures": "bun scripts/fetch-upstream.mjs && cd fixtures/gen && go run . -out ../data",
     "interop": "node scripts/interop.mjs",
-    "smoke": "pnpm run build && node scripts/smoke-runtimes.mjs && node scripts/smoke-sqlite.mjs",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
-    "prepack": "pnpm run clean && pnpm run build"
+    "smoke": "bun run build && node scripts/smoke-runtimes.mjs && node scripts/smoke-sqlite.mjs",
+    "check": "bun run lint && bun run typecheck && bun run test && bun run build",
+    "prepack": "bun run clean && bun run build",
+    "prepare": "node scripts/prepare.mjs"
   },
   "dependencies": {
     "@noble/curves": "^2.3.0",
@@ -100,10 +105,8 @@
     "vitest": "4.1.11",
     "wrangler": "4.124.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "workerd"
-    ]
-  }
+  "trustedDependencies": [
+    "esbuild",
+    "workerd"
+  ]
 }
