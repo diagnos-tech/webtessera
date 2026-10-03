@@ -1,0 +1,26 @@
+{
+  "name": "webtessera-example-edge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The log server example as a Cloudflare Worker, one deployment target among several: the same routes, on a SQLite-backed Durable Object.",
+  "scripts": {
+    "keygen": "node scripts/keygen.ts",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "ci": "tsc --noEmit && vitest run"
+  },
+  "dependencies": {
+    "webtessera": "workspace:*",
+    "webtessera-example-log-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20261002.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.124.0"
+  }
+}

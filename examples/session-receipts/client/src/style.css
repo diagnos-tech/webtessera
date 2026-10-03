@@ -1,0 +1,162 @@
+:root {
+	--bg: #f7f7f5;
+	--panel: #ffffff;
+	--text: #1d1d1f;
+	--muted: #5f6368;
+	--border: #dadce0;
+	--accent: #1a73e8;
+	--ok: #188038;
+	--error: #c5221f;
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	line-height: 1.5;
+	color: var(--text);
+	background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #18191b;
+		--panel: #222326;
+		--text: #e8eaed;
+		--muted: #9aa0a6;
+		--border: #3c4043;
+		--accent: #8ab4f8;
+		--ok: #81c995;
+		--error: #f28b82;
+	}
+}
+
+body {
+	margin: 0;
+}
+
+main {
+	max-width: 52rem;
+	margin: 0 auto;
+	padding: 2rem 1rem 4rem;
+}
+
+h1 {
+	margin: 0 0 0.25rem;
+	font-size: 1.8rem;
+	letter-spacing: -0.02em;
+}
+
+h2 {
+	margin: 0 0 0.75rem;
+	font-size: 1.05rem;
+}
+
+.lede,
+.meta {
+	color: var(--muted);
+}
+
+section {
+	margin-top: 1.25rem;
+	padding: 1.25rem;
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+}
+
+code,
+pre,
+td {
+	font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	font-size: 0.85rem;
+	overflow-wrap: anywhere;
+}
+
+pre {
+	margin: 0.75rem 0 0;
+	white-space: pre-wrap;
+}
+
+.facts {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 0.4rem 1rem;
+	margin: 0;
+}
+
+.facts dt {
+	color: var(--muted);
+}
+
+.facts dd {
+	margin: 0;
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+input,
+textarea {
+	flex: 1;
+	min-width: 0;
+	padding: 0.5rem 0.75rem;
+	font: inherit;
+	color: inherit;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+}
+
+textarea {
+	width: 100%;
+	box-sizing: border-box;
+	min-height: 4rem;
+}
+
+button {
+	padding: 0.5rem 1rem;
+	font: inherit;
+	font-weight: 600;
+	color: #fff;
+	background: var(--accent);
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+button.secondary {
+	color: var(--accent);
+	background: transparent;
+	border: 1px solid var(--border);
+}
+
+button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+th {
+	text-align: left;
+	color: var(--muted);
+	font-weight: 500;
+}
+
+th,
+td {
+	padding: 0.3rem 0.5rem 0.3rem 0;
+	border-bottom: 1px solid var(--border);
+	vertical-align: top;
+}
+
+.ok {
+	color: var(--ok);
+}
+
+.error {
+	color: var(--error);
+}

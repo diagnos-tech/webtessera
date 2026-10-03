@@ -70,7 +70,7 @@ until someone other than its author has reviewed it; the `Status:` line at the t
 | `cmd/conformance/gcp/main.go` | — | pending ADR | — | ADR-0001 `cmd/conformance/*` row. Proposed: not ported — ADR-0141 (awaiting review); HTTP personality over the GCP driver (GCS + Spanner, optional persistent antispam) |
 | `cmd/conformance/gcp/otel.go` | — | pending ADR | — | ADR-0001 `cmd/conformance/*` row. Proposed: not ported — ADR-0141 (awaiting review); OpenTelemetry setup for that binary |
 | `cmd/conformance/mysql/main.go` | — | pending ADR | — | ADR-0001 `cmd/conformance/*` row. Proposed: not ported — ADR-0141 (awaiting review); HTTP personality over the MySQL driver |
-| `cmd/conformance/posix/main.go` | — | pending ADR | — | ADR-0001 `cmd/conformance/*` row. Proposed: not ported — ADR-0141 (awaiting review); HTTP personality over the POSIX driver, optional Badger antispam. `examples/cloudflare-durable-object` plays the example-personality role |
+| `cmd/conformance/posix/main.go` | — | pending ADR | — | ADR-0001 `cmd/conformance/*` row. Proposed: not ported — ADR-0141 (awaiting review); HTTP personality over the POSIX driver, optional Badger antispam. `examples/log-server` and `examples/edge` play the example-personality role |
 | `cmd/examples/posix-oneshot/main.go` | — | pending ADR | — | ADR-0001 `cmd/examples/*` row. Proposed: not ported — ADR-0141 (awaiting review); command that adds files to a POSIX log and exits once they are integrated; the README snippets (`src/README_test.ts`, ADR-0140) show the same calls |
 | `cmd/experimental/migrate/aws/main.go` | — | pending ADR | — | ADR-0001 `cmd/experimental/*` row. Proposed: not ported — ADR-0141 (awaiting review); command-line wrapper around `NewMigrationTarget`/`Migrate`, which are ported and tested end to end — ADR-0105 |
 | `cmd/experimental/migrate/gcp/main.go` | — | pending ADR | — | ADR-0001 `cmd/experimental/*` row. Proposed: not ported — ADR-0141 (awaiting review); command-line wrapper around `NewMigrationTarget`/`Migrate`, which are ported and tested end to end — ADR-0105 |
@@ -396,11 +396,17 @@ Tessera repository. Add tables here as they land.
   | — | `src/safe/*_test.ts`, `src/server/server_test.ts`, `src/browser/browser_test.ts` | done | see the files / — | guardrails, key custody, receipts (including tampering), export conditions under Node's resolver and a real esbuild bundle |
   | — | `src/server/guard_browser_test.ts`, `src/browser/log_browser_test.ts`, `src/server/server_workers_test.ts` | done | see the files / — | the guard in a window and a module worker, device keys across a reopen, and D1 and Durable Objects in workerd |
 
-- **`examples/`** — the deployable example, and the browser demo. Neither is part of the published package.
+- **`examples/`** — one small, tested application per use case, built on the safe API. None is part of the
+  published package. Each has a README and a `ci` script that CI runs; `docs/guides/` has a guide for each.
 
   | Go path | TS path | status | tests (TS/Go) | notes |
   | --- | --- | --- | --- | --- |
-  | — | `examples/cloudflare-durable-object/` | done | 4 / — | deployable Worker: `POST /add` and the tlog-tiles read API over a log in a SQLite-backed Durable Object (`fromDurableObjectStorage`), with a key-generation script and a test suite of its own. The browser demo (`examples/browser/`) has no tests of its own |
+  | — | `examples/client-only/` | done | 7 / — | a browser's own log in IndexedDB with a device key; two tabs share it; it refuses to open without Web Locks (Chromium) |
+  | — | `examples/session-receipts/` | done | 9 + 1 / — | the browser logs every exchange; the server witnesses it and commits a verified mirror to S3 or an ObjectStore; an auditor checks both (Node and Chromium; the S3 case runs when `S3_*` is set) |
+  | — | `examples/notary/` | done | 10 / — | digest plus Ed25519 signature in, C2SP tlog-proof out, verified offline by a CLI; forged and altered receipts fail |
+  | — | `examples/log-server/` | done | 4 / — | `POST /add` and the tlog-tiles API on SQLite with lease locking, one source on Node, Bun and Deno; an optional script verifies it with Tessera's Go client |
+  | — | `examples/monitor/` | done | 9 / — | follows a log with `LogStateTracker`, keeps its state durably, and reports forks and rollbacks against a deliberately forking fake log |
+  | — | `examples/edge/` | done | 5 / — | the log server as a Worker on a SQLite-backed Durable Object (workerd) |
 
 ## Golden fixtures
 

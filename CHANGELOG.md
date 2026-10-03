@@ -28,6 +28,12 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
   only when asked), resolve `append` only once a published checkpoint covers the entry, and return
   [C2SP tlog-proof](https://c2sp.org/tlog-proof) receipts that are verified before they are returned and
   verify offline with `verifyReceipt`.
+- **Examples and guides**, one per use case, each a small tested application built on the safe API:
+  `client-only` (a browser's own log), `session-receipts` (a browser log witnessed by its server and
+  mirrored to S3-compatible storage), `notary` (offline-verifiable receipts for signed digests),
+  `log-server` (one source on Node, Bun and Deno, on any SQLite), `monitor` (fork and rollback detection)
+  and `edge` (a Worker on a SQLite-backed Durable Object). `docs/guides/` has a guide for each, and one
+  on choosing storage.
 - **`webtessera/formats/proof`**, a port of `transparency-dev/formats`'s `proof` package (v0.1.1).
 - **Async signers**: `note.signAsync`, `AsyncSigner` and `AppendOptions.withCheckpointAsyncSigner`, so a
   log can sign with a key that never leaves WebCrypto (ADR-0223). The synchronous path is unchanged.
@@ -92,9 +98,6 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
   Signature Version 4 on `@noble/hashes`, with no SDK; CI runs the S3 tests against MinIO.
 - **Test helpers**: `webtessera/testonly` provides `newTestLog`, a ready-made log on the memory driver with
   its own signing key, for testing code built on webtessera, as Tessera's `testonly` package does for Go.
-- **Examples** (`examples/`): a browser demo (a log in IndexedDB, in a tab) and a deployable Worker for
-  Cloudflare Workers that appends over HTTP and serves the tlog-tiles read API from a log in a
-  SQLite-backed Durable Object.
 - **Documentation and project tooling**: contributor guide, `AGENTS.md` (the fidelity rules, also
   the guide for AI coding agents), ADRs, the porting map, `docs/compatibility.md`, `docs/RELEASING.md`, a
   security policy, a landing page generated from the code, and CI on Node 22 and 24, real Chromium,
