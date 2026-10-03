@@ -1,4 +1,7 @@
 # https://editorconfig.org
+#
+# The editor-side twin of biome.jsonc (and of gofmt): what an editor should do before a
+# formatter has run. Where the two overlap they agree, and Biome and gofmt win on save.
 root = true
 
 [*]
@@ -8,12 +11,16 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = tab
 
-# Biome (biome.json) formats these with tabs; Go uses tabs by convention too.
-[*.{ts,tsx,js,mjs,cjs,go}]
+# Biome formats these with tabs (indentStyle in biome.jsonc) and wraps at lineWidth 120; gofmt
+# indents Go with tabs, and has no line limit.
+[*.{ts,tsx,js,mjs,cjs,css,html,go}]
 indent_style = tab
 
-# Data and prose files use two spaces.
-[*.{json,jsonc,yml,yaml,md}]
+[*.{ts,tsx,js,mjs,cjs,css,json,jsonc}]
+max_line_length = 120
+
+# Data, configuration and prose files use two spaces. Biome's JSON formatter does the same.
+[*.{json,jsonc,yml,yaml,toml,md}]
 indent_style = space
 indent_size = 2
 
@@ -23,6 +30,10 @@ trim_trailing_whitespace = false
 
 # go.mod and go.sum are written by the Go tool.
 [go.{mod,sum}]
+indent_style = tab
+
+# Makefiles require tabs. There are none today; this keeps the first one from breaking.
+[{Makefile,makefile,*.mk}]
 indent_style = tab
 
 # Verbatim third-party texts: never reflow or "fix" them.
