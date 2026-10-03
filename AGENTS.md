@@ -50,6 +50,12 @@ Code with no upstream counterpart is limited to what the target runtimes force o
 standard-library stand-ins (§3.5.1), the web storage drivers (§8), barrel files and test tooling.
 Everything else is a translation, and every divergence from it is recorded in an ADR (§6).
 
+There is one deliberate, fenced exception: **the safe API** (`src/safe/`, `src/server/`,
+`src/browser/`; ADR-0220). It composes ported functions into a small layer that cannot be misused,
+and it is ours, not Go's. Never port into it, never let it change the behaviour of a ported
+function, and never import it from ported code. The serving, witness-server and S3 parts of
+`src/http/`, `src/witness/` and `src/mirror/` are additions in the same sense (ADR-0170 to ADR-0176).
+
 ---
 
 ## 2. Directory layout
@@ -83,7 +89,8 @@ webtessera/
     ├── vendor/                ← ports of Go deps that have no TypeScript equivalent
     │   ├── merkle/{rfc6962,compact,proof,testonly}/
     │   ├── note/              ← golang.org/x/mod/sumdb/note (BSD-3-Clause)
-    │   └── formats/{log,note}/ ← github.com/transparency-dev/formats (note: cosignature/v1 only)
+    │   └── formats/{log,note,proof}/ ← github.com/transparency-dev/formats (note: cosignature/v1
+    │                                 only; proof at v0.1.1, for C2SP tlog-proof receipts)
     ├── api/                   ← mirrors tessera/api
     ├── internal/              ← mirrors tessera/internal
     │   └── gostd/             ← Go standard-library stand-ins (§3.5.1)
@@ -96,6 +103,9 @@ webtessera/
     ├── client/                ← mirrors tessera/client
     ├── fsck/                  ← mirrors tessera/fsck
     ├── ctonly/                ← mirrors tessera/ctonly
+    ├── safe/                  ← NEW (safe API): runtime detection, key custody, receipts, the log
+    ├── server/                ← NEW (safe API): `webtessera/server`; refuses browsers
+    ├── browser/               ← NEW (safe API): `webtessera/browser`; device keys, no key strings
     ├── http/                  ← NEW: serves a log over the tlog-tiles HTTP API
     ├── witness/               ← NEW: a tlog-witness server (the root package holds the client)
     ├── mirror/                ← mirrors tessera/cmd/experimental/mirror, plus S3-compatible sinks

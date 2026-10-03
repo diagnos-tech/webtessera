@@ -40,7 +40,7 @@ import { type Antispam, defaultIDHasher, type Follower, type LogReader } from ".
 import type { Driver } from "./log.ts";
 import { Checkpoint } from "./vendor/formats/log/index.ts";
 import { DefaultHasher } from "./vendor/merkle/rfc6962/rfc6962.ts";
-import { type Note, type Signer, sign } from "./vendor/note/note.ts";
+import { type AsyncSigner, type Note, type Signer, sign, signAsync } from "./vendor/note/note.ts";
 import { WitnessGroup } from "./witness.ts";
 
 /** DefaultBatchMaxSize is used by storage implementations if no WithBatching option is provided when instantiating it. */
@@ -390,8 +390,10 @@ export class AppendOptions {
 	//
 	// Port note: Go's `func(ctx, size, hash) ([]byte, error)` is synchronous work (marshal + sign)
 	// whose only use of ctx was the dropped tracer span, so it is a synchronous throwing function
-	// here rather than an async one.
-	#newCP: ((size: bigint, hash: Uint8Array) => Uint8Array) | undefined;
+	// here rather than an async one. withCheckpointAsyncSigner, which has no upstream
+	// counterpart, installs one that returns a Promise instead; see
+	// docs/decisions/0223-async-signers-for-notes-and-checkpoints.md.
+	#newCP: ((size: bigint, hash: Uint8Array) => Uint8Array | Promise<Uint8Array>) | undefined;
 
 	#batchMaxAge: number; // ms
 	#batchMaxSize: number;
@@ -523,7 +525,11 @@ export class AppendOptions {
 			}
 			let cp: Uint8Array;
 			try {
-				cp = newCP(size, root);
+				// Port note: only a newCP installed by withCheckpointAsyncSigner returns a
+				// Promise. A synchronous one is not awaited, so the path every Go-equivalent
+				// configuration takes runs exactly as before (ADR-0223).
+				const signed = newCP(size, root);
+				cp = signed instanceof Uint8Array ? signed : await signed;
 			} catch (err) {
 				throw new Error(`newCP: ${messageOf(err)}`);
 			}
@@ -672,6 +678,51 @@ export class AppendOptions {
 			const n: Note = { text: fromUTF8(cpRaw) };
 			try {
 				return sign(n, s, ...additionalSigners);
+			} catch (err) {
+				throw wrapError("note.Sign", err);
+			}
+		};
+		return this;
+	}
+
+	/**
+	 * withCheckpointAsyncSigner is {@link withCheckpointSigner} for signers whose signatures
+	 * resolve asynchronously, such as a non-extractable Ed25519 key held by the platform's
+	 * WebCrypto API. Each signer may be a note AsyncSigner or a synchronous Signer. The
+	 * checkpoints are byte-for-byte the ones withCheckpointSigner would publish for the same
+	 * keys: the same origin rule applies, and the note is encoded by the same code.
+	 *
+	 * Like withCheckpointSigner, it replaces any signer configured before it.
+	 *
+	 * Port note: this has no upstream counterpart. Go's note.Signer is synchronous, and so is
+	 * the newCP func that WithCheckpointSigner installs; see
+	 * docs/decisions/0223-async-signers-for-notes-and-checkpoints.md.
+	 *
+	 * ```ts
+	 * const opts = newAppendOptions().withCheckpointAsyncSigner(await importLogKey(env.LOG_SKEY));
+	 * ```
+	 */
+	withCheckpointAsyncSigner(s: AsyncSigner | Signer, ...additionalSigners: (AsyncSigner | Signer)[]): AppendOptions {
+		const origin = s.name();
+		for (const signer of additionalSigners) {
+			if (origin !== signer.name()) {
+				throw new Error(
+					`WithCheckpointSigner: additional signer name (${quote(signer.name())}) does not match primary signer name (${quote(origin)})`,
+				);
+			}
+		}
+		this.#newCP = async (size: bigint, hash: Uint8Array): Promise<Uint8Array> => {
+			// If we're signing a zero-sized tree, the tlog-checkpoint spec says (via RFC6962) that
+			// the root must be SHA256 of the empty string, so we'll enforce that here:
+			let h = hash;
+			if (size === 0n) {
+				h = DefaultHasher.emptyRoot();
+			}
+			const cpRaw = new Checkpoint({ origin, size, hash: h }).marshal();
+
+			const n: Note = { text: fromUTF8(cpRaw) };
+			try {
+				return await signAsync(n, s, ...additionalSigners);
 			} catch (err) {
 				throw wrapError("note.Sign", err);
 			}

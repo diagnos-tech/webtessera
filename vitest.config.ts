@@ -37,13 +37,21 @@ export default defineConfig({
  * sources rather than to dist/. It is derived from package.json's exports map,
  * so a test that imports a subpath also proves that subpath points at a real
  * module. src/README_test.ts relies on it to run the README's snippets verbatim.
+ *
+ * A conditional export resolves to its "default" target, which is what Node itself
+ * resolves it to: this suite runs on Node, with none of the conditions (such as
+ * "browser") that select another target.
  */
 function selfAliases(): { find: RegExp; replacement: string }[] {
 	const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
 		name: string;
-		exports: Record<string, string>;
+		exports: Record<string, string | Record<string, string>>;
 	};
 	return Object.entries(pkg.exports)
+		.map(([subpath, target]): [string, string] => [
+			subpath,
+			typeof target === "string" ? target : (target.default ?? ""),
+		])
 		.filter(([, target]) => target.startsWith("./dist/") && target.endsWith(".js"))
 		.map(([subpath, target]) => ({
 			find: new RegExp(`^${(pkg.name + subpath.slice(1)).replaceAll("/", "\\/")}$`),

@@ -10,6 +10,7 @@ rules, and [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the workflow.
 | [`compatibility.md`](compatibility.md) | How byte compatibility with Tessera is proven, per backend and in both directions, and how to reproduce it. |
 | [`RELEASING.md`](RELEASING.md) | How a release is prepared, published to npm and GitHub Packages, and verified. |
 | [`REVIEW-PROTOCOL.md`](REVIEW-PROTOCOL.md) | What a reviewer checks, in priority order, for ports, ADRs and pull requests. |
+| [`guides/`](guides/) | Task-oriented guides for users of the package, starting with [the safe API](guides/safe-api.md). |
 | [`decisions/`](decisions/) | Architecture decision records (ADRs): every divergence from Go and every file not ported. |
 | [`notes/`](notes/) | Free-form analysis that is not (yet) a decision. |
 | [`../fixtures/README.md`](../fixtures/README.md) | The golden fixtures: what they contain and how to audit them. |

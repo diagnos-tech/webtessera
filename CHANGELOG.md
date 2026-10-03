@@ -20,6 +20,17 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
 
 ### Added
 
+- **The safe API**, a small layer over the port for applications that want a log they cannot misuse
+  (ADR-0220 to ADR-0227). `webtessera/server` (`openServerLog`, `importLogKey`) is for servers and edge
+  runtimes: it fails the build of a browser bundle and refuses to run in a browser. `webtessera/browser`
+  (`openBrowserLog`, device keys kept in IndexedDB) never accepts a private key string. Both use
+  non-extractable WebCrypto Ed25519 keys where the runtime has them (falling back to `@noble/curves`
+  only when asked), resolve `append` only once a published checkpoint covers the entry, and return
+  [C2SP tlog-proof](https://c2sp.org/tlog-proof) receipts that are verified before they are returned and
+  verify offline with `verifyReceipt`.
+- **`webtessera/formats/proof`**, a port of `transparency-dev/formats`'s `proof` package (v0.1.1).
+- **Async signers**: `note.signAsync`, `AsyncSigner` and `AppendOptions.withCheckpointAsyncSigner`, so a
+  log can sign with a key that never leaves WebCrypto (ADR-0223). The synchronous path is unchanged.
 - **The Tessera port**: the `api` and `api/layout` packages (tlog-tiles paths, tiles and entry
   bundles), the integration engine and queue (`storage/internal`), the append lifecycle (`Appender`,
   await, antispam), witnessing (a log's side: witnesses, witness groups and the policy language),
