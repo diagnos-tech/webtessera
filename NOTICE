@@ -60,15 +60,16 @@ LICENSES/BSD-3-Clause-Go.txt. The Go project's additional patent grant
 (LICENSES/Go-PATENTS.txt) accompanies it.
 
 golang.org/x/mod v0.31.0, package sumdb/note
-Copyright 2009 The Go Authors
+Copyright 2019 The Go Authors
   src/vendor/note/note.ts
   src/vendor/note/note_test.ts
   src/vendor/note/example_test.ts
 
 golang.org/x/crypto v0.46.0, package cryptobyte
-Copyright 2009 The Go Authors
+Copyright 2017 The Go Authors
   src/internal/gostd/cryptobyte.ts
   src/internal/gostd/cryptobyte_test.ts
+  src/internal/gostd/cryptobyte_example_test.ts (from cryptobyte/example_test.go)
 
 transparency-dev/formats v0.0.0-20251017110053-404c0d5b696c, package note
 (note_cosigv1.go and its test, which carry a Go Authors BSD-style header upstream)
@@ -76,15 +77,50 @@ Copyright 2023 The Go Authors
   src/vendor/formats/note/note_cosigv1.ts
   src/vendor/formats/note/note_cosigv1_test.ts
 
-Go standard library, package container/list
+Go standard library 1.25.5, package container/list
 Copyright 2009 The Go Authors
   src/internal/gostd/list.ts
   src/internal/gostd/list_test.ts
 
-Go standard library, package encoding/base64 (the decoder)
+Go standard library 1.25.5, package encoding/base64 (the decoder)
 Copyright 2009 The Go Authors
   src/internal/gostd/bytes.ts (fromBase64 and its helpers are a transcription of
   Go's Encoding.Decode and decodeQuantum)
+
+Go standard library 1.25.5, package encoding/hex (the decoder)
+Copyright 2009 The Go Authors
+  src/internal/gostd/bytes.ts (REVERSE_HEX_TABLE, invalidByteError and fromHex are
+  derived from Go's reverseHexTable, InvalidByteError and Decode)
+
+Go standard library 1.25.5, package strconv
+Copyright 2009 The Go Authors (atoi.go, quote.go)
+Copyright 2013 The Go Authors (isprint.go)
+  src/internal/gostd/strconv.ts (parseUint, underscoreOK, lower, NumError, ErrSyntax
+  and ErrRange are derived from atoi.go; quote, isPrint, bsearch and the IS_PRINT and
+  IS_NOT_PRINT tables from quote.go and isprint.go)
+
+Go standard library 1.24.7, package strings
+Copyright 2009 The Go Authors
+  src/internal/gostd/strings.ts (the doc comments of cut, trimSpace and fields, taken
+  from strings/strings.go)
+  src/internal/gostd/strings_test.ts (the cutTests, trimSpaceTests and fieldsTests
+  tables, taken from strings/strings_test.go)
+
+Go standard library 1.25.5, package unicode
+Copyright 2011 The Go Authors
+  src/internal/gostd/unicode.ts (isSpace is derived from unicode.IsSpace in graphic.go
+  and from the White_Space range table in tables.go)
+
+Go standard library 1.25.5, package math/bits
+Copyright 2017 The Go Authors
+  src/internal/gostd/bits.ts (the doc sentences of trailingZeros64, len64 and
+  onesCount64 are quoted from bits.go; onesCount32 follows the shape of OnesCount64)
+
+Go standard library 1.25.5, packages crypto/ed25519 and crypto/internal/fips140/ed25519
+Copyright 2016 The Go Authors (crypto/ed25519)
+Copyright 2024 The Go Authors (crypto/internal/fips140/ed25519)
+  src/vendor/note/note.ts (verifyEd25519 transcribes ed25519.Verify and verifyWithDom;
+  the rest of the file is the translation of sumdb/note listed above)
 
 --------------------------------------------------------------------------------
 ISC sources

@@ -105,10 +105,10 @@ describe("package root exports", () => {
 			"copyUint16LengthPrefixed",
 			"copyUint24LengthPrefixed",
 			"awaitFollower",
-			"progress",
 			"newInMemoryDedup",
 			"newCopier",
-			"Copier",
+			"copier",
+			"bundle",
 			"populateWork",
 		];
 		for (const name of testOnly) {

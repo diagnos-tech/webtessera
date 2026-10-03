@@ -55,8 +55,8 @@ MySQL, `storage/mysql` needs MySQL.
 This is not a coverage hole in the *format*: every driver writes tiles and bundles through the same
 `storage/internal` sequencer and the same `api/layout` paths, so the bytes are driver-independent by
 construction. What is not covered is driver-specific behaviour — and webtessera does not port any of
-those drivers. Its drivers (memory, IndexedDB, Durable Object, S3) are new and are validated against
-the `log_<N>.json` fixtures instead.
+those drivers. Its drivers (memory, IndexedDB, SQLite) are new and are validated against the
+`log_<N>.json` fixtures instead, by the golden suite (`docs/compatibility.md`).
 
 ## 5. Witnessed / cosigned checkpoints — needs live witnesses
 

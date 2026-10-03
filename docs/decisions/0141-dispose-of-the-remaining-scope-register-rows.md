@@ -55,10 +55,11 @@ Non-Go files (`deployment/`, `docs/`, `.github/`) are not register rows.
 | `internal/hammer/` | not ported | an upstream load-test harness shipped with the library | none in the library; upstream's own hammer where a personality matches its HTTP conventions (section 4) |
 | `cmd/conformance/*`, `cmd/examples/*` | not ported | runnable reference personalities and a one-shot CLI | `examples/cloudflare-durable-object`, `examples/browser`, the README snippets |
 | `cmd/experimental/migrate/*` | not ported | four commands | the ported `migrate` library, tested end to end (ADR-0105) |
-| `cmd/experimental/mirror/*` | not ported | verbatim mirroring of a log's static resources | partly `migrate`; otherwise a few lines of user code (section 5) |
+| `cmd/experimental/mirror/*` | not ported (but see the Update: `internal/mirror.go` is now ported as `webtessera/mirror`) | verbatim mirroring of a log's static resources | partly `migrate`; otherwise a few lines of user code (section 5) |
 | `keygen/` | none: the row was a mistake | nothing | `generateKey` in `webtessera/note` |
 | `integration/`, `integration/fault/` | not ported as files | an HTTP-level suite and syscall fault injection | `describeDriverConformance` on every backend (section 7), without fault injection |
-| `storage/memory/`, `storage/indexeddb/`, `storage/durableobject/` (additions) | implemented | n/a | ADR-0104; ADR-0110 to ADR-0113; ADR-0120 to ADR-0123 |
+| `storage/memory/`, `storage/indexeddb/`, `storage/sqlite/` (additions) | implemented | n/a | ADR-0104; ADR-0110 to ADR-0113; ADR-0150 to ADR-0155 (the SQLite backend replaces `storage/durableobject/`, ADR-0120 to ADR-0123) |
+| `http/`, `witness/` (additions) | implemented | n/a | ADR-0170; ADR-0171, ADR-0172, ADR-0174 |
 | `storage/s3/` (addition) | deferred | n/a | the `ObjectStore` contract is the extension point |
 
 ### 1. `storage/posix/`: ported, with `file_ops.go` carried by the contract
@@ -264,6 +265,25 @@ What it does not cover:
 - Until review, ADR-0001's register shows these rows as `proposed — ADR-0141`, not `accepted`. If the reviewer
   rejects a disposition, that row goes back to `pending` and `docs/PORTING-MAP.md` is already correct.
 - Nothing here changes a byte the library produces, and no code changes.
+
+**Update (2026-10-03).** Three things in this ADR were overtaken by later work, which is proposed and
+awaits review like this ADR:
+
+- **The Durable Object backend is gone.** `storage/sqlite/` replaces it: one `ObjectStore` over any SQLite
+  engine, with a SQLite-backed Durable Object as one engine among node:sqlite, bun:sqlite, better-sqlite3,
+  libSQL/Turso, rqlite, Cloudflare D1 and sqlite-wasm ([ADR-0150](0150-sqlite-object-store.md) to
+  [ADR-0155](0155-sqlite-test-strategy.md)). ADR-0120 to ADR-0123 are superseded. Wherever section 8 and the
+  Context name the Durable Object backend, read the SQLite backend. The register row above is updated.
+- **`cmd/experimental/mirror/internal/mirror.go` is ported** as `webtessera/mirror`
+  ([ADR-0173](0173-mirror-port.md)), with S3-compatible sinks ([ADR-0175](0175-mirror-sinks.md)) and
+  verification of what it copies ([ADR-0176](0176-mirror-verification.md)). Section 5's "a few lines of user
+  code" is superseded for that file; `cmd/experimental/mirror/posix/main.go`, the command, stays not ported.
+- **Two additions with no upstream counterpart** are implemented: `http/`, the tlog-tiles read API as a
+  fetch-style handler ([ADR-0170](0170-http-log-handler.md)), and `witness/`, a tlog-witness server
+  ([ADR-0171](0171-witness-server.md), [ADR-0172](0172-witness-state-on-objectstore.md),
+  [ADR-0174](0174-formats-note-cosigv1-timestamp-and-vkey-conversion.md)). The `storage/s3/` row stays
+  `deferred`: replicating a log into a bucket is now the S3 sink of `webtessera/mirror`, while an
+  `ObjectStore` over S3, which needs a `lock`, is still not provided.
 
 ## Alternatives considered
 
