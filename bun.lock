@@ -31,6 +31,12 @@
         "typescript": "5.9.3",
         "vite": "8.3.2",
       },
+      "peerDependencies": {
+        "webtessera": "*",
+      },
+      "optionalPeers": [
+        "webtessera",
+      ],
     },
     "examples/cloudflare-durable-object": {
       "name": "webtessera-example-cloudflare-durable-object",
@@ -42,6 +48,12 @@
         "vitest": "4.1.11",
         "wrangler": "4.124.0",
       },
+      "peerDependencies": {
+        "webtessera": "*",
+      },
+      "optionalPeers": [
+        "webtessera",
+      ],
     },
     "site": {
       "name": "webtessera-site",
@@ -51,6 +63,12 @@
         "typescript": "5.9.3",
         "vite": "8.3.2",
       },
+      "peerDependencies": {
+        "webtessera": "*",
+      },
+      "optionalPeers": [
+        "webtessera",
+      ],
     },
   },
   "trustedDependencies": [

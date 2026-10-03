@@ -5,9 +5,9 @@
   "type": "module",
   "description": "The webtessera landing page, generated from the library's own sources at build time and published to GitHub Pages.",
   "scripts": {
-    "prebuild": "bun run --cwd ../.. build",
+    "prebuild": "bun run --cwd .. build",
     "build": "vite build",
-    "predev": "bun run --cwd ../.. build",
+    "predev": "bun run --cwd .. build",
     "dev": "vite",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -19,5 +19,13 @@
     "shiki": "4.5.0",
     "typescript": "5.9.3",
     "vite": "8.3.2"
+  },
+  "peerDependencies": {
+    "webtessera": "*"
+  },
+  "peerDependenciesMeta": {
+    "webtessera": {
+      "optional": true
+    }
   }
 }
