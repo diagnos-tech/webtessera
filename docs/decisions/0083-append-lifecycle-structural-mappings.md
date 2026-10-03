@@ -1,6 +1,6 @@
 # ADR-0083: Structural mappings for `NewAppender`, the `sync.Cond` awaiter, and the concurrency drops
 
-- **Status:** proposed
+- **Status:** accepted; item 8's reasoning about `terminator` is corrected by its 2026-10-02 update
 - **Date:** 2026-08-19
 - **Author:** append-lifecycle agent
 - **Upstream reference:** `append_lifecycle.go` (`NewAppender`, `terminator`, `AppendOptions`),
@@ -128,3 +128,26 @@ step is synchronous). Each is annotated at the site.
   Items 2–6 (named multi-returns, `AppendLifecycle` guard, synchronous `newCP`, `opts` nullability,
   folded zero value, field visibility) are faithful and additive; the new exported names are
   accounted for by ADR-0031/0010. Full suite and typecheck green after review.
+
+## Update (2026-10-02)
+
+Status changed from "proposed" to "accepted" on the strength of the approved verdict recorded
+above; no new review was made.
+
+**Item 8 is corrected for `terminator`.** The reasoning that `terminator`'s `sync.RWMutex` could be
+dropped looked only at the race the lock prevents, which run-to-completion does rule out. It missed
+that Go's `Shutdown` holds the write lock for its whole body, across the polling loop's sleeps and
+checkpoint reads, so an `Add` that arrives during `Shutdown` blocks on the read lock until
+`Shutdown` returns, and only then fails. The port now keeps that: `terminator` has a gostd `Mutex`
+that `shutdown` holds for its whole body, with upstream's comment on the lock carried over. `add`
+takes no lock (its body never awaits, so it cannot be part-way through when `shutdown` takes the
+lock), but once it sees `stopped`, the future it returns waits for the lock before failing with
+"appender has been shut down"; an AddFn returns its future synchronously, so the future is what
+waits where Go's caller would block. A port addition test pins it. The other drops listed in item
+8 (`largestIssued`, `indexSample`, and the `sync.OnceValue`s) stand, although `indexSample` itself
+is gone with `integrationStats` (ADR-0181).
+
+**Item 7.** `PublicationAwaiter.await` now returns `[Index, Uint8Array]`: Go's nil checkpoint is an
+empty `Uint8Array` internally, and a successful `await` only ever returns a checkpoint that a poll
+parsed. The poll loop is `pollLoop` (`@internal`), no longer `_pollLoop`, since nothing collides
+with its name.

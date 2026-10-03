@@ -186,7 +186,8 @@ it("TestAwait_multiClient", async () => {
 	// verifications through the pure-JS @noble/curves implementation, which is materially slower
 	// than Go's native crypto/ed25519 — 1s produces false timeouts here. The correctness this test
 	// asserts (every one of the 300 concurrent clients is released with a checkpoint whose size
-	// covers its assigned index) is unchanged; only the safety bound is relaxed.
+	// covers its assigned index) is unchanged; only the safety bound is relaxed. See
+	// docs/decisions/0186-await-multiclient-test-timeout-relaxed.md.
 	const testTimeout = 15000;
 	// await will time out via this signal, causing tests to fail
 	// if the integration condition is never reached.
@@ -221,7 +222,7 @@ it("TestAwait_multiClient", async () => {
 				(async (): Promise<void> => {
 					const [ii, cpRaw] = await awaiter.await(future, ctx);
 					expect(ii.index).toBe(index);
-					const { checkpoint: cp } = parseCheckpoint(cpRaw ?? new Uint8Array(0), "example.com/log/testdata", v);
+					const { checkpoint: cp } = parseCheckpoint(cpRaw, "example.com/log/testdata", v);
 					expect(cp.size >= ii.index).toBe(true);
 				})(),
 			);

@@ -17,54 +17,18 @@
 // which needs a real storage Driver. See
 // docs/decisions/0074-migrate-untestable-without-driver.md for exactly what that leaves
 // untested here: `MigrationTarget.migrate`'s full copy+integrate+follower orchestration
-// against a *real* MigrationWriter, and `newMigrationTarget`'s success path through a real
-// driver's `migrationWriter` lifecycle method. This file is original to this project and
-// covers what does not need one: `MigrationOptions`'s pure accessors, `progress()`'s
-// formatting, `awaitFollower`'s follower-catch-up polling loop (driven by a minimal fake
-// Follower -- an interface with three methods, not a storage driver), and
-// `newMigrationTarget`'s driver-rejection path (which only needs a driver *without* a
-// migrationWriter method to prove the type guard itself is correct -- not a working fake
-// driver).
+// against a *real* MigrationWriter (docs/decisions/0105-migration-tested-end-to-end-closes-adr-0074.md
+// covers that against the real drivers). This file is original to this project and covers what
+// does not need one: `MigrationOptions`'s pure accessors, `awaitFollower`'s follower-catch-up
+// polling loop (driven by a minimal fake Follower -- an interface with three methods, not a
+// storage driver), `newMigrationTarget`'s driver-rejection path, and how `newMigrationTarget`
+// and `migrate` treat followers, driven by a stub MigrationWriter that copies nothing.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AddFn } from "./append_lifecycle.ts";
-import type { Follower } from "./lifecycle.ts";
-import {
-	awaitFollower,
-	MigrationOptions,
-	newMigrationOptions,
-	newMigrationTarget,
-	progress,
-} from "./migrate_lifecycle.ts";
-
-describe("progress", () => {
-	const tests: { desc: string; n: string; p: bigint; total: bigint; want: string }[] = [
-		{ desc: "typical progress", n: "copy", p: 12n, total: 26n, want: "copy: 12 (46.15%)" },
-		{ desc: "zero progress", n: "integration", p: 0n, total: 100n, want: "integration: 0 (0.00%)" },
-		{ desc: "complete", n: "copy", p: 100n, total: 100n, want: "copy: 100 (100.00%)" },
-		{ desc: "rounds to two decimal places", n: "copy", p: 1n, total: 3n, want: "copy: 1 (33.33%)" },
-		{
-			desc: "total zero and p zero renders NaN%, matching Go's 0.0/0.0",
-			n: "copy",
-			p: 0n,
-			total: 0n,
-			want: "copy: 0 (NaN%)",
-		},
-		{
-			desc: "total zero and p positive renders +Inf%, matching Go's %.2f on +Inf",
-			n: "copy",
-			p: 5n,
-			total: 0n,
-			want: "copy: 5 (+Inf%)",
-		},
-	];
-
-	for (const test of tests) {
-		it(test.desc, () => {
-			expect(progress(test.n, test.p, test.total)).toBe(test.want);
-		});
-	}
-});
+import type { MigrationWriter } from "./internal/migrate/migrate.ts";
+import type { Follower, LogReader } from "./lifecycle.ts";
+import { awaitFollower, MigrationOptions, newMigrationOptions, newMigrationTarget } from "./migrate_lifecycle.ts";
 
 /** fakeFollower builds a minimal Follower -- three methods, not a storage driver. */
 function fakeFollower(entriesProcessed: () => Promise<bigint>): Follower {
@@ -96,7 +60,7 @@ describe("awaitFollower", () => {
 		expect(calls).toBeGreaterThanOrEqual(3);
 	});
 
-	it("resolves immediately when entriesProcessed already meets the target (no sleep needed first)", async () => {
+	it("resolves after its first one-second sleep when entriesProcessed already meets the target", async () => {
 		vi.useFakeTimers();
 		const f = fakeFollower(async () => 10n);
 
@@ -175,6 +139,12 @@ describe("MigrationOptions", () => {
 		o.withAntispam(undefined);
 		expect(o.internal.followers).toEqual([]);
 	});
+
+	it("withAntispam(null) is a no-op too, as Go's nil interface is", () => {
+		const o = new MigrationOptions();
+		o.withAntispam(null);
+		expect(o.internal.followers).toEqual([]);
+	});
 });
 
 describe("newMigrationTarget", () => {
@@ -188,5 +158,65 @@ describe("newMigrationTarget", () => {
 		await expect(newMigrationTarget(notADriver, newMigrationOptions())).rejects.toThrow(
 			"does not implement MigrationTarget lifecycle",
 		);
+	});
+});
+
+describe("MigrationTarget followers", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	const root = new Uint8Array(32).fill(9);
+
+	/** stubDriver migrates an empty log: nothing to copy, and integration is already done. */
+	function stubDriver(): {
+		migrationWriter(): Promise<{ writer: MigrationWriter; reader: LogReader }>;
+	} {
+		const writer: MigrationWriter = {
+			setEntryBundle: async (): Promise<void> => {},
+			awaitIntegration: async (): Promise<Uint8Array> => root,
+			integratedSize: async (): Promise<bigint> => 0n,
+		};
+		const reader: LogReader = {
+			readCheckpoint: async (): Promise<Uint8Array> => new Uint8Array(0),
+			readTile: async (): Promise<Uint8Array> => new Uint8Array(0),
+			readEntryBundle: async (): Promise<Uint8Array> => new Uint8Array(0),
+			nextIndex: async (): Promise<bigint> => 0n,
+			integratedSize: async (): Promise<bigint> => 0n,
+		};
+		return { migrationWriter: async () => ({ writer, reader }) };
+	}
+
+	function antispamWith(f: Follower): { decorator: () => (fn: AddFn) => AddFn; follower: () => Follower } {
+		return {
+			decorator:
+				() =>
+				(fn: AddFn): AddFn =>
+					fn,
+			follower: (): Follower => f,
+		};
+	}
+
+	it("runs only the followers configured before newMigrationTarget, each as a detached task", async () => {
+		vi.useFakeTimers();
+		const started: string[] = [];
+		const follower = (name: string): Follower => ({
+			name: () => name,
+			follow: (): Promise<void> => {
+				started.push(name);
+				// Never settles: migrate must not wait for it, only for awaitFollower.
+				return new Promise<void>(() => {});
+			},
+			entriesProcessed: async (): Promise<bigint> => 0n,
+		});
+		const opts = newMigrationOptions().withAntispam(antispamWith(follower("before")));
+		const mt = await newMigrationTarget(stubDriver(), opts);
+		opts.withAntispam(antispamWith(follower("after")));
+
+		const done = mt.migrate(1, 0n, root, async () => new Uint8Array(0));
+		await vi.advanceTimersByTimeAsync(1_000);
+		await done;
+
+		expect(started).toEqual(["before"]);
 	});
 });

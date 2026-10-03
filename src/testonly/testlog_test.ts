@@ -34,7 +34,7 @@ describe("testonly/testlog", () => {
 		expect(cpRaw).toBeDefined();
 
 		const v = testLog.sigVerifier;
-		const { checkpoint } = parseCheckpoint(cpRaw ?? new Uint8Array(), v.name(), v);
+		const { checkpoint } = parseCheckpoint(cpRaw, v.name(), v);
 		expect(checkpoint.size).toBe(1n);
 		expect(await testLog.store.get("checkpoint")).toEqual(cpRaw);
 

@@ -19,9 +19,9 @@
 // It exists solely to format and feed a string to `klog.Infof` once a second; with klog
 // itself dropped (docs/decisions/0070-witness-and-migrate-drop-otel-and-klog.md), the loop would
 // compute strings nobody reads, i.e. dead code, which AGENTS.md's "no invention" and "no
-// console.log" rules both argue against reinstating some other way. `progress()` itself is
-// still ported and directly tested below (its own doc comment says why), it is simply not
-// wired into a live printer here.
+// console.log" rules both argue against reinstating some other way. `progress`, the helper that
+// formatted those strings and had no other caller, is not ported either; see
+// docs/decisions/0181-dead-instrumentation-is-deleted.md.
 
 import { EntryBundleWidth, entriesPath } from "./api/layout/index.ts";
 import type { EntryBundleFetcherFunc } from "./client/index.ts";
@@ -31,25 +31,6 @@ import type { MigrationWriter } from "./internal/migrate/migrate.ts";
 import { type Antispam, defaultIDHasher, defaultMerkleLeafHasher, type Follower, type LogReader } from "./lifecycle.ts";
 import type { Driver } from "./log.ts";
 import { newCopier } from "./migrate.ts";
-
-/** errText renders an error the way Go's `%v` verb does. */
-function errText(err: unknown): string {
-	return err instanceof Error ? err.message : String(err);
-}
-
-/** formatType renders a value's runtime type the way Go's `%T` verb does, as closely as JavaScript allows. */
-function formatType(d: unknown): string {
-	if (d === null) {
-		return "<nil>";
-	}
-	if (d === undefined) {
-		return "undefined";
-	}
-	if (typeof d === "object") {
-		return d.constructor.name;
-	}
-	return typeof d;
-}
 
 /**
  * migrateLifecycle is the contract a storage `Driver` must satisfy to be usable as a
@@ -94,7 +75,10 @@ export async function newMigrationTarget(
 	} catch (err) {
 		throw new Error(`failed to init MigrationTarget lifecycle: ${errText(err)}`);
 	}
-	return new MigrationTarget(mw, r, opts.internal.followers);
+	// Port note: Go copies the slice header, whose length is fixed, so a follower appended to opts
+	// afterwards never reaches the target. A JavaScript array is shared by reference, so the port
+	// copies it to keep that.
+	return new MigrationTarget(mw, r, [...opts.internal.followers]);
 }
 
 /**
@@ -120,8 +104,17 @@ export function newMigrationOptions(): MigrationOptions {
  */
 export class MigrationOptions {
 	internal: {
+		/** entriesPath knows how to format entry bundle paths. */
 		entriesPath: (n: bigint, p: number) => string;
+		/**
+		 * bundleIDHasher knows how to create antispam leaf identities for entries in a serialised bundle.
+		 * This field's value must not be updated once configured or weird and probably unwanted antispam behaviour is likely to occur.
+		 */
 		bundleIDHasher: (bundle: Uint8Array) => Uint8Array[];
+		/**
+		 * bundleLeafHasher knows how to create Merkle leaf hashes for the entries in a serialised bundle.
+		 * This field's value must not be updated once configured or weird and probably unwanted integration behaviour is likely to occur.
+		 */
 		bundleLeafHasher: (bundle: Uint8Array) => Uint8Array[];
 		followers: Follower[];
 	};
@@ -159,8 +152,8 @@ export class MigrationOptions {
 	 * Note that since the tree is being _migrated_, the resulting target tree must match the structure
 	 * of the source tree and so no attempt is made to reject/deduplicate entries.
 	 */
-	withAntispam(as: Antispam | undefined): MigrationOptions {
-		if (as !== undefined) {
+	withAntispam(as: Antispam | null | undefined): MigrationOptions {
+		if (as !== null && as !== undefined) {
 			this.internal.followers.push(as.follower(this.internal.bundleIDHasher));
 		}
 		return this;
@@ -225,7 +218,10 @@ export class MigrationTarget {
 			});
 
 			for (const f of this.#followers) {
-				f.follow(this.#reader, cSignal);
+				// Go: `go f.Follow(cctx, mt.reader)`. Started as a detached task so that neither a
+				// synchronous throw nor a rejection reaches migrate; see Follower.follow's contract in
+				// lifecycle.ts and docs/decisions/0180-follower-follow-is-a-detached-task.md.
+				void Promise.resolve().then(() => f.follow(this.#reader, cSignal));
 				errG.go(awaitFollower(f, sourceSize, cSignal));
 			}
 
@@ -281,30 +277,21 @@ export function awaitFollower(f: Follower, i: bigint, signal: AbortSignal): () =
 	};
 }
 
-/**
- * progress renders a single "name: count (pct%)" progress fragment, e.g. `"copy: 12
- * (46.15%)"`.
- *
- * Port note: ported and tested directly even though nothing in this file currently calls
- * it (the printer loop that did is dropped -- this file's own header comment says why):
- * its exact output format may be relied on by tooling that scrapes a real Tessera binary's
- * logs, which is why it is kept and pinned by a test.
- */
-export function progress(n: string, p: bigint, total: bigint): string {
-	const pct = Number(p * 100n) / Number(total);
-	return `${n}: ${p} (${formatGoFloat2(pct)}%)`;
+/** errText renders an error the way Go's `%v` verb does. */
+function errText(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
 }
 
-/** formatGoFloat2 renders a float64 the way Go's `%.2f` verb does, including the +Inf/-Inf/NaN cases `.toFixed` does not spell the same way. */
-function formatGoFloat2(v: number): string {
-	if (Number.isNaN(v)) {
-		return "NaN";
+/** formatType renders a value's runtime type the way Go's `%T` verb does, as closely as JavaScript allows. */
+function formatType(d: unknown): string {
+	if (d === null) {
+		return "<nil>";
 	}
-	if (v === Number.POSITIVE_INFINITY) {
-		return "+Inf";
+	if (d === undefined) {
+		return "undefined";
 	}
-	if (v === Number.NEGATIVE_INFINITY) {
-		return "-Inf";
+	if (typeof d === "object") {
+		return d.constructor.name;
 	}
-	return v.toFixed(2);
+	return typeof d;
 }

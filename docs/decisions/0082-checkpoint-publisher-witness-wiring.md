@@ -1,6 +1,6 @@
 # ADR-0082: `CheckpointPublisher` wires the witness gateway; `WithWitnesses`/`WitnessOptions` ported in full
 
-- **Status:** proposed
+- **Status:** accepted; its empty checkpoint on early failure under FailOpen is superseded by ADR-0183 (proposed, review pending)
 - **Date:** 2026-08-19
 - **Author:** append-lifecycle agent
 - **Upstream reference:** `append_lifecycle.go:614-667` (`CheckpointPublisher`), `:810-841`
@@ -112,3 +112,21 @@ arguably an upstream bug worth reporting, not something the port should quietly 
   per ADR-0004. Agree the republish-vs-new-checkpoint decision lives in the storage drivers, not
   here. Depends on the parallel witness package's `PolicyNotSatisfiedError.checkpoint` shape, which I
   read directly and confirmed matches this call site.
+
+## Update (2026-10-02)
+
+Status changed from "proposed" to "accepted" on the strength of the approved verdict recorded
+above; no new review was made. Three things have changed since:
+
+- **FailOpen on an early failure.** The port no longer reproduces Go's empty (`nil`) checkpoint
+  when the gateway fails before witnessing: it publishes the log-signed checkpoint instead, as
+  hardening (ADR-0183). A `PolicyNotSatisfiedError` still yields its partial checkpoint.
+- **The witness timeout.** The Decision's "`context.WithTimeout(...)` becomes
+  `AbortSignal.any([signal, AbortSignal.timeout(timeout)])`" is out of date. The timeout is an
+  `AbortController` plus a `setTimeout`, and the `finally` after witnessing both clears the timer
+  and aborts the controller, which is what Go's `defer cancel()` does; `AbortSignal.timeout` would
+  keep its timer pending for the full timeout after every publication (see ADR-0004's update).
+- **Snapshot of the options.** Go's `CheckpointPublisher` has a value receiver, so the closure it
+  returns works on a copy of the options taken when it is called. The port now takes the same
+  snapshot of `newCP`, the witness group and a copy of the witness options, so later `with*` calls
+  no longer reach an existing publisher.

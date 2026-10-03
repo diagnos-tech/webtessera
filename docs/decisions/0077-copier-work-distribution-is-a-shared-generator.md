@@ -113,3 +113,11 @@ abstraction to get there.
   off-by-one, nothing skipped or duplicated. `migrate_test.ts`'s 4-worker "exactly once" case is
   the concrete proof the shared generator hands each item out once. Memory-bounding claim holds —
   lazy pull, nothing materialised ahead of demand.
+
+## Update (2026-10-02)
+
+The design is unchanged, but the names in it moved: `populateWork` is now a generator *method* of
+the copier, `copier.populateWork(from, treeSize)`, so that `src/migrate.ts` keeps Go's declaration
+order (Go declares it as a method of `copier`), and the copier and bundle types are spelled
+`copier` and `bundle`, as Go spells them, following the port's convention for unexported Go types
+that are exported only for tests (ADR-0010).

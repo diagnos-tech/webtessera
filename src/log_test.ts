@@ -17,7 +17,7 @@
 // byte-for-byte and personalities are documented to test for ErrPushback with errorIs
 // "whether or not it is wrapped".
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { errorIs } from "./internal/gostd/errors.ts";
 import { type Driver, ErrPushback, ErrPushbackAntispam, ErrPushbackIntegration } from "./log.ts";
 
@@ -50,8 +50,9 @@ describe("log", () => {
 		expect(errorIs(new Error("pushback"), ErrPushback)).toBe(false);
 	});
 
-	it("Driver accepts any value, mirroring Go's `type Driver any`", () => {
-		const values: Driver[] = [1, "x", {}, undefined, null, [1, 2, 3]];
-		expect(values).toHaveLength(6);
+	it("Driver is the top type, mirroring Go's `type Driver any`", () => {
+		// A compile-time assertion: tsc rejects this file if Driver is ever narrowed (or
+		// widened to `any`, which toEqualTypeOf<unknown> also rejects).
+		expectTypeOf<Driver>().toEqualTypeOf<unknown>();
 	});
 });
