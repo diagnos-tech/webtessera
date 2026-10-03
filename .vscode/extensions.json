@@ -1,0 +1,20 @@
+{
+  // Offered when the folder is opened. None is required: everything they do is also done by a
+  // command (`bun run lint:fix`, `bun run test:unit`, `gofmt`) and by the pre-commit hook.
+  "recommendations": [
+    // Formats and lints on save with the Biome pinned in package.json (see .vscode/settings.json).
+    "biomejs.biome",
+    // Runs and debugs the Vitest suites from the test explorer. The unit tests need nothing else;
+    // the Chromium and workerd configurations have their own scripts (`bun run test:browser`,
+    // `bun run test:workers`).
+    "vitest.explorer",
+    // Formats the Go in fixtures/gen and interop with gofmt. Only needed when touching those.
+    "golang.go",
+    // Bun's debugger, and a readable view of bun.lock.
+    "oven.bun-vscode",
+    // Applies .editorconfig, which covers the files Biome does not format (Markdown, YAML, Go).
+    "editorconfig.editorconfig"
+  ],
+  // They would reformat or lint the same files differently from Biome.
+  "unwantedRecommendations": ["esbenp.prettier-vscode", "dbaeumer.vscode-eslint"]
+}

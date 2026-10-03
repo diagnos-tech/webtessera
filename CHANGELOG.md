@@ -165,19 +165,19 @@ how to reproduce each check.
 
 - **Golden fixtures**: a Go generator that executes the real Tessera and records its output, including
   complete logs with their `.state/` files, and the committed JSON the TypeScript tests assert against
-  byte for byte. `pnpm upstream` checks out the pinned Tessera source; `pnpm fixtures` regenerates the
+  byte for byte. `bun run upstream` checks out the pinned Tessera source; `bun run fixtures` regenerates the
   fixtures reproducibly, and CI fails if they change.
 - **A golden suite for every backend**: the same suite runs on memory, IndexedDB and each SQLite engine, in
   every runtime that engine supports (Node, Chromium, workerd), and requires the backend to store
   exactly the files Tessera's POSIX driver stores for the fixture logs, and to carry on logs Go wrote
   (ADR-0160, ADR-0161).
-- **Go interop**: `pnpm interop` has Tessera's Go code verify and extend logs that webtessera wrote on
+- **Go interop**: `bun run interop` has Tessera's Go code verify and extend logs that webtessera wrote on
   every backend that runs in Node, and has webtessera verify and extend logs that Go wrote, byte for byte
   (ADR-0162).
 - **Differential corpora**: Go's verdicts, error text and outputs on large sets of generated inputs,
   most of them malformed, replayed in Node, Chromium and workerd; every difference is either a named
   divergence with an ADR or a failure.
-- **Test parity**: `pnpm test:parity` lists every test, example, fuzz target and benchmark of Tessera and
+- **Test parity**: `bun run test:parity` lists every test, example, fuzz target and benchmark of Tessera and
   of the vendored modules, and fails unless each has a passing TypeScript test of the same name or an
   allow-list entry that cites the ADR that leaves it out (ADR-0217).
 

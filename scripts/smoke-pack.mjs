@@ -17,7 +17,7 @@
 //
 // Usage:
 //
-//     pnpm pack --pack-destination /tmp/pack
+//     bun pm pack --destination /tmp/pack
 //     node scripts/smoke-pack.mjs /tmp/pack/webtessera-<version>.tgz
 //
 // It installs the tarball into a throwaway project, then checks that:
@@ -101,7 +101,13 @@ try {
 	const builtins = new Set(builtinModules.map((m) => m.replace(/^node:/, "").split("/")[0]));
 	const importRe = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)["']((?:node:)?[A-Za-z_][\w/.-]*)["']/g;
 	for (const f of files.filter((f) => f.endsWith(".js"))) {
-		const src = readFileSync(join(pkgDir, f), "utf8");
+		// Doc comments show how to call the package from Node ("import { DatabaseSync } from
+		// "node:sqlite""), which is the point of them, so they are blanked out before scanning.
+		// This is a heuristic (a string literal holding "/*" would hide what follows it); the
+		// precise check is Biome's noNodejsModules rule over src/, which sees real imports only.
+		const src = readFileSync(join(pkgDir, f), "utf8")
+			.replace(/\/\*[\s\S]*?\*\//g, "")
+			.replace(/^\s*\/\/.*$/gm, "");
 		for (const m of src.matchAll(importRe)) {
 			const spec = m[1];
 			if (spec.startsWith("node:") || builtins.has(spec.split("/")[0])) {

@@ -45,7 +45,7 @@ Every runtime runs every fixture size; the largest takes under two seconds in Ch
 
 ### Go interop harness
 
-`pnpm interop` builds two Go tools on the pinned Tessera checkout:
+`bun run interop` builds two Go tools on the pinned Tessera checkout:
 
 - **`interop/produce`** writes a log with Tessera's real POSIX driver, in batches ending at given sizes, and records
   every checkpoint it publishes. Pointed at an existing log, it resumes it.
@@ -147,7 +147,7 @@ divergence says otherwise. They are the permanent form of the fidelity audits' G
 
 ### How they are generated
 
-`pnpm fixtures` runs them with every other fixture, so CI's "fixtures are reproducible" job also proves they are
+`bun run fixtures` runs them with every other fixture, so CI's "fixtures are reproducible" job also proves they are
 what the pinned Go code produces. Each corpus has its own seed; inputs are built in Go (the adversarial Ed25519
 vectors with `filippo.io/edwards25519`, the code `crypto/ed25519` is built from) and every recorded value is
 upstream's output. Records are compact JSON arrays, one per line, whose columns each file names. `go run .
@@ -157,9 +157,9 @@ that is not committed.
 ### How they are replayed
 
 The suites live in `src/testonly/testing/differential/`. They run on Node from the `*_differential_test.ts` file
-next to the code they cover (`pnpm test:unit`), and all of them again in Chromium
-(`src/testonly/differential_browser_test.ts`, `pnpm test:browser`) and workerd
-(`src/testonly/differential_workers_test.ts`, `pnpm test:workers`), because several stand-ins depend on the
+next to the code they cover (`bun run test:unit`), and all of them again in Chromium
+(`src/testonly/differential_browser_test.ts`, `bun run test:browser`) and workerd
+(`src/testonly/differential_workers_test.ts`, `bun run test:workers`), because several stand-ins depend on the
 runtime: `validUTF8` and `fromUTF8` on `TextDecoder`, `quote` on the runtime's Unicode property tables, the
 witness URL checks on the platform URL parser. A failing suite prints how many records it replayed and
 mismatched, how often each divergence applied, and the first mismatches with their inputs.
@@ -170,12 +170,12 @@ A record may differ from Go only under an entry of `DIVERGENCES` in
 [`src/testonly/testing/differential.ts`](../src/testonly/testing/differential.ts). Each entry names the ADRs that
 decided it and the exact behaviour the port shows instead, and a suite applies it only when that behaviour is
 what it observes; any other difference is a failure. Each suite lists the entries it may apply and those it must
-apply at least once. ADR-0216 explains each entry; `pnpm test:parity` fails if one cites a missing ADR. Adding an
+apply at least once. ADR-0216 explains each entry; `bun run test:parity` fails if one cites a missing ADR. Adding an
 entry needs an ADR, like any divergence.
 
 ### Test parity
 
-`pnpm test:parity` ([`scripts/test-parity.mjs`](../scripts/test-parity.mjs), ADR-0217) lists every Go test,
+`bun run test:parity` ([`scripts/test-parity.mjs`](../scripts/test-parity.mjs), ADR-0217) lists every Go test,
 example, fuzz target and benchmark of Tessera and of the vendored modules (`go test -list` merged with a static
 scan), reads vitest's JSON report, and fails unless each one has a passing TypeScript test of the same name in
 the mirrored directory or an entry in [`scripts/test-parity-allowlist.json`](../scripts/test-parity-allowlist.json)
@@ -186,26 +186,26 @@ failing); `--verbose` adds the allow-listed names, `--report vitest.json` reuses
 
 | Job | Command | Needs |
 | --- | --- | --- |
-| Fixtures are reproducible | `pnpm fixtures`, then `git status --porcelain fixtures/data` must be empty (golden fixtures and differential corpora) | Go 1.24, `pnpm upstream` |
-| Go and TypeScript interoperate | `pnpm build && pnpm interop` | Go 1.24, `pnpm upstream`, `pnpm install` |
-| Unit (Node 22, 24) | `pnpm test:unit` (golden suite: memory, IndexedDB on fake-indexeddb; every differential corpus, `*_differential_test.ts`) | `pnpm install` |
-| Browser (Chromium) | `pnpm test:browser` (golden suite: IndexedDB; every differential corpus, `src/testonly/differential_browser_test.ts`) | Playwright Chromium |
-| Workers (workerd) | `pnpm test:workers` (golden suite: memory, and the SQLite engines of workerd; every differential corpus, `src/testonly/differential_workers_test.ts`) | `pnpm install` |
-| Test parity | `pnpm test:parity` | Go 1.24, `pnpm upstream`, `pnpm install`, Go module proxy on first run |
+| Fixtures are reproducible | `bun run fixtures`, then `git status --porcelain fixtures/data` must be empty (golden fixtures and differential corpora) | Go 1.24, `bun run upstream` |
+| Go and TypeScript interoperate | `bun run build && bun run interop` | Go 1.24, `bun run upstream`, `bun install` |
+| Unit (Node 22, 24) | `bun run test:unit` (golden suite: memory, IndexedDB on fake-indexeddb; every differential corpus, `*_differential_test.ts`) | `bun install` |
+| Browser (Chromium) | `bun run test:browser` (golden suite: IndexedDB; every differential corpus, `src/testonly/differential_browser_test.ts`) | Playwright Chromium |
+| Workers (workerd) | `bun run test:workers` (golden suite: memory, and the SQLite engines of workerd; every differential corpus, `src/testonly/differential_workers_test.ts`) | `bun install` |
+| Test parity | `bun run test:parity` | Go 1.24, `bun run upstream`, `bun install`, Go module proxy on first run |
 
 ## Reproducing locally
 
 ```sh
-pnpm install
-pnpm fixtures && git status --porcelain fixtures/data   # nothing printed: the fixtures are Go's
-pnpm test:unit                                          # includes the golden suite on Node
-pnpm test:browser                                       # PLAYWRIGHT_CHROMIUM_EXECUTABLE=... to use a local Chromium
-pnpm test:workers
-pnpm test:parity                                        # every upstream Go test has a TypeScript counterpart
-pnpm interop                                            # checks out upstream and builds dist/ itself
+bun install
+bun run fixtures && git status --porcelain fixtures/data   # nothing printed: the fixtures are Go's
+bun run test:unit                                          # includes the golden suite on Node
+bun run test:browser                                       # PLAYWRIGHT_CHROMIUM_EXECUTABLE=... to use a local Chromium
+bun run test:workers
+bun run test:parity                                        # every upstream Go test has a TypeScript counterpart
+bun run interop                                            # checks out upstream and builds dist/ itself
 ```
 
-`pnpm interop` accepts `--seed N`, `--size1 N --size2 N` (for example `--size1 3000 --size2 5000` for a quick
+`bun run interop` accepts `--seed N`, `--size1 N --size2 N` (for example `--size1 3000 --size2 5000` for a quick
 run), `--backend NAME` (repeatable), `--keep` to keep the logs, and `--no-build` to reuse an existing `dist/`. It
 needs Go 1.24 or later on `PATH` and, the first time, access to the Go module proxy.
 

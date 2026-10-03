@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Generates a signing key for the log: `pnpm keygen <origin>`, where origin names the
+// Generates a signing key for the log: `bun run keygen <origin>`, where origin names the
 // log, conventionally the URL it is served at without the scheme
 // (`log.example.com/v1`). The private key is the LOG_PRIVATE_KEY secret; the public
 // key is what clients verify checkpoints with.
@@ -21,7 +21,7 @@ import { generateKey } from "webtessera/note";
 
 const origin = process.argv[2];
 if (origin === undefined || origin === "") {
-	process.stderr.write("usage: pnpm keygen <origin>, e.g. pnpm keygen log.example.com/v1\n");
+	process.stderr.write("usage: bun run keygen <origin>, e.g. bun run keygen log.example.com/v1\n");
 	process.exit(2);
 }
 

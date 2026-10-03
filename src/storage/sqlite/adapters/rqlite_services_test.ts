@@ -15,7 +15,7 @@
 // Runs the SQLite ObjectStore against a real rqlite node, named by RQLITE_URL (for example
 // http://127.0.0.1:4001). Every store keeps its log in a namespace of its own, so the
 // suite needs nothing of the node but that it is up, and leaves its tables behind.
-// `pnpm test:services` runs it; without RQLITE_URL it fails rather than skips.
+// `bun run test:services` runs it; without RQLITE_URL it fails rather than skips.
 
 import { describe, expect, it } from "vitest";
 import { describeObjectStoreConformance } from "../../objectstore/testing/conformance.ts";

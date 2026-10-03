@@ -16,7 +16,7 @@
 // by S3_ENDPOINT, S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY (MinIO in
 // CI; AWS S3, Cloudflare R2, Google Cloud Storage, Backblaze B2 and others work the same).
 // Every run writes under a prefix of its own and leaves its objects behind. The bucket is
-// created if it does not exist and the credentials allow it. `pnpm test:services` runs it;
+// created if it does not exist and the credentials allow it. `bun run test:services` runs it;
 // without the variables it fails rather than skips.
 
 import { sha256 } from "@noble/hashes/sha2.js";
