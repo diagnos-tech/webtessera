@@ -44,7 +44,7 @@ Every runtime runs every fixture size; the largest takes under two seconds in Ch
 
 ### Go interop harness
 
-`pnpm interop` builds two Go tools on the pinned Tessera checkout:
+`bun run interop` builds two Go tools on the pinned Tessera checkout:
 
 - **`interop/produce`** writes a log with Tessera's real POSIX driver, in batches ending at given sizes, and records
   every checkpoint it publishes. Pointed at an existing log, it resumes it.
@@ -116,24 +116,24 @@ The whole run takes about 90 seconds for the four backends.
 
 | Job | Command | Needs |
 | --- | --- | --- |
-| Fixtures are reproducible | `pnpm fixtures`, then `git status --porcelain fixtures/data` must be empty | Go 1.24, `pnpm upstream` |
-| Go and TypeScript interoperate | `pnpm build && pnpm interop` | Go 1.24, `pnpm upstream`, `pnpm install` |
-| Unit (Node 22, 24) | `pnpm test:unit` (golden suite: memory, IndexedDB on fake-indexeddb) | `pnpm install` |
-| Browser (Chromium) | `pnpm test:browser` (golden suite: IndexedDB) | Playwright Chromium |
-| Workers (workerd) | `pnpm test:workers` (golden suite: memory, and the SQLite engines of workerd) | `pnpm install` |
+| Fixtures are reproducible | `bun run fixtures`, then `git status --porcelain fixtures/data` must be empty | Go 1.24, `bun run upstream` |
+| Go and TypeScript interoperate | `bun run build && bun run interop` | Go 1.24, `bun run upstream`, `bun install` |
+| Unit (Node 22, 24) | `bun run test:unit` (golden suite: memory, IndexedDB on fake-indexeddb) | `bun install` |
+| Browser (Chromium) | `bun run test:browser` (golden suite: IndexedDB) | Playwright Chromium |
+| Workers (workerd) | `bun run test:workers` (golden suite: memory, and the SQLite engines of workerd) | `bun install` |
 
 ## Reproducing locally
 
 ```sh
-pnpm install
-pnpm fixtures && git status --porcelain fixtures/data   # nothing printed: the fixtures are Go's
-pnpm test:unit                                          # includes the golden suite on Node
-pnpm test:browser                                       # PLAYWRIGHT_CHROMIUM_EXECUTABLE=... to use a local Chromium
-pnpm test:workers
-pnpm interop                                            # checks out upstream and builds dist/ itself
+bun install
+bun run fixtures && git status --porcelain fixtures/data   # nothing printed: the fixtures are Go's
+bun run test:unit                                          # includes the golden suite on Node
+bun run test:browser                                       # PLAYWRIGHT_CHROMIUM_EXECUTABLE=... to use a local Chromium
+bun run test:workers
+bun run interop                                            # checks out upstream and builds dist/ itself
 ```
 
-`pnpm interop` accepts `--seed N`, `--size1 N --size2 N` (for example `--size1 3000 --size2 5000` for a quick
+`bun run interop` accepts `--seed N`, `--size1 N --size2 N` (for example `--size1 3000 --size2 5000` for a quick
 run), `--backend NAME` (repeatable), `--keep` to keep the logs, and `--no-build` to reuse an existing `dist/`. It
 needs Go 1.24 or later on `PATH` and, the first time, access to the Go module proxy.
 

@@ -46,8 +46,8 @@ an ADR under `docs/decisions/`, and every upstream file has a row in `docs/PORTI
 - **Test helpers**: `webtessera/testonly` provides `newTestLog`, a ready-made log on the memory driver with
   its own signing key, for testing code built on webtessera, as Tessera's `testonly` package does for Go.
 - **Golden fixtures** (`fixtures/`): a Go generator that executes the real Tessera and records its
-  output, and the committed JSON the TypeScript tests assert against byte for byte. `pnpm upstream`
-  checks out the pinned Tessera source; `pnpm fixtures` regenerates the fixtures reproducibly.
+  output, and the committed JSON the TypeScript tests assert against byte for byte. `bun run upstream`
+  checks out the pinned Tessera source; `bun run fixtures` regenerates the fixtures reproducibly.
 - **Examples** (`examples/`): a browser demo (a log in IndexedDB, in a tab) and a deployable Cloudflare
   Worker that appends over HTTP and serves the tlog-tiles read API from a log in a Durable Object.
 - **Documentation and project tooling**: contributor guide, `AGENTS.md` (the fidelity rules, also

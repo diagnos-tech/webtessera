@@ -25,7 +25,7 @@ Closes #
 - [ ] Every Go **test** file in scope has a TS counterpart with the same cases (ported first, seen failing, then made green)
 - [ ] File names, identifier mapping and declaration order follow Go (AGENTS.md §3.1–§3.3); upstream comments are preserved
 - [ ] Errors are thrown with Go's exact message text; `uint64` is `bigint`; Merkle code stays synchronous
-- [ ] Golden fixtures cover everything byte-producing, and `pnpm fixtures` leaves `git status --porcelain fixtures/data` empty
+- [ ] Golden fixtures cover everything byte-producing, and `bun run fixtures` leaves `git status --porcelain fixtures/data` empty
 - [ ] `docs/PORTING-MAP.md` updated
 - [ ] ADRs written for every divergence and every omission; none left unreviewed
 - [ ] No `any`, `@ts-expect-error`, `.skip`, commented-out code or `console.log`
@@ -38,11 +38,11 @@ Closes #
 <!-- Paste the real output. Do not describe a test as passing unless you ran it. -->
 
 ```
-pnpm lint:
-pnpm typecheck:
-pnpm test:unit:
-pnpm test:browser / pnpm test:workers (if src/storage/ or anything runtime-sensitive changed):
-pnpm fixtures (if the generator changed):
+bun run lint:
+bun run typecheck:
+bun run test:unit:
+bun run test:browser / bun run test:workers (if src/storage/ or anything runtime-sensitive changed):
+bun run fixtures (if the generator changed):
 ```
 
 ## Not done
