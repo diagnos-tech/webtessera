@@ -56,8 +56,7 @@ const databases = new WeakMap<DurableObjectStorageLike, SqlDatabase>();
  *
  * The class must be declared under `new_sqlite_classes`: KV-backed objects have no SQL
  * API. Rows and BLOBs are limited to 2,000,000 bytes, which the default maxChunkBytes
- * respects. Calling it again with the same storage returns the same SqlDatabase, so that
- * every store in the object shares its locks.
+ * respects. Calling it again with the same storage returns the same SqlDatabase.
  */
 export function fromDurableObjectStorage(storage: DurableObjectStorageLike): SqlDatabase {
 	return memoize(databases, storage, () => {

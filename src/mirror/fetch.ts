@@ -15,7 +15,9 @@
 // This file has no upstream counterpart. See docs/decisions/0176-mirror-verification.md.
 
 import type { FetchFn } from "../client/fetcher.ts";
+import { positiveInteger } from "../http/handler.ts";
 import { concatBytes } from "../internal/gostd/bytes.ts";
+import { SentinelError } from "../internal/gostd/errors.ts";
 
 /**
  * MaxResourceBytes is the size of the largest resource a tlog-tiles log can serve: a full
@@ -41,10 +43,11 @@ export interface SourceFetchOptions {
  *     streaming, so that a hostile source cannot exhaust the mirror's memory.
  *
  * Responses other than 200 pass through unread, for the fetcher to interpret (a 404 is how
- * a log says a resource does not exist).
+ * a log says a resource does not exist). It throws a RangeError if maxBytes is not a
+ * positive integer.
  */
 export function newSourceFetch(options: SourceFetchOptions = {}): FetchFn {
-	const maxBytes = options.maxBytes ?? MaxResourceBytes;
+	const maxBytes = positiveInteger("newSourceFetch: maxBytes", options.maxBytes ?? MaxResourceBytes);
 	return async (input: string, init?: RequestInit): Promise<Response> => {
 		// Called through a local so that the global fetch has no receiver; see
 		// docs/decisions/0131-httpfetcher-fetch-runtime-fidelity.md.
@@ -63,7 +66,15 @@ export function newSourceFetch(options: SourceFetchOptions = {}): FetchFn {
 }
 
 /**
- * readCapped reads a response body, throwing as soon as it is known to exceed max bytes.
+ * errResponseTooLarge is the cause of the error readCapped throws for a body over its limit.
+ *
+ * @internal Shared with the S3 sink.
+ */
+export const errResponseTooLarge = new SentinelError("response too large");
+
+/**
+ * readCapped reads a response body, throwing an error caused by errResponseTooLarge as
+ * soon as it is known to exceed max bytes.
  *
  * @internal Shared with the S3 sink.
  */
@@ -71,7 +82,7 @@ export async function readCapped(r: Response, max: number): Promise<Uint8Array> 
 	const declared = Number(r.headers.get("Content-Length") ?? "0");
 	if (declared > max) {
 		r.body?.cancel().catch(() => undefined);
-		throw new Error(`response of ${declared} bytes exceeds the ${max}-byte limit`);
+		throw new Error(`response of ${declared} bytes exceeds the ${max}-byte limit`, { cause: errResponseTooLarge });
 	}
 	if (r.body === null) {
 		return new Uint8Array(0);
@@ -87,7 +98,7 @@ export async function readCapped(r: Response, max: number): Promise<Uint8Array> 
 		size += value.length;
 		if (size > max) {
 			await reader.cancel();
-			throw new Error(`response exceeds the ${max}-byte limit`);
+			throw new Error(`response exceeds the ${max}-byte limit`, { cause: errResponseTooLarge });
 		}
 		chunks.push(value);
 	}

@@ -14,9 +14,10 @@
 
 // This file has no upstream counterpart. It adapts rqlite, the distributed database
 // built on SQLite and Raft, to SqlDatabase through its HTTP API. See
-// docs/decisions/0150-sqlite-object-store.md.
+// docs/decisions/0150-sqlite-object-store.md and
+// docs/decisions/0213-rqlite-and-s3-requests-omit-credentials-and-refuse-redirects.md.
 
-import type { FetchFn } from "../../../client/fetcher.ts";
+import type { FetchFn, omitCredentials } from "../../../client/fetcher.ts";
 import { fromBase64, toHex } from "../../../internal/gostd/bytes.ts";
 import type { SqlDatabase, SqlRow, SqlStatement, SqlValue } from "../database.ts";
 import { normalizeValue } from "./normalize.ts";
@@ -39,9 +40,24 @@ export interface RqliteOptions {
 	readonly fetch?: FetchFn;
 	/** headers are added to every request, for example an Authorization header for rqlite's basic auth. */
 	readonly headers?: Readonly<Record<string, string>>;
-	/** level is the read consistency level of queries. It defaults to "linearizable". */
+	/**
+	 * level is the read consistency level of queries: "linearizable", the default, or
+	 * "strong". Anything else is refused.
+	 */
 	readonly level?: RqliteReadLevel;
+	/**
+	 * followRedirects lets requests follow HTTP redirects. By default a redirect is
+	 * refused, and the request fails: rqlite forwards requests to its leader itself and
+	 * redirects only when asked to, so a redirect means something between the client and
+	 * the cluster is sending it, and the request with it, elsewhere. Following one would
+	 * resend the headers, an Authorization header included, wherever the redirect points.
+	 * Set it only for a deployment that redirects on purpose.
+	 */
+	readonly followRedirects?: boolean;
 }
+
+// readLevels are the read consistency levels fromRqlite accepts; see RqliteReadLevel.
+const readLevels: ReadonlySet<string> = new Set<RqliteReadLevel>(["linearizable", "strong"]);
 
 /** rqliteResult is one statement's entry in an rqlite response. */
 interface rqliteResult {
@@ -57,9 +73,10 @@ interface rqliteResult {
  *	const driver = await newSqliteDriver({ database: fromRqlite({ url: "http://localhost:4001" }) });
  *
  * Every statement goes through rqlite's unified `/db/request` endpoint, and a batch as one
- * transaction. Reads are linearizable by default. A write resolves once the cluster has
- * committed it to its Raft log, which a quorum of nodes has persisted, and applied it.
- * It needs rqlite 8.32 or later.
+ * transaction. Reads are linearizable by default, and never weaker than "strong". A write
+ * resolves once the cluster has committed it to its Raft log, which a quorum of nodes has
+ * persisted, and applied it. It needs rqlite 8.32 or later. Requests carry no ambient
+ * credentials (cookies) and do not follow redirects unless opts.followRedirects is set.
  *
  * Every client of the cluster reaches the same data, so stores default to "lease"
  * locking, timed by the store's clock rather than the database's: rqlite replicates
@@ -77,14 +94,34 @@ interface rqliteResult {
 export function fromRqlite(opts: RqliteOptions): SqlDatabase {
 	const base = opts.url.replace(/\/+$/, "");
 	const f: FetchFn = opts.fetch ?? ((input: string, init?: RequestInit) => fetch(input, init));
-	const level = opts.level ?? "linearizable";
+	const level: string = opts.level ?? "linearizable";
+	if (!readLevels.has(level)) {
+		throw new RangeError(
+			`rqlite: read consistency level must be "linearizable" or "strong", got ${JSON.stringify(level)}; ` +
+				"weaker levels can read stale tree state and assign an index twice",
+		);
+	}
+	const redirect = opts.followRedirects === true ? "follow" : "manual";
 	const send = async (statements: readonly SqlStatement[], transaction: boolean): Promise<SqlRow[][]> => {
-		const url = `${base}/db/request?level=${level}${transaction ? "&transaction" : ""}`;
-		const res = await f(url, {
+		const url = `${base}/db/request?level=${encodeURIComponent(level)}${transaction ? "&transaction" : ""}`;
+		// Like every request the library makes, it carries no ambient credentials; see
+		// docs/decisions/0197-fetch-credentials-and-redirects.md. "manual" rather than
+		// "error" refuses a redirect, because workerd rejects "error".
+		const init: omitCredentials = {
 			method: "POST",
 			headers: { ...opts.headers, "Content-Type": "application/json" },
 			body: JSON.stringify(statements.map((s) => [s.sql, ...s.params.map(encodeParam)])),
-		});
+			credentials: "omit",
+			redirect,
+		};
+		const res = await f(url, init);
+		// A browser reports a redirect it did not follow as an "opaqueredirect" response
+		// with status 0; other runtimes return the 3xx response itself. (workerd's Response
+		// type has no "opaqueredirect" member, hence the widening to string.)
+		if (redirect === "manual" && (String(res.type) === "opaqueredirect" || (res.status >= 300 && res.status < 400))) {
+			await res.body?.cancel().catch(() => undefined);
+			throw new Error(`rqlite: ${url} replied with a redirect, which is not followed: ${res.status}`);
+		}
 		const text = await res.text();
 		if (!res.ok) {
 			throw new Error(`rqlite: ${url}: HTTP ${res.status}: ${text.trim()}`);

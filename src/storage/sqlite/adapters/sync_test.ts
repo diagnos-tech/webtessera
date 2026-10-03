@@ -15,6 +15,8 @@
 // fromSqliteSync on node:sqlite, and on a stand-in for better-sqlite3's statement API, which
 // refuses all() for statements that return no rows.
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { SqlValue } from "../database.ts";
@@ -73,13 +75,37 @@ describe("fromSqliteSync", () => {
 		expect(pragma(db, "busy_timeout")).toBe(123);
 	});
 
-	it("returns one SqlDatabase per connection, defaulting to local locking on the database's clock", () => {
+	it("returns one SqlDatabase per connection, timing leases on the database's clock", () => {
 		const db = new DatabaseSync(":memory:");
 		const a = fromSqliteSync(db);
 		expect(fromSqliteSync(db)).toBe(a);
 		expect(fromSqliteSync(new DatabaseSync(":memory:"))).not.toBe(a);
-		expect(a.defaultLocking).toBe("local");
 		expect(a.leaseClock).toBe("database");
+	});
+
+	it("defaults to local locking only for a database no other connection can open", () => {
+		const dir = mkdtempSync(`${tmpdir()}/webtessera-sync-`);
+		try {
+			const cases = [
+				{ path: ":memory:", want: "local" },
+				{ path: "", want: "local" },
+				{ path: `${dir}/log.db`, want: "lease" },
+				{ path: `file:${dir}/uri.db`, want: "lease" },
+				{ path: "file::memory:", want: "local" },
+			];
+			for (const c of cases) {
+				const db = new DatabaseSync(c.path);
+				expect(fromSqliteSync(db).defaultLocking, c.path).toBe(c.want);
+				// node:sqlite's own report of the file agrees.
+				expect(db.location() === null ? "local" : "lease", c.path).toBe(c.want);
+				db.close();
+			}
+			// A binding the adapter knows nothing about is judged by SQLite's answer alone.
+			expect(fromSqliteSync(betterSqlite3Like(new DatabaseSync(`${dir}/other.db`))).defaultLocking).toBe("lease");
+			expect(fromSqliteSync(betterSqlite3Like(new DatabaseSync(":memory:"))).defaultLocking).toBe("local");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("runs statements that return no rows through run() where all() refuses them", async () => {

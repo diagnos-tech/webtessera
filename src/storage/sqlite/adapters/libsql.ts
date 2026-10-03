@@ -14,10 +14,12 @@
 
 // This file has no upstream counterpart. It adapts a libSQL client (@libsql/client),
 // local or remote (sqld, Turso), to SqlDatabase. See
-// docs/decisions/0150-sqlite-object-store.md.
+// docs/decisions/0150-sqlite-object-store.md and
+// docs/decisions/0210-sqlite-locking-fails-closed.md.
 
-import type { SqlDatabase, SqlRow, SqlStatement, SqlValue } from "../database.ts";
+import type { SqlDatabase, SqliteLocking, SqlRow, SqlStatement, SqlValue } from "../database.ts";
 import { memoize, normalizeValue } from "./normalize.ts";
+import { mainDatabaseLocking } from "./syncengine.ts";
 
 /** LibsqlStatementLike is the statement shape fromLibsql passes to the client. */
 export interface LibsqlStatementLike {
@@ -51,23 +53,38 @@ const databases = new WeakMap<LibsqlClientLike, SqlDatabase>();
  *	const client = createClient({ url: "libsql://my-db.turso.io", authToken });
  *	const driver = await newSqliteDriver({ database: fromLibsql(client) });
  *
- * A remote database (`libsql:`, `https:`, `wss:` URLs) is shared by every client of the
- * server, so stores over one default to "lease" locking; stores over a local `file:`
- * database default to "local". Leases are timed by the database's clock: a libSQL server
- * runs every write on its primary and replicates the resulting pages, not the
- * statements, so the clock is read once. A batch runs as one "write" transaction, and a
- * write resolves once the server, or the local database, has committed it.
+ * Locking fails closed. Stores default to "lease" locking, which excludes every client of
+ * the database, for a remote database (`libsql:`, `https:`, `wss:` URLs), which every
+ * client of the server shares, for a local `file:` database, which other processes may
+ * open, and for an embedded replica (a `file:` URL with a `syncUrl`), whose writes go to
+ * its remote primary. Only an in-memory database, which the adapter recognises by asking
+ * it, defaults to "local".
  *
- * Calling it again with the same client returns the same SqlDatabase, so that every
- * store over the client shares its locks. The client stays the caller's to close.
+ * Leases are timed by the database's clock: a libSQL server runs every write on its
+ * primary and replicates the resulting pages, not the statements, so the clock is read
+ * once. A batch runs as one "write" transaction, and a write resolves once the server, or
+ * the local database, has committed it. An embedded replica answers reads from its local
+ * copy, which lags writes made through other clients, so it is not a safe home for a log
+ * that more than one client writes, with any locking: see
+ * docs/decisions/0153-sqlite-durability.md.
+ *
+ * Calling it again with the same client returns the same SqlDatabase. The client stays
+ * the caller's to close.
  */
 export function fromLibsql(client: LibsqlClientLike): SqlDatabase {
 	return memoize(databases, client, () => {
 		const statement = (s: SqlStatement): LibsqlStatementLike => ({ sql: s.sql, args: [...s.params] });
+		const query = async (s: SqlStatement): Promise<SqlRow[]> => rowsOf(await client.execute(statement(s)));
 		return {
-			defaultLocking: client.protocol === "file" ? "local" : "lease",
+			// A client's protocol says only how it connects: "file" is a local database or an
+			// embedded replica alike, so the database is asked what it is.
+			defaultLocking:
+				client.protocol === "file"
+					? async (): Promise<SqliteLocking> =>
+							mainDatabaseLocking(await query({ sql: "PRAGMA database_list", params: [] }))
+					: "lease",
 			leaseClock: "database",
-			query: async (s) => rowsOf(await client.execute(statement(s))),
+			query,
 			batch: async (statements) => (await client.batch(statements.map(statement), "write")).map(rowsOf),
 		};
 	});

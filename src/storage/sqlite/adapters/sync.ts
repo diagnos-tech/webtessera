@@ -14,7 +14,8 @@
 
 // This file has no upstream counterpart. It adapts the synchronous SQLite bindings of
 // server runtimes, node:sqlite (Node.js and Deno), bun:sqlite and better-sqlite3, to
-// SqlDatabase. See docs/decisions/0150-sqlite-object-store.md.
+// SqlDatabase. See docs/decisions/0150-sqlite-object-store.md and
+// docs/decisions/0210-sqlite-locking-fails-closed.md.
 
 import type { SqlDatabase, SqlValue } from "../database.ts";
 import { memoize } from "./normalize.ts";
@@ -59,11 +60,14 @@ const databases = new WeakMap<SqliteSyncDatabase, SqlDatabase>();
  *
  * It raises the connection's `synchronous` setting to FULL if it is lower, so that every
  * write has reached the disk when it resolves, and gives it a busy timeout if it has none.
- * Stores default to "local" locking, which excludes the other stores of this process;
- * choose "lease" locking when several processes open the same file.
  *
- * Calling it again with the same connection returns the same SqlDatabase, so that every
- * store over the connection shares its locks. The connection stays the caller's to close.
+ * Locking fails closed. Stores over a database file default to "lease" locking, which
+ * excludes every connection and process that opens the file; stores over an in-memory or
+ * temporary database, which no other process can open, default to "local". Pass
+ * `locking: "local"` for a file only to declare that this process is its only writer.
+ *
+ * Calling it again with the same connection returns the same SqlDatabase. The connection
+ * stays the caller's to close.
  */
 export function fromSqliteSync(db: SqliteSyncDatabase): SqlDatabase {
 	return memoize(databases, db, () => {

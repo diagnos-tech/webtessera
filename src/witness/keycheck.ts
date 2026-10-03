@@ -16,6 +16,7 @@
 
 import { concatBytes, readUint64BE, toUTF8 } from "../internal/gostd/bytes.ts";
 import type { Signer, Verifier } from "../vendor/note/note.ts";
+import { echo } from "./errors.ts";
 
 // probeText is a checkpoint-shaped message (cosignature/v1 needs at least three lines) that
 // no log would publish; the witness signs it once to learn what its keys' signatures look like.
@@ -24,6 +25,48 @@ const probeText = toUTF8("webtessera/witness key separation probe\n0\nAAAAAAAAAA
 // cosignatureV1Size is the size of a cosignature/v1 signature: an 8-byte timestamp and a
 // 64-byte Ed25519 signature.
 const cosignatureV1Size = 72;
+
+/**
+ * checkCosigner throws unless signer makes cosignature/v1 signatures
+ * (https://c2sp.org/tlog-cosignature), the only kind Tessera's witness policies verify. A
+ * signer of any other kind would answer add-checkpoint with signatures no log can use; a
+ * plain Ed25519 note signer, worse, with what reads as the witness key's own signed note
+ * over whatever text the request carried, extension lines included.
+ *
+ * It signs a probe once. The signature must have the cosignature/v1 shape, a positive
+ * 8-byte timestamp followed by a 64-byte Ed25519 signature; and when the signer can produce
+ * its verifier, as one from newSignerForCosignatureV1 can, that verifier must carry the
+ * signer's name and key hash and accept the signature. A custom signer without a verifier
+ * is held to the shape alone.
+ */
+export function checkCosigner(signer: Signer): void {
+	const fault = cosignerFault(signer, signer.sign(probeText));
+	if (fault !== undefined) {
+		throw new Error(
+			`witness signer ${echo(signer.name())} does not make cosignature/v1 signatures: ${fault}; ` +
+				"build it with newSignerForCosignatureV1",
+		);
+	}
+}
+
+/** cosignerFault says what is wrong with sig, signer's signature over probeText, as a cosignature/v1, if anything. */
+function cosignerFault(signer: Signer, sig: Uint8Array): string | undefined {
+	if (sig.length !== cosignatureV1Size) {
+		return `its signatures are ${sig.length} bytes, not the ${cosignatureV1Size} of a cosignature/v1`;
+	}
+	if (BigInt.asIntN(64, readUint64BE(sig, 0)) <= 0n) {
+		return "its signature carries no valid timestamp";
+	}
+	const verifier = (signer as { verifier?: () => Verifier }).verifier;
+	if (typeof verifier !== "function") {
+		return undefined;
+	}
+	const v = verifier.call(signer);
+	if (v.name() !== signer.name() || v.keyHash() !== signer.keyHash() || !v.verify(probeText, sig)) {
+		return "its own verifier does not accept its signature";
+	}
+	return undefined;
+}
 
 /** probe is one signer's signature over probeText, in the forms a log verifier might check. */
 interface probe {

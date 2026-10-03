@@ -62,8 +62,9 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
     (`fromRqlite`), Cloudflare D1 (`fromD1`), SQLite-backed Durable Objects
     (`fromDurableObjectStorage`) and sqlite-wasm (`fromSqliteWasm`). The adapters are typed
     structurally, so webtessera depends on none of the engines, and any other SQLite can be used by
-    implementing `SqlDatabase`. Locking is in-process (`local`) or a renewed lease with fencing in the
-    database (`lease`), so that several processes can append to one database; objects larger than
+    implementing `SqlDatabase`. Locking is a renewed lease with fencing in the database (`lease`), the
+    default for every database another process or connection could reach, or in-process (`local`) for a
+    private database or a declared single writer; objects larger than
     `maxChunkBytes` are chunked to fit each engine's row limits; `namespace` keeps several logs, or a
     log and your own tables, in one database; the schema is versioned.
 
@@ -108,6 +109,9 @@ an ADR says why.
 
 - `PublicationAwaiter.await` returns `[Index, Uint8Array]`: Go's nil checkpoint never reaches a
   caller, because a successful `await` always has one.
+- The SQLite schema is version 2, and `SqlDatabase.defaultLocking` may be a function, so that an
+  adapter can ask the database whether it is private. `RqliteOptions.followRedirects` and
+  `AddErrorResponseOptions` are new.
 - `Follower.follow` is typed `void | Promise<void>` and is started as a detached task, as Go starts it
   on a goroutine: it must not block, owns its own errors, and must return when its signal is aborted
   (ADR-0180).
@@ -127,6 +131,22 @@ an ADR says why.
 Hardening beyond Tessera, from input validation that upstream lacks. None of it changes the bytes of a
 valid log.
 
+- **SQLite locking fails closed**: stores default to lease locking unless the adapter shows the database
+  is private, and an explicit `locking: "local"` declares a single writer. Otherwise two connections or
+  processes on one file could assign one index twice, and two witnesses could roll a log back
+  (ADR-0210). The lease fence is a NOT NULL column that `PRAGMA ignore_check_constraints` cannot turn
+  off (schema version 2, ADR-0211). A database whose text encoding is not UTF-8 is refused at open
+  (ADR-0151).
+- **Mirroring**: the S3 sink accepts a 412 only over identical bytes, and otherwise fails before the
+  checkpoint is written. `newSinkTarget(s3, { prefix })` keeps metadata and conditional writes. A
+  verified mirror verifies afresh on every run, refuses overlapping runs and copies what it verifies
+  (ADR-0175, ADR-0176).
+- **HTTP and witness inputs**: `toNodeListener` accepts only origin-form request-targets; every size
+  cap and count must be a positive integer; `addErrorResponse` answers 500 without the error's text
+  unless asked for `{ detail: true }` (ADR-0212). `newWitnessServer` requires cosignature/v1 signers,
+  and caches its key checks for `lookupLog` (ADR-0171).
+- **rqlite and S3 requests** omit credentials; rqlite refuses redirects unless `followRedirects: true`,
+  and reads only at `linearizable` or `strong` (ADR-0213).
 - **Entries**: `newEntry` throws for data longer than 65535 bytes, which an entry bundle cannot encode,
   where Go silently truncates the length prefix (ADR-0182). Big-endian length prefixes reject values their
   width cannot hold (ADR-0200).

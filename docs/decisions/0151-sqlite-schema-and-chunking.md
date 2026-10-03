@@ -120,3 +120,23 @@ engine is handed a view of a larger buffer.
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03): text encoding, and schema version 2
+
+**Addendum on keys.** The **Keys** paragraph holds only in a database whose text encoding is UTF-8. In a
+UTF-16 database (`PRAGMA encoding = 'UTF-16le'` or `'UTF-16be'` before the first table is created),
+`CAST(<blob> AS TEXT)` reads the bytes as UTF-16 code units and drops an odd last byte, so distinct keys
+collide: the review's proof of concept stored `tile/0/x001/234` and `tile/0/x001/235` as one row, and
+reading the first returned the second's bytes. `openSqliteObjectStore` now checks, before it creates or
+reads any table, that two samples bound through `textParam` (`abc`, of odd length, and a string with a
+two-, three- and four-byte UTF-8 sequence and a NUL) cast back to BLOBs equal the BLOBs bound, comparing in
+SQL (`CAST(... AS BLOB) = ?`) and reading back only the verdicts, because rqlite returns an expression's
+BLOB as lossy text. A database that fails is refused with an error naming `PRAGMA encoding`; the encoding
+cannot be changed once a database exists, so its contents must be copied into a UTF-8 database. Tested on
+UTF-16le and UTF-16be node:sqlite databases, which are refused with no table created, and on every engine,
+which passes.
+
+**Schema version 2** ([ADR-0211](0211-sqlite-fence-on-a-not-null-column.md)) is the first migration: the
+fence table gains a NOT NULL column, and `meta` gains an `instance_id` row, the database's identity, which
+local locking keys on ([ADR-0210](0210-sqlite-locking-fails-closed.md)). The versioning mechanism above runs
+it unchanged, for new databases right after version 1 is created.

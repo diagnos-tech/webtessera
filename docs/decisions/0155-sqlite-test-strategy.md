@@ -81,3 +81,29 @@ Beyond the shared suites:
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+Tests added with the security-review fixes (ADR-0210 to ADR-0213):
+
+- **Several processes on one file:** `sqlite_test.ts` spawns three Node processes
+  (`testing/append_process.ts`, which Node runs from source by stripping its types) that append 100
+  entries each to one file with default options, then checks distinct indices, the checkpoint's size and
+  `fsck`. It is the one test that tells local from lease locking across processes: it fails with the
+  default forced back to local, and it found the busy-timeout bug (ADR-0153's update).
+  `testing/node.d.ts` declares the few `node:process` and `node:child_process` members it uses.
+- The Node table gains "node:sqlite file, default options, second store on a second connection", which runs
+  the conformance suites, "never assigns an index twice when two drivers share a store" included, with no
+  locking chosen; and two witness servers on two connections to one file race, with exactly one success.
+- `describeSqliteBehaviour` gains a fenced-write case (every write kind refused once another holder took
+  the lock over, nothing written, no fence row), so the NOT NULL fence is recognised on every engine:
+  node:sqlite, libSQL, rqlite (fake and live), sqlite-wasm, D1 and Durable Objects. `lease_test.ts` runs
+  the same refusal on a connection with `PRAGMA ignore_check_constraints = ON`.
+- `schema_test.ts`: schema version 2, the version 1 to 2 migration under concurrent openers with both fences
+  holding, and UTF-16le and UTF-16be databases refused before any table is created.
+- Adapter defaults: `sync_test.ts` checks the default against node:sqlite's `location()` for five kinds of
+  database; `libsql_test.ts` an in-memory client, a file client, an embedded-replica stand-in and a remote
+  client. `rqlite_test.ts` checks the read level and the request policy, and `rqlite_workers_test.ts` and
+  `src/mirror/s3_workers_test.ts` that workerd accepts the requests the rqlite adapter and the S3 sink make.
+- The live rqlite suite (`pnpm test:services` against rqlite 9.4.5) found that the first form of the
+  encoding check read back BLOB expressions, which rqlite returns as text; the check now compares in SQL.

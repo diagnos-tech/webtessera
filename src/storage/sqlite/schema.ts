@@ -30,8 +30,8 @@ import { asInteger } from "./values.ts";
  *   since the Unix epoch, and its first maxChunkBytes bytes.
  * - chunks holds the rest of each larger object, in rows numbered from 1.
  * - locks holds the leases behind lease-mode locks: who holds each lock and until when.
- * - fence never holds a row. A batch inserts into it, and so fails on its CHECK
- *   constraint, exactly when a lease the batch is fenced on has been lost (./lease.ts).
+ * - fence never holds a row. A batch inserts a NULL into its NOT NULL column, and so
+ *   fails, exactly when a lease the batch is fenced on has been lost (./lease.ts).
  */
 export interface Tables {
 	readonly meta: string;
@@ -42,10 +42,19 @@ export interface Tables {
 }
 
 /**
- * leaseLostConstraint names the fence table's CHECK constraint. SQLite names it in the
- * error a fenced-out batch fails with, which is how that error is recognised.
+ * leaseLostConstraint names the fence table's NOT NULL column, and the CHECK constraint
+ * that fenced batches at schema version 1. SQLite names whichever of them a fenced-out
+ * batch violates in the error it fails with, which is how that error is recognised.
  */
 export const leaseLostConstraint = "webtessera_lease_lost";
+
+/**
+ * instanceName is the meta row holding the database's identity: a random integer drawn
+ * once, which every connection to the database reads alike. It is how stores in one realm
+ * that reach the same database through different connections find each other's local
+ * locks (see openSqliteObjectStore).
+ */
+const instanceName = "instance_id";
 
 /**
  * Migration upgrades a namespace's tables by one schema version. Its statements run in
@@ -58,8 +67,23 @@ export type Migration = (t: Tables) => SqlStatement[];
 /**
  * schemaMigrations upgrades tables of version i+1 to version i+2 at index i. Adding a
  * schema version means appending one; never edit or remove an existing one.
+ *
+ * @internal Exported for schema_test.ts.
  */
-const schemaMigrations: readonly Migration[] = [];
+export const schemaMigrations: readonly Migration[] = [
+	// Version 2 fences on a NOT NULL column instead of the CHECK constraint, which
+	// `PRAGMA ignore_check_constraints` turns off for a connection, and nothing turns off
+	// NOT NULL. A store of version 1 still inserting into `lost` fills the new column with
+	// its default, so its fence keeps working as it did. It also records the database's
+	// identity. See docs/decisions/0211-sqlite-fence-on-a-not-null-column.md.
+	(t) => [
+		{
+			sql: `ALTER TABLE ${t.fence} ADD COLUMN ${leaseLostConstraint} INTEGER NOT NULL DEFAULT 0`,
+			params: [],
+		},
+		newInstance(t),
+	],
+];
 
 /** SchemaVersion is the version of the tables this code creates and expects. */
 export const SchemaVersion = 1 + schemaMigrations.length;
@@ -139,6 +163,29 @@ export async function ensureSchema(
 				`this version supports schema version ${want} and earlier`,
 		);
 	}
+}
+
+/**
+ * databaseInstance returns the identity recorded in t.meta, recording one first if there
+ * is none, which only tables an outside hand altered can lack.
+ */
+export async function databaseInstance(db: SqlDatabase, t: Tables): Promise<number> {
+	const select: SqlStatement = { sql: `SELECT value FROM ${t.meta} WHERE name = '${instanceName}'`, params: [] };
+	let row = (await db.query(select))[0];
+	if (row === undefined) {
+		row = (await db.batch([newInstance(t), select]))[1]?.[0];
+	}
+	return asInteger(row?.value, `${t.meta}.${instanceName}`);
+}
+
+/** newInstance returns the statement that records a fresh identity in t.meta, unless one is there. */
+function newInstance(t: Tables): SqlStatement {
+	// 48 random bits: a safe integer, and plenty to tell apart the databases one realm opens.
+	const [hi = 0, lo = 0] = crypto.getRandomValues(new Uint32Array(2));
+	return {
+		sql: `INSERT OR IGNORE INTO ${t.meta} (name, value) VALUES ('${instanceName}', ?)`,
+		params: [(hi & 0xffff) * 2 ** 32 + lo],
+	};
 }
 
 /** readVersion returns the schema version recorded in t.meta, or undefined if none is. */

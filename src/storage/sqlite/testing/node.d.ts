@@ -29,6 +29,8 @@ declare module "node:sqlite" {
 		constructor(path: string);
 		prepare(sql: string): StatementSync;
 		exec(sql: string): void;
+		/** location returns the database file's absolute path, or null for an in-memory or temporary database. */
+		location(dbName?: string): string | null;
 		close(): void;
 	}
 }
@@ -40,4 +42,25 @@ declare module "node:fs" {
 
 declare module "node:os" {
 	export function tmpdir(): string;
+}
+
+declare module "node:process" {
+	export const argv: readonly string[];
+	export const execPath: string;
+	export const stdout: { write(chunk: string): boolean };
+}
+
+declare module "node:child_process" {
+	/** ChildProcess is the part of a spawned process the tests read. */
+	export interface ChildProcess {
+		readonly stdout: { on(event: "data", listener: (chunk: Uint8Array | string) => void): void };
+		readonly stderr: { on(event: "data", listener: (chunk: Uint8Array | string) => void): void };
+		on(event: "close", listener: (code: number | null) => void): void;
+		on(event: "error", listener: (err: Error) => void): void;
+	}
+	export function spawn(
+		command: string,
+		args: readonly string[],
+		options?: { stdio?: readonly ("ignore" | "pipe")[] },
+	): ChildProcess;
 }

@@ -21,7 +21,7 @@
 
 import { errorIs } from "../internal/gostd/errors.ts";
 import { ErrPushback } from "../log.ts";
-import { errorText, readBodyCapped, textResponse } from "./handler.ts";
+import { errorText, positiveInteger, readBodyCapped, textResponse } from "./handler.ts";
 
 /**
  * MaxEntryBytes is the largest entry a tlog-tiles log can hold: entry bundles prefix each
@@ -31,9 +31,9 @@ export const MaxEntryBytes = 0xffff;
 
 /**
  * readEntryBody reads the entry a `POST /add` request carries, streaming it and giving up as
- * soon as it exceeds maxBytes (MaxEntryBytes by default), so that an oversized upload is
- * never buffered. It resolves to undefined when the entry is too large; answer that with
- * 413:
+ * soon as it exceeds maxBytes (MaxEntryBytes by default, and never more), so that an
+ * oversized upload is never buffered. It resolves to undefined when the entry is too large;
+ * answer that with 413. It throws a RangeError if maxBytes is not a positive integer.
  *
  * ```ts
  * const entry = await readEntryBody(request);
@@ -47,8 +47,11 @@ export const MaxEntryBytes = 0xffff;
  * }
  * ```
  */
-export function readEntryBody(request: Request, maxBytes: number = MaxEntryBytes): Promise<Uint8Array | undefined> {
-	return readBodyCapped(request, Math.min(maxBytes, MaxEntryBytes));
+export async function readEntryBody(
+	request: Request,
+	maxBytes: number = MaxEntryBytes,
+): Promise<Uint8Array | undefined> {
+	return readBodyCapped(request, Math.min(positiveInteger("readEntryBody: maxBytes", maxBytes), MaxEntryBytes));
 }
 
 /**
@@ -66,18 +69,40 @@ export function addResponse(index: bigint | { readonly index: bigint }): Respons
 	return new Response(i.toString(), { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
+/** AddErrorResponseOptions configures addErrorResponse. */
+export interface AddErrorResponseOptions {
+	/**
+	 * detail sends the error's own text as the body of a 500 response, as upstream's
+	 * personalities do. It is off by default: the text of a storage or network error can
+	 * name files, hosts, tables or keys, which the client has no business seeing. Log the
+	 * error yourself either way.
+	 */
+	readonly detail?: boolean;
+}
+
 /**
- * addErrorResponse is the conventional failed answer to `POST /add`, as upstream's
- * personalities give it: 503 Service Unavailable with `Retry-After: 1` when the appender
- * pushes back (`ErrPushback`, which tells the client to slow down rather than give up), and
- * 500 with the error's text otherwise.
+ * addErrorResponse is the conventional failed answer to `POST /add`: 503 Service
+ * Unavailable with `Retry-After: 1` when the appender pushes back (`ErrPushback`, which
+ * tells the client to slow down rather than give up), as upstream's personalities answer,
+ * and 500 otherwise.
  *
- * The error text is sent to the client as upstream sends it; a personality that considers
- * its errors confidential should answer 500 itself.
+ * The body of a 500 says only that the log failed, unless options.detail is set, in which
+ * case it is the error's text, as upstream sends it. The error itself is the caller's to
+ * log:
+ *
+ * ```ts
+ * } catch (err) {
+ *   console.error("add failed", err);
+ *   return addErrorResponse(err);
+ * }
+ * ```
  */
-export function addErrorResponse(err: unknown): Response {
+export function addErrorResponse(err: unknown, options: AddErrorResponseOptions = {}): Response {
 	if (errorIs(err, ErrPushback)) {
 		return textResponse(503, "the log is overloaded; retry later", { "Retry-After": "1" });
 	}
-	return new Response(errorText(err), { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+	if (options.detail === true) {
+		return new Response(errorText(err), { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+	}
+	return textResponse(500, "internal server error");
 }

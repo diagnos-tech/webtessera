@@ -65,3 +65,16 @@ three bindings share rather than one of them.
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:**
+
+## Update (2026-10-03)
+
+API changes from the security review:
+
+- `SqlDatabase.defaultLocking` is `SqliteLocking | (() => Promise<SqliteLocking>) | undefined`, and
+  undefined now means lease ([ADR-0210](0210-sqlite-locking-fails-closed.md)). `fromLibsql`'s is a function
+  for `file:` clients.
+- `RqliteOptions.followRedirects` is new, and `fromRqlite` throws a `RangeError` for a `level` other than
+  `"linearizable"` or `"strong"` ([ADR-0213](0213-rqlite-and-s3-requests-omit-credentials-and-refuse-redirects.md)).
+- `SchemaVersion` is 2 ([ADR-0211](0211-sqlite-fence-on-a-not-null-column.md)).
+- `openSqliteObjectStore` rejects a database that does not store text as UTF-8 (ADR-0151's update), and
+  lease timings that are not positive whole milliseconds.
