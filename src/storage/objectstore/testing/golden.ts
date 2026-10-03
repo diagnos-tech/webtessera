@@ -32,7 +32,7 @@
 //   - newStore returns a fresh, EMPTY store; every case calls it exactly once. The caller owns
 //     the store's lifetime: close it in an afterEach, as callers of the conformance suites do.
 //   - options.reopen(store) returns a second, independent handle onto the data store holds (a
-//     new database connection, a second tab, a restarted Durable Object). Each session of the
+//     new database connection, a second tab, a restarted process). Each session of the
 //     restart cases runs over a fresh handle. It defaults to store itself.
 //   - options.listKeys(store) returns every key the backend holds, through the backend's own
 //     listing. When given, the exact key set is asserted through it. Without it, the suite

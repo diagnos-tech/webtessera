@@ -56,7 +56,7 @@
  *
  *   - `webtessera/client`: fetchers, proof building and entry streaming (Go: `client`).
  *   - `webtessera/storage/*`: the storage drivers to hand to {@link newAppender}, one subpath per
- *     backend (in-memory, IndexedDB, Durable Objects, object stores).
+ *     backend (in-memory, IndexedDB, any SQLite engine, or an object store of your own).
  *   - `webtessera/api`, `webtessera/api/layout`: the tlog-tiles resource formats and paths.
  *   - `webtessera/ctonly`: the Static CT API entry type that
  *     {@link newCertificateTransparencyAppender} accepts.

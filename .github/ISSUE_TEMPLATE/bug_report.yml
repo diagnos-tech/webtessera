@@ -51,7 +51,8 @@ body:
         - CT (ctonly)
         - storage - memory
         - storage - IndexedDB
-        - storage - Durable Objects
+        - storage - SQLite (which engine? say below)
+        - http / witness server / mirror
         - fixtures / generator
         - documentation
         - build / packaging / CI
@@ -76,8 +77,10 @@ body:
         - Browser (Chromium)
         - Browser (Firefox)
         - Browser (Safari / WebKit)
-        - Cloudflare Workers / Durable Objects
         - Node.js
+        - Deno
+        - Bun
+        - Edge runtime (Cloudflare Workers, Vercel, Deno Deploy, ...)
         - Other
     validations:
       required: true

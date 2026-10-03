@@ -2,7 +2,7 @@
 
 Thank you for helping. `webtessera` is a **faithful port** of
 [Tessera](https://github.com/transparency-dev/tessera), a tile-based transparency log, to
-TypeScript for browsers and Cloudflare Durable Objects. That shapes almost everything about how
+TypeScript for browsers, servers and edge runtimes. That shapes almost everything about how
 contributions work here: the value of this repository is that a reviewer can put a TypeScript file
 next to its Go original and see that they do the same thing. A change that is clever, idiomatic and
 unfaithful is a bad change.
@@ -28,9 +28,10 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Securit
 
 | Tool | Version | Needed for |
 | --- | --- | --- |
-| Node.js | 20 or newer (`.nvmrc` says 22) | everything |
+| Node.js | 22 or newer (`.nvmrc` says 22) | everything |
 | pnpm | 10, pinned by the `packageManager` field | everything; `corepack enable` installs it |
-| Go | 1.24 or newer | `pnpm fixtures` only |
+| Go | 1.24 or newer | `pnpm fixtures` and `pnpm interop` only |
+| Docker | any recent version | `pnpm test:services` only |
 | git | any recent version | `pnpm upstream`, `pnpm fixtures` |
 | Chromium | any recent version | `pnpm test:browser` only |
 
@@ -64,12 +65,15 @@ Run everything from the repository root.
 | `pnpm test:unit` | Vitest on Node: nearly all tests | Constantly; this is the inner loop |
 | `pnpm test:watch` | The same, in watch mode | While developing |
 | `pnpm test:browser` | Vitest in real headless Chromium (`*_browser_test.ts`) | When you touch the IndexedDB driver or anything runtime-sensitive |
-| `pnpm test:workers` | Vitest inside workerd (the Durable Object suite) | When you touch the Durable Object driver |
+| `pnpm test:workers` | Vitest inside workerd (`*_workers_test.ts`: the SQLite driver on D1 and Durable Objects) | When you touch the SQLite driver or anything runtime-sensitive |
+| `pnpm test:services` | Vitest against live rqlite and S3-compatible servers (`*_services_test.ts`) | When you touch the rqlite adapter or the S3 sink; see below |
 | `pnpm test` | unit, then workers, then browser | Before you open a pull request |
 | `pnpm build` | `tsc` emits ESM and declarations to `dist/` | Before touching `package.json` exports; examples need it |
 | `pnpm check` | `lint`, `typecheck`, `test`, `build` in sequence | The full pre-PR gate |
 | `pnpm upstream` | Checks out Tessera at the pinned commit into `.upstream/tessera` | Once, and after the pin moves; idempotent |
 | `pnpm fixtures` | Runs `pnpm upstream`, then regenerates `fixtures/data/` with the Go generator | When you add or change a generator case; see below |
+| `pnpm interop` | Builds the package, then has Tessera's Go code verify and extend logs written by webtessera, and the other way round, on every Node backend | When you touch the storage engine, a backend or a wire format |
+| `pnpm smoke` | Builds the package and runs an end-to-end smoke test of `dist/`, the SQLite driver included | Before touching `package.json` exports |
 | `pnpm clean` | Removes `dist/` | Rarely; `prepack` does it |
 
 Run a single test file with `pnpm exec vitest run --config vitest.config.ts src/api/layout/paths_test.ts`,
@@ -84,9 +88,9 @@ Tests sit next to the code they cover, and mirror upstream:
   grepped side by side. The convention is deliberate (PORTING.md §3.1).
 - **`*_fixtures_test.ts`** assert golden fixtures. They are separate from the Go-mirrored file so
   that file keeps diffing line-for-line against its Go original.
-- **`*_browser_test.ts`** run in real Chromium under `pnpm test:browser`. Everything under
-  `src/storage/durableobject/` runs in workerd under `pnpm test:workers`. Everything else runs on
-  Node.
+- **`*_browser_test.ts`** run in real Chromium under `pnpm test:browser`, **`*_workers_test.ts`** in
+  workerd under `pnpm test:workers`, and **`*_services_test.ts`** against live servers under
+  `pnpm test:services`. Everything else runs on Node.
 - **`testing/` directories** hold shared helpers (the `ObjectStore` conformance suite, the workerd
   test Worker). They are excluded from the published package.
 - A test that was **skipped, weakened or deleted** to get a build green is a blocking review finding.
@@ -177,10 +181,9 @@ The examples are pnpm workspace packages under `examples/` that depend on the li
 # A transparency log in a browser tab, persisted in IndexedDB (Vite)
 pnpm --filter webtessera-example-browser dev
 
-# A log in a Cloudflare Durable Object
-pnpm --filter webtessera-example-cloudflare-durable-object dev        # wrangler dev
-pnpm --filter webtessera-example-cloudflare-durable-object typecheck
-pnpm --filter webtessera-example-cloudflare-durable-object test       # in workerd
+# A log on a SQLite-backed Durable Object (wrangler dev; tests run in workerd)
+pnpm --filter webtessera-example-cloudflare-durable-object dev
+pnpm --filter webtessera-example-cloudflare-durable-object test
 ```
 
 CI runs every example's `ci` script (`pnpm --filter "./examples/**" --if-present run ci`), so a new

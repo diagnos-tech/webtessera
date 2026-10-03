@@ -14,8 +14,8 @@
 
 // This file has no upstream counterpart. It defines the persistence contract that
 // lets one storage driver (./driver.ts, modelled on tessera/storage/posix/files.go)
-// run on top of any key/value backend: memory, IndexedDB, Durable Object storage, or
-// a store supplied by the caller. See docs/decisions/0100-objectstore-driver.md.
+// run on top of any key/value backend: memory, IndexedDB, any SQLite engine, or a
+// store supplied by the caller. See docs/decisions/0100-objectstore-driver.md.
 
 /**
  * ObjectInfo describes a stored object without reading its contents.
@@ -45,7 +45,7 @@ export interface ObjectInfo {
  * Every method must be atomic with respect to the key(s) it touches: a reader
  * observes either the previous contents of a key or the new ones, never a mix.
  * Methods resolve only once the write is durable for the backend in question
- * (committed to IndexedDB, to Durable Object storage, ...).
+ * (committed to IndexedDB, to a SQLite database, ...).
  *
  * Implementations must not retain or mutate the `data` arrays passed to them, and
  * callers must not mutate the arrays returned to them.
