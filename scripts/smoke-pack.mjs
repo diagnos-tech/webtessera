@@ -17,7 +17,7 @@
 //
 // Usage:
 //
-//     pnpm pack --pack-destination /tmp/pack
+//     bun pm pack --destination /tmp/pack
 //     node scripts/smoke-pack.mjs /tmp/pack/webtessera-<version>.tgz
 //
 // It installs the tarball into a throwaway project, then checks that:

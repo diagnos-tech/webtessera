@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 // the IndexedDB driver is exercised against the browser's own IndexedDB and Web
 // Locks implementations rather than a Node polyfill.
 //
-// Locally, `pnpm exec playwright install chromium` provides the browser once.
+// Locally, `bunx playwright install chromium` provides the browser once.
 // PLAYWRIGHT_CHROMIUM_EXECUTABLE overrides it with a preinstalled binary.
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 

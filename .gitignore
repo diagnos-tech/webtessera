@@ -120,5 +120,5 @@ dist
 __screenshots__/
 .vitest-attachments/
 
-# Upstream Tessera checkout made by `pnpm upstream` (see scripts/upstream.json)
+# Upstream Tessera checkout made by `bun run upstream` (see scripts/upstream.json)
 .upstream/

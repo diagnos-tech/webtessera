@@ -4,18 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "pnpm --workspace-root build",
+    "predev": "bun run --cwd ../.. build",
     "dev": "wrangler dev",
-    "predeploy": "pnpm --workspace-root build",
+    "predeploy": "bun run --cwd ../.. build",
     "deploy": "wrangler deploy",
-    "pretest": "pnpm --workspace-root build",
+    "pretest": "bun run --cwd ../.. build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prekeygen": "pnpm --workspace-root build",
-    "keygen": "node scripts/generate-key.mjs"
-  },
-  "dependencies": {
-    "webtessera": "workspace:*"
+    "ci": "tsc --noEmit && vitest run",
+    "prekeygen": "bun run --cwd ../.. build",
+    "keygen": "bun scripts/generate-key.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.22.0",
