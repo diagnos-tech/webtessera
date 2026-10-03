@@ -52,7 +52,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The Durable Object driver inside workerd, Cloudflare's runtime.
+  # The `*_workers_test.ts` suites inside workerd, Cloudflare's runtime: the SQLite driver on
+  # D1 and on SQLite-backed Durable Objects, and the golden suite on the memory driver.
   workers:
     name: Workers (workerd)
     runs-on: ubuntu-latest
