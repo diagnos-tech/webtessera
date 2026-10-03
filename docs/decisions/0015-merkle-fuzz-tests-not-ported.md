@@ -90,6 +90,25 @@ did not exist.
   `fixtures/data/`"). If those exact inputs are wanted, the generator in `fixtures/gen/compact.go`
   should emit them, which is a change to the fixtures work package.
 
+> **Update (2026-10-02):** corrections to the record above.
+>
+> - **There are six fuzz targets, not three**: `compact/node_fuzz_test.go` has `FuzzRangeNodes`, and
+>   `testonly/tree_fuzz_test.go` has `FuzzConsistencyProofAndVerify`, `FuzzInclusionProofAndVerify`,
+>   `FuzzHashAtAgainstReferenceImplementation`, `FuzzInclusionProofAgainstReferenceImplementation` and
+>   `FuzzConsistencyProofAgainstReferenceImplementation`. The last three compare `Tree` against the
+>   reference implementations; their properties are what `TestTreeHashAt`, `TestTreeInclusionProof` and
+>   `TestTreeConsistencyProof`/`TestTreeConsistencyProofFuzz` assert, over the ranges given below.
+> - **The corpus has 19 files, not 20**, all under `compact/testdata/fuzz/FuzzRangeNodes/` (there is no
+>   `testdata/` at the module root). `FuzzRangeNodes`' seeds call `f.Add(end, end)`, so under plain `go test`
+>   they exercise empty ranges only.
+> - **Test descriptions:** `TestTreeInclusionProof` checks every leaf of one generated 256-leaf tree and of
+>   the golden trees of sizes 0–7, not "every leaf of every tree up to 256".
+> - **The corpus claim is withdrawn.** `compact_range.json`'s `rangeNodes` table does not contain every corpus
+>   input: `(1, 767)` lies outside both it and `TestGenRangeNodes`' exhaustive `end <= 512` range. Adding the
+>   pair to the generator would mean regenerating committed fixtures in a directory another work package is
+>   changing, so it is not done here. For the record, the 19 corpus inputs were replayed against the port's
+>   `rangeNodes` with `FuzzRangeNodes`' contiguity property during the 2026-10-02 merkle audit, and all 19 pass.
+
 ## Review
 
 - **Reviewer:** _pending_

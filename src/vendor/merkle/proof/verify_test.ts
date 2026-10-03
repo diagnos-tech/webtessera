@@ -387,8 +387,14 @@ describe("TestVerifyInclusion", () => {
 });
 
 describe("TestVerifyConsistency", () => {
-	const root1 = toUTF8("don't care 1");
-	const root2 = toUTF8("don't care 2");
+	// Port note: upstream's "don't care" roots are the 12-byte strings themselves. This
+	// port requires every root to be hasher.size() bytes even where the sizes make the
+	// proof trivial (docs/decisions/0202-merkle-proof-hash-sizes.md), so they are hashed
+	// to 32 bytes here; they are still roots nobody cares about, and every case keeps
+	// upstream's verdict. "TestVerifyConsistency rejects mis-sized roots" below pins
+	// what happens to the unhashed values.
+	const root1 = hasher.hashLeaf(toUTF8("don't care 1"));
+	const root2 = hasher.hashLeaf(toUTF8("don't care 2"));
 	const proof1: Uint8Array[] = [];
 	const proof2: Uint8Array[] = [sha256EmptyTreeHash];
 
@@ -464,6 +470,151 @@ describe("TestVerifyConsistency", () => {
 			);
 			expect(err, `Failed to verify known good proof: ${err?.message}`).toBeNull();
 		});
+	});
+});
+
+// The tests below have no upstream counterpart. They pin the port's hardening:
+// every proof hash and every root must be exactly hasher.size() bytes
+// (docs/decisions/0202-merkle-proof-hash-sizes.md), and every size and index must be a
+// uint64 (docs/decisions/0207-uint64-domain-guards.md). Correctly sized inputs are
+// covered by every upstream test above, unchanged.
+describe("hash sizes (port hardening)", () => {
+	// A valid inclusion proof for leaf index 1 in a tree of size 5 and a valid 6 -> 8
+	// consistency proof, taken from the vectors above.
+	const inclusion = inclusionProofs[5] as inclusionProofTestVector;
+	const leafHash = hasher.hashLeaf(leaves[Number(inclusion.leaf) - 1] as Uint8Array);
+	const root = roots[Number(inclusion.size) - 1] as Uint8Array;
+	const consistency = consistencyProofs[2] as consistencyTestVector;
+	const croot1 = roots[Number(consistency.size1) - 1] as Uint8Array;
+	const croot2 = roots[Number(consistency.size2) - 1] as Uint8Array;
+	const longer = (h: Uint8Array): Uint8Array => Uint8Array.from([...h, 0]);
+	const shorter = (h: Uint8Array): Uint8Array => h.subarray(0, h.length - 1);
+
+	it("the vectors used here verify as given", () => {
+		verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, inclusion.proof, root);
+		verifyConsistency(hasher, consistency.size1, consistency.size2, consistency.proof, croot1, croot2);
+	});
+
+	it("a proof hash of the wrong length is rejected by rootFromInclusionProof and verifyInclusion", () => {
+		for (let i = 0; i < inclusion.proof.length; i++) {
+			for (const mangle of [longer, shorter, () => new Uint8Array(0)]) {
+				const proof = inclusion.proof.slice();
+				proof[i] = mangle(proof[i] as Uint8Array);
+				const want = `proof[${i}] has unexpected size ${(proof[i] as Uint8Array).length}, want 32`;
+				expect(
+					catchError(() => rootFromInclusionProof(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof))
+						?.message,
+				).toBe(want);
+				expect(
+					catchError(() => verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof, root))
+						?.message,
+				).toBe(want);
+			}
+		}
+	});
+
+	it("an inclusion root of the wrong length is rejected", () => {
+		for (const r of [longer(root), shorter(root), new Uint8Array(0)]) {
+			expect(
+				catchError(() => verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, inclusion.proof, r))
+					?.message,
+			).toBe(`root has unexpected size ${r.length}, want 32`);
+		}
+	});
+
+	it("a consistency proof hash of the wrong length is rejected", () => {
+		for (let i = 0; i < consistency.proof.length; i++) {
+			for (const mangle of [longer, shorter]) {
+				const proof = consistency.proof.slice();
+				proof[i] = mangle(proof[i] as Uint8Array);
+				expect(
+					catchError(() => verifyConsistency(hasher, consistency.size1, consistency.size2, proof, croot1, croot2))
+						?.message,
+				).toBe(`proof[${i}] has unexpected size ${(proof[i] as Uint8Array).length}, want 32`);
+			}
+		}
+	});
+
+	it("consistency roots of the wrong length are rejected, whatever the sizes", () => {
+		const bad = longer(croot1);
+		const cases: Array<[bigint, bigint, Uint8Array[], Uint8Array, Uint8Array, string]> = [
+			[consistency.size1, consistency.size2, consistency.proof, bad, croot2, "root1"],
+			[consistency.size1, consistency.size2, consistency.proof, croot1, bad, "root2"],
+			// size1 == size2: equal but mis-sized roots are not a valid tree head.
+			[5n, 5n, [], bad, bad, "root1"],
+			[5n, 5n, [], root, bad, "root2"],
+			// size1 == 0: the proof is trivially empty, the roots must still be hashes.
+			[0n, 5n, [], bad, root, "root1"],
+			[0n, 5n, [], sha256EmptyTreeHash, new Uint8Array(0), "root2"],
+		];
+		for (const [size1, size2, proof, r1, r2, name] of cases) {
+			const got = name === "root1" ? r1 : r2;
+			expect(catchError(() => verifyConsistency(hasher, size1, size2, proof, r1, r2))?.message).toBe(
+				`${name} has unexpected size ${got.length}, want 32`,
+			);
+		}
+	});
+
+	it("TestVerifyConsistency rejects mis-sized roots", () => {
+		// Upstream accepts these: the sizes alone make them consistent.
+		const dontCare = toUTF8("don't care 1");
+		expect(catchError(() => verifyConsistency(hasher, 0n, 0n, [], dontCare, dontCare))).not.toBeNull();
+		expect(catchError(() => verifyConsistency(hasher, 0n, 1n, [], dontCare, dontCare))).not.toBeNull();
+		expect(catchError(() => verifyConsistency(hasher, 1n, 1n, [], dontCare, dontCare))).not.toBeNull();
+	});
+
+	it("upstream's own errors keep their precedence over the size checks", () => {
+		const bad = new Uint8Array(3);
+		expect(catchError(() => verifyInclusion(hasher, 5n, 5n, leafHash, [bad], bad))?.message).toBe(
+			"index is beyond size: 5 >= 5",
+		);
+		expect(catchError(() => verifyInclusion(hasher, 0n, 5n, bad, [bad], bad))?.message).toBe(
+			"leafHash has unexpected size 3, want 32",
+		);
+		expect(catchError(() => verifyInclusion(hasher, 0n, 5n, leafHash, [bad], bad))?.message).toBe(
+			"wrong proof size 1, want 3",
+		);
+		expect(catchError(() => verifyConsistency(hasher, 2n, 1n, [bad], bad, bad))?.message).toBe("size2 (2) < size1 (1)");
+		expect(catchError(() => verifyConsistency(hasher, 1n, 1n, [bad], bad, bad))?.message).toBe(
+			"size1=size2, but proof is not empty",
+		);
+		expect(catchError(() => verifyConsistency(hasher, 0n, 1n, [bad], bad, bad))?.message).toBe(
+			"expected empty proof, but got 1 components",
+		);
+		expect(catchError(() => verifyConsistency(hasher, 1n, 2n, [], bad, bad))?.message).toBe("empty proof");
+		expect(catchError(() => verifyConsistency(hasher, 3n, 7n, [bad], bad, bad))?.message).toBe(
+			"wrong proof size 1, want 4",
+		);
+	});
+});
+
+describe("uint64 domain (port hardening)", () => {
+	const leaf = hasher.hashLeaf(toUTF8("x"));
+	const B64 = 1n << 64n;
+	it("rejects negative and over-wide sizes and indices with a RangeError", () => {
+		const calls: Array<() => unknown> = [
+			() => rootFromInclusionProof(hasher, -1n, 1n, leaf, []),
+			() => rootFromInclusionProof(hasher, 0n, B64, leaf, []),
+			() => verifyInclusion(hasher, -1n, 1n, leaf, [], leaf),
+			() => verifyInclusion(hasher, 0n, B64, leaf, [], leaf),
+			() => verifyConsistency(hasher, -1n, 1n, [], leaf, leaf),
+			() => verifyConsistency(hasher, 1n, B64, [leaf], leaf, leaf),
+			() => verifyConsistency(hasher, B64, B64, [], leaf, leaf),
+		];
+		for (const call of calls) {
+			expect(call).toThrow(RangeError);
+		}
+		expect(catchError(() => verifyInclusion(hasher, 0n, B64, leaf, [], leaf))?.message).toBe(
+			"size = 18446744073709551616 is outside the uint64 range [0, 2^64-1]",
+		);
+	});
+
+	it("accepts MaxUint64 as Go does", () => {
+		const max = B64 - 1n;
+		expect(catchError(() => verifyInclusion(hasher, max, max, leaf, [], leaf))?.message).toBe(
+			"index is beyond size: 18446744073709551615 >= 18446744073709551615",
+		);
+		expect(catchError(() => verifyConsistency(hasher, max, max, [], leaf, leaf))).toBeNull();
 	});
 });
 

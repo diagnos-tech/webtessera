@@ -45,7 +45,12 @@ const id = newNodeID;
 // Our storage node layers are always populated from the bottom up, hence the
 // gap at level 1, index 3 in the above picture.
 describe("TestInclusion", () => {
-	const tests: { size: bigint; index: bigint; want?: Nodes; wantErr?: boolean }[] = [
+	const tests: {
+		size: bigint; // The requested past tree size.
+		index: bigint; // Leaf index in the requested tree.
+		want?: Nodes;
+		wantErr?: boolean;
+	}[] = [
 		// Errors.
 		{ size: 0n, index: 0n, wantErr: true },
 		{ size: 0n, index: 1n, wantErr: true },
@@ -142,7 +147,12 @@ describe("TestInclusion", () => {
 // The consistency proof between tree size 5 and 7 consists of nodes e, f, j,
 // and k. The node j is taken instead of its missing parent.
 describe("TestConsistency", () => {
-	const tests: { size1: bigint; size2: bigint; want?: Nodes; wantErr?: boolean }[] = [
+	const tests: {
+		size1: bigint; // The smaller of the two tree sizes.
+		size2: bigint; // The bigger of the two tree sizes.
+		want?: Nodes;
+		wantErr?: boolean;
+	}[] = [
 		// Errors.
 		{ size1: 5n, size2: 0n, wantErr: true },
 		{ size1: 9n, size2: 8n, wantErr: true },
@@ -340,3 +350,28 @@ function nodes(...ids: NodeID[]): Nodes {
 function rehash(begin: number, end: number, ...ids: NodeID[]): Nodes {
 	return new Nodes(ids, begin, end, id(0, 0n));
 }
+
+// Not upstream: inclusion and consistency refuse values Go's uint64 cannot hold
+// (docs/decisions/0207-uint64-domain-guards.md).
+describe("uint64 domain (port hardening)", () => {
+	const B64 = 1n << 64n;
+	it("rejects negative and over-wide sizes and indices with a RangeError", () => {
+		for (const call of [
+			() => inclusion(-1n, 5n),
+			() => inclusion(0n, B64),
+			() => consistency(-1n, 5n),
+			() => consistency(1n, B64),
+			() => consistency(B64, B64 + 1n),
+		]) {
+			expect(call).toThrow(RangeError);
+		}
+	});
+
+	// The lengths are what Go's proof.Inclusion / proof.Consistency return for the
+	// same arguments.
+	it("accepts the largest sizes Go can", () => {
+		const max = B64 - 1n;
+		expect(inclusion(max - 1n, max).ids.length).toBe(63);
+		expect(consistency(1n, max).ids.length).toBe(126);
+	});
+});

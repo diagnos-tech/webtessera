@@ -92,6 +92,12 @@ Deliberate limits, so that no untested parser branch ships:
   log does not need a second hand-written UTF-8 decoder.
 - `splitN` still rejects an empty separator, as ADR-0035 decided.
 
+> **Update (2026-10-02):** two of the deliberate limits above are lifted. `parseUint` is now a transcription
+> of Go's `ParseUint`, base 0 included, with `NumError` and sentinel `ErrSyntax`/`ErrRange` that `errorIs`
+> matches; and `quote` escapes non-printable runes as Go's `Quote` does, using a transcription of Go's
+> `IsPrint` and its Unicode 15.0.0 tables (exact for all 1,112,064 scalar values). The one remaining difference is that a `NumError` message quotes at most 64 code points
+> of its input. See ADR-0204.
+
 ## Consequences
 
 - `gostd` grows from two files to six. That is the honest size of "the Go standard library that

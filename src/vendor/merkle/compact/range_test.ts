@@ -106,8 +106,9 @@ class tree {
 				pos += 1n << BigInt(lvl);
 			}
 		}
-		// Port note: Go writes this as `for lvl := uint(63); lvl < 64; lvl--`,
-		// relying on the unsigned counter overflowing to stop the loop.
+		// Port note: Go writes this as `for lvl := uint(63); lvl < 64; lvl-- { //
+		// Overflows on the last iteration.`, relying on the unsigned counter
+		// overflowing to stop the loop.
 		for (let lvl = 63; lvl >= 0; lvl--) {
 			if ((right & (1n << BigInt(lvl))) !== 0n) {
 				hashes.push(this.node(lvl, Number(pos >> BigInt(lvl))).hash);
@@ -144,7 +145,9 @@ function newTree(size: bigint): [tree, VisitFn] {
 	// Allocate the nodes.
 	const nodes: treeNode[][] = new Array<treeNode[]>(levels);
 	const tr = new tree(size, nodes);
-	// Attach a visitor to the nodes.
+	// Attach a visitor to the nodes and the testing handler.
+	// Port note: there is no testing handler to attach; tr.visit throws on a bad
+	// visit, which fails the test the way Go's t.Errorf does.
 	const visit: VisitFn = (id: NodeID, hash: Uint8Array): void => {
 		tr.visit(id.level, id.index, hash);
 	};
@@ -276,6 +279,8 @@ describe("TestMergeRandomly", () => {
 			const numNodes = rnd.uint64() % 500n;
 
 			const [tr, visit] = newTree(numNodes);
+			// Enable recursion. (Port note: a `const` arrow function can refer to
+			// itself, so Go's separate `var mergeAll func(...)` is not needed.)
 			const mergeAll = (begin: bigint, end: bigint): Range => {
 				const rng = factory.newEmptyRange(begin);
 				if (begin + 1n === end) {
@@ -489,8 +494,9 @@ function verifyDecompose(begin: bigint, end: bigint): void {
 			pos += size;
 		}
 	}
-	// Port note: Go writes this as `for lvl := uint(63); lvl < 64; lvl--`,
-	// relying on the unsigned counter overflowing to stop the loop.
+	// Port note: Go writes this as `for lvl := uint(63); lvl < 64; lvl-- { //
+	// Overflows on the last iteration.`, relying on the unsigned counter
+	// overflowing to stop the loop.
 	for (let lvl = 63; lvl >= 0; lvl--) {
 		const size = 1n << BigInt(lvl);
 		if ((right & size) !== 0n) {
@@ -552,3 +558,30 @@ function deepEqualHashes(a: readonly Uint8Array[], b: readonly Uint8Array[]): bo
 	}
 	return true;
 }
+
+// Not upstream: the factory methods and decompose refuse values Go's uint64 cannot
+// hold (docs/decisions/0207-uint64-domain-guards.md), and Append wraps at MaxUint64
+// exactly as Go's `r.end+1` does (docs/decisions/0014-uint64-wrapping-made-explicit.md).
+describe("uint64 domain (port hardening)", () => {
+	const B64 = 1n << 64n;
+	it("rejects negative and over-wide bounds with a RangeError", () => {
+		for (const call of [
+			() => factory.newEmptyRange(-1n),
+			() => factory.newEmptyRange(B64),
+			() => factory.newRange(-5n, 3n, []),
+			() => factory.newRange(B64, B64 + 3n, []),
+			() => decompose(-1n, 5n),
+			() => decompose(1n, B64 + 5n),
+		]) {
+			expect(call).toThrow(RangeError);
+		}
+	});
+
+	it("wraps end to 0 when appending at MaxUint64, as Go does", () => {
+		const max = B64 - 1n;
+		const rng = factory.newEmptyRange(max);
+		rng.append(DefaultHasher.hashLeaf(toUTF8("x")), null);
+		expect(rng.begin()).toBe(max);
+		expect(rng.end()).toBe(0n);
+	});
+});

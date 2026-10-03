@@ -82,6 +82,14 @@ under the ADR-0002 field mapping.
 - **A `Result`-style wrapper carrying the error too.** Rejected by ADR-0004, which settled that errors
   are thrown.
 
+> **Update (2026-10-02): scope.** This ADR covers the layout and parse functions listed above. The merkle port
+> keeps **tuples** for its same-typed pairs and triples — `decompose` → `[bigint, bigint]`,
+> `NodeID.coverage()` → `[bigint, bigint]`, `getMergePath` → `[number, number]`, `Nodes.ephem()` →
+> `[NodeID, number, number]` — which is the alternative rejected above. ADR-0208 records why that is the right
+> call there (upstream's callers destructure them positionally with names that match the doc comments, the
+> values are the left and right halves of one thing, and an object would rename them), and that it is not a
+> precedent for mixed-meaning returns.
+
 ## Review
 
 - **Reviewer:** Layout Reviewer (2026-08-19)

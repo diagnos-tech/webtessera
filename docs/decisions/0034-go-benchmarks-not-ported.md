@@ -43,6 +43,12 @@ nothing beyond "does not error", and both benchmarks' error paths are already co
 This ADR covers the whole port, not just this work package: if a later work package wants
 benchmarks, it supersedes this ADR rather than quietly adding a `bench()` here and there.
 
+> **Update (2026-10-02):** the same decision covers the benchmarks of the vendored dependencies, which were
+> never listed: `merkle/compact/range_test.go` (`BenchmarkAppend`), `merkle/rfc6962/rfc6962_test.go`
+> (`BenchmarkHashChildren`), and `formats/log/note_test.go` (`BenchmarkParse`, `BenchmarkLotsOfIDs`, and its
+> helper `benchmarkLotsOfIDs`). None is ported; each sits beside tests that are (`TestAppend`,
+> `TestRFC6962Hasher`, `TestParseCheckpoint`/`TestSumDBNoteParsing`).
+
 ## Consequences
 
 - No performance regression detection. If someone makes `EntryBundle.unmarshalText` allocate a copy

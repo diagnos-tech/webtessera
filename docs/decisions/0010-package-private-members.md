@@ -105,6 +105,23 @@ does not map 1:1 onto an upstream file.
 `compact/range_test.ts` and `compact/range_internal_test.ts` need no such treatment: they mirror
 Go's `compact_test` and `compact` packages respectively and share nothing.
 
+> **Update (2026-10-02):**
+>
+> - The table above omits one row: Go's `Nodes{...}` composite literal (package-private, because `Nodes` has
+>   unexported fields) is `new Nodes(ids, begin, end, ephem)`, marked `@internal`, just like `&Range{...}`.
+> - The grep recipe above never matches, because the port's relative imports carry an explicit `.ts`
+>   extension (AGENTS.md §3.8). The working form is:
+>
+>   ```
+>   grep -rnE 'from "(\.\./)+(compact|proof)/[a-z0-9_]+\.ts"' src --include='*.ts' | grep -v _test.ts
+>   ```
+>
+> - The barrels now export `Range` and `Nodes` as **types** only. No code outside their modules constructs
+>   either (only `RangeFactory` and `inclusion`/`consistency` do, as in Go, where the literals are
+>   package-private), so exporting the classes as values exposed their unvalidated constructors for no user.
+>   Tests import the modules directly, as before. `NodeID`'s fields are exported in Go, so its class stays a
+>   value export. See ADR-0208.
+
 ## Consequences
 
 - **The encapsulation is weaker than Go's.** Nothing stops application code from writing

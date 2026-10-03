@@ -19,9 +19,11 @@
 // Package log provides basic support for the common log checkpoint and proof
 // format described by the README in this directory.
 
+import { assertUint64 } from "../../../internal/gostd/bits.ts";
 import { fromBase64, fromUTF8, splitN, toBase64, toUTF8 } from "../../../internal/gostd/bytes.ts";
 import { wrapError } from "../../../internal/gostd/errors.ts";
 import { parseUint } from "../../../internal/gostd/strconv.ts";
+import { validUTF8, validUTF8String } from "../../../internal/gostd/unicode.ts";
 
 const NEWLINE = toUTF8("\n");
 
@@ -42,15 +44,32 @@ export class Checkpoint {
 	 * Port note: Go builds a Checkpoint with a composite literal and relies on the
 	 * zero value elsewhere (`var got log.Checkpoint`, `cp := &Checkpoint{}`). The
 	 * optional initialiser gives both: `new Checkpoint()` is the zero value.
+	 *
+	 * Port note: size must be a uint64; anything else throws a RangeError. See
+	 * docs/decisions/0207-uint64-domain-guards.md.
 	 */
 	constructor(init?: { origin?: string; size?: bigint; hash?: Uint8Array }) {
+		const size = init?.size ?? 0n;
+		assertUint64(size, "size");
 		this.origin = init?.origin ?? "";
-		this.size = init?.size ?? 0n;
+		this.size = size;
 		this.hash = init?.hash ?? new Uint8Array(0);
 	}
 
-	/** marshal returns the common format representation of this Checkpoint. */
+	/**
+	 * marshal returns the common format representation of this Checkpoint.
+	 *
+	 * Port note: Go's Marshal cannot fail. This throws a RangeError if size is not a
+	 * uint64 (docs/decisions/0207-uint64-domain-guards.md), and an Error if origin
+	 * holds an unpaired UTF-16 surrogate, which UTF-8 cannot encode and which would
+	 * otherwise be written as U+FFFD — a checkpoint for a different origin
+	 * (docs/decisions/0203-checkpoint-origin-must-be-utf8.md).
+	 */
 	marshal(): Uint8Array {
+		assertUint64(this.size, "size");
+		if (!validUTF8String(this.origin)) {
+			throw new Error("invalid checkpoint - origin is not valid UTF-8");
+		}
 		return toUTF8(`${this.origin}\n${this.size}\n${toBase64(this.hash)}\n`);
 	}
 
@@ -72,6 +91,14 @@ export class Checkpoint {
 	 * table test compares the receiver against the zero value on every error case.
 	 * The absent trailing data is `undefined`, mirroring Go's nil rather than
 	 * flattening it to an empty slice.
+	 *
+	 * Port note: an origin line that is not valid UTF-8 is rejected ("invalid
+	 * checkpoint - origin is not valid UTF-8"), after all of upstream's own checks.
+	 * Go keeps the raw bytes in the origin string; a JavaScript string cannot hold
+	 * them, and decoding them to U+FFFD would make distinct origins compare equal.
+	 * Checkpoints arriving through a signed note are unaffected: note.open already
+	 * rejects any note that is not valid UTF-8, in Go as here.
+	 * See docs/decisions/0203-checkpoint-origin-must-be-utf8.md.
 	 */
 	unmarshal(data: Uint8Array): Uint8Array | undefined {
 		const [l0, l1, l2, l3] = splitN(data, NEWLINE, 4);
@@ -93,6 +120,9 @@ export class Checkpoint {
 			h = fromBase64(fromUTF8(l2));
 		} catch (err) {
 			throw wrapError("invalid checkpoint - invalid hash", err);
+		}
+		if (!validUTF8(l0)) {
+			throw new Error("invalid checkpoint - origin is not valid UTF-8");
 		}
 		let rest: Uint8Array | undefined;
 		if (l3.length > 0) {

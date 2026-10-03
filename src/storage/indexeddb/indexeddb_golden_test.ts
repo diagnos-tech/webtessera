@@ -37,7 +37,15 @@ afterEach(() => {
 const factoryOf = new WeakMap<IndexedDBObjectStore, IDBFactory>();
 
 async function openStore(factory: IDBFactory): Promise<IndexedDBObjectStore> {
-	const s = await openIndexedDBObjectStore({ name: "log", indexedDB: factory, IDBKeyRange, locks: null });
+	// Node has no Web Locks; the suite is the only writer of each fake-indexeddb factory
+	// (docs/decisions/0201-indexeddb-locks-fail-closed.md).
+	const s = await openIndexedDBObjectStore({
+		name: "log",
+		indexedDB: factory,
+		IDBKeyRange,
+		locks: null,
+		singleWriter: true,
+	});
 	opened.push(s);
 	factoryOf.set(s, factory);
 	return s;

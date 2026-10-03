@@ -56,7 +56,7 @@ import {
 import type { FetchFn } from "../../client/fetcher.ts";
 import type { Entry } from "../../entry.ts";
 import { partialOrFullResource } from "../../internal/fetcher/fallback.ts";
-import { concatBytes, fromUTF8, toUTF8 } from "../../internal/gostd/bytes.ts";
+import { bytesEqual, concatBytes, fromUTF8, toHex, toUTF8 } from "../../internal/gostd/bytes.ts";
 import { ErrNotExist, errorIs, wrapError } from "../../internal/gostd/errors.ts";
 import { parseUint, quote } from "../../internal/gostd/strconv.ts";
 import { sleep, ticker } from "../../internal/gostd/sync.ts";
@@ -626,6 +626,14 @@ export class appender {
 	 *
 	 * Port note: Go first creates the .state directory; an object store has no directories to
 	 * create. As in sequenceBatch, ObjectStore.lock replaces Go's double locking.
+	 *
+	 * Port note: Go starts a fresh, empty tree whenever the tree state is missing, even if a
+	 * checkpoint is already published at the same location — after which it signs a size-0
+	 * checkpoint over the published one and re-sequences entries at indices it has already
+	 * published, a fork of the log. This refuses instead: with no tree state, a new tree is
+	 * started only if no checkpoint is published. Recovery is the operator's decision (restore
+	 * `.state/treeState`, or start a new log elsewhere); see
+	 * docs/decisions/0205-checkpoint-publication-fails-closed.md.
 	 */
 	async initialise(signal?: AbortSignal): Promise<void> {
 		await this.s.lockFile(
@@ -638,6 +646,17 @@ export class appender {
 				} catch (err) {
 					if (!errorIs(err, ErrNotExist)) {
 						throw new Error(`failed to load checkpoint for log: ${errText(err)}`);
+					}
+					let published: ObjectInfo | undefined;
+					try {
+						published = await this.s.stat(CheckpointPath);
+					} catch (err) {
+						throw new Error(`stat(${CheckpointPath}): ${errText(err)}`);
+					}
+					if (published !== undefined) {
+						throw new Error(
+							`refusing to initialise a new tree: ${stateDir}/${treeStateFile} does not exist but a checkpoint is already published at ${quote(CheckpointPath)}; starting over would fork the published log (restore ${stateDir}/${treeStateFile}, or start the new log in an empty store)`,
+						);
 					}
 					// Create the directory structure and write out an empty checkpoint
 					try {
@@ -667,6 +686,12 @@ export class appender {
 	 *
 	 * Port note: a checkpoint's age is measured from ObjectStore.stat's modTime, the
 	 * counterpart of the file's mtime.
+	 *
+	 * Port note: Go writes whatever newCP returns. This first checks that it parses as a
+	 * checkpoint for exactly the size and root it was asked to sign, and refuses to publish
+	 * it otherwise: an empty or unparsable checkpoint would replace the published one, and
+	 * every later publish would fail on publishedSize, leaving the log unable to publish
+	 * again. See docs/decisions/0205-checkpoint-publication-fails-closed.md.
 	 */
 	async publishCheckpoint(minStalenessActive: number, minStalenessRepub: number, signal?: AbortSignal): Promise<void> {
 		// Lock the destination "published" checkpoint location:
@@ -716,6 +741,7 @@ export class appender {
 				} catch (err) {
 					throw new Error(`newCP: ${errText(err)}`);
 				}
+				checkPublishable(cpRaw, size, root);
 
 				try {
 					await this.s.createOverwrite(CheckpointPath, cpRaw);
@@ -976,6 +1002,29 @@ async function doIntegrate(
 	}
 
 	return { newSize: r.newSize, newRoot: r.rootHash };
+}
+
+/**
+ * checkPublishable throws unless cpRaw parses as a checkpoint committing to exactly size
+ * and root.
+ *
+ * Port note: no upstream counterpart; see appender.publishCheckpoint and
+ * docs/decisions/0205-checkpoint-publication-fails-closed.md. It parses the way
+ * publishedSize will read the checkpoint back (checkpointUnsafe: the signature is the
+ * publisher's own, and this is the binary that produced it).
+ */
+function checkPublishable(cpRaw: Uint8Array, size: bigint, root: Uint8Array): void {
+	let parsed: { size: bigint; hash: Uint8Array };
+	try {
+		parsed = checkpointUnsafe(cpRaw);
+	} catch (err) {
+		throw new Error(`newCP returned a checkpoint that does not parse, refusing to publish it: ${errText(err)}`);
+	}
+	if (parsed.size !== size || !bytesEqual(parsed.hash, root)) {
+		throw new Error(
+			`newCP returned a checkpoint for a different tree (size ${parsed.size}, root ${toHex(parsed.hash)}; want size ${size}, root ${toHex(root)}), refusing to publish it`,
+		);
+	}
 }
 
 /**

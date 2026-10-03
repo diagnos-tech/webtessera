@@ -53,6 +53,12 @@ database. Callers that need the store itself (to close it independently, to serv
 worker, to inspect it) use the two-step form `openIndexedDBObjectStore` + `newObjectStoreDriver`, which the
 function's documentation points to.
 
+> **Update (2026-10-02):** `newIndexedDBDriver` now returns `IndexedDBDriver`, an `ObjectStoreDriver` subclass
+> with a read-only `lockScope`, so that a caller of the one-call constructor can see whether its locks exclude
+> other tabs; and, like `openIndexedDBObjectStore`, it rejects when no Web Locks `LockManager` is available
+> unless `singleWriter: true` is passed. The second alternative below (subclassing `ObjectStoreDriver`) is
+> adopted for that one property; `close()` and `store` are still not attached. See ADR-0201.
+
 ## Consequences
 
 - One call, and one lifetime to manage, for the common case; the same shape as upstream's `posix.New(ctx, cfg)`
