@@ -88,6 +88,13 @@ export async function retry<T>(fn: () => Promise<T>, options: RetryOptions = {})
 	const attempts = options.attempts ?? 10;
 	const delayMs = options.delayMs ?? 100;
 	const maxJitterMs = options.maxJitterMs ?? 100;
+	// A count of NaN would never be reached, and retry forever.
+	if (!Number.isSafeInteger(attempts) || attempts < 1) {
+		throw new RangeError(`retry: attempts must be a positive integer, got ${attempts}`);
+	}
+	if (!(Number.isFinite(delayMs) && delayMs >= 0 && Number.isFinite(maxJitterMs) && maxJitterMs >= 0)) {
+		throw new RangeError(`retry: delays must be non-negative numbers, got ${delayMs} and ${maxJitterMs}`);
+	}
 	const errors: unknown[] = [];
 	for (let n = 0; ; n++) {
 		try {

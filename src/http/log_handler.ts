@@ -36,7 +36,13 @@ import {
 /**
  * LogResourceReader is the part of a LogReader the handler reads from. Every LogReader
  * returned by `newAppender` satisfies it, and so does an `HTTPFetcher` from
- * `webtessera/client`, which makes the handler a caching proxy for a remote log.
+ * `webtessera/client`, which makes the handler a proxy for a remote log.
+ *
+ * Such a proxy verifies nothing: it re-serves whatever the remote log answers, and serves
+ * full tiles and bundles as immutable for a year, so a single wrong answer from upstream is
+ * kept by every cache in front of it. To re-serve a log you do not operate, copy it with
+ * newVerifiedMirror from `webtessera/mirror` into storage of your own, which writes only
+ * what it has proven against the log's signed checkpoint, and serve that.
  */
 export type LogResourceReader = Pick<LogReader, "readCheckpoint" | "readTile" | "readEntryBundle">;
 

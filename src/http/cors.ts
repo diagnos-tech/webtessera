@@ -45,11 +45,16 @@ export function corsConfig(cors: boolean | CorsOptions | undefined, expose: read
 		return undefined;
 	}
 	const o: CorsOptions = cors === true ? {} : cors;
+	const maxAgeSeconds = o.maxAgeSeconds ?? 86400;
+	// Zero is a valid maximum age: it asks browsers not to cache preflights at all.
+	if (!Number.isSafeInteger(maxAgeSeconds) || maxAgeSeconds < 0) {
+		throw new RangeError(`cors: maxAgeSeconds must be a non-negative integer, got ${String(o.maxAgeSeconds)}`);
+	}
 	const simple = new Headers({ "Access-Control-Allow-Origin": o.origin ?? "*" });
 	if (expose.length > 0) {
 		simple.set("Access-Control-Expose-Headers", expose.join(", "));
 	}
-	return { simple, maxAgeSeconds: o.maxAgeSeconds ?? 86400 };
+	return { simple, maxAgeSeconds };
 }
 
 /**

@@ -92,13 +92,30 @@ export function normalizePrefix(prefix: string | undefined): string {
 }
 
 /**
+ * positiveInteger returns value once it has checked that it is a positive safe integer, and
+ * throws a RangeError naming the option otherwise. Every cap and count an option sets goes
+ * through it: NaN, which `Number(process.env.UNSET)` produces, compares false with
+ * everything, so a cap of NaN would cap nothing, and a negative, fractional or infinite one
+ * is as surely a mistake.
+ *
+ * @internal Shared by this package, webtessera/witness and webtessera/mirror.
+ */
+export function positiveInteger(name: string, value: number): number {
+	if (!Number.isSafeInteger(value) || value < 1) {
+		throw new RangeError(`${name} must be a positive integer, got ${String(value)}`);
+	}
+	return value;
+}
+
+/**
  * readBodyCapped reads a request body, or returns undefined as soon as it is known to exceed
  * max bytes: from a declared `Content-Length`, or while streaming, without ever buffering
- * more than max bytes.
+ * more than max bytes. It throws a RangeError if max is not a positive integer.
  *
  * @internal Shared by the handlers in this package and webtessera/witness.
  */
 export async function readBodyCapped(request: Request, max: number): Promise<Uint8Array | undefined> {
+	positiveInteger("the body size limit", max);
 	const declared = Number(request.headers.get("Content-Length") ?? "0");
 	if (declared > max) {
 		return undefined;

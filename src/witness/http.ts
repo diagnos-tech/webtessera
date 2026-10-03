@@ -21,6 +21,7 @@ import {
 	type Handler,
 	methodNotAllowed,
 	normalizePrefix,
+	positiveInteger,
 	readBodyCapped,
 	textResponse,
 } from "../http/handler.ts";
@@ -64,7 +65,7 @@ export function newWitnessHandler(
 	const addPath = `${normalizePrefix(options.prefix)}add-checkpoint`;
 	const monitoring =
 		options.monitoringPrefix === false ? undefined : normalizePrefix(options.monitoringPrefix ?? options.prefix);
-	const maxBodyBytes = options.maxBodyBytes ?? DefaultMaxBodyBytes;
+	const maxBodyBytes = positiveInteger("witness: maxBodyBytes", options.maxBodyBytes ?? DefaultMaxBodyBytes);
 	const cors = corsConfig(options.cors, []);
 
 	return async (request: Request): Promise<Response | undefined> => {

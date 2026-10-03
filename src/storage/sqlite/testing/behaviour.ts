@@ -20,7 +20,9 @@
 
 import { describe, expect, it } from "vitest";
 import { bytesEqual } from "../../../internal/gostd/bytes.ts";
+import { errorIs } from "../../../internal/gostd/errors.ts";
 import type { SqlDatabase } from "../database.ts";
+import { ErrLeaseLost } from "../lease.ts";
 import { type Tables, tableNames } from "../schema.ts";
 import { openSqliteObjectStore, type SqliteObjectStore } from "../sqlite.ts";
 import { prefixCases } from "./prefix_cases.ts";
@@ -199,6 +201,25 @@ export function describeSqliteBehaviour(
 			await expect(o.store.get("k")).rejects.toThrow("want 2001");
 			await o.db.query({ sql: `DELETE FROM ${o.t.objects}`, params: [] });
 			await expect(o.store.get("k")).rejects.toThrow("no object row");
+		});
+
+		it("refuses every write of a lease holder once another holder has taken the lock over", async () => {
+			const o = await open({ locking: "lease" });
+			await o.store.put("checkpoint", enc.encode("before"));
+			await o.store.lock("treeState.lock", async () => {
+				await o.db.query({ sql: `UPDATE ${o.t.locks} SET holder = 'another holder'`, params: [] });
+				for (const write of [
+					() => o.store.put("checkpoint", enc.encode("stale")),
+					() => o.store.create("tile/0/000", enc.encode("stale")),
+					() => o.store.deletePrefix(""),
+				]) {
+					const err = await write().catch((e: unknown) => e);
+					expect(errorIs(err, ErrLeaseLost), String(err)).toBe(true);
+				}
+			});
+			expect(await o.store.get("checkpoint")).toEqual(enc.encode("before"));
+			expect(await o.store.get("tile/0/000")).toBeUndefined();
+			expect(await allKeys(o, o.t.fence)).toBe(0);
 		});
 	});
 }

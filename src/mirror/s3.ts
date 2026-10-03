@@ -18,11 +18,13 @@
 // ./sigv4.ts. See docs/decisions/0175-mirror-sinks.md.
 
 import { sha256 } from "@noble/hashes/sha2.js";
-import type { FetchFn } from "../client/fetcher.ts";
+import type { FetchFn, omitCredentials } from "../client/fetcher.ts";
+import { positiveInteger } from "../http/handler.ts";
 import { type CacheControlPolicy, DefaultCacheControl, resourceHeaders } from "../http/resources.ts";
-import { toHex } from "../internal/gostd/bytes.ts";
-import { isRedirect, MaxResourceBytes, readCapped } from "./fetch.ts";
-import { retry } from "./retry.ts";
+import { bytesEqual, toHex } from "../internal/gostd/bytes.ts";
+import { errorIs } from "../internal/gostd/errors.ts";
+import { errResponseTooLarge, isRedirect, MaxResourceBytes, readCapped } from "./fetch.ts";
+import { isRecoverable, retry, unrecoverable } from "./retry.ts";
 import { signV4, uriEncode } from "./sigv4.ts";
 import type { Sink } from "./sink.ts";
 
@@ -57,10 +59,12 @@ export interface S3SinkOptions {
 	/**
 	 * conditionalWrites sends `If-None-Match: *` with every tile and entry bundle, which
 	 * never change once written, so that the service refuses to overwrite one that is
-	 * already there (a refusal the sink treats as success). AWS S3, Cloudflare R2 and MinIO
-	 * honour it; services that ignore the header simply overwrite. Set it to false for a
-	 * service that rejects the header outright. Defaults to true. The checkpoint, which does
-	 * change, is always overwritten.
+	 * already there. The sink then reads the stored object back and accepts the refusal
+	 * only if it holds exactly the bytes being written; anything else fails the put, with
+	 * an error marked unrecoverable, since the bucket then holds part of a different tree.
+	 * AWS S3, Cloudflare R2 and MinIO honour the header; services that ignore it simply
+	 * overwrite. Set it to false for a service that rejects the header outright. Defaults
+	 * to true. The checkpoint, which does change, is always overwritten.
 	 */
 	readonly conditionalWrites?: boolean;
 	/** cacheControl overrides the `Cache-Control` stored with each object; see DefaultCacheControl. */
@@ -107,7 +111,8 @@ export class S3Error extends Error {
  * its path, so a bucket served publicly (directly, through a CDN, or as a website) serves the
  * log correctly as it is. Bodies are signed (`x-amz-content-sha256` is their SHA-256), and
  * requests never follow redirects, so credentials are only ever sent to the endpoint
- * configured. Network failures, 429s and 5xx answers are retried.
+ * configured, and carry no ambient credentials (cookies). Network failures, 429s and 5xx
+ * answers are retried.
  */
 export function newS3Sink(options: S3SinkOptions): S3Sink {
 	return new S3Sink(options);
@@ -118,6 +123,8 @@ export class S3Sink implements Sink {
 	readonly #o: S3SinkOptions;
 	readonly #endpoint: URL;
 	readonly #policy: CacheControlPolicy;
+	readonly #attempts: number;
+	readonly #maxObjectBytes: number;
 
 	/** @internal Construct via {@link newS3Sink}. */
 	constructor(options: S3SinkOptions) {
@@ -130,6 +137,8 @@ export class S3Sink implements Sink {
 			throw new Error("the S3 bucket name must be non-empty and contain no slash");
 		}
 		this.#policy = { ...DefaultCacheControl, ...options.cacheControl };
+		this.#attempts = positiveInteger("S3 sink: attempts", options.attempts ?? 3);
+		this.#maxObjectBytes = positiveInteger("S3 sink: maxObjectBytes", options.maxObjectBytes ?? MaxResourceBytes);
 	}
 
 	/** put stores data under key (after the sink's prefix). */
@@ -148,18 +157,71 @@ export class S3Sink implements Sink {
 		if (conditional) {
 			h.push(["if-none-match", "*"]);
 		}
+		let exists = false;
 		await this.#request("PUT", key, h, data, async (r) => {
-			// "Precondition Failed": the object is already there, and immutable.
+			// "Precondition Failed": an object is already stored under the key.
 			if (r.status === 200 || (conditional && r.status === 412)) {
+				exists = r.status === 412;
 				await discard(r);
 				return true;
 			}
 			return false;
 		});
+		if (exists) {
+			await this.#checkStored(key, data);
+		}
 	}
 
 	/** get returns the object stored under key (after the sink's prefix), or undefined if there is none. */
-	async get(key: string): Promise<Uint8Array | undefined> {
+	get(key: string): Promise<Uint8Array | undefined> {
+		return this.#get(key, this.#maxObjectBytes);
+	}
+
+	/**
+	 * _withPrefix returns a sink over the same bucket that puts extra after this sink's
+	 * prefix, so that newSinkTarget can hand it keys relative to the log, from which the
+	 * metadata and conditional writes of each object are derived.
+	 *
+	 * @internal
+	 */
+	_withPrefix(extra: string): S3Sink {
+		return new S3Sink({ ...this.#o, prefix: `${this.#o.prefix ?? ""}${extra}` });
+	}
+
+	/**
+	 * checkStored makes sure that the object a conditional write found under key holds
+	 * exactly data. A resource is the same at a path in every copy of one log, so different
+	 * bytes mean that what the bucket holds belongs to another tree: an earlier run copied
+	 * from a source that has since served a different history. That cannot be repaired by
+	 * trying again, and the error says so.
+	 */
+	async #checkStored(key: string, data: Uint8Array): Promise<void> {
+		let stored: Uint8Array | undefined;
+		try {
+			stored = await this.#get(key, data.length);
+		} catch (err) {
+			// An object larger than data cannot hold data.
+			throw errorIs(err, errResponseTooLarge) ? this.#conflict(key) : err;
+		}
+		if (stored === undefined) {
+			// Deleted since the write found it: the next attempt writes it afresh.
+			throw new Error(`${this.#operation("PUT", key)}: the object already stored there has since been deleted`);
+		}
+		if (!bytesEqual(stored, data)) {
+			throw this.#conflict(key);
+		}
+	}
+
+	#conflict(key: string): Error {
+		return unrecoverable(
+			new Error(
+				`${this.#operation("PUT", key)}: a different object is already stored there, and tlog-tiles resources ` +
+					"are immutable; the bucket holds part of another tree, which must be removed by hand",
+			),
+		);
+	}
+
+	async #get(key: string, max: number): Promise<Uint8Array | undefined> {
 		let body: Uint8Array | undefined;
 		await this.#request("GET", key, [["x-amz-content-sha256", emptyHash]], undefined, async (r) => {
 			if (r.status === 404) {
@@ -168,12 +230,16 @@ export class S3Sink implements Sink {
 				return true;
 			}
 			if (r.status === 200) {
-				body = await readCapped(r, this.#o.maxObjectBytes ?? MaxResourceBytes);
+				body = await readCapped(r, max);
 				return true;
 			}
 			return false;
 		});
 		return body;
+	}
+
+	#operation(method: "PUT" | "GET", key: string): string {
+		return `S3 ${method} ${this.#o.bucket}/${this.#o.prefix ?? ""}${key}`;
 	}
 
 	/**
@@ -188,7 +254,7 @@ export class S3Sink implements Sink {
 		accept: (r: Response) => Promise<boolean>,
 	): Promise<void> {
 		const url = this.#url(key);
-		const operation = `S3 ${method} ${this.#o.bucket}/${this.#o.prefix ?? ""}${key}`;
+		const operation = this.#operation(method, key);
 		const f = this.#o.fetch ?? fetch;
 		await retry(
 			async () => {
@@ -207,11 +273,15 @@ export class S3Sink implements Sink {
 					service: "s3",
 					now,
 				});
-				const init: RequestInit = {
+				const init: omitCredentials = {
 					method,
 					headers: [...headers, ...signed.headers] as [string, string][],
 					// Never follow a redirect: it would carry the signed request, credentials
-					// and all, somewhere other than the endpoint configured.
+					// and all, somewhere other than the endpoint configured. And send no
+					// ambient credentials either: a page's cookies for the endpoint's origin
+					// have no place in a signed request. See
+					// docs/decisions/0213-rqlite-and-s3-requests-omit-credentials-and-refuse-redirects.md.
+					credentials: "omit",
 					redirect: "manual",
 				};
 				if (body !== undefined) {
@@ -228,7 +298,7 @@ export class S3Sink implements Sink {
 				}
 				throw await refusal(operation, r);
 			},
-			{ attempts: this.#o.attempts ?? 3, retryIf: isTransient },
+			{ attempts: this.#attempts, retryIf: isTransient },
 		);
 	}
 
@@ -256,6 +326,9 @@ const emptyHash = toHex(sha256(new Uint8Array(0)));
 
 /** isTransient reports whether a failed request is worth trying again. */
 function isTransient(err: unknown): boolean {
+	if (!isRecoverable(err) || errorIs(err, errResponseTooLarge)) {
+		return false;
+	}
 	if (err instanceof S3Error) {
 		// 409 is S3's answer to two conditional writes of the same key racing.
 		return err.status === 429 || err.status === 409 || err.status >= 500;

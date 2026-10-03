@@ -116,6 +116,40 @@ describe("toNodeListener", () => {
 		expect(onError).toHaveBeenCalledWith(new Error("boom"));
 	});
 
+	it("takes an origin-form request-target as the path it is, and refuses other forms", async () => {
+		const seen: string[] = [];
+		const listener = toNodeListener(async (r) => {
+			seen.push(r.url);
+			return new Response("ok");
+		});
+		const serve = async (method: string, target: string, headers: Record<string, string> = { host: "log.example" }) => {
+			const { res, done } = fakeResponse();
+			listener(fakeRequest(method, target, headers), res);
+			return (await done).status;
+		};
+		expect(await serve("GET", "//x/checkpoint")).toBe(200);
+		expect(await serve("GET", "//admin/witness/add-checkpoint?a=b")).toBe(200);
+		expect(seen).toEqual(["http://log.example//x/checkpoint", "http://log.example//admin/witness/add-checkpoint?a=b"]);
+		for (const target of ["http://other.example/checkpoint", "other.example:443", "checkpoint", "*", ""]) {
+			expect(await serve("GET", target), target).toBe(400);
+		}
+		expect(await serve("OPTIONS", "*")).toBe(204);
+		// A Host header that is not a bare authority cannot move the request elsewhere.
+		for (const host of ["log.example/admin", "user@log.example", "log.example?x", "log example"]) {
+			expect(await serve("GET", "/checkpoint", { host }), host).toBe(400);
+		}
+		expect(seen).toHaveLength(2);
+	});
+
+	it("refuses a body limit that is not a positive integer, and an origin with a path", () => {
+		for (const maxBodyBytes of [Number.NaN, Number(undefined), -1, 0, 1.5, Number.POSITIVE_INFINITY]) {
+			expect(() => toNodeListener(async () => undefined, { maxBodyBytes }), String(maxBodyBytes)).toThrow(RangeError);
+		}
+		for (const origin of ["https://public.example/base", "https://public.example/?q", "not a url"]) {
+			expect(() => toNodeListener(async () => undefined, { origin }), origin).toThrow(TypeError);
+		}
+	});
+
 	it("writes no body for a bodiless response and honours a fixed origin", async () => {
 		let url = "";
 		const { res, done } = fakeResponse();

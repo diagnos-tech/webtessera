@@ -19,7 +19,7 @@
 // docs/decisions/0171-witness-server.md.
 
 import type { CorsOptions } from "../http/cors.ts";
-import type { Handler } from "../http/handler.ts";
+import { type Handler, positiveInteger } from "../http/handler.ts";
 import { bytesEqual, fromUTF8, indexByte } from "../internal/gostd/bytes.ts";
 import { throwIfAborted } from "../internal/gostd/errors.ts";
 import { verifyConsistency } from "../vendor/merkle/proof/verify.ts";
@@ -46,7 +46,7 @@ import {
 	OldSizeMismatchError,
 } from "./errors.ts";
 import { DefaultMaxBodyBytes, newWitnessHandler } from "./http.ts";
-import { KeySeparation } from "./keycheck.ts";
+import { checkCosigner, KeySeparation } from "./keycheck.ts";
 import { type AddCheckpointRequest, MaxConsistencyProofLines } from "./request.ts";
 import { checkpointKey, readLatest, type WitnessStore } from "./state.ts";
 
@@ -75,7 +75,15 @@ export interface WitnessedLog extends LogKeys {
  * logs its users' browsers keep, one per session, registers each log's verifier key as the
  * session starts (in a database, say) and looks it up here, by origin, when the log's
  * first checkpoint arrives. The witness asks on every request, so a lookup is free to
- * consult a cache, revoke a log, or rotate its keys.
+ * revoke a log or rotate its keys.
+ *
+ * Its cost is the caller's to bound. It runs for every add-checkpoint request whose origin
+ * `logs` does not list, before any signature is checked, so whoever can reach the witness
+ * decides how often it runs, and with which origins. Answer from memory where you can: a
+ * bounded map of recent answers, unknown origins included, kept for a few seconds, in
+ * front of the database or service that holds the registrations. What the witness derives
+ * from the keys returned (their verifiers, and the check that none is a witness key) it
+ * caches itself, by key.
  */
 export type LogLookup = (origin: string, signal?: AbortSignal) => Promise<LogKeys | undefined> | LogKeys | undefined;
 
@@ -104,10 +112,11 @@ export interface InconsistencyEvidence {
 export interface WitnessServerOptions {
 	/**
 	 * signer makes the witness's cosignatures. Build it with `newSignerForCosignatureV1`
-	 * from an Ed25519 signer key; the witness's name is the key's name.
+	 * from an Ed25519 signer key; the witness's name is the key's name. It must make
+	 * cosignature/v1 signatures, which newWitnessServer checks by having it sign a probe.
 	 */
 	readonly signer: Signer;
-	/** additionalSigners cosign alongside signer, during a key rotation for example. */
+	/** additionalSigners cosign alongside signer, during a key rotation for example. Each is checked as signer is. */
 	readonly additionalSigners?: readonly Signer[];
 
 	/** store holds the latest cosigned checkpoint of every log. */
@@ -143,7 +152,8 @@ export interface WitnessServerOptions {
 	readonly cors?: boolean | CorsOptions;
 	/**
 	 * maxBodyBytes caps add-checkpoint request bodies, and so the checkpoints in them, for
-	 * HTTP and programmatic callers alike. Defaults to 16 KiB, as in the Go witness.
+	 * HTTP and programmatic callers alike. It is a positive integer, and defaults to 16 KiB,
+	 * as in the Go witness.
 	 */
 	readonly maxBodyBytes?: number;
 
@@ -193,15 +203,22 @@ export class WitnessServer {
 	readonly #onInconsistency: WitnessServerOptions["onInconsistency"];
 	readonly #maxCheckpointBytes: number;
 	readonly #keySeparation: KeySeparation;
+	/** lookedUp holds, by key, a verifier for each key lookupLog returned, or undefined for one that is a witness key. */
+	readonly #lookedUp = new Map<string, Verifier | undefined>();
+	/** checked holds the key separation verdict on each verifier lookupLog returned. */
+	readonly #checked = new WeakMap<Verifier, boolean>();
 
 	/** @internal Construct via {@link newWitnessServer}. */
 	constructor(options: WitnessServerOptions) {
 		this.#signers = [options.signer, ...(options.additionalSigners ?? [])];
+		for (const s of this.#signers) {
+			checkCosigner(s);
+		}
 		this.#store = options.store;
 		this.#keyPrefix = options.keyPrefix ?? "";
 		this.#lookupLog = options.lookupLog;
 		this.#onInconsistency = options.onInconsistency;
-		this.#maxCheckpointBytes = options.maxBodyBytes ?? DefaultMaxBodyBytes;
+		this.#maxCheckpointBytes = positiveInteger("witness: maxBodyBytes", options.maxBodyBytes ?? DefaultMaxBodyBytes);
 		this.#keySeparation = new KeySeparation(this.#signers);
 		const logs = new Map<string, readonly Verifier[]>();
 		for (const l of options.logs ?? []) {
@@ -382,15 +399,60 @@ export class WitnessServer {
 		if (keys === undefined) {
 			return undefined;
 		}
-		const vs = verifiersOf(origin, keys);
 		// Logs come and go through lookupLog, possibly registered by the public; one that
-		// claims a witness key is not one this witness witnesses.
-		if (this.#keySeparation.sharesKey(vs)) {
+		// claims a witness key is not one this witness witnesses. Telling costs a signature
+		// verification per key, and the answer for a key never changes, so it is kept.
+		const vs: Verifier[] = [];
+		let shared = false;
+		for (const v of keys.verifiers ?? []) {
+			let shares = this.#checked.get(v);
+			if (shares === undefined) {
+				shares = this.#keySeparation.sharesKey([v]);
+				this.#checked.set(v, shares);
+			}
+			shared ||= shares;
+			vs.push(v);
+		}
+		for (const k of keys.verifierKeys ?? []) {
+			const v = this.#lookedUpVerifier(k);
+			shared ||= v === undefined;
+			if (v !== undefined) {
+				vs.push(v);
+			}
+		}
+		if (shared) {
 			throw new Error(`${ErrUnknownLog.message} ${echo(origin)}: it is signed with one of the witness's own keys`, {
 				cause: ErrUnknownLog,
 			});
 		}
+		if (vs.length === 0) {
+			throw new Error(`log ${echo(origin)} has no verifier keys`);
+		}
 		return vs;
+	}
+
+	/**
+	 * lookedUpVerifier returns the verifier for a verifier key lookupLog returned, or
+	 * undefined if it is a witness key, from the cache of recent keys if it is there.
+	 */
+	#lookedUpVerifier(key: string): Verifier | undefined {
+		if (this.#lookedUp.has(key)) {
+			const v = this.#lookedUp.get(key);
+			// Most recently used last, so that the oldest is the first to go.
+			this.#lookedUp.delete(key);
+			this.#lookedUp.set(key, v);
+			return v;
+		}
+		const v = newVerifier(key);
+		const kept = this.#keySeparation.sharesKey([v]) ? undefined : v;
+		if (this.#lookedUp.size >= maxLookedUpKeys) {
+			const oldest = this.#lookedUp.keys().next();
+			if (oldest.done !== true) {
+				this.#lookedUp.delete(oldest.value);
+			}
+		}
+		this.#lookedUp.set(key, kept);
+		return kept;
 	}
 
 	async #evidence(
@@ -421,6 +483,9 @@ function verifiersOf(origin: string, keys: LogKeys): readonly Verifier[] {
 
 // hashSize is the size of a Merkle tree hash: tlog-witness logs use SHA-256 (RFC 6962).
 const hashSize = 32;
+
+// maxLookedUpKeys bounds the verifier keys from lookupLog the witness keeps verifiers for.
+const maxLookedUpKeys = 4096;
 
 function malformed(message: string): Error {
 	return new Error(`${ErrMalformedRequest.message}: ${message}`, { cause: ErrMalformedRequest });

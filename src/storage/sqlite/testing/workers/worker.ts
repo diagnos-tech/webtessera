@@ -24,8 +24,16 @@ import { DurableObject } from "cloudflare:workers";
  */
 export class SqliteTestObject extends DurableObject {}
 
+/**
+ * The default handler stands in for a remote server in the tests of what the library's
+ * requests look like to workerd: it answers 307 to a path ending in `/redirect`, and 404 to
+ * everything else.
+ */
 export default {
-	fetch(): Response {
+	fetch(request: Request): Response {
+		if (new URL(request.url).pathname.endsWith("/redirect")) {
+			return new Response(null, { status: 307, headers: { Location: "https://elsewhere.example/" } });
+		}
 		return new Response("not found", { status: 404 });
 	},
 };

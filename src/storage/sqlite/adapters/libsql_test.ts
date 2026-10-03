@@ -22,6 +22,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { describeObjectStoreConformance } from "../../objectstore/testing/conformance.ts";
 import { describeDriverConformance } from "../../objectstore/testing/driver_conformance.ts";
 import type { SqlDatabase } from "../database.ts";
+import { openSqliteObjectStore } from "../sqlite.ts";
 import { describeSqliteBehaviour } from "../testing/behaviour.ts";
 import { otherProcess, type StoreTarget, storeFactory } from "../testing/stores.ts";
 import { D1Limits, StrictSqlDatabase } from "../testing/strict.ts";
@@ -88,8 +89,23 @@ describe("fromLibsql", () => {
 		expect(like.protocol).toBe("file");
 	});
 
-	it("defaults to local locking for a local database, and lease locking for a remote one", () => {
-		expect(fromLibsql(client(":memory:")).defaultLocking).toBe("local");
+	it("defaults to local locking for an in-memory database only", async () => {
+		const lockingOf = async (database: SqlDatabase) => (await openSqliteObjectStore({ database })).locking;
+		expect(await lockingOf(fromLibsql(client(":memory:")))).toBe("local");
+		expect(await lockingOf(fromLibsql(client("file::memory:")))).toBe("local");
+		expect(await lockingOf(fromLibsql(client(`file:${dir}/default-${++files}.db`)))).toBe("lease");
+
+		// An embedded replica's protocol is "file" too, and its local database is a file:
+		// the client refuses to keep one in memory.
+		expect(() => createClient({ url: ":memory:", syncUrl: "http://127.0.0.1:1" })).toThrow(/[Ee]mbedded replica/);
+		const replica: LibsqlClientLike = {
+			protocol: "file",
+			execute: async () => ({ columns: ["seq", "name", "file"], rows: [[0, "main", `${dir}/replica.db`]] }),
+			batch: () => Promise.reject(new Error("not connected")),
+		};
+		const defaultLocking = fromLibsql(replica).defaultLocking;
+		expect(typeof defaultLocking === "function" ? await defaultLocking() : defaultLocking).toBe("lease");
+
 		const remote: LibsqlClientLike = {
 			protocol: "https",
 			execute: () => Promise.reject(new Error("not connected")),

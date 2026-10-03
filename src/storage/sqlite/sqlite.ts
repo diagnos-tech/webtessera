@@ -26,8 +26,8 @@ import type { ObjectInfo, ObjectStore } from "../objectstore/objectstore.ts";
 import type { SqlDatabase, SqliteLocking, SqlRow, SqlStatement } from "./database.ts";
 import { encodeKey, prefixRange } from "./keys.ts";
 import { type Fence, isLeaseLost, LeaseLocks, type LeaseTimings, leaseLostError } from "./lease.ts";
-import { blobParam, textParam } from "./params.ts";
-import { ensureSchema, type Tables, tableNames } from "./schema.ts";
+import { blobParam, checkTextEncoding, textParam } from "./params.ts";
+import { databaseInstance, ensureSchema, type Tables, tableNames } from "./schema.ts";
 import { asBytes, asInteger } from "./values.ts";
 
 /**
@@ -48,7 +48,7 @@ export interface SqliteLeaseOptions {
 	 * before its writes start failing with ErrLeaseLost. It defaults to 30 seconds.
 	 */
 	readonly ttlMs?: number;
-	/** renewIntervalMs is how often a held lease is renewed. It defaults to a third of ttlMs. */
+	/** renewIntervalMs is how often a held lease is renewed. It defaults to a third of ttlMs, rounded down. */
 	readonly renewIntervalMs?: number;
 	/**
 	 * maxPollIntervalMs bounds the backoff between attempts to take a lock that another
@@ -73,9 +73,15 @@ export interface SqliteObjectStoreOptions {
 
 	/**
 	 * locking selects how ObjectStore.lock excludes other writers: see SqliteLocking. It
-	 * defaults to the database's defaultLocking: "lease" for engines that several
-	 * processes share (D1, rqlite, remote libSQL) and "local" for the others. Choose
-	 * "lease" explicitly when several processes open the same SQLite file.
+	 * defaults to the database's defaultLocking, which fails closed: "lease", unless the
+	 * adapter can show that nothing outside this realm can reach the database, as for an
+	 * in-memory or temporary database, a Durable Object's, or a WebAssembly SQLite in a
+	 * private VFS. Every SQLite file, libSQL embedded replica, D1, rqlite and remote libSQL
+	 * database therefore gets "lease".
+	 *
+	 * Choosing "local" is the caller's declaration that this realm is the database's only
+	 * writer, like IndexedDB's `singleWriter`. If another process, or a connection that is
+	 * not a store of this realm, writes the database too, the log forks.
 	 */
 	readonly locking?: SqliteLocking;
 
@@ -130,8 +136,15 @@ export interface SqliteObjectStore extends ObjectStore {
 /**
  * openSqliteObjectStore returns an ObjectStore kept in opts.database, creating its tables
  * if they do not exist and upgrading them if an earlier webtessera created them. It fails
- * if a later webtessera created them. If signal aborts before the tables are ready, it
- * rejects with the signal's reason.
+ * if a later webtessera created them, and if the database does not store text as UTF-8,
+ * since distinct keys would then collide. If signal aborts before the tables are ready,
+ * it rejects with the signal's reason.
+ *
+ * With "local" locking, the store shares its in-process locks with every other local-mode
+ * store of this realm over the same database and namespace, however it reached the
+ * database: the tables record a random identity, drawn once, that every connection reads
+ * alike. Several connections to one file, or to one shared-cache in-memory database, in
+ * one process therefore exclude each other even under local locking.
  *
  * Most callers want newSqliteDriver, which opens the store and starts a driver on it.
  */
@@ -139,21 +152,40 @@ export async function openSqliteObjectStore(
 	opts: SqliteObjectStoreOptions,
 	signal?: AbortSignal,
 ): Promise<SqliteObjectStore> {
+	const db = opts.database;
 	const t = tableNames(opts.namespace);
 	const maxChunkBytes = opts.maxChunkBytes ?? DefaultMaxChunkBytes;
 	if (!Number.isSafeInteger(maxChunkBytes) || maxChunkBytes < 1) {
 		throw new RangeError(`sqlite: maxChunkBytes must be a positive integer, got ${maxChunkBytes}`);
 	}
-	const locking = opts.locking ?? opts.database.defaultLocking ?? "local";
+	const locking = opts.locking ?? (await defaultLockingOf(db, signal));
 	if (locking !== "local" && locking !== "lease") {
-		throw new RangeError(`sqlite: locking must be "local" or "lease", got ${JSON.stringify(locking)}`);
+		throw new RangeError(
+			'sqlite: locking must be "lease", or "local" to declare that this realm is the only writer of the ' +
+				`database; got ${JSON.stringify(locking)}`,
+		);
 	}
 	const clock = opts.clock ?? Date.now;
-	const leaseClock = opts.clock ?? (opts.database.leaseClock === "database" ? "database" : Date.now);
-	const leases =
-		locking === "lease" ? new LeaseLocks(opts.database, t, leaseTimings(opts.lease), leaseClock) : undefined;
-	await ensureSchema(opts.database, t, signal);
-	return new sqliteObjectStore(opts.database, opts.namespace, t, maxChunkBytes, clock, leases);
+	const leaseClock = opts.clock ?? (db.leaseClock === "database" ? "database" : Date.now);
+	const leases = locking === "lease" ? new LeaseLocks(db, t, leaseTimings(opts.lease), leaseClock) : undefined;
+	signal?.throwIfAborted();
+	await checkTextEncoding(db);
+	await ensureSchema(db, t, signal);
+	const local = leases === undefined ? localLocksFor(`${await databaseInstance(db, t)}/${t.objects}`) : queueFor(db, t);
+	return new sqliteObjectStore(db, opts.namespace, t, maxChunkBytes, clock, local, leases);
+}
+
+/**
+ * defaultLockingOf returns the locking db defaults to: its adapter's choice, asked of the
+ * database if the adapter has to, or "lease" if the adapter does not say.
+ */
+async function defaultLockingOf(db: SqlDatabase, signal: AbortSignal | undefined): Promise<SqliteLocking> {
+	const d = db.defaultLocking;
+	if (typeof d !== "function") {
+		return d ?? "lease";
+	}
+	signal?.throwIfAborted();
+	return d();
 }
 
 /** SqliteDriverConfig configures newSqliteDriver. */
@@ -177,33 +209,63 @@ export async function newSqliteDriver(cfg: SqliteDriverConfig, signal?: AbortSig
 	return newObjectStoreDriver(cfg.fetch === undefined ? { store } : { store, fetch: cfg.fetch });
 }
 
-/** leaseTimings resolves and validates the lease options. */
+/** leaseTimings resolves and validates the lease options, each a positive whole number of milliseconds. */
 function leaseTimings(o: SqliteLeaseOptions = {}): LeaseTimings {
 	const ttlMs = o.ttlMs ?? 30_000;
-	const renewIntervalMs = o.renewIntervalMs ?? ttlMs / 3;
+	const renewIntervalMs = o.renewIntervalMs ?? Math.floor(ttlMs / 3);
 	const maxPollIntervalMs = o.maxPollIntervalMs ?? 250;
-	if (!(ttlMs > 0 && Number.isFinite(ttlMs))) {
-		throw new RangeError(`sqlite: lease.ttlMs must be a positive number, got ${ttlMs}`);
+	if (!(Number.isSafeInteger(ttlMs) && ttlMs > 0)) {
+		throw new RangeError(`sqlite: lease.ttlMs must be a positive integer, got ${ttlMs}`);
 	}
-	if (!(renewIntervalMs > 0 && renewIntervalMs < ttlMs)) {
-		throw new RangeError(`sqlite: lease.renewIntervalMs must be positive and below ttlMs, got ${renewIntervalMs}`);
+	if (!(Number.isSafeInteger(renewIntervalMs) && renewIntervalMs > 0 && renewIntervalMs < ttlMs)) {
+		throw new RangeError(
+			`sqlite: lease.renewIntervalMs must be a positive integer below ttlMs, got ${renewIntervalMs}`,
+		);
 	}
-	if (!(maxPollIntervalMs > 0 && Number.isFinite(maxPollIntervalMs))) {
-		throw new RangeError(`sqlite: lease.maxPollIntervalMs must be a positive number, got ${maxPollIntervalMs}`);
+	if (!(Number.isSafeInteger(maxPollIntervalMs) && maxPollIntervalMs > 0)) {
+		throw new RangeError(`sqlite: lease.maxPollIntervalMs must be a positive integer, got ${maxPollIntervalMs}`);
 	}
 	return { ttlMs, renewIntervalMs, maxPollIntervalMs };
 }
 
-// localLocks holds the in-process locks of every database and namespace in this realm,
-// so that every store over the same SqlDatabase and namespace contends on the same
-// locks. Weak keys let them go with the database.
-const localLocks = new WeakMap<SqlDatabase, Map<string, NamedLocks>>();
+// localLocks holds the locks of local-mode stores by database identity and table, so
+// that every such store of this realm over one database contends on the same locks,
+// whichever connection it reaches the database through. They are held weakly: a lock
+// someone holds or awaits is reachable from them, and a NamedLocks nobody references holds
+// no lock. Entries whose locks have gone are swept as the map grows.
+const localLocks = new Map<string, WeakRef<NamedLocks>>();
+let localLocksSweepAt = 64;
 
-function localLocksFor(db: SqlDatabase, t: Tables): NamedLocks {
-	let byTable = localLocks.get(db);
+function localLocksFor(key: string): NamedLocks {
+	const known = localLocks.get(key)?.deref();
+	if (known !== undefined) {
+		return known;
+	}
+	if (localLocks.size >= localLocksSweepAt) {
+		for (const [k, ref] of localLocks) {
+			if (ref.deref() === undefined) {
+				localLocks.delete(k);
+			}
+		}
+		localLocksSweepAt = Math.max(64, 2 * localLocks.size);
+	}
+	const locks = new NamedLocks();
+	localLocks.set(key, new WeakRef(locks));
+	return locks;
+}
+
+// leaseQueues holds the in-process queues in front of lease-mode stores' leases, by
+// SqlDatabase and table, so that at most one caller per lock and SqlDatabase polls the
+// database. They are keyed by the SqlDatabase object rather than the database's identity
+// on purpose: the leases alone must, and do, exclude stores that share no SqlDatabase,
+// which is what lets the tests stand two of them in for two processes.
+const leaseQueues = new WeakMap<SqlDatabase, Map<string, NamedLocks>>();
+
+function queueFor(db: SqlDatabase, t: Tables): NamedLocks {
+	let byTable = leaseQueues.get(db);
 	if (byTable === undefined) {
 		byTable = new Map();
-		localLocks.set(db, byTable);
+		leaseQueues.set(db, byTable);
 	}
 	let locks = byTable.get(t.objects);
 	if (locks === undefined) {
@@ -230,6 +292,7 @@ class sqliteObjectStore implements SqliteObjectStore {
 		t: Tables,
 		maxChunkBytes: number,
 		clock: () => number,
+		local: NamedLocks,
 		leases: LeaseLocks | undefined,
 	) {
 		this.locking = leases === undefined ? "local" : "lease";
@@ -238,7 +301,7 @@ class sqliteObjectStore implements SqliteObjectStore {
 		this.#t = t;
 		this.#maxChunkBytes = maxChunkBytes;
 		this.#clock = clock;
-		this.#local = localLocksFor(db, t);
+		this.#local = local;
 		this.#leases = leases;
 	}
 
