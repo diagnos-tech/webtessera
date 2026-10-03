@@ -107,3 +107,13 @@ not less.
   cosignature/v1 note, flips a byte of the note *text* (leaving the 72-byte signature well-formed
   and cleanly-decoding), and asserts `open()` throws — pinning the Ed25519-returns-false path. Now
   5/8 cases (the other 3 need the unported `NewVerifier`/`VKeyToCosignatureV1`/`CoSigV1Timestamp`).
+
+## Update (2026-10-02)
+
+- Count correction: upstream `note_cosigv1_test.go` has **7** `Test` functions, not 8 as written above
+  (the ported 4, `TestCoSigV1NewVerifier`, `TestCoSigV1Timestamp`, `TestVKeyToCosignatureV1`); "5/8" in
+  the review notes should read "4 of 7 upstream cases plus 1 port addition".
+- `VKeyToCosignatureV1` and `CoSigV1Timestamp` have since been ported, with their tests, and
+  `TestCoSigV1NewVerifier`'s rows now run against `newVerifierForCosignatureV1`; see
+  docs/decisions/0174-formats-note-cosigv1-timestamp-and-vkey-conversion.md. The rest of this ADR (the
+  unported `note_verifier.go` and `note_rfc6962.go`) stands.
