@@ -120,6 +120,11 @@ const driver = await newIndexedDBDriver({ name: "my-log" }, signal);
 const { appender, shutdown } = await newAppender(driver, newAppendOptions().withCheckpointSigner(signer), signal);
 ```
 
+The driver needs the [Web Locks API](https://developer.mozilla.org/docs/Web/API/Web_Locks_API), which
+browsers provide in secure contexts (HTTPS and `localhost`). Without it, opening the log throws rather
+than run with locks that cannot exclude other tabs, unless you pass `singleWriter: true` to promise that
+only one tab or worker will ever write it; `driver.lockScope` tells you which guarantee you got.
+
 See [`examples/browser`](examples/browser) for a complete page you can open in two tabs.
 
 ### On any SQLite

@@ -98,6 +98,12 @@ for shims with behaviour of their own (`cut`). A comment in `paths.ts` says so.
   packages (`formats/log`'s checkpoint parser, `note`) will want it, and `gostd/` exists precisely so
   a reviewer can see at a glance which code stands in for the Go standard library.
 
+> **Update (2026-10-02):** the `hex.DecodeString` error-text divergence flagged in the review below is fixed:
+> `fromHex` is now a transcription of Go's `encoding/hex` `Decode` (a 256-entry reverse table over the UTF-8
+> bytes of the input), reporting Go's `encoding/hex: invalid byte: %#U` and bare `ErrLength` texts with Go's
+> precedence. It agrees with Go's `hex.DecodeString` on value and error text for every one of 30,768
+> differential inputs, including non-ASCII ones.
+
 ## Review
 
 - **Reviewer:** Layout Reviewer (2026-08-19)

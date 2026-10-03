@@ -25,7 +25,7 @@ import { consistency, inclusion } from "../proof/proof.ts";
  *
  * Port note: Go's constructor is `testonly.New(hasher)`. `new` is a reserved
  * word in TypeScript, so the class constructor takes its place:
- * `new Tree(hasher)`. See docs/decisions/0011-merkle-port-divergences.md.
+ * `new Tree(hasher)`. See docs/decisions/0011-merkle-constructors-and-hash-injection.md.
  */
 export class Tree {
 	/** @internal Unexported in Go; see docs/decisions/0010-package-private-members.md. */
@@ -35,7 +35,7 @@ export class Tree {
 	/** @internal Node hashes, indexed by node (level, index). */
 	_hashes: Uint8Array[][];
 
-	/** Tree returns a new empty Merkle tree. */
+	/** New returns a new empty Merkle tree. */
 	constructor(hasher: LogHasher) {
 		this._hasher = hasher;
 		this._size = 0n;

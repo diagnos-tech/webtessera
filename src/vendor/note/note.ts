@@ -4,6 +4,8 @@
 // license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
 // Ported from golang.org/x/mod/sumdb/note/note.go @ v0.31.0
+// verifyEd25519 transcribes crypto/ed25519.Verify and
+// crypto/internal/fips140/ed25519.verifyWithDom (Go standard library) @ Go 1.25.5.
 
 // Package note defines the notes signed by the Go module database server.
 //
@@ -109,8 +111,10 @@
 //	const text = "If you think cryptography is the answer to your problem,\n" +
 //		"then you don't know what your problem is.\n";
 //
-//	const signer = newSigner(skey);
-//	const msg = sign({ text }, signer);
+//	const signer = newSigner(skey); // throws on a malformed key
+//
+//	const msg = sign({ text }, signer); // throws on a malformed note
+//	process.stdout.write(msg);
 //
 // The note's text is two lines, including the final newline,
 // and the text is purportedly signed by a server named
@@ -120,9 +124,31 @@
 //
 // If {@link open} is given access to a {@link Verifiers} including the
 // {@link Verifier} for this key, then it will succeed at verifying
-// the encoded message and returning the parsed {@link Note}.
+// the encoded message and returning the parsed {@link Note}:
 //
-// You can add your own signature to this message by re-signing the note.
+//	const vkey = "PeterNeumann+c74f20a3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW";
+//	const msg = toUTF8("If you think cryptography is the answer to your problem,\n" +
+//		"then you don't know what your problem is.\n" +
+//		"\n" +
+//		"— PeterNeumann x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM=\n");
+//
+//	const verifier = newVerifier(vkey);
+//	const verifiers = verifierList(verifier);
+//
+//	const n = open(msg, verifiers); // throws if the note does not verify
+//	const sig = n.sigs?.[0];
+//	process.stdout.write(`${sig?.name} (${sig?.hash.toString(16).padStart(8, "0")}):\n${n.text}`);
+//
+// You can add your own signature to this message by re-signing the note:
+//
+//	const { skey, vkey } = generateKey(undefined, "EnochRoot");
+//	void vkey; // give to verifiers
+//
+//	const me = newSigner(skey);
+//
+//	const msg = sign(n, me);
+//	process.stdout.write(msg);
+//
 // This will print a doubly-signed message, like:
 //
 //	If you think cryptography is the answer to your problem,
@@ -229,68 +255,129 @@ function leBytesToScalar(b: Uint8Array): bigint {
 }
 
 /**
- * verifyEd25519 verifies an Ed25519 signature exactly as Go's crypto/ed25519.Verify
- * does — the implementation sumdb/note is written against — returning false rather than
- * throwing, which is what Go's Verify does for a malformed signature or a public key
- * that is not a curve point. Upstream's TestOpen depends on a 67-byte signature
- * producing an InvalidSignatureError rather than an exception.
+ * verifyEd25519 reports whether sig is a valid signature of msg by the Ed25519 public
+ * key pubkey, accepting exactly the signatures Go's `crypto/ed25519.Verify` accepts —
+ * the function sumdb/note and formats/note verify with. It is a transcription of
+ * `ed25519.NewPublicKey` followed by `verifyWithDom` from Go's
+ * crypto/internal/fips140/ed25519, built from @noble/curves' point arithmetic:
  *
- * Two ways @noble/curves' default verification differs from Go's, each of which would
- * let a webtessera client and a Go witness reach different verdicts on the same
- * checkpoint — the split-view attack a transparency log exists to prevent:
+ *   - the public key is decoded as Go's `edwards25519.Point.SetBytes` decodes it, which
+ *     accepts every encoding of a point on the curve, including non-canonical ones
+ *     (noble's ZIP-215 decoding accepts the same set); a key that is not a curve point
+ *     verifies nothing;
+ *   - sig must be 64 bytes with the top three bits of sig[63] clear, and S = sig[32:]
+ *     must be canonical (S < L), as `SetCanonicalBytes` requires;
+ *   - k = SHA-512(R || A || msg) mod L, over the key bytes as given;
+ *   - the signature is valid iff the canonical encoding of [S]B - [k]A equals R =
+ *     sig[:32] byte for byte (Go's cofactorless check; a non-canonical R never matches).
  *
- *   - zip215. noble defaults to ZIP215 point decoding, which accepts non-canonical
- *     encodings and small-order public keys. `zip215: false` selects Go's RFC 8032 /
- *     FIPS 186-5 canonicality: canonical R and A, a scalar S < L, and no small-order A.
+ * Neither of noble's own verification modes matches Go: both use the cofactored
+ * equation, and its default ZIP-215 mode and its `zip215: false` mode respectively
+ * accept more and fewer keys than Go does. A verifier that disagrees with Go's in either
+ * direction lets a webtessera client and a Go witness reach different verdicts on the
+ * same checkpoint, so the equation is written out here.
  *
- *   - cofactor. noble's verify checks the *cofactored* group equation
- *     [8](R + [k]A - [S]B) = O in *both* zip215 modes, so it also accepts any signature
- *     whose verification residual is a non-zero point of small order. Such signatures
- *     exist for mixed-order public keys, and Go rejects them because it is
- *     *cofactorless*: it recomputes R' = [S]B - [k]A and requires R == R' exactly.
- *     `zip215: false` does not change this, so after noble's canonicality gate the
- *     residual is recomputed here and required to be the identity, matching Go.
+ * Note what that means for degenerate keys: like Go's, this accepts signatures from a
+ * small-order public key (which are not evidence that anyone holds a private key).
+ * The port refuses such keys earlier, when a verifier is configured; see
+ * {@link checkEd25519PublicKey} and docs/decisions/0206-ed25519-verification-matches-go.md.
  *
- * See docs/decisions/0025-ed25519-rfc8032-not-zip215.md.
+ * Port note: Go panics on a public key that is not 32 bytes; this throws. Every caller
+ * in the port has already checked the length.
  *
  * @internal Exported so `src/vendor/formats/note/note_cosigv1.ts` can reuse the same
- * RFC 8032 / cofactorless verification `formats/note`'s own `verifyCosigV1` calls via
- * Go's `crypto/ed25519.Verify` — the same underlying Go function `sumdb/note` uses, so
- * this is the one place both ported packages' signature checks must agree bit-for-bit.
- * Not re-exported from any barrel; `note.ts` itself is package.json's `./note` entry
- * point (there is no separate barrel to filter through), so this stays documented as
- * internal rather than hidden, following the precedent already set by `errVerifierID`
- * and friends a few lines below.
+ * verification `formats/note`'s own `verifyCosigV1` gets from Go's
+ * `crypto/ed25519.Verify`, the function `sumdb/note` uses, so this is the one place both
+ * ported packages' signature checks must agree bit-for-bit. Not re-exported from any
+ * barrel; `note.ts` itself is package.json's `./note` entry point (there is no separate
+ * barrel to filter through), so this stays documented as internal rather than hidden,
+ * following the precedent already set by `errVerifierID` and friends above.
  */
 export function verifyEd25519(pubkey: Uint8Array, msg: Uint8Array, sig: Uint8Array): boolean {
-	// Canonicality gate: RFC 8032 point decoding, S < L and small-order-A rejection, as
-	// well as the 64-byte length check. noble throws on a bad length or a non-point key;
-	// the catch turns that into false, as Go's Verify returns false for both.
-	let canonical: boolean;
+	if (pubkey.length !== 32) {
+		throw new Error(`ed25519: bad public key length: ${pubkey.length}`);
+	}
+	// SetBytes checks that the point is on the curve.
+	let A: InstanceType<typeof ed25519.Point>;
 	try {
-		canonical = ed25519.verify(sig, msg, pubkey, { zip215: false });
+		A = ed25519.Point.fromBytes(pubkey, true);
 	} catch {
 		return false;
 	}
-	if (!canonical) {
+
+	if (sig.length !== 64) {
 		return false;
 	}
-	// Cofactorless confirmation: require the residual R + [k]A - [S]B to be exactly O,
-	// not merely small-order. This re-decodes points the gate already validated.
-	try {
-		const r = sig.subarray(0, 32);
-		const s = leBytesToScalar(sig.subarray(32, 64));
-		if (s >= ED25519_ORDER) {
-			// S must be canonical (0 <= S < L), as Go's SetCanonicalBytes requires.
+	if (((sig[63] as number) & 224) !== 0) {
+		return false;
+	}
+
+	const r = sig.subarray(0, 32);
+	const k = leBytesToScalar(sha512(concatBytes(r, pubkey, msg))) % ED25519_ORDER;
+
+	const S = leBytesToScalar(sig.subarray(32, 64));
+	if (S >= ED25519_ORDER) {
+		return false;
+	}
+
+	// [S]B = R + [k]A --> [k](-A) + [S]B = R
+	const R = ed25519.Point.BASE.multiplyUnsafe(S).subtract(A.multiplyUnsafe(k));
+	const rb = R.toBytes();
+	for (let i = 0; i < 32; i++) {
+		if (rb[i] !== r[i]) {
 			return false;
 		}
-		const A = ed25519.Point.fromBytes(pubkey, false);
-		const R = ed25519.Point.fromBytes(r, false);
-		const k = leBytesToScalar(sha512(concatBytes(r, pubkey, msg))) % ED25519_ORDER;
-		const residual = R.add(A.multiplyUnsafe(k)).subtract(ed25519.Point.BASE.multiplyUnsafe(s));
-		return residual.is0();
+	}
+	return true;
+}
+
+/**
+ * errVerifierSmallOrderKey reports an Ed25519 verifier key whose public key is a point
+ * of small order. Such a key does not identify a signer: signatures that verify under
+ * it can be produced without any private key.
+ */
+export const errVerifierSmallOrderKey = new SentinelError(
+	"unsafe verifier key: Ed25519 public key is a small-order point",
+);
+
+/**
+ * errVerifierNonCanonicalKey reports an Ed25519 verifier key whose public key is not the
+ * canonical encoding of its point, so that the same point would have several key
+ * encodings, key hashes and key IDs.
+ */
+export const errVerifierNonCanonicalKey = new SentinelError(
+	"unsafe verifier key: Ed25519 public key is not canonically encoded",
+);
+
+/**
+ * checkEd25519PublicKey throws {@link errVerifierSmallOrderKey} or
+ * {@link errVerifierNonCanonicalKey} if the 32-byte Ed25519 public key pub is a
+ * small-order point or a non-canonical encoding of a point. A key that is not a point
+ * at all passes: it verifies nothing (see {@link verifyEd25519}), as in Go.
+ *
+ * Port note: this has no upstream counterpart. Go's note.NewVerifier accepts such keys,
+ * and Go's crypto/ed25519 then accepts signatures under them; the port refuses them when
+ * the verifier is configured, which fails closed without making verification itself
+ * diverge from Go's. See docs/decisions/0206-ed25519-verification-matches-go.md.
+ *
+ * Exported so the cosignature/v1 verifier constructor (src/vendor/formats/note) can
+ * apply the same configuration-time check.
+ */
+export function checkEd25519PublicKey(pub: Uint8Array): void {
+	let A: InstanceType<typeof ed25519.Point>;
+	try {
+		A = ed25519.Point.fromBytes(pub, true);
 	} catch {
-		return false;
+		return;
+	}
+	if (A.isSmallOrder()) {
+		throw errVerifierSmallOrderKey;
+	}
+	const canonical = A.toBytes();
+	for (let i = 0; i < 32; i++) {
+		if (canonical[i] !== pub[i]) {
+			throw errVerifierNonCanonicalKey;
+		}
 	}
 }
 
@@ -334,9 +421,12 @@ export function newVerifier(vkey: string): Verifier {
 			if (keyData.length !== 32) {
 				throw errVerifierID;
 			}
-			// Port note: verification matches Go's crypto/ed25519.Verify (RFC 8032 /
-			// FIPS 186-5, cofactorless), not @noble/curves' ZIP215-and-cofactored
-			// default. See verifyEd25519 and docs/decisions/0025-ed25519-rfc8032-not-zip215.md.
+			// Port note: Go accepts any 32 bytes here. The port refuses a small-order or
+			// non-canonically encoded public key (errVerifierSmallOrderKey,
+			// errVerifierNonCanonicalKey) rather than build a verifier for it; verification
+			// itself is a transcription of Go's crypto/ed25519.Verify. See verifyEd25519 and
+			// docs/decisions/0206-ed25519-verification-matches-go.md.
+			checkEd25519PublicKey(keyData);
 			return new verifier(name, hash, (msg: Uint8Array, sig: Uint8Array): boolean => verifyEd25519(keyData, msg, sig));
 	}
 }
@@ -368,24 +458,24 @@ function tryFromBase64(s: string): Uint8Array | undefined {
 
 /** verifier is a trivial Verifier implementation. */
 class verifier implements Verifier {
-	private readonly n: string;
-	private readonly h: number;
-	private readonly v: (msg: Uint8Array, sig: Uint8Array) => boolean;
+	readonly #name: string;
+	readonly #hash: number;
+	readonly #verify: (msg: Uint8Array, sig: Uint8Array) => boolean;
 
-	constructor(n: string, h: number, v: (msg: Uint8Array, sig: Uint8Array) => boolean) {
-		this.n = n;
-		this.h = h;
-		this.v = v;
+	constructor(name: string, hash: number, verify: (msg: Uint8Array, sig: Uint8Array) => boolean) {
+		this.#name = name;
+		this.#hash = hash;
+		this.#verify = verify;
 	}
 
 	name(): string {
-		return this.n;
+		return this.#name;
 	}
 	keyHash(): number {
-		return this.h;
+		return this.#hash;
 	}
 	verify(msg: Uint8Array, sig: Uint8Array): boolean {
-		return this.v(msg, sig);
+		return this.#verify(msg, sig);
 	}
 }
 
@@ -461,24 +551,24 @@ export const errSignerHash = new SentinelError("invalid verifier hash");
 
 /** signer is a trivial Signer implementation. */
 class signer implements Signer {
-	private readonly n: string;
-	private readonly h: number;
-	private readonly s: (msg: Uint8Array) => Uint8Array;
+	readonly #name: string;
+	readonly #hash: number;
+	readonly #sign: (msg: Uint8Array) => Uint8Array;
 
-	constructor(n: string, h: number, s: (msg: Uint8Array) => Uint8Array) {
-		this.n = n;
-		this.h = h;
-		this.s = s;
+	constructor(name: string, hash: number, sign: (msg: Uint8Array) => Uint8Array) {
+		this.#name = name;
+		this.#hash = hash;
+		this.#sign = sign;
 	}
 
 	name(): string {
-		return this.n;
+		return this.#name;
 	}
 	keyHash(): number {
-		return this.h;
+		return this.#hash;
 	}
 	sign(msg: Uint8Array): Uint8Array {
-		return this.s(msg);
+		return this.#sign(msg);
 	}
 }
 
@@ -614,14 +704,14 @@ function nameHash(name: string, hash: number): string {
 }
 
 class verifierMap implements Verifiers {
-	private readonly m: Map<string, [Verifier, ...Verifier[]]>;
+	readonly #m: Map<string, [Verifier, ...Verifier[]]>;
 
 	constructor(m: Map<string, [Verifier, ...Verifier[]]>) {
-		this.m = m;
+		this.#m = m;
 	}
 
 	verifier(name: string, hash: number): Verifier {
-		const v = this.m.get(nameHash(name, hash));
+		const v = this.#m.get(nameHash(name, hash));
 		if (v === undefined) {
 			throw new UnknownVerifierError(name, hash);
 		}

@@ -225,6 +225,43 @@ describe("formats/log checkpoint", () => {
 	});
 });
 
+// Not upstream: the port's additional Checkpoint checks.
+describe("Checkpoint hardening", () => {
+	// docs/decisions/0203-checkpoint-origin-must-be-utf8.md
+	it("rejects an origin line that is not valid UTF-8, after upstream's own checks", () => {
+		const raw = concatBytes(new Uint8Array([0x4c, 0x6f, 0x67, 0xff]), toUTF8("\n123\nYmFuYW5hcw==\n"));
+		const got = new Checkpoint();
+		expect(() => got.unmarshal(raw)).toThrow(new Error("invalid checkpoint - origin is not valid UTF-8"));
+		checkpointEq(got, new Checkpoint());
+		// Upstream's errors keep their precedence.
+		const badSize = concatBytes(new Uint8Array([0xff]), toUTF8("\nbananas\nYmFuYW5hcw==\n"));
+		expect(() => new Checkpoint().unmarshal(badSize)).toThrow(
+			'invalid checkpoint - size invalid: strconv.ParseUint: parsing "bananas": invalid syntax',
+		);
+		// Valid multi-byte UTF-8 is fine.
+		const ok = new Checkpoint();
+		ok.unmarshal(toUTF8("Lög/日本\n1\nYmFuYW5hcw==\n"));
+		expect(ok.origin).toBe("Lög/日本");
+	});
+
+	it("refuses to marshal an origin UTF-8 cannot encode", () => {
+		expect(() => new Checkpoint({ origin: "Log\ud800", size: 1n }).marshal()).toThrow(
+			new Error("invalid checkpoint - origin is not valid UTF-8"),
+		);
+	});
+
+	// docs/decisions/0207-uint64-domain-guards.md
+	it("rejects a size outside the uint64 range", () => {
+		expect(() => new Checkpoint({ origin: "Log", size: -1n })).toThrow(RangeError);
+		expect(() => new Checkpoint({ origin: "Log", size: 1n << 64n })).toThrow(RangeError);
+		const cp = new Checkpoint({ origin: "Log", size: 1n });
+		cp.size = -1n;
+		expect(() => cp.marshal()).toThrow(RangeError);
+		const max = new Checkpoint({ origin: "Log", size: (1n << 64n) - 1n });
+		expect(fromUTF8(max.marshal())).toBe("Log\n18446744073709551615\n\n");
+	});
+});
+
 /**
  * moonLogCheckpoint is a hypothetical checkpoint for an ecosystem which requires
  * its checkpoints to commit to more data than the minimum common checkpoint does.
@@ -240,8 +277,8 @@ class moonLogCheckpoint extends Checkpoint {
 	phase = "";
 
 	/**
-	 * marshal knows how to marshal the moon log data checkpoint.
-	 * It delegates to the embedded Checkpoint to marshal itself first, before
+	 * Marshal knows how to marshal the moon log data checkpoint.
+	 * It delegates to the embedded Checkedpoint to marshal itself first, before
 	 * marshalling the Moon ecosystem specific checkpoint data.
 	 */
 	override marshal(): Uint8Array {
@@ -249,9 +286,11 @@ class moonLogCheckpoint extends Checkpoint {
 	}
 
 	/**
-	 * unmarshalMoon knows how to unmarshal the moon log data.
+	 * Unmarshal knows how to unmarshal the moon log data.
 	 * It delegates to the embedded Checkpoint to unmarshal itself first, before
 	 * attempting to unmarshal the Moon ecosystem specific data.
+	 *
+	 * Port note: named unmarshalMoon; see the class comment.
 	 */
 	unmarshalMoon(data: Uint8Array): void {
 		const delim = "\n";

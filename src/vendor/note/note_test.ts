@@ -8,11 +8,24 @@
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { sha256, sha512 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
-import { concatBytes, fromUTF8, readUint32BE, toUTF8 } from "../../internal/gostd/bytes.ts";
+import { concatBytes, fromHex, fromUTF8, readUint32BE, toBase64, toUTF8 } from "../../internal/gostd/bytes.ts";
 import type { Reader } from "../../internal/gostd/io.ts";
 import {
+	ambiguousVerifierError,
+	checkEd25519PublicKey,
+	errInvalidSigner,
+	errMalformedNote,
 	errMismatchedVerifier,
+	errSignerAlg,
+	errSignerHash,
+	errSignerID,
+	errVerifierAlg,
+	errVerifierHash,
+	errVerifierID,
+	errVerifierNonCanonicalKey,
+	errVerifierSmallOrderKey,
 	generateKey,
+	InvalidSignatureError,
 	newEd25519VerifierKey,
 	newSigner,
 	newVerifier,
@@ -20,10 +33,12 @@ import {
 	type Signature,
 	type Signer,
 	sign,
+	UnknownVerifierError,
 	UnverifiedNoteError,
 	type Verifier,
 	type Verifiers,
 	verifierList,
+	verifyEd25519,
 } from "./note.ts";
 
 describe("sumdb/note", () => {
@@ -158,18 +173,29 @@ describe("sumdb/note", () => {
 		expect(fromUTF8(msg), "sign replacing signature: wrong output").toBe(want);
 
 		// Check various bad inputs.
-		expect(() => sign({ text: "abc" }, signer), "sign with short text").toThrow("malformed note");
-
-		expect(() => sign({ text, sigs: [{ name: "a+b", hash: 0, base64: "ABCD" }] }), "sign with bad name").toThrow(
-			"malformed note",
-		);
+		// Port note: Go compares err.Error() with the expected text; the port's errors
+		// are the package's sentinels, so identity is asserted, which implies the text.
+		expect(
+			thrownBy(() => sign({ text: "abc" }, signer)),
+			"sign with short text",
+		).toBe(errMalformedNote);
 
 		expect(
-			() => sign({ text, sigs: [{ name: "PeterNeumann", hash: 0xc74f20a3, base64: "BADHASH=" }] }),
-			"sign with bad pre-filled signature",
-		).toThrow("malformed note");
+			thrownBy(() => sign({ text, sigs: [{ name: "a+b", hash: 0, base64: "ABCD" }] })),
+			"sign with bad name",
+		).toBe(errMalformedNote);
 
-		expect(() => sign({ text }, badSigner(signer)), "sign with bad signer").toThrow("invalid signer");
+		expect(
+			thrownBy(() => sign({ text, sigs: [{ name: "PeterNeumann", hash: 0xc74f20a3, base64: "BADHASH=" }] })),
+			"sign with bad pre-filled signature",
+		).toBe(errMalformedNote);
+
+		expect(
+			thrownBy(() => sign({ text }, badSigner(signer))),
+			"sign with bad signer",
+		).toBe(errInvalidSigner);
+		expect(errMalformedNote.message).toBe("malformed note");
+		expect(errInvalidSigner.message).toBe("invalid signer");
 
 		let thrown: unknown;
 		try {
@@ -189,9 +215,15 @@ describe("sumdb/note", () => {
 
 		const list = verifierList(peterVerifier, enochVerifier, enochVerifier);
 		expect(list.verifier("PeterNeumann", 0xc74f20a3)).toBe(peterVerifier);
-		expect(() => list.verifier("PeterNeumann", 0xc74f20a4)).toThrow("unknown key PeterNeumann+c74f20a4");
-		expect(() => list.verifier("PeterNeuman", 0xc74f20a3)).toThrow("unknown key PeterNeuman+c74f20a3");
-		expect(() => list.verifier("EnochRoot", 0xaf0cfe78)).toThrow("ambiguous key EnochRoot+af0cfe78");
+		const badHash = thrownBy(() => list.verifier("PeterNeumann", 0xc74f20a4));
+		expect(badHash).toBeInstanceOf(UnknownVerifierError);
+		expect((badHash as Error).message).toBe("unknown key PeterNeumann+c74f20a4");
+		const badName = thrownBy(() => list.verifier("PeterNeuman", 0xc74f20a3));
+		expect(badName).toBeInstanceOf(UnknownVerifierError);
+		expect((badName as Error).message).toBe("unknown key PeterNeuman+c74f20a3");
+		const ambiguous = thrownBy(() => list.verifier("EnochRoot", 0xaf0cfe78));
+		expect(ambiguous).toBeInstanceOf(ambiguousVerifierError);
+		expect((ambiguous as Error).message).toBe("ambiguous key EnochRoot+af0cfe78");
 	});
 
 	it("TestOpen", () => {
@@ -248,9 +280,9 @@ describe("sumdb/note", () => {
 		expect(un.unverifiedSigs).toEqual([peter, enoch]);
 
 		// Check duplicated verifier.
-		expect(() =>
-			open(toUTF8(text + "\n" + enochSig), verifierList(enochVerifier, peterVerifier, enochVerifier)),
-		).toThrow("ambiguous key EnochRoot+af0cfe78");
+		expect(
+			messageOf(() => open(toUTF8(text + "\n" + enochSig), verifierList(enochVerifier, peterVerifier, enochVerifier))),
+		).toBe("ambiguous key EnochRoot+af0cfe78");
 
 		// Check unused duplicated verifier.
 		expect(() =>
@@ -258,10 +290,10 @@ describe("sumdb/note", () => {
 		).not.toThrow();
 
 		// Check too many signatures.
-		expect(() => open(toUTF8(text + "\n" + peterSig.repeat(101)), verifierList(peterVerifier))).toThrow(
-			"malformed note",
+		expect(thrownBy(() => open(toUTF8(text + "\n" + peterSig.repeat(101)), verifierList(peterVerifier)))).toBe(
+			errMalformedNote,
 		);
-		expect(() => open(toUTF8(text + "\n" + peterSig.repeat(101)), verifierList())).toThrow("malformed note");
+		expect(thrownBy(() => open(toUTF8(text + "\n" + peterSig.repeat(101)), verifierList()))).toBe(errMalformedNote);
 
 		// Invalid signature.
 		//
@@ -271,9 +303,9 @@ describe("sumdb/note", () => {
 		// in the wrong place and the test stops testing what it was written to test.
 		const peterSigB = toUTF8(peterSig);
 		const corruptPeter = concatBytes(peterSigB.subarray(0, 60), toUTF8("ABCD"), peterSigB.subarray(60));
-		expect(() => open(concatBytes(toUTF8(text + "\n"), corruptPeter), verifierList(peterVerifier))).toThrow(
-			"invalid signature for key PeterNeumann+c74f20a3",
-		);
+		const invalid = thrownBy(() => open(concatBytes(toUTF8(text + "\n"), corruptPeter), verifierList(peterVerifier)));
+		expect(invalid).toBeInstanceOf(InvalidSignatureError);
+		expect((invalid as Error).message).toBe("invalid signature for key PeterNeumann+c74f20a3");
 
 		// Duplicated verified and unverified signatures.
 		const enochSigB = toUTF8(enochSig);
@@ -311,7 +343,10 @@ describe("sumdb/note", () => {
 			toUTF8(text + "\n" + peterSig + "Unexpected line.\n"),
 		];
 		for (const msg of badMsgs) {
-			expect(() => open(msg, verifierList(peterVerifier)), `open bad msg:\n${fromUTF8(msg)}`).toThrow("malformed note");
+			expect(
+				thrownBy(() => open(msg, verifierList(peterVerifier))),
+				`open bad msg:\n${fromUTF8(msg)}`,
+			).toBe(errMalformedNote);
 		}
 
 		// Verifiers returns a Verifier for the wrong name or hash.
@@ -392,6 +427,316 @@ describe("sumdb/note", () => {
 	// of its zip215 modes, so it additionally accepts a signature whose residual is a
 	// non-zero small-order point. Those signatures exist for mixed-order public keys.
 	//
+	// Not upstream. verifyEd25519 must reach Go's crypto/ed25519.Verify verdict on every
+	// input (docs/decisions/0206-ed25519-verification-matches-go.md). These vectors come
+	// from the note/gostd fidelity audit's differential run (2,366 vectors, 0
+	// disagreements with Go 1.25.5); `go` is Go's verdict for each. They cover an honest
+	// signature, every small-order public-key encoding (Go accepts a signature under
+	// each, and so must this function), mixed-order keys that Go accepts and rejects,
+	// torsioned R, a non-canonical S, and a small-order key with a random signature.
+	const goVerdicts: Array<{ cat: string; pub: string; msg: string; sig: string; go: boolean }> = [
+		{
+			cat: "honest",
+			pub: "10d8286c2e12fd8226c911980a386abf4a3aad6c3b1763ef4b45430f2ee50716",
+			msg: "145fa6b5ed7cbf52ca06bc956ba03f4c302bae94b2",
+			sig: "eb97665ae87e32048a6366932f659d8ef7db7d6b41c9fb5abce3b0752bf016b2279f4fc600a7400377954506f4fb9dac012cc38b665148eebed92b2e15949903",
+			go: true,
+		},
+		{
+			cat: "S+L",
+			pub: "10d8286c2e12fd8226c911980a386abf4a3aad6c3b1763ef4b45430f2ee50716",
+			msg: "145fa6b5ed7cbf52ca06bc956ba03f4c302bae94b2",
+			sig: "eb97665ae87e32048a6366932f659d8ef7db7d6b41c9fb5abce3b0752bf016b2147345231b0a535b4d323da9d2f57cc1012cc38b665148eebed92b2e15949913",
+			go: false,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "0100000000000000000000000000000000000000000000000000000000000000",
+			msg: "27a9756fe0",
+			sig: "32ee23de5d5474e6095e90040fb360e01cf32892dfa9b9a2be7b0ee0bab754e3ee281bffb9161f4db37510597608456565e157edf54fbf6b0303268f35b87502",
+			go: true,
+		},
+		{
+			cat: "smallA-invalid",
+			pub: "0100000000000000000000000000000000000000000000000000000000000000",
+			msg: "31bec871b1",
+			sig: "7404662ba7dae5ff2b517703c8c4563cf279e2baad863767dac8c47b917ba15b942f753a3f5f8358b58e5ba9439e1b4092f30f70bcec24f28f84a4a7d355180f",
+			go: false,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+			msg: "6c",
+			sig: "5ed4618b1a684bfbf1475d5e87cc130f9255f2dde09781e8b41c5b28656ecc2663c8de3f7d7087570f69745d530188faa2e04a161ed10f8acb9144a13348c30f",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "0000000000000000000000000000000000000000000000000000000000000000",
+			msg: "4c5f",
+			sig: "846bef079ff96d8a4d60f8fe48b76a19b415d94608eb93b41a093fa194c5caafc295e5e093ddec5e2fa96d2cd0f31fc383a43396ed8473af7ebdd569f3521305",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "0000000000000000000000000000000000000000000000000000000000000080",
+			msg: "5dd275ca",
+			sig: "1f2c93f65ebf0560e3c7ec1c0c6837fbda3963436f1929e57209a751dc08994b53cffcab1d6e52ac18ec52c395982e333ef6463852ea97e75057761cea7b980b",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+			msg: "d5",
+			sig: "938fec2bdc61e88ac16b0b126fabae3f2c7dd9806124656a88b7b8fe20e5d9f0110890164317e79063fbbd1e3569422491480aebad6618f76e437b6affe1170f",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+			msg: "cd2fba07bdc891e8",
+			sig: "e08af7479648d3864de10132e38357f5caf9a7bad49ca7182d34d2324aed4edbe015d8409d5033b16fb8f7999136731da0b67b5bf4da6f97690b5c4d4c673b0a",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+			msg: "aae94c07",
+			sig: "6367ed247ee4465e7e6f694fb1b3bdd52b5fca703163bcfb09f6feeae4e38db82813ea6453cef9f16e1d23debdfefa89a337479bd1f1769a05bd4fadcd9b7205",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+			msg: "4860676d",
+			sig: "f1b2f9c0daa6fd8bc3fe7c8d5eb045db9b35d4a241e072fc224d587a89de200de7a9053b9837623449345308532719e1cbfe1a8fde58f2b4ec973c0a2a7f6706",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+			msg: "551480e787",
+			sig: "9186a4a8af2a41847be0e614937018fcc768a4ab1606d854f3d7cd475551dd593ef272bf012079d566fbc87d661639fa0e56fbbd02d8de91ae105ebc6de77203",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+			msg: "7730f96e",
+			sig: "6f9fe213371e7b0234ab5ba95b7a6c72b80648e00e334fe078eb9cc46908ca37a6b6babf8e265bdc0f4453e523e28dde1938e351600446976b7e83871f623900",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			msg: "d10501",
+			sig: "de8428be583c890a3dddc98e3fa18ab0bbfb62e4fdee885cf0c1a5df34b24df2fab1493a527afe855e8cb3541c8f17d4f6206ae501de37f3ffb72f0e4d0d6602",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			msg: "c1",
+			sig: "229c226c543207e237d145c67374e32788d299f1d561360ca7b0fc17dc1c796da7f4126c23a170fe837f4681ef6fc9038f7ae70485ba31a981251312655a9003",
+			go: true,
+		},
+		{
+			cat: "smallA-valid",
+			pub: "0100000000000000000000000000000000000000000000000000000000000080",
+			msg: "30",
+			sig: "1f6615d2bd9e632db79e11ae45a7b6a7c149a0408cb4c67a40ef70e46800ccfe10acdf42b3087470e22d462688d9dd7616fa555d2632ec4994bb03795af09702",
+			go: true,
+		},
+		{
+			cat: "mixed-order",
+			pub: "49bc5d4984b49988e30c8ba78003272c8e3a28a7deb173e12574ba4efaa94c85",
+			msg: "083ca1c56185",
+			sig: "c530e787722ee9366f05ee5d745a376594588c84d2370fc8f1d252b069a37d2be7bb6442550da9b2d351a2babc74abfb403a6f4ca5226384478e854de973470c",
+			go: true,
+		},
+		{
+			cat: "mixed-order",
+			pub: "ad79bb277beb74674186f04bfc2c73564c253b9b39fe6a7a2dfaa8849d6dc376",
+			msg: "62",
+			sig: "f405a53dd49833e614c0d8dcfbc54b8694e5615bc479fba9838d755369fa5909e5902716aa8c4398acefa6e1a8ebc771db128b00771dd41b525f292f969b0d04",
+			go: false,
+		},
+		{
+			cat: "mixed-order",
+			pub: "205a37a16add45d5a12596b6626dca3f469770a63e889be21c07598d50e391b7",
+			msg: "14",
+			sig: "bb2a21e87116d1baeb0a83f52cbeff6c9cdc71223af7eda58c4442a7960106ba121ee61e12c6485f2adafe9138298cdffc7839cb1d03756cac3ff429d19fa903",
+			go: true,
+		},
+		{
+			cat: "mixed-order",
+			pub: "346bf6c66a4871aa041d32bb8a94953b5ae7af0503e6aed1ecb4c2c872b88c97",
+			msg: "4c467a",
+			sig: "19b4e32b92f79c105099ce747b2c17b811db99dc14a0a134bca2a6c3a102e6ab04bd7d09d8e837c535d8501bf20a77709258222bb0b74125fc7533c00f4ada0e",
+			go: false,
+		},
+		{
+			cat: "mixed-order",
+			pub: "ce1f6eafd7239b9f1df5881b458482152a2a48d8d6e5b55bbd7eefceb2821a87",
+			msg: "868fc7",
+			sig: "9722c02ec19ae308720fa31c88b6b8ae1a1e42b6fb1b678772230fbe98cb48b38acceec0e9b95eef68a512bba3cc048261bb82f7a19e4159ff603b48e6eee204",
+			go: false,
+		},
+		{
+			cat: "mixed-order",
+			pub: "17c1e85b0b2e7d6251a3925b40c8666c96859f2fc68ad8fa523656ad2d053f8c",
+			msg: "223acb5b004688",
+			sig: "710c06352e63248d3eb28bb737be67e305ea3f886a6ab086ad77966c004a9d5dbf3342acf7ae7a5fd9f84b6a9ad2c8607a8457e512db051558d1a66aadbcae00",
+			go: true,
+		},
+		{
+			cat: "R+torsion",
+			pub: "90bd99de9cade1c5ca3fc430b448c73584152fac63675ce3ed61f96eb03d6ee9",
+			msg: "1e020ea5",
+			sig: "cf800910b3d9aa729b00e5fa66590c325e7085470fa6691d03be98999ca64d9cc6aa334929ee12584896d273cd5c4a256c51d3558daa0a66d3e3dd6540ce4901",
+			go: false,
+		},
+		{
+			cat: "R+torsion",
+			pub: "7d6d534770665416f0f5c173b6005600c626145918581d1dce5f1e17af0689ca",
+			msg: "09725ba8",
+			sig: "6eee0b611360e953b74f0491496a56a91dc4e9f24c8c8f90a80450be2f488df65db95403a62656c7d0e04428e43604ad86df537b8022dd16f86068c87e90370f",
+			go: false,
+		},
+	];
+
+	it("verifyEd25519 reaches Go's verdict on the audit's pinned vectors", () => {
+		for (const v of goVerdicts) {
+			expect(verifyEd25519(fromHex(v.pub), fromHex(v.msg), fromHex(v.sig)), `${v.cat} pub=${v.pub}`).toBe(v.go);
+		}
+	});
+
+	// Not upstream: the configuration-time refusal of degenerate keys that Go's
+	// NewVerifier accepts (docs/decisions/0206-ed25519-verification-matches-go.md).
+	it("newVerifier refuses small-order Ed25519 public keys", () => {
+		const smallOrder = [...new Set(goVerdicts.filter((v) => v.cat.startsWith("smallA")).map((v) => v.pub))];
+		expect(smallOrder.length).toBe(13);
+		for (const pub of smallOrder) {
+			const key = fromHex(pub);
+			const vkey = newEd25519VerifierKey("SmallOrder", key);
+			const err = thrownBy(() => newVerifier(vkey));
+			// A non-canonical encoding of a small-order point is reported as small-order.
+			expect(err, pub).toBe(errVerifierSmallOrderKey);
+			expect(thrownBy(() => checkEd25519PublicKey(key))).toBe(errVerifierSmallOrderKey);
+		}
+		expect(errVerifierSmallOrderKey.message).toBe("unsafe verifier key: Ed25519 public key is a small-order point");
+	});
+
+	it("newVerifier refuses a non-canonical encoding of a large-order point", () => {
+		// y = p + k for small k is a non-canonical encoding of the point with y = k, when
+		// that point exists; find the first one of large order.
+		const p = 2n ** 255n - 19n;
+		let found: Uint8Array | undefined;
+		for (let k = 2n; k < 19n && found === undefined; k++) {
+			const enc = new Uint8Array(32);
+			let v = p + k;
+			for (let i = 0; i < 32; i++) {
+				enc[i] = Number(v & 0xffn);
+				v >>= 8n;
+			}
+			try {
+				if (!ed25519.Point.fromBytes(enc, true).isSmallOrder()) {
+					found = enc;
+				}
+			} catch {
+				// not a curve point
+			}
+		}
+		expect(found).toBeDefined();
+		const key = found as Uint8Array;
+		expect(thrownBy(() => newVerifier(newEd25519VerifierKey("NonCanonical", key)))).toBe(errVerifierNonCanonicalKey);
+		// The canonical encoding of the same point is fine.
+		const canonical = ed25519.Point.fromBytes(key, true).toBytes();
+		expect(() => newVerifier(newEd25519VerifierKey("Canonical", canonical))).not.toThrow();
+	});
+
+	it("newVerifier still accepts what Go accepts otherwise: mixed-order keys and non-points", () => {
+		for (const v of goVerdicts.filter((x) => x.cat === "mixed-order")) {
+			const verifier = newVerifier(newEd25519VerifierKey("MixedOrder", fromHex(v.pub)));
+			expect(verifier.verify(fromHex(v.msg), fromHex(v.sig))).toBe(v.go);
+		}
+		// 32 bytes that do not decode to a point: Go builds the verifier, and it verifies
+		// nothing.
+		const notAPoint = fromHex("0200000000000000000000000000000000000000000000000000000000000000");
+		expect(() => ed25519.Point.fromBytes(notAPoint, true)).toThrow();
+		const verifier = newVerifier(newEd25519VerifierKey("NotAPoint", notAPoint));
+		expect(verifier.verify(toUTF8("hi"), new Uint8Array(64))).toBe(false);
+	});
+
+	// Not upstream: edge behaviours of key parsing and of open that nothing above pins
+	// exactly. Each expectation was confirmed against golang.org/x/mod v0.31.0's
+	// NewVerifier, NewSigner and Open (Go 1.24).
+	it("pins verifier and signer key edge cases to Go's errors", () => {
+		const peterKey = "PeterNeumann+c74f20a3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW";
+		const peterSkey = "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz";
+		// The key hash is parsed as hex, so upper case is accepted.
+		expect(newVerifier("PeterNeumann+C74F20A3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW").keyHash()).toBe(
+			0xc74f20a3,
+		);
+		// ...but it must be exactly eight digits.
+		expect(thrownBy(() => newVerifier("PeterNeumann+0c74f20a3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW"))).toBe(
+			errVerifierID,
+		);
+		// A hash that does not match the key.
+		expect(thrownBy(() => newVerifier("PeterNeumann+c74f20a4+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW"))).toBe(
+			errVerifierHash,
+		);
+		// Unpadded base64 is malformed, not decoded leniently.
+		expect(thrownBy(() => newVerifier(peterKey.replace(/=*$/, "").slice(0, -1)))).toBe(errVerifierID);
+		// An empty name, a name with a plus or a Unicode space (U+0085 is White_Space).
+		expect(thrownBy(() => newVerifier("+c74f20a3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW"))).toBe(errVerifierID);
+		expect(
+			thrownBy(() => newVerifier("Peter\u0085Neumann+c74f20a3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW")),
+		).toBe(errVerifierID);
+		// An unknown algorithm with a matching hash.
+		expect(thrownBy(() => newVerifier("PeterNeumann+173116ae+ZRpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW"))).toBe(
+			errVerifierAlg,
+		);
+		// A 31-byte Ed25519 key with a matching hash.
+		const short = newEd25519VerifierKeyUnchecked("PeterNeumann", new Uint8Array(31).fill(7));
+		expect(thrownBy(() => newVerifier(short))).toBe(errVerifierID);
+
+		expect(newSigner(peterSkey).keyHash()).toBe(0xc74f20a3);
+		expect(thrownBy(() => newSigner(peterSkey.replace("PRIVATE", "private")))).toBe(errSignerID);
+		expect(thrownBy(() => newSigner(peterSkey.replace("c74f20a3", "c74f20a4")))).toBe(errSignerHash);
+		expect(
+			thrownBy(() => newSigner("PRIVATE+KEY+PeterNeumann+c74f20a3+ZYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz")),
+		).toBe(errSignerAlg);
+		// Go's signer sentinels carry the verifier wording, verbatim.
+		expect(errSignerID.message).toBe("malformed verifier id");
+		expect(errSignerAlg.message).toBe("unknown verifier algorithm");
+		expect(errSignerHash.message).toBe("invalid verifier hash");
+	});
+
+	it("pins open's edge cases to Go's behaviour", () => {
+		const peterVerifier = newVerifier("PeterNeumann+c74f20a3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW");
+		const text =
+			"If you think cryptography is the answer to your problem,\n" + "then you don't know what your problem is.\n";
+		const peterSig =
+			"— PeterNeumann x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM=\n";
+		// Exactly 100 signature lines is the limit, and repeats count towards it.
+		expect(open(toUTF8(text + "\n" + peterSig.repeat(100)), verifierList(peterVerifier)).sigs?.length).toBe(1);
+		// An undefined Verifiers is an empty list, not a crash.
+		expect(thrownBy(() => open(toUTF8(text + "\n" + peterSig), undefined))).toBeInstanceOf(UnverifiedNoteError);
+		// A signature of exactly four bytes (a key hash and nothing else) is malformed.
+		expect(thrownBy(() => open(toUTF8(`${text}\n— PeterNeumann x08gow==\n`), verifierList(peterVerifier)))).toBe(
+			errMalformedNote,
+		);
+		// A carriage return is a control character.
+		expect(
+			thrownBy(() => open(toUTF8(`${text.replace("\n", "\r\n")}\n${peterSig}`), verifierList(peterVerifier))),
+		).toBe(errMalformedNote);
+		// The text keeps a leading byte-order mark, which is not a control character, so
+		// the note is well-formed; Peter's signature is over different bytes, so it fails.
+		const bom = thrownBy(() => open(toUTF8(`\ufeff${text}\n${peterSig}`), verifierList(peterVerifier)));
+		expect(bom).toBeInstanceOf(InvalidSignatureError);
+	});
+
 	// A verifier that accepted a checkpoint signature Go rejects would let a webtessera
 	// client and a Go witness split on the same bytes. This vector is constructed to be
 	// accepted by noble under both zip215 settings and rejected by Go's crypto/ed25519
@@ -522,4 +867,29 @@ class timeoutOneByteReader implements Reader {
 		p[0] = 0;
 		return 1;
 	}
+}
+
+/** thrownBy returns what fn throws, failing the test if it returns normally. */
+function thrownBy(fn: () => unknown): unknown {
+	try {
+		fn();
+	} catch (err) {
+		return err;
+	}
+	throw new Error("expected a throw");
+}
+
+/** messageOf returns the message of what fn throws. */
+function messageOf(fn: () => unknown): string {
+	return (thrownBy(fn) as Error).message;
+}
+
+/**
+ * newEd25519VerifierKeyUnchecked encodes a verifier key for an Ed25519 key of any
+ * length, re-deriving the key hash from the specification, so that newVerifier's own
+ * length check is what rejects it.
+ */
+function newEd25519VerifierKeyUnchecked(name: string, key: Uint8Array): string {
+	const pubkey = concatBytes(new Uint8Array([1]), key);
+	return `${name}+${testKeyHash(name, pubkey).toString(16).padStart(8, "0")}+${toBase64(pubkey)}`;
 }

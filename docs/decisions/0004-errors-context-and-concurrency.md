@@ -184,7 +184,11 @@ Two statements above no longer describe the code, and are corrected here rather 
   commit Tessera never calls `errgroup.WithContext`. Every site (`migrate.go`,
   `migrate_lifecycle.go`, `fsck/fsck.go`, the cloud storage drivers and the experimental mirror)
   constructs a bare `errgroup.Group{}`, whose `Wait` returns the first error but cancels nothing.
-  `ErrGroup` still aborts its own `signal` on the first error, but that is only observable where a
-  task is given `eg.signal`: `src/fsck/fsck.ts` does so deliberately and says why in its own port
-  note, while `src/migrate.ts` and `src/migrate_lifecycle.ts` pass their caller's signal, as Go
-  passes its own context, and so behave like Go's bare group.
+  `ErrGroup` still aborts its own `signal` on the first error (and, per the update above, when
+  `wait()` first returns), but that is only observable where a task is given `eg.signal`:
+  `src/fsck/fsck.ts` does so deliberately and says why in its own port note, while
+  `src/migrate.ts` and `src/migrate_lifecycle.ts` pass their caller's signal, as Go passes its own
+  context, and so behave like Go's bare group.
+- **`ticker`'s callers.** The update above names `followerStats` and `updateStats` in
+  `append_lifecycle.ts` among `ticker`'s callers. ADR-0181 deletes both, so the garbage collection
+  job in `storage/objectstore/driver.ts` is the only caller left.

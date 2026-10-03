@@ -371,6 +371,31 @@ describe("IndexedDBObjectStore locks in Chromium", () => {
 	});
 });
 
+// docs/decisions/0201-indexeddb-locks-fail-closed.md: without a LockManager, opening
+// fails unless the caller declares itself the only writer.
+describe("IndexedDB lock scope in Chromium", () => {
+	it("refuses to open without Web Locks unless singleWriter is set", async () => {
+		const name = uniqueName("no-web-locks");
+		await expect(openIndexedDBObjectStore({ name, locks: null })).rejects.toThrow(
+			"the Web Locks API (navigator.locks) is not available in this context",
+		);
+		const s = await openIndexedDBObjectStore({ name, locks: null, singleWriter: true });
+		try {
+			expect(s.lockScope).toBe("realm");
+		} finally {
+			s.close();
+		}
+		const ac = new AbortController();
+		try {
+			expect((await newIndexedDBDriver({ name, locks: null, singleWriter: true }, ac.signal)).lockScope).toBe("realm");
+			expect((await newIndexedDBDriver({ name, singleWriter: true }, ac.signal)).lockScope).toBe("origin");
+		} finally {
+			ac.abort();
+		}
+		expect(await deleteDatabase(name)).toEqual({ blocked: false });
+	});
+});
+
 describe("newIndexedDBDriver in Chromium", () => {
 	function entries(writer: string, n: number): Uint8Array[] {
 		return Array.from({ length: n }, (_, i) => bytes(`${writer}, entry ${i}`));
@@ -386,6 +411,7 @@ describe("newIndexedDBDriver in Chromium", () => {
 
 		const ac2 = new AbortController();
 		const d2 = await newIndexedDBDriver({ name }, ac2.signal);
+		expect(d2.lockScope).toBe("origin");
 		const second = await appendEntries(d2, skey, entries("second", 2));
 		expect([...second.keys()].sort()).toEqual([3n, 4n]);
 		await verifyLog(d2, skey, vkey, mergeAssignments(first, second));

@@ -18,6 +18,7 @@
 
 export {
 	ErrClosed,
+	type IndexedDBDriver,
 	type IndexedDBDriverConfig,
 	type IndexedDBObjectStore,
 	type IndexedDBObjectStoreOptions,

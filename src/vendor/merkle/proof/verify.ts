@@ -15,11 +15,25 @@
 //
 // Ported from merkle/proof/verify.go @ v0.0.2
 
-import { len64, onesCount64, shiftLeft64, shiftRight64, trailingZeros64 } from "../../../internal/gostd/bits.ts";
+import {
+	assertUint64,
+	len64,
+	onesCount64,
+	shiftLeft64,
+	shiftRight64,
+	trailingZeros64,
+} from "../../../internal/gostd/bits.ts";
 import { bytesEqual } from "../../../internal/gostd/bytes.ts";
 import type { LogHasher } from "../hasher.ts";
 
-/** RootMismatchError occurs when an inclusion proof fails. */
+/**
+ * RootMismatchError occurs when an inclusion proof fails.
+ *
+ * Port note: Go's RootMismatchError is a struct value with an Error method, returned
+ * as `error` and recovered with `errors.As(err, &RootMismatchError{})`. Here it is an
+ * Error subclass carrying the same two fields (camelCased), recovered with
+ * `instanceof` or `errorAs`. The message is Go's `%v` rendering; see formatBytes.
+ */
 export class RootMismatchError extends Error {
 	readonly expectedRoot: Uint8Array;
 	readonly calculatedRoot: Uint8Array;
@@ -41,9 +55,41 @@ function verifyMatch(calculated: Uint8Array, expected: Uint8Array): void {
 }
 
 /**
+ * checkHashSize throws unless h is exactly hasher.size() bytes long. name is how the
+ * error message refers to h.
+ *
+ * Port note: this check has no upstream counterpart. Go's verifier accepts proof
+ * hashes and roots of any length, and the hash chaining treats a node hash as opaque
+ * bytes, so a mis-sized "hash" is not rejected for being mis-sized. The port requires
+ * every proof hash and every root to be a node hash of the hasher's size. Each call
+ * sits after all of upstream's own checks in its function, so every input upstream
+ * rejects for another reason is rejected with upstream's error, and every input whose
+ * hashes are all correctly sized behaves exactly as upstream.
+ * See docs/decisions/0202-merkle-proof-hash-sizes.md.
+ */
+function checkHashSize(hasher: LogHasher, name: string, h: Uint8Array): void {
+	const got = h.length;
+	const want = hasher.size();
+	if (got !== want) {
+		throw new Error(`${name} has unexpected size ${got}, want ${want}`);
+	}
+}
+
+/** checkProofHashSizes applies checkHashSize to every element of proof, reporting proof[i]. */
+function checkProofHashSizes(hasher: LogHasher, proof: readonly Uint8Array[]): void {
+	for (let i = 0; i < proof.length; i++) {
+		checkHashSize(hasher, `proof[${i}]`, proof[i] as Uint8Array);
+	}
+}
+
+/**
  * verifyInclusion verifies the correctness of the inclusion proof for the leaf
  * with the specified hash and index, relatively to the tree of the given size
  * and root hash. Requires 0 <= index < size.
+ *
+ * Port note: index and size must be uint64s (docs/decisions/0207-uint64-domain-guards.md),
+ * and root and every proof hash must be hasher.size() bytes
+ * (docs/decisions/0202-merkle-proof-hash-sizes.md).
  */
 export function verifyInclusion(
 	hasher: LogHasher,
@@ -54,6 +100,7 @@ export function verifyInclusion(
 	root: Uint8Array,
 ): void {
 	const calcRoot = rootFromInclusionProof(hasher, index, size, leafHash, proof);
+	checkHashSize(hasher, "root", root);
 	verifyMatch(calcRoot, root);
 }
 
@@ -61,6 +108,9 @@ export function verifyInclusion(
  * rootFromInclusionProof calculates the expected root hash for a tree of the
  * given size, provided a leaf index and hash with the corresponding inclusion
  * proof. Requires 0 <= index < size.
+ *
+ * Port note: index and size must be uint64s, and every proof hash must be
+ * hasher.size() bytes; see verifyInclusion.
  */
 export function rootFromInclusionProof(
 	hasher: LogHasher,
@@ -69,6 +119,8 @@ export function rootFromInclusionProof(
 	leafHash: Uint8Array,
 	proof: readonly Uint8Array[],
 ): Uint8Array {
+	assertUint64(index, "index");
+	assertUint64(size, "size");
 	if (index >= size) {
 		throw new Error(`index is beyond size: ${index} >= ${size}`);
 	}
@@ -80,6 +132,7 @@ export function rootFromInclusionProof(
 	if (proof.length !== inner + border) {
 		throw new Error(`wrong proof size ${proof.length}, want ${inner + border}`);
 	}
+	checkProofHashSizes(hasher, proof);
 
 	let res = chainInner(hasher, leafHash, proof.slice(0, inner), index);
 	res = chainBorderRight(hasher, res, proof.slice(inner));
@@ -90,6 +143,10 @@ export function rootFromInclusionProof(
  * verifyConsistency checks that the passed-in consistency proof is valid
  * between the passed in tree sizes, with respect to the corresponding root
  * hashes. Requires 0 <= size1 <= size2.
+ *
+ * Port note: size1 and size2 must be uint64s (docs/decisions/0207-uint64-domain-guards.md),
+ * and root1, root2 and every proof hash must be hasher.size() bytes, whatever the
+ * sizes (docs/decisions/0202-merkle-proof-hash-sizes.md).
  */
 export function verifyConsistency(
 	hasher: LogHasher,
@@ -99,6 +156,8 @@ export function verifyConsistency(
 	root1: Uint8Array,
 	root2: Uint8Array,
 ): void {
+	assertUint64(size1, "size1");
+	assertUint64(size2, "size2");
 	if (size2 < size1) {
 		// Port note: the arguments are swapped relative to the format string in
 		// the Go source; kept verbatim so the message text matches upstream.
@@ -108,6 +167,8 @@ export function verifyConsistency(
 		if (proof.length > 0) {
 			throw new Error("size1=size2, but proof is not empty");
 		}
+		checkHashSize(hasher, "root1", root1);
+		checkHashSize(hasher, "root2", root2);
 		verifyMatch(root1, root2);
 		return;
 	}
@@ -116,6 +177,8 @@ export function verifyConsistency(
 		if (proof.length > 0) {
 			throw new Error(`expected empty proof, but got ${proof.length} components`);
 		}
+		checkHashSize(hasher, "root1", root1);
+		checkHashSize(hasher, "root2", root2);
 		return; // Proof OK.
 	}
 	if (proof.length === 0) {
@@ -137,6 +200,9 @@ export function verifyConsistency(
 	if (proof.length !== start + inner + border) {
 		throw new Error(`wrong proof size ${proof.length}, want ${start + inner + border}`);
 	}
+	checkHashSize(hasher, "root1", root1);
+	checkHashSize(hasher, "root2", root2);
+	checkProofHashSizes(hasher, proof);
 	proof = proof.slice(start);
 	// Now proof.length == inner+border, and proof is effectively a suffix of
 	// inclusion proof for entry |size1-1| in a tree of size |size2|.
@@ -218,6 +284,10 @@ function chainBorderRight(hasher: LogHasher, seed: Uint8Array, proof: readonly U
  * formatBytes renders a byte slice the way Go's `%v` verb does, e.g. `[1 2 3]`.
  * RootMismatchError's message is built with `%v`, and upstream tests assert on
  * message content.
+ *
+ * Port note: upstream has no such helper; `fmt.Sprintf("%v", b)` on a `[]byte` is
+ * the decimal bytes, space-separated, in brackets, and this reproduces exactly that
+ * (a nil slice and an empty one both print as `[]`).
  */
 function formatBytes(b: Uint8Array): string {
 	return `[${Array.from(b).join(" ")}]`;

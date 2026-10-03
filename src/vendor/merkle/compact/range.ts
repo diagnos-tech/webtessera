@@ -18,6 +18,7 @@
 // Package compact provides compact Merkle tree data structures.
 
 import {
+	assertUint64,
 	asUint64,
 	len64,
 	onesCount64,
@@ -37,6 +38,15 @@ export type VisitFn = (id: NodeID, hash: Uint8Array) => void;
 /**
  * RangeFactory allows creating compact ranges with the specified hash
  * function, which must not be nil, and must not be changed.
+ *
+ * Port note: Go builds a factory with the composite literal
+ * `&compact.RangeFactory{Hash: h}`; here it is `new RangeFactory(h)`, and the
+ * exported field `Hash` is the `readonly` property `hash`, which is how this port
+ * states "must not be changed". Go compares factories by pointer (`other.f != r.f`
+ * in AppendRange and Equal); the port compares object identity, so two factories
+ * built from the same function are still incompatible, exactly as two
+ * `&RangeFactory{...}` literals are. `hash` is called as a plain function, so a
+ * method used as the hash function must be bound first (ADR-0011).
  */
 export class RangeFactory {
 	readonly hash: HashFn;
@@ -49,8 +59,13 @@ export class RangeFactory {
 	 * newRange creates a Range for [begin, end) with the given set of hashes. The
 	 * hashes correspond to the roots of the minimal set of perfect sub-trees
 	 * covering the [begin, end) leaves range, ordered left to right.
+	 *
+	 * Port note: begin and end must be uint64s; anything else throws a RangeError.
+	 * See docs/decisions/0207-uint64-domain-guards.md.
 	 */
 	newRange(begin: bigint, end: bigint, hashes: Uint8Array[]): Range {
+		assertUint64(begin, "begin");
+		assertUint64(end, "end");
 		if (end < begin) {
 			throw new Error(`invalid range: end=${end}, want >= ${begin}`);
 		}
@@ -66,8 +81,11 @@ export class RangeFactory {
 	 * newEmptyRange returns a new Range for an empty [begin, begin) range. The
 	 * value of begin defines where the range will start growing from when entries
 	 * are appended to it.
+	 *
+	 * Port note: begin must be a uint64; see newRange.
 	 */
 	newEmptyRange(begin: bigint): Range {
+		assertUint64(begin, "begin");
 		return new Range(this, begin, begin, []);
 	}
 }
@@ -130,7 +148,9 @@ export class Range {
 		if (visitor !== null) {
 			visitor(newNodeID(0, this._end), hash);
 		}
-		this.#appendImpl(this._end + 1n, hash, [], visitor);
+		// Port note: `r.end+1` is uint64 arithmetic upstream and wraps to 0 at
+		// MaxUint64. See docs/decisions/0014-uint64-wrapping-made-explicit.md.
+		this.#appendImpl(asUint64(this._end + 1n), hash, [], visitor);
 	}
 
 	/**
@@ -302,8 +322,13 @@ export function getMergePath(begin: bigint, mid: bigint, end: bigint): [number, 
  * sequence of tree sizes: 2,8; 8,4,1.
  *
  * The output is not specified if begin > end, but the function never panics.
+ *
+ * Port note: begin and end must be uint64s; anything else throws a RangeError.
+ * See docs/decisions/0207-uint64-domain-guards.md.
  */
 export function decompose(begin: bigint, end: bigint): [bigint, bigint] {
+	assertUint64(begin, "begin");
+	assertUint64(end, "end");
 	// Special case, as the code below works only if begin != 0, or end < 2^63.
 	if (begin === 0n) {
 		return [0n, end];

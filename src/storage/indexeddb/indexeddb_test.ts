@@ -14,8 +14,10 @@
 
 // Runs the IndexedDB ObjectStore on Node against fake-indexeddb, which implements the
 // IndexedDB spec closely enough to exercise schema upgrades, versionchange handling,
-// key ranges and transaction durability. Node has no Web Locks API, so the locks here
-// are the in-process fallback; indexeddb_browser_test.ts covers Web Locks in Chromium.
+// key ranges and transaction durability. Node has no Web Locks API, so the stores here
+// are opened with singleWriter: true and use the in-process fallback (each test is the
+// only writer of its fresh fake-indexeddb factory); indexeddb_browser_test.ts covers
+// Web Locks in Chromium.
 
 import { forceCloseDatabase, IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -30,6 +32,7 @@ import {
 	newIndexedDBDriver,
 	openIndexedDBObjectStore,
 } from "./index.ts";
+import { newInProcessLockManager } from "./testing/locks.ts";
 import { appendEntries, mergeAssignments, newTestKey, verifyLog } from "./testing/log.ts";
 import { prefixCases } from "./testing/prefix_cases.ts";
 
@@ -76,7 +79,7 @@ function spyingFactory(): { factory: IDBFactory; connections: IDBDatabase[] } {
 }
 
 function options(factory: IDBFactory, name = "log"): IndexedDBObjectStoreOptions {
-	return { name, indexedDB: factory, IDBKeyRange, locks: null };
+	return { name, indexedDB: factory, IDBKeyRange, locks: null, singleWriter: true };
 }
 
 /** rawOpen opens a connection directly, bypassing the store, as other code sharing the origin would. */
@@ -466,6 +469,80 @@ describe("IndexedDBObjectStore.deletePrefix", () => {
 			}
 		});
 	}
+});
+
+// docs/decisions/0201-indexeddb-locks-fail-closed.md
+describe("IndexedDBObjectStore lock scope", () => {
+	const unsafe = (factory: IDBFactory, name = "log"): IndexedDBObjectStoreOptions => ({
+		name,
+		indexedDB: factory,
+		IDBKeyRange,
+	});
+	const wantErr =
+		'indexeddb: open database "log": the Web Locks API (navigator.locks) is not available in this context (it ' +
+		"requires a secure context: HTTPS or localhost), so locks could not exclude other tabs and workers writing the " +
+		"same log; serve the page from a secure context, pass opts.locks, or pass singleWriter: true if this is the " +
+		"only context that will ever write this log";
+
+	it("refuses to open without Web Locks unless singleWriter is set, before creating the database", async () => {
+		expect((globalThis as { navigator?: { locks?: unknown } }).navigator?.locks).toBeUndefined();
+		const factory = new IDBFactory();
+		await expect(openIndexedDBObjectStore(unsafe(factory))).rejects.toThrow(new Error(wantErr));
+		await expect(openIndexedDBObjectStore({ ...unsafe(factory), locks: null })).rejects.toThrow(new Error(wantErr));
+		await expect(openIndexedDBObjectStore({ ...unsafe(factory), singleWriter: false })).rejects.toThrow(
+			new Error(wantErr),
+		);
+		expect(await factory.databases()).toEqual([]);
+	});
+
+	it("newIndexedDBDriver refuses too", async () => {
+		await expect(newIndexedDBDriver(unsafe(new IDBFactory()))).rejects.toThrow(new Error(wantErr));
+	});
+
+	it("opens with realm-scoped locks when singleWriter is set", async () => {
+		const s = await openStore({ ...unsafe(new IDBFactory()), singleWriter: true });
+		expect(s.lockScope).toBe("realm");
+	});
+
+	it("uses Web Locks whenever a LockManager is available, singleWriter or not", async () => {
+		const factory = new IDBFactory();
+		expect((await openStore({ ...unsafe(factory), locks: new fakeLockManager() })).lockScope).toBe("origin");
+		expect(
+			(await openStore({ ...unsafe(factory, "other"), locks: new fakeLockManager(), singleWriter: true })).lockScope,
+		).toBe("origin");
+	});
+
+	it("accepts the test-only in-process LockManager in place of navigator.locks", async () => {
+		const locks = newInProcessLockManager();
+		const a = await openStore({ ...unsafe(new IDBFactory()), locks });
+		expect(a.lockScope).toBe("origin");
+		const gate = deferred();
+		const events: string[] = [];
+		const held = a.lock("treeState.lock", async () => {
+			events.push("a");
+			await gate.promise;
+		});
+		const ac = new AbortController();
+		const waiter = a.lock("treeState.lock", async () => events.push("never"), ac.signal);
+		const reason = new Error("gave up");
+		ac.abort(reason);
+		await expect(waiter).rejects.toBe(reason);
+		gate.resolve();
+		await held;
+		expect(events).toEqual(["a"]);
+	});
+
+	it("newIndexedDBDriver reports the effective lock scope", async () => {
+		const ac = new AbortController();
+		try {
+			const realm = await newIndexedDBDriver({ ...unsafe(new IDBFactory()), singleWriter: true }, ac.signal);
+			expect(realm.lockScope).toBe("realm");
+			const origin = await newIndexedDBDriver({ ...unsafe(new IDBFactory()), locks: new fakeLockManager() }, ac.signal);
+			expect(origin.lockScope).toBe("origin");
+		} finally {
+			ac.abort();
+		}
+	});
 });
 
 describe("IndexedDBObjectStore.lock", () => {

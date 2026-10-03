@@ -15,7 +15,15 @@
 //
 // Ported from merkle/compact/nodes.go @ v0.0.2
 
-import { asUint64, len64, onesCount64, shiftLeft64, trailingZeros64 } from "../../../internal/gostd/bits.ts";
+import {
+	assertUint64,
+	asUint64,
+	len64,
+	onesCount64,
+	shiftLeft64,
+	shiftRight64,
+	trailingZeros64,
+} from "../../../internal/gostd/bits.ts";
 import { decompose } from "./range.ts";
 
 /**
@@ -34,12 +42,25 @@ import { decompose } from "./range.ts";
  * When the tree is not perfect, the nodes that would complement it to perfect
  * are called ephemeral. Algorithms that operate with ephemeral nodes still map
  * them to the same address space.
+ *
+ * Port note: Go's NodeID is a comparable struct value, so `a == b` compares the
+ * coordinates. A TypeScript class instance compares by identity, so compare `level`
+ * and `index` (or use a deep-equality matcher in tests); the fields are `readonly` to
+ * keep the value semantics. Go's `uint` level is a `number` (ADR-0003).
  */
 export class NodeID {
 	readonly level: number;
 	readonly index: bigint;
 
+	/**
+	 * Stands in for Go's `NodeID{Level: level, Index: index}` composite literal,
+	 * which is public because both fields are exported.
+	 *
+	 * Port note: index must be a uint64; anything else throws a RangeError. See
+	 * docs/decisions/0207-uint64-domain-guards.md.
+	 */
 	constructor(level: number, index: bigint) {
+		assertUint64(index, "index");
 		this.level = level;
 		this.index = index;
 	}
@@ -60,7 +81,11 @@ export class NodeID {
 	}
 }
 
-/** newNodeID returns a NodeID with the passed in node coordinates. */
+/**
+ * newNodeID returns a NodeID with the passed in node coordinates.
+ *
+ * Port note: index must be a uint64; the NodeID constructor enforces it.
+ */
 export function newNodeID(level: number, index: bigint): NodeID {
 	return new NodeID(level, index);
 }
@@ -73,9 +98,14 @@ export function newNodeID(level: number, index: bigint): NodeID {
  * Port note: Go's `append` may write through to the caller's backing array. The
  * port always returns a fresh array, which is the behaviour upstream's callers
  * rely on (they reassign the result, and nodes_test.go asserts the passed-in
- * prefix is left intact).
+ * prefix is left intact). See docs/decisions/0013-go-slice-semantics-in-merkle.md.
+ *
+ * Port note: begin and end must be uint64s; anything else throws a RangeError.
+ * See docs/decisions/0207-uint64-domain-guards.md.
  */
 export function rangeNodes(begin: bigint, end: bigint, ids: readonly NodeID[]): NodeID[] {
+	assertUint64(begin, "begin");
+	assertUint64(end, "end");
 	let [left, right] = decompose(begin, end);
 
 	const out = [...ids];
@@ -85,7 +115,7 @@ export function rangeNodes(begin: bigint, end: bigint, ids: readonly NodeID[]): 
 	for (let bit = 0n; left !== 0n; pos += bit, left ^= bit) {
 		const level = trailingZeros64(left);
 		bit = shiftLeft64(1n, level);
-		out.push(newNodeID(level, pos >> BigInt(level)));
+		out.push(newNodeID(level, shiftRight64(pos, level)));
 	}
 
 	// Iterate over perfect subtrees along the right border of the range, ordered
@@ -93,14 +123,20 @@ export function rangeNodes(begin: bigint, end: bigint, ids: readonly NodeID[]): 
 	for (let bit = 0n; right !== 0n; pos += bit, right ^= bit) {
 		const level = len64(right) - 1;
 		bit = shiftLeft64(1n, level);
-		out.push(newNodeID(level, pos >> BigInt(level)));
+		out.push(newNodeID(level, shiftRight64(pos, level)));
 	}
 
 	return out;
 }
 
-/** rangeSize returns the number of nodes in the [begin, end) compact range. */
+/**
+ * rangeSize returns the number of nodes in the [begin, end) compact range.
+ *
+ * Port note: begin and end must be uint64s; see rangeNodes.
+ */
 export function rangeSize(begin: bigint, end: bigint): number {
+	assertUint64(begin, "begin");
+	assertUint64(end, "end");
 	const [left, right] = decompose(begin, end);
 	return onesCount64(left) + onesCount64(right);
 }

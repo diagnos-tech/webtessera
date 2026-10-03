@@ -17,7 +17,7 @@
 
 // Package proof contains helpers for constructing log Merkle tree proofs.
 
-import { len64, trailingZeros64 } from "../../../internal/gostd/bits.ts";
+import { assertUint64, len64, shiftRight64, trailingZeros64 } from "../../../internal/gostd/bits.ts";
 import { type NodeID, newNodeID, rangeNodes, rangeSize } from "../compact/nodes.ts";
 
 /**
@@ -125,8 +125,13 @@ export class Nodes {
  * inclusion returns the information on how to fetch and construct an inclusion
  * proof for the given leaf index in a log Merkle tree of the given size. It
  * requires 0 <= index < size.
+ *
+ * Port note: index and size must be uint64s; anything else throws a RangeError.
+ * See docs/decisions/0207-uint64-domain-guards.md.
  */
 export function inclusion(index: bigint, size: bigint): Nodes {
+	assertUint64(index, "index");
+	assertUint64(size, "size");
 	if (index >= size) {
 		throw new Error(`index ${index} out of bounds for tree size ${size}`);
 	}
@@ -137,8 +142,12 @@ export function inclusion(index: bigint, size: bigint): Nodes {
  * consistency returns the information on how to fetch and construct a
  * consistency proof between the two given tree sizes of a log Merkle tree. It
  * requires 0 <= size1 <= size2.
+ *
+ * Port note: size1 and size2 must be uint64s; see inclusion.
  */
 export function consistency(size1: bigint, size2: bigint): Nodes {
+	assertUint64(size1, "size1");
+	assertUint64(size2, "size2");
 	if (size1 > size2) {
 		throw new Error(`tree size ${size1} > ${size2}`);
 	}
@@ -148,7 +157,7 @@ export function consistency(size1: bigint, size2: bigint): Nodes {
 
 	// Find the root of the biggest perfect subtree that ends at size1.
 	const level = trailingZeros64(size1);
-	const index = (size1 - 1n) >> BigInt(level);
+	const index = shiftRight64(size1 - 1n, level);
 	// The consistency proof consists of this node (except if size1 is a power of
 	// two, in which case adding this node would be redundant because the client
 	// is assumed to know it from a checkpoint), and nodes of the inclusion proof
@@ -177,8 +186,8 @@ function nodes(index: bigint, level: number, size: bigint): Nodes {
 	//
 	// The `inner` variable is how many layers up from (level, index) the `fork`
 	// and the ephemeral nodes are.
-	const inner = len64(index ^ (size >> BigInt(level))) - 1;
-	const fork = newNodeID(level + inner, index >> BigInt(inner));
+	const inner = len64(index ^ shiftRight64(size, level)) - 1;
+	const fork = newNodeID(level + inner, shiftRight64(index, inner));
 
 	const [begin, end] = fork.coverage();
 	const left = rangeSize(0n, begin);

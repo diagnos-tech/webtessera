@@ -17,6 +17,14 @@
 // getMergePath) stay reachable only through the individual modules, which is
 // this port's stand-in for Go's package-private visibility.
 // See docs/decisions/0010-package-private-members.md.
+//
+// Range is exported as a type only. Its fields are unexported in Go, so code
+// outside the package cannot write a `compact.Range{...}` literal and obtains
+// ranges only from a RangeFactory; exporting the class value would expose its
+// unvalidated constructor, which stands in for that package-private literal.
+// NodeID's fields are exported in Go, so `compact.NodeID{...}` is public there
+// and the class stays a value export here.
+// See docs/decisions/0208-merkle-barrels-and-tuple-returns.md.
 
 export { NodeID, newNodeID, rangeNodes, rangeSize } from "./nodes.ts";
-export { decompose, type HashFn, Range, RangeFactory, type VisitFn } from "./range.ts";
+export { decompose, type HashFn, type Range, RangeFactory, type VisitFn } from "./range.ts";

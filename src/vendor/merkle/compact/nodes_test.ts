@@ -81,6 +81,40 @@ describe("TestRangeNodesAppend", () => {
 		expect(nodes.length).toBeGreaterThanOrEqual(prefix.length);
 		const got = nodes.slice(0, prefix.length);
 		expect(got).toEqual(prefix);
+
+		// Port-only assertion (docs/decisions/0013-go-slice-semantics-in-merkle.md):
+		// rangeNodes returns a fresh array and leaves its argument untouched. If it were
+		// "simplified" to push onto `prefix`, `got` above would be compared with the
+		// array it was sliced from and the upstream assertion would pass vacuously;
+		// this one would not.
+		expect(nodes).not.toBe(prefix);
+		expect(prefix.length).toBe(3);
+		expect(nodes.length).toBe(prefix.length + rangeSize(123n, 456n));
+	});
+});
+
+// Not upstream: every exported uint64 entry point refuses values Go's uint64 cannot
+// hold (docs/decisions/0207-uint64-domain-guards.md).
+describe("uint64 domain (port hardening)", () => {
+	const B64 = 1n << 64n;
+	it("rangeNodes, rangeSize and newNodeID reject negative and over-wide values", () => {
+		for (const call of [
+			() => rangeNodes(-1n, 5n, []),
+			() => rangeNodes(0n, B64, []),
+			() => rangeSize(-1n, 5n),
+			() => rangeSize(0n, B64),
+			() => newNodeID(0, -1n),
+			() => newNodeID(0, B64),
+		]) {
+			expect(call).toThrow(RangeError);
+		}
+	});
+
+	it("accepts MaxUint64", () => {
+		const max = B64 - 1n;
+		expect(rangeSize(max - 1n, max)).toBe(1);
+		expect(rangeNodes(max - 1n, max, [])).toEqual([newNodeID(0, max - 1n)]);
+		expect(newNodeID(0, max).coverage()).toEqual([max, 0n]);
 	});
 });
 

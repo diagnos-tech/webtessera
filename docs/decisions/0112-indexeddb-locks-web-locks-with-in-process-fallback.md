@@ -53,6 +53,12 @@ The fallback does **not** exclude other tabs or workers. The store reports which
 that an application served over plain HTTP (no secure context, so no Web Locks) can detect it and refuse to run
 a writer in more than one context.
 
+> **Update (2026-10-02):** the silent fallback is gone. When no `LockManager` is available, opening the store
+> now fails unless the caller passes `singleWriter: true`, declaring that it is the only context writing the
+> log; only then does the store use the realm-scoped fallback described above. "Refuse to open without Web
+> Locks" — rejected below because it would leave no way to run in Node or in a single-context application — is
+> therefore adopted with exactly that escape hatch. See ADR-0201.
+
 ## Consequences
 
 - Two tabs, or a tab and a worker, can run appenders on the same log and the log stays consistent. The Chromium

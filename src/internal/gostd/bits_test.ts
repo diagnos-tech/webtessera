@@ -13,7 +13,16 @@
 // limitations under the License.
 
 import { describe, expect, it } from "vitest";
-import { asUint64, len64, MaxUint64, onesCount64, shiftLeft64, shiftRight64, trailingZeros64 } from "./bits.ts";
+import {
+	assertUint64,
+	asUint64,
+	len64,
+	MaxUint64,
+	onesCount64,
+	shiftLeft64,
+	shiftRight64,
+	trailingZeros64,
+} from "./bits.ts";
 
 // These functions carry the whole compact-range and proof layer: a wrong
 // TrailingZeros64 produces a tree that looks fine and hashes wrong. The tests
@@ -140,7 +149,10 @@ describe("gostd/bits", () => {
 			expect(shiftLeft64(MaxUint64, 1000)).toBe(0n);
 		});
 
-		it("yields zero for a negative count, matching Go's int-to-uint conversion", () => {
+		// Upstream writes every computed shift count as `uint(n)`; a negative int
+		// converts to a huge uint and the shift yields zero. (An unconverted negative
+		// signed count would panic in Go, which upstream never writes.)
+		it("yields zero for a negative count, matching Go's explicit uint(n) conversion", () => {
 			expect(shiftLeft64(1n, -1)).toBe(0n);
 		});
 	});
@@ -157,8 +169,35 @@ describe("gostd/bits", () => {
 			expect(shiftRight64(MaxUint64, 1000)).toBe(0n);
 		});
 
-		it("yields zero for a negative count, matching Go's int-to-uint conversion", () => {
+		it("yields zero for a negative count, matching Go's explicit uint(n) conversion", () => {
 			expect(shiftRight64(MaxUint64, -1)).toBe(0n);
+		});
+	});
+
+	describe("assertUint64", () => {
+		it("accepts every value in [0, MaxUint64]", () => {
+			for (const v of [0n, 1n, 1n << 32n, 1n << 63n, MaxUint64 - 1n, MaxUint64]) {
+				expect(() => assertUint64(v, "v")).not.toThrow();
+			}
+		});
+
+		it("rejects negative values with a RangeError naming the parameter", () => {
+			expect(() => assertUint64(-1n, "size")).toThrow(
+				new RangeError("size = -1 is outside the uint64 range [0, 2^64-1]"),
+			);
+			expect(() => assertUint64(-1n, "size")).toThrow(RangeError);
+		});
+
+		it("rejects values above MaxUint64 with a RangeError", () => {
+			expect(() => assertUint64(MaxUint64 + 1n, "index")).toThrow(
+				new RangeError("index = 18446744073709551616 is outside the uint64 range [0, 2^64-1]"),
+			);
+		});
+
+		it("rejects a non-bigint with a TypeError", () => {
+			expect(() => assertUint64(5 as unknown as bigint, "begin")).toThrow(
+				new TypeError("begin must be a bigint uint64, got number"),
+			);
 		});
 	});
 });

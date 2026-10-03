@@ -52,6 +52,8 @@ async function fakeIndexedDB() {
 		indexedDB: new IDBFactory(),
 		IDBKeyRange,
 		locks: null,
+		// Node has no Web Locks; this process is the only writer, which the driver must be told.
+		singleWriter: true,
 	});
 	return { store, close: () => store.close() };
 }

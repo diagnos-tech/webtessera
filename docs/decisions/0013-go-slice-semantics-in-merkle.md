@@ -68,6 +68,15 @@ load-bearing (`TestGoldenRanges` asserts it, and `compact_range.json` records
 returns a view, as `hash[:4]` does. Everywhere the port needs a copy it says `Uint8Array.from` or
 allocates.
 
+> **Update (2026-10-02):** "`appendImpl` rebuilds the hash array …, which is observably what the nested
+> `append` produces" overstates it. Go's nested `append(append(r.hashes[:idx1], seed), hashes[idx2:]...)`
+> writes into `r.hashes`' backing array when it has capacity, and that array can be shared with the slice a
+> caller passed to `NewRange` or obtained from `Hashes()`; in Go such a caller can see its slice change after an
+> `Append`. The port always builds a fresh array, so a caller's array is never modified. The *resulting range*
+> is the same; the aliasing side effect on the caller's slice is not reproduced, and nothing upstream relies
+> on it. The same holds for `newRange` (the port stores the caller's array, as Go stores the slice, but never
+> writes into it).
+
 ## Consequences
 
 - The nil-vs-empty distinction is lost, so a handful of upstream table cases that differ only in
