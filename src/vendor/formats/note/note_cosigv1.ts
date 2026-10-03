@@ -12,15 +12,16 @@
 // `keyHashEd25519`). The notice is kept as upstream has it; do not replace it with the
 // Apache header.
 //
-// Port note: this is a narrow port of `formats/note`, covering only the two functions
-// `src/witness.ts` (`newWitness`) and its tests actually call:
-// `NewVerifierForCosignatureV1` and `NewSignerForCosignatureV1`, plus the private
-// machinery they need (`formatCosignatureV1`, `verifyCosigV1`, `keyHashEd25519`,
-// `isValidName`, the `Signer`/`verifier` structs). NOT ported, because nothing in this
-// port calls them: `VKeyToCosignatureV1`, `CoSigV1Timestamp`, and
-// the whole of `note_verifier.go` (`NewVerifier`'s algorithm-dispatching, ECDSA,
-// RFC6962 STH verifiers) and `note_rfc6962.go`. See
-// docs/decisions/0071-formats-note-cosigv1-partial-port.md.
+// Port note: this is a narrow port of `formats/note`, covering the functions this port
+// calls: `NewVerifierForCosignatureV1` and `NewSignerForCosignatureV1` (`src/witness.ts`'s
+// `newWitness` and its tests), plus `VKeyToCosignatureV1` and `CoSigV1Timestamp`, which the
+// witness server (`src/witness/`) uses to publish its key and to keep its cosignature
+// timestamps monotonic. The private machinery they need (`formatCosignatureV1`,
+// `verifyCosigV1`, `keyHashEd25519`, `isValidName`, the `Signer`/`verifier` structs) comes
+// with them. NOT ported, because nothing in this port calls them: the whole of
+// `note_verifier.go` (`NewVerifier`'s algorithm-dispatching, ECDSA, RFC6962 STH verifiers)
+// and `note_rfc6962.go`. See docs/decisions/0071-formats-note-cosigv1-partial-port.md and
+// docs/decisions/0174-formats-note-cosigv1-timestamp-and-vkey-conversion.md.
 
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { sha256 } from "@noble/hashes/sha2.js";
@@ -30,21 +31,25 @@ import {
 	fromBase64,
 	readUint32BE,
 	readUint64BE,
-	splitN,
+	toBase64,
 	toUTF8,
 } from "../../../internal/gostd/bytes.ts";
 import { SentinelError } from "../../../internal/gostd/errors.ts";
+import { parseUint } from "../../../internal/gostd/strconv.ts";
 import { cut } from "../../../internal/gostd/strings.ts";
 import { isSpace, validUTF8String } from "../../../internal/gostd/unicode.ts";
-import { type Signer as NoteSigner, type Verifier as NoteVerifier, verifyEd25519 } from "../../note/note.ts";
+import {
+	checkEd25519PublicKey,
+	type Signature as NoteSignature,
+	type Signer as NoteSigner,
+	type Verifier as NoteVerifier,
+	verifyEd25519,
+} from "../../note/note.ts";
 
 const algEd25519 = 1;
 const algEd25519CosignatureV1 = 4;
 
-// Port note: Go also declares keyHashSize = 4 here, sizing the outer key-hash prefix
-// note.ts's own `sign`/`open` add to every signature line. It is unused by the functions
-// this file ports (only `CoSigV1Timestamp`, not ported, reads it) and so is dropped
-// rather than carried as dead code.
+const keyHashSize = 4;
 const timestampSize = 8;
 const ed25519SignatureSize = 64;
 const ed25519SeedSize = 32;
@@ -133,13 +138,76 @@ export function newVerifierForCosignatureV1(vkey: string): NoteVerifier {
 			if (keyData.length !== 32) {
 				throw errVerifierID;
 			}
+			// Port note: Go accepts any 32 bytes here. Like src/vendor/note/note.ts's
+			// newVerifier, the port refuses a small-order or non-canonically encoded public key
+			// rather than build a verifier for it: a small-order key verifies signatures nobody
+			// made, which for a witness key would let anyone forge its cosignatures. See
+			// docs/decisions/0174-formats-note-cosigv1-timestamp-and-vkey-conversion.md.
+			checkEd25519PublicKey(keyData);
 			const hash = keyHashEd25519(name, concatBytes(new Uint8Array([algEd25519CosignatureV1]), keyData));
 			return new verifier(name, hash, verifyCosigV1(keyData));
 		}
 	}
 }
 
-/** CoSigV1Timestamp, VKeyToCosignatureV1: not ported. See this file's header comment. */
+/** vKeyToCosignatureV1 converts a standard Ed25519 vkey to an Ed25519CosignatureV1 vkey. */
+export function vKeyToCosignatureV1(vkey: string): string {
+	const [name, afterName] = cut(vkey, "+");
+	const [hash16, key64] = cut(afterName, "+");
+	const algKey = tryFromBase64(key64);
+	if (hash16.length !== 8 || algKey === undefined || !isValidName(name) || algKey.length === 0) {
+		throw errVerifierID;
+	}
+
+	const alg = algKey[0];
+	const key = algKey.subarray(1);
+	if (alg !== algEd25519) {
+		throw errVerifierAlg;
+	}
+	let hash: number;
+	try {
+		// Port note: the value is a uint32, which a double holds exactly.
+		hash = Number(parseUint(hash16, 16, 32));
+	} catch {
+		throw errInvalidHash;
+	}
+
+	if (hash !== keyHashEd25519(name, algKey)) {
+		throw errInvalidHash;
+	}
+	if (key.length !== 32) {
+		throw errVerifierID;
+	}
+	const pubKey = concatBytes(new Uint8Array([algEd25519CosignatureV1]), key);
+	const h = keyHashEd25519(name, pubKey);
+
+	return `${name}+${h.toString(16).padStart(8, "0")}+${toBase64(pubKey)}`;
+}
+
+/**
+ * coSigV1Timestamp extracts the embedded timestamp from a CoSigV1 signature.
+ *
+ * Port note: Go returns `(time.Time, error)`, building the time with
+ * `time.Unix(int64(binary.BigEndian.Uint64(r)), 0)` and returning `time.UnixMilli(0)` alongside
+ * every error. This returns the int64 Go hands to time.Unix, as a bigint number of seconds
+ * since the Unix epoch, and throws the error instead. A JavaScript `Date` cannot stand in for
+ * time.Time here: it is limited to ±8.64e15 milliseconds (about year 275760), while Go accepts
+ * any int64, so a Date would turn large timestamps into an Invalid Date that compares false
+ * with everything. The int64 conversion is kept: a timestamp of 2^63 or more reads as
+ * negative, exactly as in Go, and callers decide what an out-of-range value means to them.
+ */
+export function coSigV1Timestamp(s: NoteSignature): bigint {
+	const r = tryFromBase64(s.base64);
+	if (r === undefined) {
+		throw errMalformedSig;
+	}
+	if (r.length !== keyHashSize + timestampSize + ed25519SignatureSize) {
+		throw errVerifierAlg;
+	}
+	// Skip the hash
+	// Next 8 bytes are the timestamp as Unix seconds-since-epoch:
+	return BigInt.asIntN(64, readUint64BE(r, keyHashSize));
+}
 
 /** verifyCosigV1 returns a verify function based on key. */
 function verifyCosigV1(key: Uint8Array): (msg: Uint8Array, sig: Uint8Array) => boolean {
@@ -180,8 +248,17 @@ function verifyCosigV1(key: Uint8Array): (msg: Uint8Array, sig: Uint8Array) => b
  * no semantic statement is made about any extra "extension" lines.
  */
 function formatCosignatureV1(t: bigint, msg: Uint8Array): Uint8Array {
-	const lines = splitN(msg, toUTF8("\n"), -1);
-	if (lines.length < 3) {
+	// Port note: Go checks `len(bytes.Split(msg, []byte("\n"))) < 3`. Splitting into n
+	// pieces needs n-1 separators, so counting newlines, and stopping at the second,
+	// accepts exactly the same messages without materialising the pieces; this runs for
+	// every signature a cosignature/v1 verifier is asked about.
+	let newlines = 0;
+	for (let i = 0; i < msg.length && newlines < 2; i++) {
+		if (msg[i] === 0x0a) {
+			newlines++;
+		}
+	}
+	if (newlines < 2) {
 		throw new Error("cosigned note format invalid");
 	}
 	return concatBytes(toUTF8(`cosignature/v1\ntime ${t}\n`), msg);
@@ -191,6 +268,8 @@ const errSignerID = new SentinelError("malformed signer id");
 const errSignerAlg = new SentinelError("unknown signer algorithm");
 const errVerifierID = new SentinelError("malformed verifier id");
 const errVerifierAlg = new SentinelError("unknown verifier algorithm");
+const errInvalidHash = new SentinelError("invalid key hash");
+const errMalformedSig = new SentinelError("malformed signature");
 
 export class Signer implements NoteSigner {
 	readonly #n: string;

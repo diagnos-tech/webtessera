@@ -38,6 +38,16 @@ Ported at v0.0.0-20251017110053-404c0d5b696c.
 Translated into: src/vendor/formats/log/.
 The module ships no NOTICE file at that version.
 
+AWS Signature Version 4 test suite, as published in AWS C Auth -
+https://github.com/awslabs/aws-c-auth
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+Licensed under the Apache License, Version 2.0.
+Test material only, at commit c4bc791ac6985eedb503e882cd450cc5b344c2f2
+(tests/aws-signing-test-suite/v4), transcribed into
+src/mirror/testing/sigv4_suite.ts; not part of the published package.
+AWS C Auth's NOTICE reads: "AWS C Auth / Copyright Amazon.com, Inc. or its
+affiliates. All Rights Reserved. / SPDX-License-Identifier: Apache-2.0."
+
 --------------------------------------------------------------------------------
 BSD-3-Clause sources (The Go Authors)
 --------------------------------------------------------------------------------
