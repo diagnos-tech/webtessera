@@ -1,0 +1,18 @@
+{
+  // Wrangler configuration for the workerd test harness of the SQLite backend only; it
+  // is not a deployable example (see examples/ for those).
+  //
+  // nodejs_compat is here only because @cloudflare/vitest-pool-workers requires it to run
+  // Vitest itself. The library does not need it.
+  "name": "webtessera-sqlite-test",
+  "main": "./worker.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "SQLITE_OBJECT", "class_name": "SqliteTestObject" }]
+  },
+  // The class is SQLite-backed: only those have the SQL API the backend runs on.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SqliteTestObject"] }],
+  // One D1 database, shared by every test; each store keeps its log in a namespace of its own.
+  "d1_databases": [{ "binding": "DB", "database_name": "webtessera-test", "database_id": "webtessera-test" }]
+}

@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Declares the bindings testing/wrangler.jsonc gives the test Worker.
+// Declares the bindings wrangler.jsonc gives the test Worker.
 
-import type { TestObject } from "./worker.ts";
+import type { SqliteTestObject } from "./worker.ts";
 
 declare global {
 	namespace Cloudflare {
 		interface Env {
-			readonly KV_OBJECT: DurableObjectNamespace<TestObject>;
-			readonly SQLITE_OBJECT: DurableObjectNamespace<TestObject>;
+			readonly SQLITE_OBJECT: DurableObjectNamespace<SqliteTestObject>;
+			readonly DB: D1Database;
 		}
 	}
 }

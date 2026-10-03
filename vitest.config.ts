@@ -22,8 +22,6 @@ export default defineConfig({
 	test: {
 		include: ["src/**/*_test.ts"],
 		exclude: [
-			// Legacy Durable Object KV suites, removed once storage/sqlite replaces them.
-			"src/storage/durableobject/**",
 			"src/**/*_workers_test.ts",
 			"src/**/*_browser_test.ts",
 			"src/**/*_services_test.ts",

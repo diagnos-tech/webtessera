@@ -1,6 +1,6 @@
 # ADR-0123: `webtessera/storage/durableobject` exports `newDurableObjectDriver` and the store
 
-- **Status:** proposed
+- **Status:** superseded by ADR-0154
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`New`, `Config`); no upstream counterpart for Durable

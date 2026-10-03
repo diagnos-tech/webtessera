@@ -24,13 +24,16 @@
 // Port note: upstream keeps README.md in sync with this file by running mdcode by
 // hand, and leaves a TODO to check it in presubmit; README_sync_test.ts is that
 // check. The upstream regions (common_imports, construct_example, use_appender_example)
-// are kept; the others document the browser/edge drivers and verification, which
+// are kept; the others document the IndexedDB and SQLite drivers and verification, which
 // upstream's README covers in prose. The posix driver becomes the memory driver.
 // See docs/decisions/0140-testonly-and-readme-test-on-the-memory-driver.md.
 //
 // biome-ignore-all assist/source/organizeImports: the #region markers delimit import groups that README.md embeds verbatim.
 
 import "fake-indexeddb/auto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // #region common_imports
@@ -39,7 +42,7 @@ import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "
 // Choose one!
 import { newMemoryDriver } from "webtessera/storage/memory";
 // import { newIndexedDBDriver } from "webtessera/storage/indexeddb";
-// import { newDurableObjectDriver } from "webtessera/storage/durableobject";
+// import { newSqliteDriver, fromSqliteSync } from "webtessera/storage/sqlite";
 // #endregion
 
 import { fetchCheckpoint, newHTTPFetcher, newProofBuilder } from "webtessera/client";
@@ -48,6 +51,7 @@ import { DefaultHasher } from "webtessera/merkle/rfc6962";
 import { generateKey, newSigner, newVerifier, type Signer } from "webtessera/note";
 import { newIndexedDBDriver } from "webtessera/storage/indexeddb";
 import { MemoryObjectStore } from "webtessera/storage/memory";
+import { fromSqliteSync, newSqliteDriver } from "webtessera/storage/sqlite";
 
 // fastOptions keeps the snippets' logs quick to publish under test; the README's
 // snippets use the defaults.
@@ -161,6 +165,29 @@ async function useIndexedDB(): Promise<void> {
 	ac.abort();
 }
 
+async function useSqlite(): Promise<void> {
+	const signer = createSigner();
+	const ac = new AbortController();
+	const signal = ac.signal;
+	const dir = mkdtempSync(`${tmpdir()}/webtessera-readme-`);
+	const file = `${dir}/log.db`;
+
+	// #region sqlite_example
+	// node:sqlite here; any other engine only changes this line (see the table below).
+	const database = fromSqliteSync(new DatabaseSync(file));
+	const driver = await newSqliteDriver({ database }, signal);
+	const { appender, shutdown } = await newAppender(driver, newAppendOptions().withCheckpointSigner(signer), signal);
+	// #endregion
+
+	try {
+		expect((await appender.add(newEntry(new Uint8Array([1])))()).index).toBe(0n);
+		await shutdown();
+	} finally {
+		ac.abort();
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
 describe("README", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
@@ -184,6 +211,10 @@ describe("README", () => {
 
 	it("keeps a log in IndexedDB", async () => {
 		await useIndexedDB();
+	});
+
+	it("keeps a log in SQLite", async () => {
+		await useSqlite();
 	});
 });
 
