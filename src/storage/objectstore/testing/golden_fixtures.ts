@@ -87,7 +87,7 @@ export function stateFiles(fx: LogFixture): Map<string, Uint8Array> {
 export function stateFile(fx: LogFixture, path: string): Uint8Array {
 	const raw = stateFiles(fx).get(path);
 	if (raw === undefined) {
-		throw new Error(`log_${fx.size} records no ${path}; regenerate the fixtures with "pnpm fixtures"`);
+		throw new Error(`log_${fx.size} records no ${path}; regenerate the fixtures with "bun run fixtures"`);
 	}
 	return raw;
 }
