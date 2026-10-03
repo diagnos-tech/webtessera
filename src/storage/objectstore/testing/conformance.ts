@@ -14,7 +14,7 @@
 
 // Shared contract tests for ObjectStore implementations. Every backend's test file
 // calls describeObjectStoreConformance with a factory for fresh, empty stores, so
-// that memory, IndexedDB and Durable Object storage are held to exactly the same
+// that memory, IndexedDB and every SQLite engine are held to exactly the same
 // behaviour. Test-only: excluded from the published build.
 
 import { describe, expect, it } from "vitest";

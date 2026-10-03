@@ -11,8 +11,9 @@ the practical workflow and defers to this file on every rule about the code.
 
 `webtessera` is a **faithful TypeScript port of [Tessera](https://github.com/transparency-dev/tessera)**,
 the tile-based transparency log framework from Google and the transparency-dev community, targeting
-**browsers and edge runtimes** (Cloudflare Workers / Durable Objects) instead of servers and cloud
-object stores. It is a port, not the upstream project.
+the places Go does not reach — **browsers, and servers or edge functions on whichever SQLite they
+already have** — instead of Tessera's cloud object stores and databases. It is a port, not the
+upstream project.
 
 **The upstream Go source of truth is Tessera at commit `4a6d9f9`.** The pin lives in one file,
 [`scripts/upstream.json`](scripts/upstream.json). Fetch the source with:
@@ -91,10 +92,13 @@ webtessera/
     │   ├── objectstore/       ← NEW (web): the ObjectStore contract + the driver that runs on it (§8)
     │   ├── memory/            ← NEW (web): in-memory backend, the `posix` of the browser
     │   ├── indexeddb/         ← NEW (web): browser persistence
-    │   └── durableobject/     ← NEW (edge): Cloudflare Durable Object persistence
+    │   └── sqlite/            ← NEW: any SQLite engine, one small adapter per engine
     ├── client/                ← mirrors tessera/client
     ├── fsck/                  ← mirrors tessera/fsck
     ├── ctonly/                ← mirrors tessera/ctonly
+    ├── http/                  ← NEW: serves a log over the tlog-tiles HTTP API
+    ├── witness/               ← NEW: a tlog-witness server (the root package holds the client)
+    ├── mirror/                ← mirrors tessera/cmd/experimental/mirror, plus S3-compatible sinks
     ├── testonly/              ← mirrors tessera/testonly (+ the fixture loader)
     ├── index.ts               ← package root barrel: what Go's `tessera` package exports (ADR-0133)
     └── *.ts                   ← mirrors tessera root package (entry.ts, append_lifecycle.ts, …)
@@ -358,8 +362,11 @@ The design (ADR-0100) has three layers:
     ephemeral logs.
   - `src/storage/indexeddb/` — IndexedDB for persistence; cross-tab exclusion through Web Locks.
     Tested in real Chromium (`pnpm test:browser`, `*_browser_test.ts`).
-  - `src/storage/durableobject/` — Durable Object transactional storage, relying on its
-    input/output gates. Tested inside workerd (`pnpm test:workers`).
+  - `src/storage/sqlite/` — any SQLite engine, through one structurally typed adapter per engine
+    (`adapters/`), with in-process or lease locking and fencing (ADR-0150 to ADR-0155). Tested on
+    node:sqlite and libSQL in Node, sqlite-wasm in Chromium, D1 and Durable Objects in workerd
+    (`pnpm test:workers`, `*_workers_test.ts`) and live rqlite (`pnpm test:services`,
+    `*_services_test.ts`).
 
 Adding or changing a backend:
 
@@ -367,10 +374,16 @@ Adding or changing a backend:
 2. Call `describeObjectStoreConformance` from `src/storage/objectstore/testing/conformance.ts` in
    the backend's test file, with a factory for fresh empty stores. Every backend is held to the same
    behaviour by that one suite; fix the backend, not the suite, when they disagree.
-3. Put runtime-specific tests where the right runner picks them up (`*_browser_test.ts` for the
-   browser config, `src/storage/durableobject/**` for the workers config) and keep `testing/`
-   helpers out of the published build.
-4. Update `examples/` if the backend is something a user would reach for.
+3. Call `describeDriverConformance` from `testing/driver_conformance.ts`, and
+   `describeGoldenCompatibility` from `testing/golden.ts`: the golden suite proves the backend
+   writes byte-for-byte what the real Tessera writes for the same entries. A backend that does not
+   pass it is not done. If it runs in Node, add it to `pnpm interop` too (`scripts/interop/`), so
+   that Tessera's Go client verifies a log it wrote, and it continues a log Go wrote.
+4. Put runtime-specific tests where the right runner picks them up by suffix: `*_browser_test.ts`
+   (Chromium), `*_workers_test.ts` (workerd), `*_services_test.ts` (live servers) — and keep
+   `testing/` helpers out of the published build.
+5. Update `examples/` and the README's driver table if the backend is something a user would reach
+   for.
 
 ---
 

@@ -56,7 +56,7 @@ export type NewStore = () => ObjectStore | Promise<ObjectStore>;
 export interface DriverConformanceOptions {
 	/**
 	 * reopen returns a second, independent handle onto the data held by store, as a second
-	 * browser tab or a restarted Durable Object would obtain it. The restart and shared-store
+	 * browser tab, a second process or a restarted server would obtain it. The restart and shared-store
 	 * cases run their second driver over the returned handle. It defaults to returning store
 	 * itself.
 	 */
