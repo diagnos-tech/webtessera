@@ -7,12 +7,20 @@
 #   job outputs, and uploads the `package` artifact. Nothing it runs comes from outside the
 #   lockfile, and it ends the moment the artifact is up.
 # - `check` downloads that artifact and uses it read-only. It runs publint, Are the Types
-#   Wrong? and the smoke test, which fetch packages that no lockfile pins (`pnpm dlx`, and the
+#   Wrong? and the smoke test, which fetch packages that no lockfile pins (`bunx`, and the
 #   `npm install` inside the smoke test). Code from those packages can therefore run in this
 #   job, so the job cannot be allowed to change what ships: it holds no secrets and no
 #   permissions beyond reading the repository, and the digests it checks against, and that
 #   release.yml checks again before publishing, come from `build`'s outputs. Those travel
 #   outside the artifact store, so replacing the artifact later is detected.
+#
+# Who makes the bytes and who ships them: Bun packs the first tarball (`bun pm pack`),
+# scripts/release/rescope.mjs derives the second with `npm pack`, and release.yml uploads both
+# with `npm publish`, which sends a tarball exactly as it finds it (`bun publish` has neither
+# npm provenance nor trusted publishing; see release.yml). The two packers select the same
+# files with the same contents (docs/decisions/0240-bun-as-package-manager-and-script-runner.md
+# has the comparison), and rescope.mjs asserts that again on every run: a pull request fails
+# if they ever disagree, long before a release.
 #
 # The artifact holds two tarballs with identical contents. `webtessera-<version>.tgz` goes to
 # npm. `<owner>-webtessera-<version>.tgz` differs only in its package name (@<owner>/webtessera)
@@ -63,13 +71,16 @@ jobs:
       - uses: ./.github/actions/setup
 
       # `prepack` cleans dist/ and builds it, so the tarball never contains a stale build.
+      # `bun pm pack` runs it like `npm pack` does, and writes a deterministic tarball (entries
+      # sorted, timestamps fixed): the same tree packs to the same bytes. Not `bun publish`:
+      # see release.yml for why npm uploads.
       - name: Build and pack
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
           echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "OUT_DIR=$RUNNER_TEMP/package" >> "$GITHUB_ENV"
-          pnpm pack --pack-destination "$RUNNER_TEMP/package"
+          bun pm pack --destination "$RUNNER_TEMP/package"
 
       # The script prints the path of the tarball it wrote, and nothing else, on stdout.
       - name: Derive the GitHub Packages variant
@@ -117,8 +128,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # pnpm and Node only: the tools below are fetched on demand, and nothing here needs the
-      # workspace dependencies or the store cache.
+      # Bun and Node only: the tools below are fetched on demand, and nothing here needs the
+      # workspace dependencies or Bun's install cache.
       - uses: ./.github/actions/setup
         with:
           install: "false"
@@ -155,7 +166,7 @@ jobs:
         run: node scripts/smoke-pack.mjs "$TARBALL"
 
       - name: Check the package shape (publint)
-        run: pnpm dlx "publint@$PUBLINT_VERSION" run --strict "$TARBALL"
+        run: bunx "publint@$PUBLINT_VERSION" run --strict "$TARBALL"
 
       - name: Check that the types resolve for consumers (Are the Types Wrong?)
-        run: pnpm dlx "@arethetypeswrong/cli@$ATTW_VERSION" "$TARBALL" --profile esm-only
+        run: bunx "@arethetypeswrong/cli@$ATTW_VERSION" "$TARBALL" --profile esm-only

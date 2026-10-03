@@ -22,4 +22,4 @@ jobs:
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/setup-browsers
       # `ci` is the package's own definition of "builds and passes its smoke test".
-      - run: pnpm --filter webtessera-site run ci
+      - run: bun run --filter webtessera-site ci

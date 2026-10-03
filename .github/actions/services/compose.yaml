@@ -1,4 +1,4 @@
-# Throwaway backing services for `pnpm test:services`: an rqlite node (the SQLite driver's
+# Throwaway backing services for `bun run test:services`: an rqlite node (the SQLite driver's
 # network mode) and an S3-compatible object store (the mirror). CI starts them through
 # action.yml; developers can run the same file:
 #

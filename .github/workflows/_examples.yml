@@ -23,7 +23,15 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      # The examples depend on the library through `workspace:*`, i.e. on its built dist/.
-      - run: pnpm build
+      # The examples import the library by name, which resolves to its built dist/ (the root
+      # `prepare` script links the repository root into node_modules). Their `ci` scripts do not
+      # rebuild it: `bun run --filter` starts them all at once, and concurrent builds would
+      # race on dist/.
+      - run: bun run build
+      # `./examples/*` is a path filter, so a new example is picked up without touching this
+      # file. Deliberately no `--if-present`: Bun already skips a package that has no `ci`
+      # script, and the flag would only turn "no example has one" from a failure ("No packages
+      # matched the filter") into a silent pass. (That is what happened before every example
+      # had a `ci` script: the job passed with nothing to run.)
       - name: Run the examples' ci scripts
-        run: pnpm --filter "./examples/**" --if-present run ci
+        run: bun run --filter './examples/*' ci

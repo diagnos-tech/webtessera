@@ -1,4 +1,4 @@
-# Starts the backing services that `pnpm test:services` needs (rqlite and an S3-compatible
+# Starts the backing services that `bun run test:services` needs (rqlite and an S3-compatible
 # object store), waits until they answer, creates the test bucket, and exports their
 # connection settings (RQLITE_URL, S3_*) to the rest of the job.
 #
