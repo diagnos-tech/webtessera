@@ -18,11 +18,11 @@ upstream project.
 [`scripts/upstream.json`](scripts/upstream.json). Fetch the source with:
 
 ```sh
-pnpm upstream        # clones into .upstream/tessera (gitignored) and checks out the pin
+bun run upstream        # clones into .upstream/tessera (gitignored) and checks out the pin
 ```
 
 Tessera's own dependencies, which this repository also ports, are read from the Go module cache once
-`pnpm fixtures` (or `cd fixtures/gen && go mod download`) has populated it. `go list -m -f '{{.Dir}}'
+`bun run fixtures` (or `cd fixtures/gen && go mod download`) has populated it. `go list -m -f '{{.Dir}}'
 <module>` run inside `fixtures/gen` prints each directory.
 
 | Go import path | Version | Where to read it |
@@ -75,9 +75,11 @@ webtessera/
 │   ├── gen/                   ← Go program that emits golden fixtures from real Tessera
 │   └── data/                  ← generated fixtures, COMMITTED to the repo
 ├── scripts/
-│   ├── fetch-upstream.mjs     ← `pnpm upstream`: checks out Tessera at the pin
+│   ├── fetch-upstream.mjs     ← `bun run upstream`: checks out Tessera at the pin
 │   └── upstream.json          ← the pin: repository URL + commit
-├── .upstream/                 ← gitignored; the upstream checkout (`pnpm upstream`)
+├── .upstream/                 ← gitignored; the upstream checkout (`bun run upstream`)
+├── .githooks/pre-commit       ← Biome and gofmt on the staged files; `bun install` enables it
+├── bunfig.toml, bun.lock      ← Bun's configuration and lockfile (§3.9)
 └── src/
     ├── vendor/                ← ports of Go deps that have no TypeScript equivalent
     │   ├── merkle/{rfc6962,compact,proof,testonly}/
@@ -225,7 +227,7 @@ does not, stays synchronous — in particular **the Merkle hashing and proof cod
 
 ### 3.8 Source style
 
-Biome is the formatter and linter; `pnpm lint:fix` settles every style question. The conventions it
+Biome is the formatter and linter; `bun run lint:fix` settles every style question. The conventions it
 cannot enforce on its own:
 
 - Relative imports carry an explicit `.ts` extension (`import { x } from "./paths.ts"`); `tsc`
@@ -236,6 +238,26 @@ cannot enforce on its own:
   or by the ported tests becomes a `_`-prefixed member marked `@internal` (ADR-0010).
 - ESM only. The compiler is strict, including `exactOptionalPropertyTypes` and
   `noUncheckedIndexedAccess`; do not loosen either to make a port compile.
+
+### 3.9 Tooling: Bun runs the scripts, Node runs the tests
+
+Bun is the package manager and the script runner: `bun install`, `bun run <script>`, `bunx`. The tests
+are the exception, because on which runtime they run is part of what this project promises (Node 22 and
+24, Vitest's Chromium and workerd pools, `node:sqlite`). ADR-0240 has the evidence. So:
+
+- **Run tests with `bun run test:unit`** (and `test:browser`, `test:workers`, `test:services`), which
+  starts Vitest on Node. Never `bun test`: that is Bun's own runner, and it neither knows Vitest's `vi`,
+  `expectTypeOf` and `import.meta.glob` nor this repository's `*_test.ts` naming. Likewise `bun run build`,
+  never `bun build`.
+- **Never run Vitest on Bun's runtime** (`bunx --bun vitest`, `bun --bun`, `[run] bun = true` in a bunfig):
+  `node:sqlite` is absent there, so seven suites fail to load, and the workerd pool hangs.
+- **Node must be on `PATH`.** Without it Bun makes `node` mean itself and the suites silently run on Bun.
+- Releases are packed with Bun and published with `npm publish --provenance` (`bun publish` has neither
+  provenance nor trusted publishing). Nothing else uses npm.
+- `bun install` also runs `scripts/prepare.mjs`: it links the repository root into
+  `node_modules/webtessera` (Bun cannot do that for a workspace root, and the examples and the site import
+  the library by name) and enables `.githooks/pre-commit`. The hook only checks (Biome on the staged files,
+  gofmt on the staged Go); `git commit --no-verify` skips it, and CI does not.
 
 ---
 
@@ -270,14 +292,14 @@ case names identical to Go's so a reviewer can grep both suites.
 `fixtures/gen/` is a **Go program that imports the real Tessera** and emits its outputs as JSON into
 `fixtures/data/`. Those files are committed. TypeScript tests load them and assert byte-equality.
 
-This is the primary evidence of compatibility, and it is auditable: anyone can run `pnpm fixtures`
-(which first runs `pnpm upstream`) and confirm `git status --porcelain fixtures/data` stays empty. CI
+This is the primary evidence of compatibility, and it is auditable: anyone can run `bun run fixtures`
+(which first runs `bun run upstream`) and confirm `git status --porcelain fixtures/data` stays empty. CI
 does exactly that on every push. `fixtures/README.md` explains the corpus and how to audit it.
 
 - Fixtures are JSON. Byte arrays are lower-case hex strings. `uint64` values are JSON **strings**
   (they must survive round-tripping without precision loss).
 - Never hand-edit a file in `fixtures/data/`. If a fixture is wrong, fix the generator and re-run
-  `pnpm fixtures`.
+  `bun run fixtures`.
 - Never change a fixture to make a TypeScript test pass. **The fixture is right and your port is
   wrong.** If you genuinely believe the fixture is wrong, stop and raise it in the pull request or
   an issue — do not quietly regenerate or adjust it.
@@ -360,11 +382,11 @@ The design (ADR-0100) has three layers:
   - `src/storage/memory/` — in memory; the reference backend, for tests and for offline or
     ephemeral logs.
   - `src/storage/indexeddb/` — IndexedDB for persistence; cross-tab exclusion through Web Locks.
-    Tested in real Chromium (`pnpm test:browser`, `*_browser_test.ts`).
+    Tested in real Chromium (`bun run test:browser`, `*_browser_test.ts`).
   - `src/storage/sqlite/` — any SQLite engine, through one structurally typed adapter per engine
     (`adapters/`), with in-process or lease locking and fencing (ADR-0150 to ADR-0155). Tested on
     node:sqlite and libSQL in Node, sqlite-wasm in Chromium, D1 and Durable Objects in workerd
-    (`pnpm test:workers`, `*_workers_test.ts`) and live rqlite (`pnpm test:services`,
+    (`bun run test:workers`, `*_workers_test.ts`) and live rqlite (`bun run test:services`,
     `*_services_test.ts`).
 
 Adding or changing a backend:
@@ -376,7 +398,7 @@ Adding or changing a backend:
 3. Call `describeDriverConformance` from `testing/driver_conformance.ts`, and
    `describeGoldenCompatibility` from `testing/golden.ts`: the golden suite proves the backend
    writes byte-for-byte what the real Tessera writes for the same entries. A backend that does not
-   pass it is not done. If it runs in Node, add it to `pnpm interop` too (`scripts/interop/`), so
+   pass it is not done. If it runs in Node, add it to `bun run interop` too (`scripts/interop/`), so
    that Tessera's Go client verifies a log it wrote, and it continues a log Go wrote.
 4. Put runtime-specific tests where the right runner picks them up by suffix: `*_browser_test.ts`
    (Chromium), `*_workers_test.ts` (workerd), `*_services_test.ts` (live servers) — and keep
@@ -439,12 +461,12 @@ Do not report success unless all of these are true. State each one explicitly in
 
 - [ ] Every Go file in scope has a TS counterpart at the mirrored path, or an ADR saying why not.
 - [ ] Every Go **test** file in scope has a TS counterpart with the same cases.
-- [ ] `pnpm lint` is clean.
-- [ ] `pnpm typecheck` passes with zero errors.
-- [ ] `pnpm test:unit` passes. Paste the real summary line.
-- [ ] `pnpm test:browser` and `pnpm test:workers` pass when you touched `src/storage/` or anything
+- [ ] `bun run lint` is clean.
+- [ ] `bun run typecheck` passes with zero errors.
+- [ ] `bun run test:unit` passes. Paste the real summary line.
+- [ ] `bun run test:browser` and `bun run test:workers` pass when you touched `src/storage/` or anything
       runtime-sensitive (CI runs both regardless).
-- [ ] Golden fixtures asserted for everything byte-producing, and `pnpm fixtures` leaves
+- [ ] Golden fixtures asserted for everything byte-producing, and `bun run fixtures` leaves
       `git status --porcelain fixtures/data` empty.
 - [ ] `docs/PORTING-MAP.md` updated.
 - [ ] ADRs written for every divergence and every omission.

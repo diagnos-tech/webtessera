@@ -7,7 +7,7 @@ anyone has started on it, so that an omission is visible as a row rather than as
 Regenerate the upstream list from the pinned checkout:
 
 ```sh
-pnpm upstream
+bun run upstream
 (cd .upstream/tessera && find . -name '*.go' -not -path './.git/*' | sort)
 ```
 
@@ -289,8 +289,8 @@ Tessera repository. Add tables here as they land.
   | — | `src/storage/memory/memory_driver_test.ts` | done | 10 / — | `describeDriverConformance("memory")` — ADR-0106 |
 
 - **`src/storage/indexeddb/`** — browser persistence in an IndexedDB database, with cross-tab exclusion
-  through Web Locks. Tested under Node against `fake-indexeddb` (`pnpm test:unit`) and in real Chromium
-  (`pnpm test:browser`).
+  through Web Locks. Tested under Node against `fake-indexeddb` (`bun run test:unit`) and in real Chromium
+  (`bun run test:browser`).
 
   | Go path | TS path | status | tests (TS/Go) | notes |
   | --- | --- | --- | --- | --- |
@@ -302,7 +302,7 @@ Tessera repository. Add tables here as they land.
   | — | `src/storage/indexeddb/indexeddb_browser_test.ts` | done | 46 / — | real Chromium via `vitest.browser.config.ts`: both conformance suites, persistence across reopen, strict durability, closing so another context can upgrade or delete the database, Web Locks across realms, two realms writing one log |
 
 - **`src/storage/durableobject/`** and **`examples/`** — persistence on the edge, and the deployable example
-  that uses it. Tested inside workerd (`pnpm test:workers`).
+  that uses it. Tested inside workerd (`bun run test:workers`).
 
   | Go path | TS path | status | tests (TS/Go) | notes |
   | --- | --- | --- | --- | --- |

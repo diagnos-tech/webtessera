@@ -13,10 +13,10 @@ Two rules, from PORTING.md §5:
 ## Regenerating
 
 ```sh
-pnpm fixtures
+bun run fixtures
 ```
 
-That runs `pnpm upstream` first, which clones Tessera into `.upstream/tessera` (gitignored) and checks
+That runs `bun run upstream` first, which clones Tessera into `.upstream/tessera` (gitignored) and checks
 out the pinned commit, and then `go run . -out ../data` inside `fixtures/gen`. The repository URL and
 the commit live in one place, `scripts/upstream.json`; `fixtures/gen/go.mod` points its `replace`
 directive at the same checkout (`../../.upstream/tessera`), and `fixtures/gen/client.go` reads
@@ -25,11 +25,11 @@ upstream's static `testdata/log` from it.
 Requirements: Go 1.24 or newer (CI uses 1.24; the committed data was first produced with 1.25.5 and
 regenerates byte-identically under 1.24.7), `git`, and Node >= 20 for the checkout script.
 
-`pnpm upstream` is idempotent: when `.upstream/tessera` is already at the pin it does nothing, and it
+`bun run upstream` is idempotent: when `.upstream/tessera` is already at the pin it does nothing, and it
 refuses to run over local modifications, because fixtures generated from a patched upstream are not
 evidence of anything. `node scripts/fetch-upstream.mjs --force` discards them.
 
-To move the pin, edit `scripts/upstream.json`, run `pnpm fixtures`, and review the resulting
+To move the pin, edit `scripts/upstream.json`, run `bun run fixtures`, and review the resulting
 `git diff -- fixtures/data` like any other change to the compatibility evidence. A pin bump belongs in
 its own pull request, together with a review of upstream's diff against the port.
 
@@ -48,7 +48,7 @@ generator case cannot leave an orphaned fixture behind.
 You do not have to trust this repository. A reviewer can check the fixtures three ways, in
 increasing order of effort:
 
-1. **Regenerate and diff.** Run `pnpm fixtures` and confirm `git status --porcelain fixtures/data` is
+1. **Regenerate and diff.** Run `bun run fixtures` and confirm `git status --porcelain fixtures/data` is
    empty. This proves the committed files are what upstream at the pinned commit produces. CI runs
    exactly this check on every push.
 

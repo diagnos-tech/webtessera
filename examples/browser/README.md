@@ -14,12 +14,12 @@ against that checkpoint, as any client of the log would.
 From the repository root:
 
 ```sh
-pnpm install
-pnpm --filter webtessera-example-browser dev
+bun install
+bun run --cwd examples/browser dev
 ```
 
 Then open the URL Vite prints (`http://localhost:5173`). `dev` and `build` build the library first, so the
-demo always runs against the code in this repository. `pnpm --filter webtessera-example-browser build`
+demo always runs against the code in this repository. `bun run --cwd examples/browser build`
 produces a static site in `dist/` that any static file server can host.
 
 ## Two tabs, one log
