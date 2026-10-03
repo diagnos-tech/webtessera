@@ -181,3 +181,23 @@ describe("Port addition: UnmarshalText rejection messages", () => {
 		);
 	});
 });
+
+// Port addition: hardening with no Go counterpart (docs/decisions/0194). The tlog-tiles
+// maximum is 256 hashes per tile and 256 entries per bundle; anything beyond is rejected.
+describe("Port addition: tlog-tiles maxima", () => {
+	it("HashTile: accepts 256 hashes and rejects 257", () => {
+		const tile = new HashTile();
+		tile.unmarshalText(new Uint8Array(256 * 32));
+		expect(tile.nodes).toHaveLength(256);
+		expect(() => tile.unmarshalText(new Uint8Array(257 * 32))).toThrow("tile of 257 hashes exceeds the maximum of 256");
+	});
+
+	it("EntryBundle: accepts 256 entries and stops at the 257th", () => {
+		const bundle = new EntryBundle();
+		bundle.unmarshalText(new Uint8Array(256 * 2));
+		expect(bundle.entries).toHaveLength(256);
+		expect(() => bundle.unmarshalText(new Uint8Array(257 * 2))).toThrow(
+			"entry bundle holds more than the maximum of 256 entries",
+		);
+	});
+});

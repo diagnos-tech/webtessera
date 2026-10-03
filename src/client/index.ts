@@ -17,7 +17,7 @@
 // `client` package exports, following the same pattern api/layout/index.ts and
 // vendor/formats/log/index.ts already use.
 //
-// Deliberately NOT re-exported: `NodeCache`/`newNodeCache` (client.ts) and
+// Deliberately NOT re-exported: `nodeCache`/`newNodeCache` (client.ts) and
 // `ProofBuilder.fetchNodes` are unexported in Go and reachable only by importing
 // client.ts directly, per docs/decisions/0010-package-private-members.md. `FileFetcher`
 // is not ported at all; see docs/decisions/0064-filefetcher-not-ported.md.
@@ -40,5 +40,5 @@ export {
 	type UpdateResult,
 	unilateralConsensus,
 } from "./client.ts";
-export { type FetchFn, HTTPFetcher, newHTTPFetcher } from "./fetcher.ts";
+export { type FetchFn, HTTPFetcher, type HTTPFetcherOptions, newHTTPFetcher } from "./fetcher.ts";
 export { type Bundle, type Entry, entries, entryBundles, type TreeSizeFunc } from "./stream.ts";

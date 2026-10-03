@@ -19,10 +19,10 @@
 // tessera.NewAppender/posix.Driver reader) from the static, checked-in "../../testdata/log"
 // directory -- the exact same log src/client/client_test.ts already reads back via the
 // client_log fixture (docs/decisions/0065-client-log-fixture-reads-static-testdata.md).
-// This file reuses that fixture instead of standing up a driver/appender: both a fixture
-// tile fetcher and a real reader ultimately serve the identical bytes for the identical
-// 15-entry log, and this package does not depend on (and must not depend on) a storage
-// driver -- the same judgement call src/client/stream_test.ts's header comment documents.
+// This file serves that fixture's tiles instead of opening the directory with a storage
+// driver: the reader would serve the identical bytes for the identical 15-entry log, and
+// no driver in this port reads a POSIX directory. See
+// docs/decisions/0193-witness-test-reads-the-client-log-fixture.md.
 
 import { beforeAll, describe, expect, it } from "vitest";
 import { tilePath } from "../../api/layout/index.ts";
@@ -33,7 +33,14 @@ import { newSignerForCosignatureV1 } from "../../vendor/formats/note/note_cosigv
 import { newVerifier, open, sign, type Verifier, verifierList } from "../../vendor/note/note.ts";
 import { newWitness, newWitnessGroup, type Witness, WitnessGroup } from "../../witness.ts";
 import { concatBytes, fromUTF8, toUTF8 } from "../gostd/bytes.ts";
-import { newWitnessGateway } from "./witness.ts";
+import { errorIs, type JoinError } from "../gostd/errors.ts";
+import { quote } from "../gostd/strconv.ts";
+import {
+	ErrPolicyNotSatisfied,
+	newWitnessGateway,
+	PolicyNotSatisfiedError,
+	type WitnessGroup as witnessGroup,
+} from "./witness.ts";
 
 const wit1Vkey = "Wit1+55ee4561+AVhZSmQj9+SoL+p/nN0Hh76xXmF7QcHfytUrI1XfSClk";
 const wit1Skey = "PRIVATE+KEY+Wit1+55ee4561+AeadRiG7XM4XiieCHzD8lxysXMwcViy5nYsoXURWGrlE";
@@ -207,11 +214,10 @@ describe("TestWitnessGateway_Update", () => {
 
 describe("TestWitness_UpdateRequest", () => {
 	let logSignedCheckpoint: Uint8Array;
-	let cpText: string;
 
 	beforeAll(async () => {
 		const fixture: Fixture<ClientLogFixture> = await loadFixture<ClientLogFixture>("client_log");
-		({ signed: logSignedCheckpoint, unsigned: cpText } = loadCheckpoint(fixture, 9));
+		({ signed: logSignedCheckpoint } = loadCheckpoint(fixture, 9));
 	});
 
 	const testCases: { desc: string; witSize: bigint; wantBody: () => string }[] = [
@@ -241,8 +247,15 @@ describe("TestWitness_UpdateRequest", () => {
 						headers: { "Content-Type": "text/x.tlog.size" },
 					});
 				}
-				gotBody = fromUTF8(requestBody(init));
-				return new Response(toArrayBuffer(sigForSigner(cpText, wit1Skey)), { status: 200 });
+				const body = requestBody(init);
+				gotBody = fromUTF8(body);
+				const idx = indexOfDoubleNewline(body);
+				if (idx < 0) {
+					throw new Error(`expected two newlines in body, got: ${quote(fromUTF8(body))}`);
+				}
+				const checkpoint = body.subarray(idx + 2);
+				const { note } = parseCheckpoint(checkpoint, logVerifier.name(), logVerifier);
+				return new Response(toArrayBuffer(sigForSigner(note.text, wit1Skey)), { status: 200 });
 			};
 
 			const wit1 = newWitness(wit1Vkey, new URL("https://witness-update-request.example/"));
@@ -369,40 +382,40 @@ describe("TestWitnessStateEvolution", () => {
 		const fixture: Fixture<ClientLogFixture> = await loadFixture<ClientLogFixture>("client_log");
 		const { signed: logSignedCheckpoint, unsigned: cpText } = loadCheckpoint(fixture, 9);
 
-		// Set up a fake server hosting the witness. It just signs the checkpoint with
-		// whatever key is requested, it doesn't check the body at all.
+		// Set up a fake server hosting the witnesses.
+		// The witnesses just sign the checkpoint with whatever key is requested, they don't check the body at all.
+		// An improvement on this would be to make the fake witnesses more realistic, but it's a non-trivial
+		// amount of code to add to this already long test!
+		//
+		// Port note: Go's handler fails the test from inside the server with t.Fatalf. A
+		// throw from this FetchFn would only become a failed witness update, which the
+		// second call below is expected to produce anyway, so the handler records each
+		// request body and the test asserts on them afterwards.
 		let count = 0;
+		const bodies: string[] = [];
 		const wit1 = newWitness(wit1Vkey, new URL("https://witness-state-evolution.example/"));
 		const fetchFn = async (input: string, init?: RequestInit): Promise<Response> => {
 			if (input !== wit1.url) {
-				throw new Error(`unexpected URL: ${input}`);
+				throw new Error(`got request to URL ${quote(input)} but expected ${quote(wit1.url)}`);
 			}
+			bodies.push(fromUTF8(requestBody(init)));
+			let resp: Response;
 			switch (count) {
-				case 0: {
-					count++;
-					return new Response(toArrayBuffer(toUTF8("8")), {
+				case 0:
+					resp = new Response(toArrayBuffer(toUTF8("8")), {
 						status: 409,
 						headers: { "Content-Type": "text/x.tlog.size" },
 					});
-				}
-				case 1: {
-					const body = fromUTF8(requestBody(init));
-					if (!body.startsWith("old 8")) {
-						throw new Error(`expected body to start with old 8 but got\n${body}`);
-					}
-					count++;
-					return new Response(toArrayBuffer(sigForSigner(cpText, wit1Skey)), { status: 200 });
-				}
-				default: {
-					const body = fromUTF8(requestBody(init));
-					if (!body.startsWith("old 9")) {
-						throw new Error(`expected body to start with old 9 but got\n${body}`);
-					}
-					// End of test; we don't even bother constructing a valid response here.
-					count++;
-					return new Response(toArrayBuffer(new Uint8Array(0)), { status: 200 });
-				}
+					break;
+				case 1:
+					resp = new Response(toArrayBuffer(sigForSigner(cpText, wit1Skey)), { status: 200 });
+					break;
+				default:
+					// End of test; we don't even bother constructing a valid response here
+					resp = new Response(toArrayBuffer(new Uint8Array(0)), { status: 200 });
 			}
+			count++;
+			return resp;
 		};
 
 		const group = newWitnessGroup(1, wit1);
@@ -411,10 +424,16 @@ describe("TestWitnessStateEvolution", () => {
 		// case 0 will return a response that notifies the log that its view of the witness size is wrong.
 		// This method will then update its size and make a second request with a consistency proof, triggering case 1.
 		await g.witness(logSignedCheckpoint);
+		expect(bodies[1]?.startsWith("old 8"), `expected body to start with old 8 but got\n${bodies[1]}`).toBe(true);
 
 		// This triggers case 2 in the witness, which isn't implemented so we don't care about any error,
 		// we just invoke this to cause the validation in that witness body to trigger.
-		await g.witness(logSignedCheckpoint).catch(() => undefined);
+		await g.witness(logSignedCheckpoint).then(
+			() => undefined,
+			() => undefined,
+		);
+		expect(count).toBe(3);
+		expect(bodies[2]?.startsWith("old 9"), `expected body to start with old 9 but got\n${bodies[2]}`).toBe(true);
 	});
 });
 
@@ -476,3 +495,127 @@ function indexOfDoubleNewline(b: Uint8Array): number {
 	}
 	return -1;
 }
+
+// Port additions: request policy and limits with no Go counterpart (docs/decisions/0195,
+// 0197, 0198), and Go's handling of an already-cancelled context.
+describe("port additions: witness requests", () => {
+	let logSignedCheckpoint: Uint8Array;
+	let cpText: string;
+
+	beforeAll(async () => {
+		const fixture: Fixture<ClientLogFixture> = await loadFixture<ClientLogFixture>("client_log");
+		({ signed: logSignedCheckpoint, unsigned: cpText } = loadCheckpoint(fixture, 9));
+	});
+
+	const wit = (): Witness => newWitness(wit1Vkey, new URL("https://witness-requests.example/"));
+
+	it("omits credentials and does not follow redirects", async () => {
+		let init: RequestInit | undefined;
+		const fetchFn = async (_input: string, i?: RequestInit): Promise<Response> => {
+			init = i;
+			return new Response(toArrayBuffer(sigForSigner(cpText, wit1Skey)), { status: 200 });
+		};
+		await newWitnessGateway(newWitnessGroup(1, wit()), fetchFn, 0n, testLogTileFetcher).witness(logSignedCheckpoint);
+		expect(init?.credentials).toBe("omit");
+		expect(init?.redirect).toBe("manual");
+	});
+
+	it("rejects a redirect, whether returned as a 3xx or as a browser's opaque redirect", async () => {
+		const opaque = new Response(null, { status: 200 });
+		Object.defineProperty(opaque, "type", { value: "opaqueredirect" });
+		Object.defineProperty(opaque, "status", { value: 0 });
+		for (const [resp, status] of [
+			[new Response(null, { status: 307, headers: { Location: "https://elsewhere.example/" } }), 307],
+			[opaque, 0],
+		] as const) {
+			const g = newWitnessGateway(newWitnessGroup(1, wit()), async () => resp, 0n, testLogTileFetcher);
+			const err = await g.witness(logSignedCheckpoint).catch((e: unknown) => e);
+			expect(err).toBeInstanceOf(PolicyNotSatisfiedError);
+			expect((err as Error).message).toContain(
+				`witness at "https://witness-requests.example/add-checkpoint" replied with a redirect, which is not followed: ${status}`,
+			);
+		}
+	});
+
+	it("refuses a response body larger than 16 KiB", async () => {
+		const fetchFn = async (): Promise<Response> => new Response(new Uint8Array((16 << 10) + 1), { status: 200 });
+		const err = await newWitnessGateway(newWitnessGroup(1, wit()), fetchFn, 0n, testLogTileFetcher)
+			.witness(logSignedCheckpoint)
+			.catch((e: unknown) => e);
+		expect((err as Error).message).toContain(
+			'failed to read body from witness at "https://witness-requests.example/add-checkpoint": response body exceeds the limit of 16384 bytes',
+		);
+	});
+
+	it("gives up after three stale-size retries", async () => {
+		let requests = 0;
+		const fetchFn = async (): Promise<Response> => {
+			requests++;
+			return new Response(toArrayBuffer(toUTF8(`${requests}\n`)), {
+				status: 409,
+				headers: { "Content-Type": "text/x.tlog.size" },
+			});
+		};
+		const err = await newWitnessGateway(newWitnessGroup(1, wit()), fetchFn, 0n, testLogTileFetcher)
+			.witness(logSignedCheckpoint)
+			.catch((e: unknown) => e);
+		expect(requests).toBe(4);
+		expect((err as Error).message).toContain(
+			'witness at "https://witness-requests.example/add-checkpoint" replied with a stale x.tlog.size after 3 retries, the last 4',
+		);
+	});
+
+	it("reports a URL that does not parse as Go's NewRequest failure", async () => {
+		const group: witnessGroup = {
+			satisfied: () => false,
+			endpoints: () => new Map([["::not a url", newVerifier(wit1Vkey)]]),
+		};
+		const err = await newWitnessGateway(group, async () => new Response(null), 0n, testLogTileFetcher)
+			.witness(logSignedCheckpoint)
+			.catch((e: unknown) => e);
+		expect((err as Error).message).toMatch(/\nfailed to construct request to "::not a url": /);
+	});
+
+	it("posts even when the signal is already aborted, as Go does, and reports the failure from fetch", async () => {
+		// Go has no early check of ctx: the request is attempted, and client.Do fails.
+		let posts = 0;
+		const fetchFn = async (_input: string, init?: RequestInit): Promise<Response> => {
+			posts++;
+			init?.signal?.throwIfAborted();
+			return new Response(toArrayBuffer(sigForSigner(cpText, wit1Skey)), { status: 200 });
+		};
+		const ctrl = new AbortController();
+		ctrl.abort(new Error("cancelled"));
+		const err = await newWitnessGateway(newWitnessGroup(1, wit()), fetchFn, 0n, testLogTileFetcher)
+			.witness(logSignedCheckpoint, ctrl.signal)
+			.catch((e: unknown) => e);
+		expect(posts).toBe(1);
+		expect(err).toBeInstanceOf(PolicyNotSatisfiedError);
+		expect((err as Error).message).toContain(
+			'failed to post to witness at "https://witness-requests.example/add-checkpoint": cancelled',
+		);
+	});
+});
+
+// Port addition: Go returns errors.Join(ErrPolicyNotSatisfied, err), which errors.Is walks;
+// errorIs walks PolicyNotSatisfiedError the same way (ADR-0075).
+it("port addition: a policy failure is ErrPolicyNotSatisfied and each witness error, as errors.Join makes it", async () => {
+	const fixture: Fixture<ClientLogFixture> = await loadFixture<ClientLogFixture>("client_log");
+	const { signed } = loadCheckpoint(fixture, 9);
+	const boom = new Error("boom");
+	const g = newWitnessGateway(
+		newWitnessGroup(1, newWitness(wit1Vkey, new URL("https://witness-join.example/"))),
+		async () => {
+			throw boom;
+		},
+		0n,
+		testLogTileFetcher,
+	);
+	const err = await g.witness(signed).catch((e: unknown) => e);
+	expect(errorIs(err, ErrPolicyNotSatisfied)).toBe(true);
+	expect(errorIs((err as JoinError).errors[1], ErrPolicyNotSatisfied)).toBe(false);
+	expect((err as Error).message).toBe(
+		'witness policy was not satisfied\nfailed to post to witness at "https://witness-join.example/add-checkpoint": boom',
+	);
+	expect((err as PolicyNotSatisfiedError).checkpoint).toEqual(signed);
+});

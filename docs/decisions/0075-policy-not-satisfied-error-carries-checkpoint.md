@@ -107,3 +107,16 @@ witness's own error, is for the owner of `internal/witness/witness.ts`, whose co
 `PolicyNotSatisfiedError` still describes the old gap.
 
 *Review of this update: pending.*
+
+## Update (2026-10-02): `PolicyNotSatisfiedError` is now a `JoinError`
+
+Following the update above, the workaround is removed. `PolicyNotSatisfiedError` extends `JoinError`,
+joining `ErrPolicyNotSatisfied` with `joinErrors(witnessErrors)` (or `ErrPolicyNotSatisfied` alone when
+there are none) — the structure of Go's `errors.Join(ErrPolicyNotSatisfied, err)`. It no longer sets
+`cause`. `errorIs(e, ErrPolicyNotSatisfied)` still succeeds, now through the joined list, and `errorIs`
+for any one witness's error now succeeds too, as `errors.Is` does in Go. The message text is unchanged
+(`errors.Join` renders the same lines). `checkpoint` and `witnessErrors` are kept. The class's comment in
+`internal/witness/witness.ts` describes this. Test: "a policy failure is ErrPolicyNotSatisfied and each
+witness error, as errors.Join makes it" in `witness_test.ts`.
+
+*Review of this update: pending.*

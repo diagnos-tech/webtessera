@@ -27,11 +27,11 @@ import { asUint64, shiftLeft64 } from "../../internal/gostd/bits.ts";
 import { bytesEqual } from "../../internal/gostd/bytes.ts";
 import { joinErrors, wrapError } from "../../internal/gostd/errors.ts";
 import {
+	rangeNodes as compactRangeNodes,
 	type NodeID,
 	newNodeID,
 	type Range,
 	RangeFactory,
-	rangeNodes,
 	type VisitFn,
 } from "../../vendor/merkle/compact/index.ts";
 import { DefaultHasher } from "../../vendor/merkle/rfc6962/rfc6962.ts";
@@ -50,14 +50,13 @@ export interface SequencedEntry {
 }
 
 /**
- * GetTilesFunc fetches tiles from storage. Implementations must return tiles in the same
- * order as the provided tileIDs, substituting undefined for any tiles which were not found.
+ * GetTilesFunc fetches tiles from storage.
  *
  * Port note: Go leaves this func type anonymous, repeating the same signature at each of
  * its four use sites (Integrate's param, newTreeBuilder's param, tileReadCache.getTiles's
- * field type, and newTileReadCache's param). It is named here purely for readability and
- * is not upstream API surface. See
- * docs/decisions/0050-storage-internal-map-keys-and-callback-types.md.
+ * field type, and newTileReadCache's param); its contract is the one documented on
+ * newTreeBuilder below. It is named here purely for readability and is not upstream API
+ * surface. See docs/decisions/0050-storage-internal-map-keys-and-callback-types.md.
  */
 export type GetTilesFunc = (
 	tileIDs: readonly TileID[],
@@ -96,9 +95,12 @@ export async function integrate(
 /**
  * getPopulatedTileFunc is the signature of a function which can return a fully populated tile for the given tile coords.
  *
- * Port note: Go's version takes a ctx and returns `(*populatedTile, error)`. The port
- * drops both: see the treeBuilder Port note below for why this can be a plain synchronous
- * lookup with no error channel in this package.
+ * Port note: Go's version takes a ctx and returns `(*populatedTile, error)`; here it is
+ * synchronous and throws instead of returning an error, because it is called from inside
+ * the synchronous compact.VisitFn. integrate() hands tileWriteCache a function that
+ * replays, in order, the outcomes of `tileReadCache.get` calls made before the visitor
+ * runs — see replayedTileReads below and
+ * docs/decisions/0190-integrate-visitor-tile-reads-are-replayed.md.
  */
 type getPopulatedTileFunc = (tileID: TileID, treeSize: bigint) => populatedTile | undefined;
 
@@ -110,31 +112,6 @@ type getPopulatedTileFunc = (tileID: TileID, treeSize: bigint) => populatedTile 
  * so while it _may_ be possible to use the same instance across a number of integration runs (e.g. if the same job
  * is responsible for integrating entries for a number of contiguous trees), the lifetime should be bounded so as not
  * to leak memory.
- *
- * Port note: Go's `compact.VisitFn` (src/vendor/merkle/compact/range.ts) is synchronous —
- * `(id: NodeID, hash: Uint8Array) => void`, no Promise — because Go's goroutines can block
- * on I/O mid-callback where JavaScript cannot. `tileWriteCache`'s Visitor (below)
- * sometimes needs to fetch a tile that already exists on disk (when integration extends
- * a partial tile from a previous run), and in Go that fetch happens synchronously inside
- * the callback via `tileReadCache.Get`.
- *
- * This port instead relies on an invariant that already holds in Go's own data flow:
- * `integrate()` always calls `newRange(fromSize)` — which fully warms `readCache` for
- * every tile implied by `compact.RangeNodes(0, fromSize, nil)`, using the *same* fromSize
- * — before constructing the write-cache's Visitor. Any tile the Visitor's fallback path
- * can need (`minImpliedTreeSize(tileID) <= fromSize`) shares its cache key
- * (`tilePath(level, index, partialTileSize(level, index, fromSize))`) with a tile that
- * prewarm already fetched, because a tile groups every Merkle node at its levels and
- * index range into one unit: any node from the pre-integration tree's frontier that
- * shares a tile with a node the Visitor later touches was already fetched. So by the
- * time the Visitor runs, the read cache is guaranteed to already hold whatever it needs —
- * the fetch is only ever a cache lookup, never new I/O — and `tileReadCache.peek` gives
- * synchronous access to that already-warm cache, letting `getPopulatedTileFunc` be a
- * plain synchronous function instead of an async one the (synchronous) VisitFn could
- * never await. This is verified end-to-end by integrate_test.ts's golden-fixture test,
- * which resumes integration from a non-zero fromSize (255→256→257) specifically to
- * exercise this fallback path against real, byte-verified Tessera output. See
- * docs/decisions/0052-tilewritecache-visitor-is-synchronous.md.
  *
  * Port note: exported, along with tileWriteCache and populatedTile below, even though
  * Go's equivalents are unexported. `integrate_test.go` is an in-package test that reaches
@@ -156,9 +133,9 @@ export class treeBuilder {
 
 	/** newRange creates a new compact.Range for the specified treeSize, fetching tiles as necessary. */
 	async newRange(treeSize: bigint, signal?: AbortSignal): Promise<Range> {
-		const nodes = rangeNodesFor(treeSize);
+		const rangeNodes = compactRangeNodes(0n, treeSize, []);
 		const toFetch = new Map<string, TileID>();
-		for (const id of nodes) {
+		for (const id of rangeNodes) {
 			const { tileLevel, tileIndex } = nodeCoordsToTileAddress(BigInt(id.level), id.index);
 			const tid = new TileID(tileLevel, tileIndex);
 			toFetch.set(tileIDKey(tid), tid);
@@ -166,11 +143,14 @@ export class treeBuilder {
 		try {
 			await this.readCache.prewarm([...toFetch.values()], treeSize, signal);
 		} catch (err) {
+			if (err instanceof panicError) {
+				throw err;
+			}
 			throw new Error(`Prewarm: ${messageOf(err)}`);
 		}
 
 		const hashes: Uint8Array[] = [];
-		for (const id of nodes) {
+		for (const id of rangeNodes) {
 			const { tileLevel, tileIndex, nodeLevel, nodeIndex } = nodeCoordsToTileAddress(BigInt(id.level), id.index);
 			const ft = await this.readCache.get(new TileID(tileLevel, tileIndex), treeSize, signal);
 			const h = ft.get(newNodeID(nodeLevel, nodeIndex));
@@ -184,6 +164,9 @@ export class treeBuilder {
 
 	async integrate(fromSize: bigint, leafHashes: readonly Uint8Array[], signal?: AbortSignal): Promise<IntegrateResult> {
 		const baseRange = await this.newRange(fromSize, signal).catch((err: unknown) => {
+			if (err instanceof panicError) {
+				throw err;
+			}
 			throw wrapError("failed to create range covering existing log", err);
 		});
 
@@ -206,13 +189,24 @@ export class treeBuilder {
 
 		// Create a new compact range which represents the update to the tree
 		const newRange = this.rf.newEmptyRange(fromSize);
-		const tc = newTileWriteCache(fromSize, (tileID, treeSize) => this.readCache.peek(tileID, treeSize));
+		// Port note: Go hands the visitor `t.readCache.Get`, which may block on a fetch from
+		// inside the synchronous compact.VisitFn. JavaScript cannot suspend a synchronous
+		// callback, so `reads` performs those same readCache.get calls up front — the same
+		// tiles, in the same order, with the same retries after a failure — and the
+		// visitor's getTile replays their outcomes. See
+		// docs/decisions/0190-integrate-visitor-tile-reads-are-replayed.md.
+		const reads = new replayedTileReads(this.readCache, fromSize, baseRange.hashes().length);
+		const tc = newTileWriteCache(fromSize, reads.getTile);
 		const visitor = tc.visitor();
+		await reads.prefetchAppends(leafHashes.length, signal);
 		for (const e of leafHashes) {
 			// Update range and set nodes
 			try {
 				newRange.append(e, visitor);
 			} catch (err) {
+				if (err instanceof panicError) {
+					throw err;
+				}
 				throw new Error(`newRange.Append(): ${messageOf(err)}`);
 			}
 		}
@@ -223,9 +217,13 @@ export class treeBuilder {
 		}
 
 		// Merge the update range into the old tree
+		await reads.prefetchAppendRange(signal);
 		try {
 			baseRange.appendRange(newRange, visitor);
 		} catch (err) {
+			if (err instanceof panicError) {
+				throw err;
+			}
 			throw wrapError("failed to merge new range onto existing log", err);
 		}
 
@@ -250,27 +248,23 @@ export class treeBuilder {
 	}
 }
 
-/** newTreeBuilder creates a new instance of treeBuilder. */
+/**
+ * newTreeBuilder creates a new instance of treeBuilder.
+ *
+ * The getTiles param must know how to fetch the specified tiles from storage. It must return tiles in the same order as the
+ * provided tileIDs, substituing undefined for any tiles which were not found.
+ */
 export function newTreeBuilder(getTiles: GetTilesFunc): treeBuilder {
 	const readCache = newTileReadCache(getTiles);
 	return new treeBuilder(readCache, new RangeFactory((l, r) => DefaultHasher.hashChildren(l, r)));
 }
 
 /**
- * rangeNodesFor is `compact.RangeNodes(0, treeSize, nil)`, named to avoid clashing with
- * this file's own `treeBuilder.newRange`.
- */
-function rangeNodesFor(treeSize: bigint): NodeID[] {
-	return rangeNodes(0n, treeSize, []);
-}
-
-/**
  * tileReadCache is a structure which provides a very simple thread-safe read-through cache based on a map of tiles.
  *
- * Port note: "thread-safe" in Go means guarded by a mutex for concurrent goroutines.
- * JavaScript is single-threaded, and every method here is synchronous except where it
- * awaits `getTiles` — a critical section that stays synchronous needs no lock at all
- * (docs/decisions/0004-errors-context-and-concurrency.md), so none is taken.
+ * Port note: despite the comment, Go's struct holds no lock — just `entries` and
+ * `getTiles` — so there is nothing to translate; JavaScript's single thread gives this
+ * class the same exclusivity between awaits that Go's callers get by not sharing it.
  */
 class tileReadCache {
 	private readonly entries = new Map<string, populatedTile>();
@@ -286,9 +280,18 @@ class tileReadCache {
 		let e = this.entries.get(k);
 		if (e === undefined) {
 			const t = await this.getTiles([tileID], treeSize, signal);
+			// Port note: Go reads `t[0]` unguarded, which panics if getTiles broke its
+			// contract and returned no tiles; an undefined here would instead read as
+			// "tile not found" and silently start the tile afresh.
+			if (t.length === 0) {
+				throw new panicError("runtime error: index out of range [0] with length 0");
+			}
 			try {
 				e = newPopulatedTile(t[0]);
 			} catch (err) {
+				if (err instanceof panicError) {
+					throw err;
+				}
 				throw new Error(`failed to create fulltile: ${messageOf(err)}`);
 			}
 			this.entries.set(k, e);
@@ -297,7 +300,7 @@ class tileReadCache {
 	}
 
 	/**
-	 * prewarm fills the cache by fetching the given tileIDs.
+	 * prewarm fills the cache by fetching the given tilesIDs.
 	 *
 	 * Throws if any of the tiles couldn't be fetched.
 	 */
@@ -308,25 +311,21 @@ class tileReadCache {
 			try {
 				e = newPopulatedTile(t[i]);
 			} catch (err) {
+				if (err instanceof panicError) {
+					throw err;
+				}
 				throw new Error(`failed to create fulltile: ${messageOf(err)}`);
 			}
-			const id = tileIDs[i] as TileID;
+			// Port note: Go indexes `tileIDs[i]` unguarded, which panics if getTiles
+			// returned more tiles than it was asked for. Fewer is tolerated, as in Go:
+			// newRange's subsequent get() calls fetch whatever is missing one by one.
+			const id = tileIDs[i];
+			if (id === undefined) {
+				throw new panicError(`runtime error: index out of range [${i}] with length ${tileIDs.length}`);
+			}
 			const k = tilePath(id.level, id.index, partialTileSize(id.level, id.index, treeSize));
 			this.entries.set(k, e);
 		}
-	}
-
-	/**
-	 * peek returns a tile already present in the cache, or undefined if it has not been
-	 * fetched. It never fetches. See the treeBuilder Port note for why this is safe to use
-	 * as tileWriteCache's synchronous getTile fallback.
-	 *
-	 * Port note: has no counterpart in Go — see
-	 * docs/decisions/0052-tilewritecache-visitor-is-synchronous.md.
-	 */
-	peek(tileID: TileID, treeSize: bigint): populatedTile | undefined {
-		const k = tilePath(tileID.level, tileID.index, partialTileSize(tileID.level, tileID.index, treeSize));
-		return this.entries.get(k);
 	}
 }
 
@@ -336,10 +335,161 @@ function newTileReadCache(getTiles: GetTilesFunc): tileReadCache {
 }
 
 /**
+ * tileReadOutcome is the result of one `tileReadCache.get` call made on the visitor's behalf.
+ *
+ * Port note: has no Go counterpart; see replayedTileReads.
+ */
+type tileReadOutcome =
+	| { readonly key: string; readonly tile: populatedTile; readonly err?: undefined }
+	| { readonly key: string; readonly tile?: undefined; readonly err: unknown };
+
+/**
+ * replayedTileReads performs, before the tileWriteCache visitor runs, every
+ * `tileReadCache.get` call Go's visitor would make from inside compact.Range's
+ * synchronous callbacks, and replays their outcomes to the visitor in the same order.
+ *
+ * Port note: has no Go counterpart. Go's visitor calls `t.readCache.Get` the first time
+ * it touches a tile that may already exist (`minImpliedTreeSize(tileID) <= treeSize`),
+ * blocking on `getTiles` when the tile is not cached — including tiles left behind by an
+ * earlier integration that crashed before updating the tree size — and calls it again on
+ * the next touch if the read failed. Which tiles it touches depends only on the shape of
+ * the ranges, never on hash values, so this class first records the visits a structural
+ * copy of the same appends would make (prefetchAppends / prefetchAppendRange), then
+ * replays them through a scratch tileWriteCache whose getTile asks for each read in turn.
+ * The reads therefore happen in exactly the order, with exactly the arguments, Go's would,
+ * and the real visitor's getTile hands back their results (or rethrows their errors) one
+ * by one. See docs/decisions/0190-integrate-visitor-tile-reads-are-replayed.md.
+ */
+class replayedTileReads {
+	readonly #readCache: tileReadCache;
+	readonly #treeSize: bigint;
+	readonly #baseRangeHashes: number;
+	readonly #dryRF = new RangeFactory(() => placeholderHash);
+	readonly #dryNewRange: Range;
+	/** visits holds, in order, every node the visitor will be called with so far. */
+	readonly #visits: NodeID[] = [];
+	readonly #outcomes: tileReadOutcome[] = [];
+	readonly #dryCache: tileWriteCache;
+	#dryVisitor: VisitFn;
+	#dryReplayed = 0;
+	#dryNext = 0;
+	#dryAsked: TileID | undefined;
+	#next = 0;
+
+	constructor(readCache: tileReadCache, treeSize: bigint, baseRangeHashes: number) {
+		this.#readCache = readCache;
+		this.#treeSize = treeSize;
+		this.#baseRangeHashes = baseRangeHashes;
+		this.#dryNewRange = this.#dryRF.newEmptyRange(treeSize);
+		this.#dryCache = newTileWriteCache(treeSize, (tileID) => this.#dryGetTile(tileID));
+		this.#dryVisitor = this.#dryCache.visitor();
+	}
+
+	/** getTile is the getPopulatedTileFunc handed to the real tileWriteCache. */
+	readonly getTile = (tileID: TileID, _treeSize: bigint): populatedTile | undefined => {
+		const o = this.#outcomes[this.#next];
+		if (o === undefined || o.key !== tileIDKey(tileID)) {
+			throw new panicError(`replayedTileReads: unplanned tile read for ${tileIDKey(tileID)}`);
+		}
+		this.#next++;
+		if (o.tile === undefined) {
+			throw o.err;
+		}
+		return o.tile;
+	};
+
+	/** prefetchAppends performs the reads `n` calls of `newRange.append(e, visitor)` make. */
+	async prefetchAppends(n: number, signal?: AbortSignal): Promise<void> {
+		const record: VisitFn = (id) => {
+			this.#visits.push(id);
+		};
+		for (let i = 0; i < n; i++) {
+			this.#dryNewRange.append(placeholderHash, record);
+		}
+		await this.#fetch(signal);
+	}
+
+	/** prefetchAppendRange performs the reads `baseRange.appendRange(newRange, visitor)` makes. */
+	async prefetchAppendRange(signal?: AbortSignal): Promise<void> {
+		const dryBase = this.#dryRF.newRange(
+			0n,
+			this.#treeSize,
+			new Array<Uint8Array>(this.#baseRangeHashes).fill(placeholderHash),
+		);
+		dryBase.appendRange(this.#dryNewRange, (id) => {
+			this.#visits.push(id);
+		});
+		await this.#fetch(signal);
+	}
+
+	/**
+	 * fetch replays the recorded visits through the scratch tileWriteCache. When a visit
+	 * asks for a read that has not happened yet, the scratch visitor records the request
+	 * and returns early (its error path, which leaves the tile unset); fetch then performs
+	 * the read and replays the same visit, now with its outcome known.
+	 */
+	async #fetch(signal?: AbortSignal): Promise<void> {
+		while (this.#dryReplayed < this.#visits.length) {
+			const id = this.#visits[this.#dryReplayed] as NodeID;
+			this.#dryAsked = undefined;
+			this.#dryVisitor(id, placeholderHash);
+			const asked = this.#dryAsked as TileID | undefined;
+			if (asked === undefined) {
+				this.#dryReplayed++;
+				continue;
+			}
+			const key = tileIDKey(asked);
+			try {
+				this.#outcomes.push({ key, tile: await this.#readCache.get(asked, this.#treeSize, signal) });
+			} catch (err) {
+				if (err instanceof panicError) {
+					throw err;
+				}
+				this.#outcomes.push({ key, err });
+			}
+		}
+	}
+
+	#dryGetTile(tileID: TileID): populatedTile | undefined {
+		const o = this.#outcomes[this.#dryNext];
+		if (o === undefined) {
+			this.#dryAsked = tileID;
+			throw readNotYetMade;
+		}
+		this.#dryNext++;
+		if (o.tile === undefined) {
+			throw o.err;
+		}
+		return new populatedTile();
+	}
+}
+
+/** placeholderHash stands in for every hash in replayedTileReads' structural ranges. */
+const placeholderHash = new Uint8Array(0);
+
+/** readNotYetMade is what replayedTileReads' scratch getTile throws for a read still to be made. */
+const readNotYetMade = new Error("replayedTileReads: read not yet made");
+
+/**
+ * panicError is thrown where Go panics. Error-wrapping sites in this file rethrow it
+ * unchanged rather than reporting it as an ordinary error, as a Go panic unwinds past
+ * them.
+ *
+ * Port note: has no Go counterpart; see
+ * docs/decisions/0190-integrate-visitor-tile-reads-are-replayed.md.
+ */
+class panicError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "panicError";
+	}
+}
+
+/**
  * tileWriteCache is a simple cache for storing the newly created tiles produced by
  * the integration of new leaves into the tree.
  *
- * Calls to visitor() cause the map of tiles to become filled with the set of
+ * Calls to Visit will cause the map of tiles to become filled with the set of
  * `dirty` tiles which need to be flushed back to storage to preserve the updated
  * tree state.
  *
@@ -353,7 +503,7 @@ export class tileWriteCache {
 	private readonly treeSize: bigint;
 	private readonly getTile: getPopulatedTileFunc;
 
-	/** newTileWriteCache creates a new cache for the given treeSize, and uses the provided function to fetch existing tiles which are being updated by the Visitor func. */
+	/** @internal Use newTileWriteCache. */
 	constructor(treeSize: bigint, getTile: getPopulatedTileFunc) {
 		this.treeSize = treeSize;
 		this.getTile = getTile;
@@ -375,6 +525,9 @@ export class tileWriteCache {
 	 *
 	 * The returned function is expected to be called sequentially to set one or nodes
 	 * to their corresponding hash values.
+	 *
+	 * Port note: Go's `Visitor(ctx)` only passes ctx on to getTile, which takes none here
+	 * (see getPopulatedTileFunc), so the parameter is dropped.
 	 */
 	visitor(): VisitFn {
 		return (id: NodeID, hash: Uint8Array): void => {
@@ -391,6 +544,9 @@ export class tileWriteCache {
 					try {
 						tile = this.getTile(tileID, this.treeSize);
 					} catch (err) {
+						if (err instanceof panicError) {
+							throw err;
+						}
 						this.errs.push(err);
 						return;
 					}
@@ -410,15 +566,13 @@ export class tileWriteCache {
 	/**
 	 * tiles returns all visited tiles.
 	 *
-	 * Port note: Go's `leaves [][]byte` can, in principle, hold nil entries for slots
-	 * `Set` never reached, and `api.HashTile{Nodes: t.leaves}` copies that nil-tolerant
-	 * slice straight into a `HashTile`; Go's `bytes.Buffer.Write(nil)` then writes zero
-	 * bytes for it, silently producing an undersized tile. `HashTile.nodes` is typed
-	 * `Uint8Array[]` here (api/state.ts) with no such escape hatch, so a genuine
-	 * gap is rejected loudly instead of silently mis-sized. In practice this is
-	 * unreachable: `compact.Range.append`/`appendRange` only ever visit leaf indices in
-	 * sequential order starting from the tile's first unset slot, so `leaves` has no
-	 * internal gaps by construction — see the treeBuilder Port note above.
+	 * Port note: Go's `leaves [][]byte` can hold nil entries for slots `Set` never
+	 * reached, and `api.HashTile{Nodes: t.leaves}` copies that slice straight into a
+	 * `HashTile`; Go's `bytes.Buffer.Write(nil)` then writes zero bytes for it, silently
+	 * producing an undersized tile. `HashTile.nodes` is typed `Uint8Array[]` here with no
+	 * such escape hatch, so a gap is rejected instead. compact.Range only ever visits leaf
+	 * indices in order from a tile's first unset slot, so no well-formed integration
+	 * produces one. See docs/decisions/0191-integrate-rejects-a-tile-with-a-gap.md.
 	 */
 	tiles(): Map<string, { id: TileID; tile: HashTile }> {
 		const newTiles = new Map<string, { id: TileID; tile: HashTile }>();
@@ -435,7 +589,10 @@ export class tileWriteCache {
 	}
 }
 
-/** newTileWriteCache creates a new cache for the given treeSize. */
+/**
+ * newTileWriteCache creates a new cache for the given treeSize, and uses the provided
+ * function to fetch existing tiles which are being updated by the Visitor func.
+ */
 export function newTileWriteCache(treeSize: bigint, getTile: getPopulatedTileFunc): tileWriteCache {
 	return new tileWriteCache(treeSize, getTile);
 }
@@ -449,10 +606,11 @@ export function newTileWriteCache(treeSize: bigint, getTile: getPopulatedTileFun
  * not be declared contiguously. TypeScript requires every method inside one class body, so this
  * free function (it is not a tileWriteCache method in Go either) moves to just after the class
  * instead of sitting inside it — the smallest structural adjustment upstream's declaration order
- * allows for.
+ * allows for. Both the product and the shift count wrap as Go's uint64 arithmetic does
+ * (docs/decisions/0014-uint64-wrapping-made-explicit.md).
  */
 function minImpliedTreeSize(id: TileID): bigint {
-	return shiftLeft64(asUint64(id.index * tileWidth64), Number(id.level * 8n));
+	return shiftLeft64(asUint64(id.index * tileWidth64), Number(asUint64(id.level * 8n)));
 }
 
 /**
@@ -470,13 +628,11 @@ export class populatedTile {
 	set(id: NodeID, hash: Uint8Array): void {
 		if (id.level === 0) {
 			if (id.index > 255n) {
-				throw new Error(`Weird node ID: ${nodeIDString(id)}`);
+				throw new panicError(`Weird node ID: ${nodeIDString(id)}`);
 			}
 			const idx = Number(id.index);
-			if (idx >= this.leaves.length) {
-				this.leaves = this.leaves.concat(
-					new Array<Uint8Array | undefined>(idx - this.leaves.length + 1).fill(undefined),
-				);
+			while (this.leaves.length <= idx) {
+				this.leaves.push(undefined);
 			}
 			this.leaves[idx] = hash;
 		} else {
@@ -526,6 +682,9 @@ function newPopulatedTile(h: HashTile | undefined): populatedTile {
 			try {
 				r.append(node, (id, hash) => ft.set(id, hash));
 			} catch (err) {
+				if (err instanceof panicError) {
+					throw err;
+				}
 				throw new Error(`failed to append to range: ${messageOf(err)}`);
 			}
 		}

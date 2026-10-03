@@ -77,6 +77,10 @@ describe("TestFetchPartialOrFullResource", () => {
 				gotErr = true;
 			}
 			expect(gotErr).toBe(test.wantErr);
+			// Port note: Go's stub indexes test.responses[i] unguarded, so an unexpected extra
+			// call panics; here it would read undefined, which this table spells "no error".
+			// Checking the call count keeps an extra call from passing unnoticed.
+			expect(i).toBe(test.responses.length);
 		});
 	}
 });

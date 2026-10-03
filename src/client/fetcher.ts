@@ -29,8 +29,9 @@
 // is called with, the response body it leaves open), the port accommodates it; see
 // docs/decisions/0131-httpfetcher-fetch-runtime-fidelity.md.
 
-import { CheckpointPath, entriesPath, tilePath } from "../api/layout/index.ts";
+import { CheckpointPath, EntryBundleWidth, entriesPath, TileWidth, tilePath } from "../api/layout/index.ts";
 import { partialOrFullResource } from "../internal/fetcher/fallback.ts";
+import { concatBytes } from "../internal/gostd/bytes.ts";
 import { ErrNotExist, wrapError } from "../internal/gostd/errors.ts";
 import { quote } from "../internal/gostd/strconv.ts";
 
@@ -62,6 +63,23 @@ function discardBody(r: Response): void {
 export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
 /**
+ * HTTPFetcherOptions configures the requests an HTTPFetcher makes.
+ *
+ * Port note: has no Go counterpart, where the `*http.Client` carries this policy; see
+ * docs/decisions/0197-fetch-credentials-and-redirects.md.
+ */
+export interface HTTPFetcherOptions {
+	/**
+	 * redirect is the Fetch API redirect mode for every request; "follow" when unset,
+	 * which is what Go's http.Client does and what logs served from a CDN rely on. A
+	 * server-side caller that fetches logs named by untrusted input should consider
+	 * "manual": a followed redirect can lead to an address the caller did not choose.
+	 * workerd accepts only "follow" and "manual".
+	 */
+	readonly redirect?: RequestInit["redirect"];
+}
+
+/**
  * newHTTPFetcher creates a new HTTPFetcher for the log rooted at the given URL, using
  * the provided fetch function.
  *
@@ -71,25 +89,38 @@ export type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
  * Port note: Go returns `(*HTTPFetcher, error)`, but the error is always nil — nothing
  * in this function can fail. Dropped, matching the precedent set by
  * `HashTile.marshalText` (api/state.ts) for a Go error return that can never actually
- * occur.
+ * occur. `opts` has no Go counterpart; see HTTPFetcherOptions.
  */
-export function newHTTPFetcher(rootURL: URL, c?: FetchFn): HTTPFetcher {
+export function newHTTPFetcher(rootURL: URL, c?: FetchFn, opts?: HTTPFetcherOptions): HTTPFetcher {
 	if (!rootURL.toString().endsWith("/")) {
 		rootURL.pathname += "/";
 	}
-	return new HTTPFetcher(c ?? fetch, rootURL);
+	return new HTTPFetcher(c ?? fetch, rootURL, opts?.redirect ?? "follow");
 }
+
+/**
+ * Port note: hardening with no Go counterpart: each response body is read with a cap,
+ * where Go's io.ReadAll reads whatever the server sends. A full tile is TileWidth hashes
+ * of 32 bytes; an entry bundle at most EntryBundleWidth entries of a two-byte length and
+ * up to 65535 bytes of data; a checkpoint is a small signed note. See
+ * docs/decisions/0195-response-size-caps.md.
+ */
+const maxCheckpointBytes = 1 << 20;
+const maxTileBytes = TileWidth * 32 + 1024;
+const maxEntryBundleBytes = EntryBundleWidth * (2 + 65535);
 
 /** HTTPFetcher knows how to fetch log artifacts from a log being served via HTTP. */
 export class HTTPFetcher {
 	readonly #c: FetchFn;
 	readonly #rootURL: URL;
+	readonly #redirect: NonNullable<RequestInit["redirect"]>;
 	#authHeader = "";
 
 	/** @internal Stands in for Go's `&HTTPFetcher{...}` composite literal; construct via {@link newHTTPFetcher}. */
-	constructor(c: FetchFn, rootURL: URL) {
+	constructor(c: FetchFn, rootURL: URL, redirect: NonNullable<RequestInit["redirect"]> = "follow") {
 		this.#c = c;
 		this.#rootURL = rootURL;
+		this.#redirect = redirect;
 	}
 
 	/** setAuthorizationHeader sets the value to be used with an Authorization: header for every request made by this fetcher. */
@@ -97,14 +128,27 @@ export class HTTPFetcher {
 		this.#authHeader = v;
 	}
 
-	async #fetch(p: string, signal?: AbortSignal): Promise<Uint8Array> {
-		const u = new URL(p, this.#rootURL);
+	/**
+	 * Port note: `limit` caps the response body (see maxTileBytes and its neighbours);
+	 * Go's fetch reads the whole body.
+	 */
+	async #fetch(p: string, limit: number, signal?: AbortSignal): Promise<Uint8Array> {
+		let u: URL;
+		try {
+			u = new URL(p, this.#rootURL);
+		} catch (err) {
+			throw new Error(`invalid URL: ${errText(err)}`);
+		}
 		const headers: Record<string, string> = {};
 		if (this.#authHeader !== "") {
 			headers.Authorization = this.#authHeader;
 		}
 
-		const init: RequestInit = { method: "GET", headers };
+		// Port note: credentials are always omitted, so a log fetched from a browser never
+		// carries the page's cookies or HTTP authentication for that origin; the
+		// Authorization header set above is the only credential sent. See
+		// docs/decisions/0197-fetch-credentials-and-redirects.md.
+		const init: omitCredentials = { method: "GET", headers, credentials: "omit", redirect: this.#redirect };
 		if (signal !== undefined) {
 			init.signal = signal;
 		}
@@ -136,20 +180,89 @@ export class HTTPFetcher {
 
 		// Port note: Go defers r.Body.Close() and logs any error from it via klog.
 		// The Fetch API has no equivalent manual close step -- the body stream is
-		// fully consumed and released by arrayBuffer() below -- and klog is not an
-		// allowed dependency (PORTING.md §7), so there is nothing to port here.
-		return new Uint8Array(await r.arrayBuffer());
+		// fully consumed and released by readAllLimited() below, or cancelled by it
+		// when over the limit -- and klog is not an allowed dependency (PORTING.md §7),
+		// so there is nothing to port here.
+		try {
+			return await readAllLimited(r, limit);
+		} catch (err) {
+			if (err instanceof bodyTooLargeError) {
+				throw new Error(`get(${quote(u.toString())}): ${err.message}`);
+			}
+			throw err;
+		}
 	}
 
 	async readCheckpoint(signal?: AbortSignal): Promise<Uint8Array> {
-		return this.#fetch(CheckpointPath, signal);
+		return this.#fetch(CheckpointPath, maxCheckpointBytes, signal);
 	}
 
 	async readTile(l: bigint, i: bigint, p: number, signal?: AbortSignal): Promise<Uint8Array> {
-		return partialOrFullResource(p, (pp: number, sig?: AbortSignal) => this.#fetch(tilePath(l, i, pp), sig), signal);
+		return partialOrFullResource(
+			p,
+			(pp: number, sig?: AbortSignal) => this.#fetch(tilePath(l, i, pp), maxTileBytes, sig),
+			signal,
+		);
 	}
 
 	async readEntryBundle(i: bigint, p: number, signal?: AbortSignal): Promise<Uint8Array> {
-		return partialOrFullResource(p, (pp: number, sig?: AbortSignal) => this.#fetch(entriesPath(i, pp), sig), signal);
+		return partialOrFullResource(
+			p,
+			(pp: number, sig?: AbortSignal) => this.#fetch(entriesPath(i, pp), maxEntryBundleBytes, sig),
+			signal,
+		);
 	}
+}
+
+/**
+ * omitCredentials is a RequestInit that sets `credentials`. workerd's RequestInit type has no
+ * `credentials` member (the runtime ignores it), so the property is declared here for code
+ * that type-checks against both the DOM and the Workers types.
+ *
+ * @internal Has no Go counterpart; also used by internal/witness. See
+ * docs/decisions/0197-fetch-credentials-and-redirects.md.
+ */
+export type omitCredentials = RequestInit & { credentials: "omit" };
+
+/** bodyTooLargeError is what readAllLimited throws for a body over its limit. */
+class bodyTooLargeError extends Error {
+	constructor(limit: number) {
+		super(`response body exceeds the limit of ${limit} bytes`);
+		this.name = "bodyTooLargeError";
+	}
+}
+
+/**
+ * readAllLimited reads r's body in full, like Go's io.ReadAll, but stops and throws as
+ * soon as more than limit bytes have arrived (or a Content-Length header announces
+ * more), cancelling the rest of the body.
+ *
+ * @internal Has no Go counterpart; also used by internal/witness. See
+ * docs/decisions/0195-response-size-caps.md.
+ */
+export async function readAllLimited(r: Response, limit: number): Promise<Uint8Array> {
+	const announced = Number(r.headers.get("Content-Length") ?? Number.NaN);
+	if (announced > limit) {
+		discardBody(r);
+		throw new bodyTooLargeError(limit);
+	}
+	if (r.body === null) {
+		return new Uint8Array(0);
+	}
+	const reader = r.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) {
+			break;
+		}
+		total += value.length;
+		if (total > limit) {
+			reader.cancel().catch(() => undefined);
+			throw new bodyTooLargeError(limit);
+		}
+		chunks.push(value);
+	}
+	return concatBytes(...chunks);
 }

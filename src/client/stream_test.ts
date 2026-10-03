@@ -15,32 +15,146 @@
 //
 // Ported from tessera/client/stream_test.go @ 4a6d9f9
 //
-// Port note: upstream's TestEntryBundles and TestEntries drive a real, live
-// testonly.NewTestLog (full storage/append-lifecycle machinery), which would make the
-// client package's tests depend on the write path. This file instead drives
-// entryBundles/entries against the log_1000 and log_5000 fixtures (fixtures/gen/log.go),
-// which are real, byte-identical logs built by the actual Tessera POSIX driver -- the
-// same fixtures the storage-internal package's own integration tests use.
-//
-// This also means the cases below are not the same cases as upstream's: an equivalent
-// coverage was built for what these fixtures make possible. In particular, a single
-// entryBundles() call snapshots the tree size exactly once (see the Port note above
-// entryBundles in stream.ts): mutating a size closure's return value mid-loop -- what
-// upstream's TestEntryBundles literally does -- has no effect on an already-running
-// call. "Resuming after growth" instead means calling entryBundles again, which is what
-// every real caller (the antispam followers in storage/{posix,gcp,aws}/antispam/*.go,
-// and this package's own fsck.go) actually does; see the "resumes ... across repeated
-// calls" case below.
+// TestEntryBundles and TestEntries are ported as upstream has them, on a live
+// testonly.newTestLog. Every case after them is a port addition, driven instead by the
+// log_1000 and log_5000 fixtures (fixtures/gen/log.go): real logs built by the Tessera POSIX
+// driver, served by an in-test EntryBundleFetcherFunc.
 
 import { beforeAll, describe, expect, it } from "vitest";
 import { EntryBundleWidth, entriesPath } from "../api/layout/index.ts";
 import { EntryBundle } from "../api/state.ts";
+import { type IndexFuture, newAppendOptions } from "../append_lifecycle.ts";
+import { newPublicationAwaiter } from "../await.ts";
+import { newEntry } from "../entry.ts";
 import { partialOrFullResource } from "../internal/fetcher/fallback.ts";
 import { fromUTF8, toUTF8 } from "../internal/gostd/bytes.ts";
 import { ErrNotExist } from "../internal/gostd/errors.ts";
+import { sleep } from "../internal/gostd/sync.ts";
 import { type Fixture, hexToBytes, loadFixture, u64 } from "../testonly/fixtures.ts";
+import { newTestLog, type TestLog } from "../testonly/testlog.ts";
 import type { EntryBundleFetcherFunc } from "./client.ts";
-import { entries, entryBundles, type TreeSizeFunc } from "./stream.ts";
+import { type Bundle, entries, entryBundles, type TreeSizeFunc } from "./stream.ts";
+
+// Port note: TestEntryBundles appends 100045 entries through the full append lifecycle,
+// waits for each to be published, then streams them back, sleeping a second on the way.
+// It takes about 6.5s in Go and about 6s here on an idle machine, so it gets an explicit
+// timeout with headroom for a contended CI runner rather than the suite's 20s default —
+// the precedent integrate_test.ts sets for TestIntegrate.
+const entryBundlesTimeoutMs = 60_000;
+
+it(
+	"TestEntryBundles",
+	async () => {
+		const ac = new AbortController();
+
+		const logSize1 = 12345n;
+		const logSize2 = 100045n;
+
+		const { testLog: tl, shutdown } = await newTestLog(
+			newAppendOptions().withBatching(30000, 1000).withCheckpointInterval(1000),
+			ac.signal,
+		);
+		try {
+			await populateEntries(tl, logSize1, "first", ac.signal);
+			await populateEntries(tl, logSize2 - logSize1, "second", ac.signal);
+
+			let logSize = logSize1;
+			const size: TreeSizeFunc = async (): Promise<bigint> => logSize;
+
+			// Finally, try to stream all the bundles back.
+			// We'll first try to stream up to logSize1, then when we reach it we'll
+			// make the tree appear to grow to logSize2 to test resuming.
+			//
+			// Port note: as in Go, entryBundles asks for the tree size once, before it
+			// starts, so growing it here does not extend a stream already running: this
+			// stream, like upstream's, ends at logSize1. Upstream asserts only the order of
+			// what it sees, and so does this.
+			let seenEntries = 0n;
+
+			const readEntryBundle: EntryBundleFetcherFunc = (i, p, s) => tl.logReader.readEntryBundle(i, p, s);
+			for await (const gotEntry of entryBundles(2, size, readEntryBundle, 0n, logSize2, ac.signal)) {
+				const e = gotEntry.rangeInfo.index * BigInt(EntryBundleWidth) + BigInt(gotEntry.rangeInfo.first);
+				expect(e, `got idx ${e}, want ${seenEntries}`).toBe(seenEntries);
+				seenEntries += BigInt(gotEntry.rangeInfo.n);
+
+				switch (seenEntries) {
+					case logSize1:
+						// We've fetched all the entries from the original tree size, now we'll make
+						// the tree appear to have grown to the final size.
+						// The stream should start returning bundles again until we've consumed them all.
+						logSize = logSize2;
+						await sleep(1000);
+				}
+			}
+		} finally {
+			await shutdown();
+			ac.abort();
+		}
+	},
+	entryBundlesTimeoutMs,
+);
+
+it("TestEntries", async () => {
+	const ac = new AbortController();
+
+	const logSize = 1234n;
+
+	const { testLog: tl, shutdown } = await newTestLog(
+		newAppendOptions().withBatching(Number(logSize), 1000).withCheckpointInterval(1000),
+		ac.signal,
+	);
+	try {
+		// Put some entries into a log.
+		const es = await populateEntries(tl, logSize, "first", ac.signal);
+		const wantEntries = new Set<string>();
+		for (const e of es) {
+			wantEntries.add(fromUTF8(e));
+		}
+
+		const unbundle = (bundle: Uint8Array): Uint8Array[] => {
+			const eb = new EntryBundle();
+			eb.unmarshalText(bundle);
+			return eb.entries;
+		};
+
+		// Now stream back entries and check that we saw all the entries we added above.
+		//
+		// Port note: Go consumes the stream on a goroutine and hands each entry over a
+		// channel; a single async loop does the same here.
+		const size: TreeSizeFunc = async (): Promise<bigint> => logSize;
+		const readEntryBundle: EntryBundleFetcherFunc = (i, p, s) => tl.logReader.readEntryBundle(i, p, s);
+		for await (const gotEntry of entries(entryBundles(2, size, readEntryBundle, 0n, logSize, ac.signal), unbundle)) {
+			const k = fromUTF8(gotEntry.entry);
+			expect(wantEntries.has(k), `Expected missing entry ${JSON.stringify(k)} - already seen?`).toBe(true);
+			wantEntries.delete(k);
+		}
+
+		expect(wantEntries.size, `Did not see ${wantEntries.size} expected entries`).toBe(0);
+	} finally {
+		await shutdown();
+		ac.abort();
+	}
+});
+
+/**
+ * populateEntries adds N entries `<ep>-<i>` to tl and waits until all of them are
+ * published, returning their data.
+ */
+async function populateEntries(tl: TestLog, N: bigint, ep: string, signal: AbortSignal): Promise<Uint8Array[]> {
+	const es: Uint8Array[] = [];
+	const fs: IndexFuture[] = [];
+	for (let i = 0n; i < N; i++) {
+		const e = toUTF8(`${ep}-${i}`);
+		es.push(e);
+		fs.push(tl.appender.add(newEntry(e), signal));
+	}
+
+	const a = newPublicationAwaiter((s) => tl.logReader.readCheckpoint(s), 1000, signal);
+	for (const f of fs) {
+		await a.await(f, signal);
+	}
+	return es;
+}
 
 interface BundleFile {
 	readonly path: string;
@@ -89,7 +203,9 @@ beforeAll(async () => {
 	[log1000, log5000] = await Promise.all([loadFixture<LogFixture>("log_1000"), loadFixture<LogFixture>("log_5000")]);
 });
 
-it("TestEntries", async () => {
+// Port additions below this line.
+
+it("port addition: entries() yields every entry of the log_1000 fixture exactly once", async () => {
 	const logSize = u64(log1000.size);
 	const getBundle = buildBundleFetcher(log1000);
 	const size: TreeSizeFunc = async (): Promise<bigint> => logSize;
@@ -109,7 +225,7 @@ it("TestEntries", async () => {
 	expect(got.size).toBe(Number(logSize));
 });
 
-it("TestEntryBundles yields bundles covering the requested range in order", async () => {
+it("port addition: entryBundles() covers the log_5000 fixture in order", async () => {
 	const logSize = u64(log5000.size);
 	const getBundle = buildBundleFetcher(log5000);
 	const size: TreeSizeFunc = async (): Promise<bigint> => logSize;
@@ -123,7 +239,7 @@ it("TestEntryBundles yields bundles covering the requested range in order", asyn
 	expect(seenEntries).toBe(logSize);
 });
 
-it("bounds concurrent fetches to numWorkers", async () => {
+it("port addition: bounds concurrent fetches to numWorkers", async () => {
 	const logSize = u64(log5000.size);
 	const base = buildBundleFetcher(log5000);
 
@@ -154,7 +270,7 @@ it("bounds concurrent fetches to numWorkers", async () => {
 	expect(maxInFlight, `exceeded numWorkers=${numWorkers}`).toBeLessThanOrEqual(numWorkers);
 });
 
-it("propagates a getBundle error and stops the stream", async () => {
+it("port addition: propagates a getBundle error and stops the stream", async () => {
 	const logSize = u64(log1000.size);
 	const base = buildBundleFetcher(log1000);
 	const boom = new Error("boom");
@@ -222,7 +338,7 @@ async function settle(): Promise<void> {
 	}
 }
 
-it("yields bundles in strict index order even when later indices resolve before earlier ones", async () => {
+it("port addition: yields bundles in strict index order even when later indices resolve before earlier ones", async () => {
 	// Three full bundles (width 256 each), all three dispatched at once by numWorkers=3.
 	const treeSize = 3n * BigInt(EntryBundleWidth);
 	const d = deferredFetcher();
@@ -251,7 +367,7 @@ it("yields bundles in strict index order even when later indices resolve before 
 	expect(yielded).toEqual([0n, 1n, 2n]);
 });
 
-it("surfaces an ahead-fetch error in order and does not leak it as an unhandled rejection", async () => {
+it("port addition: surfaces an ahead-fetch error in order and does not leak it as an unhandled rejection", async () => {
 	const treeSize = 3n * BigInt(EntryBundleWidth);
 	const d = deferredFetcher();
 	const boom = new Error("ahead-boom");
@@ -289,11 +405,11 @@ it("surfaces an ahead-fetch error in order and does not leak it as an unhandled 
 	expect(caught).toBe(boom);
 });
 
-describe("resuming after the log grows", () => {
+describe("port addition: resuming after the log grows", () => {
 	it("a fresh entryBundles call continues where the previous one left off", async () => {
-		// Not part of upstream stream_test.go: this is the "resuming" scenario
-		// TestEntryBundles' comments describe, adapted to how entryBundles actually
-		// behaves -- see this file's header comment. log_1000 and log_5000 are
+		// The "resuming" scenario TestEntryBundles' comments describe, the way real callers
+		// achieve it: a single entryBundles call reads the tree size once (see the Port
+		// note in TestEntryBundles), so resuming means calling it again. log_1000 and log_5000 are
 		// independently-built logs, but both are deterministic (entry i is always
 		// "entry-<i>"), so log_5000's first 1000 entries are byte-identical to
 		// log_1000's, making this a faithful stand-in for one log that grew.
@@ -333,8 +449,91 @@ describe("resuming after the log grows", () => {
 	});
 });
 
-it("EntryBundle round-trips through toUTF8/fromUTF8 the way the fixture corpus expects", () => {
+it("port addition: entryData matches the fixture corpus' entry scheme", () => {
 	// A narrow sanity check on this file's own entryData helper, pinning it against the
 	// fixture's documented entryScheme ("entry i is the UTF-8 bytes of \"entry-<i>\"").
 	expect(fromUTF8(toUTF8(entryData(41n)))).toBe("entry-41");
+});
+
+describe("port addition: numWorkers below 1", () => {
+	// Go's EntryBundles blocks forever when numWorkers is 0, since its token bucket never
+	// holds a token; the port refuses such values up front (docs/decisions/0192).
+	for (const numWorkers of [0, -1, 1.5, Number.NaN]) {
+		it(`throws a RangeError for numWorkers=${numWorkers}`, () => {
+			const size: TreeSizeFunc = async (): Promise<bigint> => 600n;
+			const getBundle: EntryBundleFetcherFunc = async (): Promise<Uint8Array> => new Uint8Array(0);
+			expect(() => entryBundles(numWorkers, size, getBundle, 0n, 600n)).toThrow(
+				new RangeError(`numWorkers must be an integer of at least 1, got ${numWorkers}`),
+			);
+		});
+	}
+});
+
+it("port addition: nothing is fetched before the first next(), where Go's producer starts at once", async () => {
+	// At the pinned commit, EntryBundles(ctx, 2, ...) made 3 calls (getSize and two
+	// getBundle) within 200ms without ever being iterated (docs/decisions/0066).
+	let started = 0;
+	const g = entryBundles(
+		2,
+		async () => {
+			started++;
+			return 600n;
+		},
+		async () => {
+			started++;
+			return new Uint8Array(0);
+		},
+		0n,
+		600n,
+	);
+	await settle();
+	expect(started).toBe(0);
+	// getSize, two fetches, and a third that refills the window once the first has settled.
+	await g.next();
+	expect(started).toBe(4);
+});
+
+describe("port addition: uint64 wraparound, as Go computes it", () => {
+	it("entryBundles: fromEntry+N wraps", async () => {
+		// Go: EntryBundles(ctx, 1, size=600, ..., 10, MaxUint64-5) yields one bundle,
+		// {Index:0 Partial:0 First:10 N:4}.
+		const got: Bundle[] = [];
+		for await (const b of entryBundles(
+			1,
+			async () => 600n,
+			async () => new Uint8Array(0),
+			10n,
+			0xffffffffffffffffn - 5n,
+		)) {
+			got.push(b);
+		}
+		expect(got.map((b) => b.rangeInfo)).toEqual([{ index: 0n, partial: 0, first: 10, n: 4 }]);
+	});
+
+	it("entries: the entry index wraps", async () => {
+		// Go: a bundle with RangeInfo{Index: 1<<56 + 1, First: 3, N: 2} yields indices 259 and 260.
+		async function* one(): AsyncGenerator<Bundle> {
+			yield { rangeInfo: { index: (1n << 56n) + 1n, partial: 0, first: 3, n: 2 }, data: new Uint8Array(0) };
+		}
+		const got: bigint[] = [];
+		for await (const e of entries(one(), () => [0, 1, 2, 3, 4, 5])) {
+			got.push(e.index);
+		}
+		expect(got).toEqual([259n, 260n]);
+	});
+});
+
+it("port addition: entries() rejects a bundle with fewer entries than its range needs", async () => {
+	// Go yields only the entries the bundle holds, silently dropping the rest of the range
+	// (docs/decisions/0194).
+	async function* short(): AsyncGenerator<Bundle> {
+		yield { rangeInfo: { index: 4n, partial: 0, first: 1, n: 5 }, data: new Uint8Array(0) };
+	}
+	const got: number[] = [];
+	await expect(async () => {
+		for await (const e of entries(short(), () => [0, 1, 2, 3])) {
+			got.push(e.entry);
+		}
+	}).rejects.toThrow("bundle 4 has 4 entries, but the range needs 6");
+	expect(got).toEqual([]);
 });

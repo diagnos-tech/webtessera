@@ -15,6 +15,8 @@
 //
 // Ported from tessera/api/layout/tile.go @ 4a6d9f9
 
+import { asUint64, shiftRight64 } from "../../internal/gostd/bits.ts";
+
 // TileHeight is the maximum number of levels Merkle tree levels a tile represents.
 // This is fixed at 8 by tlog-tile spec.
 export const TileHeight = 8;
@@ -52,8 +54,11 @@ export interface TileAddress {
 
 // PartialTileSize returns the expected number of leaves in a tile at the given tile level and index
 // within a tree of the specified logSize, or 0 if the tile is expected to be fully populated.
+//
+// Port note: `level * TileHeight` wraps, and the shift saturates at 64, as Go's uint64
+// arithmetic does. See docs/decisions/0014-uint64-wrapping-made-explicit.md.
 export function partialTileSize(level: bigint, index: bigint, logSize: bigint): number {
-	const sizeAtLevel = logSize >> (level * tileHeight64);
+	const sizeAtLevel = shiftRight64(logSize, Number(asUint64(level * tileHeight64)));
 	const fullTiles = sizeAtLevel / tileWidth64;
 	if (index < fullTiles) {
 		return 0;

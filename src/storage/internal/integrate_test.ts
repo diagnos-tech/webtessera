@@ -21,7 +21,7 @@ import { describe, expect, it } from "vitest";
 import { partialTileSize, TileWidth, tilePath } from "../../api/layout/index.ts";
 import { HashTile } from "../../api/state.ts";
 import { newEntry } from "../../entry.ts";
-import { bytesEqual } from "../../internal/gostd/bytes.ts";
+import { bytesEqual, toHex } from "../../internal/gostd/bytes.ts";
 import type { NodeID } from "../../vendor/merkle/compact/index.ts";
 import { newNodeID, RangeFactory } from "../../vendor/merkle/compact/index.ts";
 import { DefaultHasher } from "../../vendor/merkle/rfc6962/rfc6962.ts";
@@ -76,22 +76,28 @@ describe("storage/internal/integrate", () => {
 			},
 		];
 
+		// Port note: Go ranges over `test.visits`, a map, so each run visits the nodes in an
+		// unspecified order and the test must hold for every one of them. Every permutation is
+		// run here instead of whichever order an array literal happens to fix.
 		for (const test of tests) {
-			const twc = newTileWriteCache(treeSize, m.getTile);
-			const v = twc.visitor();
-			for (const [id, hash] of test.visits) {
-				v(id, hash);
-			}
-			expect(twc.err(), test.name).toBeUndefined();
+			for (const visits of permutations(test.visits)) {
+				const order = visits.map(([id]) => `${id.level}/${id.index}`).join(" ");
+				const twc = newTileWriteCache(treeSize, m.getTile);
+				const v = twc.visitor();
+				for (const [id, hash] of visits) {
+					v(id, hash);
+				}
+				expect(twc.err(), `${test.name} [${order}]`).toBeUndefined();
 
-			const gotTiles = twc.tiles();
-			for (const [id, wantTile] of test.wantTiles) {
-				const gotEntry = gotTiles.get(tileIDKey(id));
-				expect(gotEntry, `${test.name}: missing tile ${tileIDKey(id)}`).toBeDefined();
-				expect(gotEntry?.tile.nodes, test.name).toEqual(wantTile.nodes);
-				gotTiles.delete(tileIDKey(id));
+				const gotTiles = twc.tiles();
+				for (const [id, wantTile] of test.wantTiles) {
+					const gotEntry = gotTiles.get(tileIDKey(id));
+					expect(gotEntry, `${test.name} [${order}]: missing tile ${tileIDKey(id)}`).toBeDefined();
+					expect(gotEntry?.tile.nodes, `${test.name} [${order}]`).toEqual(wantTile.nodes);
+					gotTiles.delete(tileIDKey(id));
+				}
+				expect(gotTiles.size, `${test.name} [${order}]: unexpected tiles: ${[...gotTiles.keys()]}`).toBe(0);
 			}
-			expect(gotTiles.size, `${test.name}: unexpected tiles: ${[...gotTiles.keys()]}`).toBe(0);
 		}
 	});
 
@@ -143,8 +149,127 @@ describe("storage/internal/integrate", () => {
 		integrateTimeoutMs,
 	);
 
-	// Below this line are port additions with no direct upstream case: Go's
-	// `fmt.Errorf("failed to create range covering existing log: %w", err)` (integrate.go:110)
+	// Below this line are port additions with no direct upstream case.
+	//
+	// The tileWriteCache visitor reads existing tiles through tileReadCache.get exactly when
+	// and as often as Go's synchronous visitor does (docs/decisions/0190). These pin the
+	// getTiles call sequence, and its consequences, to what the real Go code produced for
+	// the same inputs (recorded by running storage/internal's Integrate with a logging
+	// getTiles at the pinned commit).
+	describe("port additions: Go's tile reads", () => {
+		it("makes the same getTiles calls as Go for 0 -> 255 -> 256 -> 257 -> 557", async () => {
+			const m = newMemTileStore<HashTile>();
+			const calls: string[] = [];
+			const getTiles = async (ids: readonly TileID[], treeSize: bigint): Promise<(HashTile | undefined)[]> => {
+				calls.push(`getTiles([${ids.map((id) => `{${id.level} ${id.index}}`).join(" ")}] @${treeSize})`);
+				return m.getTiles(ids, treeSize);
+			};
+
+			const got: string[] = [];
+			let size = 0n;
+			for (const step of [255, 1, 1, 300]) {
+				calls.length = 0;
+				const r = await integrate(getTiles, size, leafHashes(Number(size), step));
+				got.push(`${size} -> ${r.newSize}: ${calls.join(" ; ")}`);
+				for (const [, { id, tile }] of r.tiles) {
+					m.setTile(id, r.newSize, tile);
+				}
+				size = r.newSize;
+			}
+
+			expect(got).toEqual([
+				"0 -> 255: getTiles([] @0) ; getTiles([{0 0}] @0)",
+				"255 -> 256: getTiles([{0 0}] @255) ; getTiles([{1 0}] @255)",
+				"256 -> 257: getTiles([{1 0}] @256) ; getTiles([{0 1}] @256)",
+				"257 -> 557: getTiles([{1 0} {0 1}] @257)",
+			]);
+		});
+
+		it("extends a tile left behind by a crashed integration, as Go does", async () => {
+			// A log of size 256, plus an integration of 256 more entries that crashed after
+			// writing the full tile/0/001 but before the tree size moved on.
+			const m = newMemTileStore<HashTile>();
+			for (const [, { id, tile }] of (await integrate(m.getTiles, 0n, leafHashes(0, 256))).tiles) {
+				m.setTile(id, 256n, tile);
+			}
+			const crashed = (await integrate(m.getTiles, 256n, leafHashes(1000, 256))).tiles.get(
+				tileIDKey(new TileID(0n, 1n)),
+			);
+			if (crashed === undefined) {
+				throw new Error("crashed integration produced no tile/0/001");
+			}
+			m.setTile(crashed.id, 512n, crashed.tile);
+
+			const calls: string[] = [];
+			const getTiles = async (ids: readonly TileID[], treeSize: bigint): Promise<(HashTile | undefined)[]> => {
+				calls.push(`[${ids.map((id) => `{${id.level} ${id.index}}`).join(" ")}]@${treeSize}`);
+				return m.getTiles(ids, treeSize);
+			};
+			const newLeaves = leafHashes(256, 3);
+			const r = await integrate(getTiles, 256n, newLeaves);
+
+			// Go: log=[[{1 0}]@256 [{0 1}]@256] size=259
+			// root=e2f77598d9aeedbed14c5893410c621fdf9facaed62d5c291110fc7bc91fe36b, and the only
+			// tile is {0 1} with 256 nodes: the three new leaves over the crashed tile's rest.
+			expect(calls).toEqual(["[{1 0}]@256", "[{0 1}]@256"]);
+			expect(r.newSize).toBe(259n);
+			expect(toHex(r.rootHash)).toBe("e2f77598d9aeedbed14c5893410c621fdf9facaed62d5c291110fc7bc91fe36b");
+			expect([...r.tiles.keys()]).toEqual([tileIDKey(new TileID(0n, 1n))]);
+			const tile = r.tiles.get(tileIDKey(new TileID(0n, 1n)))?.tile as HashTile;
+			expect(tile.nodes).toEqual([...newLeaves, ...crashed.tile.nodes.slice(3)]);
+		});
+
+		it("retries a failing read on every visit and joins every error, as Go does", async () => {
+			const m = newMemTileStore<HashTile>();
+			for (const [, { id, tile }] of (await integrate(m.getTiles, 0n, leafHashes(0, 256))).tiles) {
+				m.setTile(id, 256n, tile);
+			}
+			let calls = 0;
+			const getTiles = async (ids: readonly TileID[], treeSize: bigint): Promise<(HashTile | undefined)[]> => {
+				calls++;
+				if (ids.some((id) => id.level === 0n && id.index === 1n)) {
+					throw new Error("boom");
+				}
+				return m.getTiles(ids, treeSize);
+			};
+
+			// Go: one Prewarm call, then one failing read for each of the 510 visits to tile
+			// {0 1}, whose errors errors.Join reports one per line.
+			const err = await integrate(getTiles, 256n, leafHashes(256, 300)).catch((e: unknown) => e);
+			expect(calls).toBe(511);
+			expect((err as Error).message).toBe(new Array<string>(510).fill("boom").join("\n"));
+		});
+
+		it("lets a panic escape unwrapped: a stored tile with more than 256 leaves", async () => {
+			// Go's populatedTile.Set panics on a 257th leaf; none of the error-wrapping sites
+			// between it and Integrate's caller ever see it as an error.
+			const big = zeroTile(TileWidth + 1);
+			const getTiles = async (ids: readonly TileID[]): Promise<(HashTile | undefined)[]> => ids.map(() => big);
+			await expect(integrate(getTiles, 255n, [Uint8Array.of(1)])).rejects.toThrow(/^Weird node ID: \{0 256\}$/);
+		});
+
+		it("panics if getTiles returns no tile for a single read", async () => {
+			// Go reads `t[0]` unguarded in tileReadCache.Get.
+			const getTiles = async (ids: readonly TileID[]): Promise<(HashTile | undefined)[]> =>
+				ids.length === 1 ? [] : ids.map(() => undefined);
+			await expect(integrate(getTiles, 0n, [Uint8Array.of(1)])).rejects.toThrow(
+				/^runtime error: index out of range \[0\] with length 0$/,
+			);
+		});
+
+		it("panics if getTiles returns more tiles than asked for in Prewarm", async () => {
+			// Go indexes `tileIDs[i]` unguarded in tileReadCache.Prewarm.
+			const getTiles = async (ids: readonly TileID[]): Promise<(HashTile | undefined)[]> => [
+				...ids.map(() => undefined),
+				undefined,
+			];
+			await expect(integrate(getTiles, 0n, [Uint8Array.of(1)])).rejects.toThrow(
+				/^runtime error: index out of range \[0\] with length 0$/,
+			);
+		});
+	});
+
+	// Go's `fmt.Errorf("failed to create range covering existing log: %w", err)` (integrate.go:110)
 	// wraps with %w, unlike most of this file's other error sites (`Prewarm: %v`,
 	// `newRange.Append(): %v`, ...) which deliberately do not. This pins that the port
 	// preserves the distinction — `wrapError` (cause set) here, plain message-only errors
@@ -167,6 +292,25 @@ describe("storage/internal/integrate", () => {
 		});
 	});
 });
+
+/** permutations returns every ordering of xs. */
+function permutations<T>(xs: readonly T[]): T[][] {
+	if (xs.length <= 1) {
+		return [[...xs]];
+	}
+	const out: T[][] = [];
+	xs.forEach((x, i) => {
+		for (const rest of permutations([...xs.slice(0, i), ...xs.slice(i + 1)])) {
+			out.push([x, ...rest]);
+		}
+	});
+	return out;
+}
+
+/** leafHashes returns the RFC 6962 leaf hashes of the two-byte little-endian encodings of [from, from+n). */
+function leafHashes(from: number, n: number): Uint8Array[] {
+	return Array.from({ length: n }, (_, k) => DefaultHasher.hashLeaf(Uint8Array.of((from + k) & 0xff, (from + k) >> 8)));
+}
 
 /** zeroTile creates a new api.HashTile of the provided size, whose leaves are all a single zero byte. */
 function zeroTile(size: number): HashTile {

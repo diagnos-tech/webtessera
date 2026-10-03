@@ -182,3 +182,18 @@ goroutine, nothing here executes except in response to being asked to.
   before its turn (Go's channel-parked error never does this). Fixed with `pending.catch(() => {})`
   at dispatch — verified it does **not** swallow the real rejection (the ordered `await` still
   throws it) and eliminates the runtime warning. Decision snippet and Consequences updated to match.
+
+## Update (2026-10-02): when fetching starts
+
+The Decision says the window preserves "the same 'up to `numWorkers` ahead of what has actually been
+retrieved' prefetch behaviour". That holds once the caller starts iterating, not before. Go's producer
+goroutine starts when `EntryBundles` is called: `getSize` and the first `numWorkers` fetches begin
+whether or not the iterator is ever ranged over (observed at the pinned commit: three calls within
+200ms of `EntryBundles(ctx, 2, ...)`, never iterated). An async generator runs only when asked for a
+value, so the port fetches nothing until the first `next()`. The Port note on `entryBundles` says so,
+and `stream_test.ts` pins it ("nothing is fetched before the first next()").
+
+`entryBundles` is now a plain function that validates `numWorkers` (ADR-0192) and returns the
+generator; the window logic is unchanged.
+
+*Review of this update: pending.*

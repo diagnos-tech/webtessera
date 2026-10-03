@@ -25,12 +25,13 @@
 // Package witness contains the implementation for sending out a checkpoint to witnesses
 // and retrieving sufficient signatures to satisfy a policy.
 
-import type { FetchFn } from "../../client/fetcher.ts";
+import { type FetchFn, type omitCredentials, readAllLimited } from "../../client/fetcher.ts";
 import { newProofBuilder, type ProofBuilder, type TileFetcherFunc } from "../../client/index.ts";
 import { type Note, open, type Verifier, verifierList } from "../../vendor/note/note.ts";
 import { concatBytes, fromUTF8, toBase64, toUTF8 } from "../gostd/bytes.ts";
-import { SentinelError, throwIfAborted } from "../gostd/errors.ts";
+import { JoinError, joinErrors, SentinelError } from "../gostd/errors.ts";
 import { parseUint, quote } from "../gostd/strconv.ts";
+import { trimSpace } from "../gostd/strings.ts";
 import { checkpointUnsafe } from "../parse/parse.ts";
 
 /** errText renders an error the way Go's `%v` verb does. */
@@ -125,7 +126,6 @@ export class WitnessGateway {
 		if (this.#witnesses.length === 0) {
 			return cp;
 		}
-		throwIfAborted(signal);
 
 		// Port note: `ctx, cancel := context.WithCancel(ctx); defer cancel()`. The
 		// AbortController is aborted in `finally` below no matter how this method
@@ -148,11 +148,11 @@ export class WitnessGateway {
 			}
 			const pf = new sharedConsistencyProofFetcher(pb, size);
 
-			// Kick off an update for each witness. Each settles to a {sig, err} pair
-			// rather than rejecting, mirroring Go's `sigOrErr` values sent down the
-			// `results` channel.
+			// Kick off a goroutine for each witness and send result to results chan
 			//
-			// Port note: Go fans the per-witness goroutines into an unbuffered
+			// Port note: each update settles to a {sig, err} pair rather than rejecting,
+			// mirroring Go's `sigOrErr` values sent down the `results` channel. Go fans
+			// the per-witness goroutines into an unbuffered
 			// `results` channel and ranges over it, consuming responses in arrival
 			// order and returning as soon as the policy is satisfied. Any goroutine
 			// still running at that point blocks forever trying to send into a
@@ -172,6 +172,7 @@ export class WitnessGateway {
 					),
 			);
 
+			// Consume the results coming back from each witness
 			const witnessErrors: unknown[] = [];
 			let sigBlock = cp;
 			while (pending.length > 0) {
@@ -188,10 +189,10 @@ export class WitnessGateway {
 					witnessErrors.push(new Error(`invalid signature from witness: ${quote(fromUTF8(sig))}`));
 					continue;
 				}
-				// Add new signature to the new note we're building.
+				// Add new signature to the new note we're building
 				sigBlock = concatBytes(sigBlock, sig);
 
-				// See whether the group is satisfied now.
+				// See whether the group is satisfied now
 				if (this.#group.satisfied(sigBlock)) {
 					return sigBlock;
 				}
@@ -211,26 +212,21 @@ export class WitnessGateway {
  *
  * Port note: Go returns `(sigBlock.Bytes(), errors.Join(ErrPolicyNotSatisfied, err))` --
  * both a partial result and an error (docs/decisions/0004-errors-context-and-concurrency.md's
- * "Consequences" section flags this loss generally). `checkpoint` carries the value half:
- * the under-signed checkpoint accumulated so far. `cause` is set directly to
- * ErrPolicyNotSatisfied (not through `joinErrors`) so `errorIs(e, ErrPolicyNotSatisfied)`
- * -- the documented way callers detect this condition, mirroring how `log.go`'s
- * `ErrPushback` is checked -- actually succeeds: `gostd/errors.ts`'s `JoinError` does not
- * walk its `.errors` list for `errorIs` (a known, deliberate gap noted in
- * docs/decisions/0004-errors-context-and-concurrency.md's review), so joining
- * ErrPolicyNotSatisfied the way Go's `errors.Join` does would silently break that check.
- * See docs/decisions/0075-policy-not-satisfied-error-carries-checkpoint.md.
+ * "Consequences" section flags this loss generally). The error half is the same join here:
+ * this class is a JoinError of ErrPolicyNotSatisfied and the joined witness errors, so
+ * `errorIs(e, ErrPolicyNotSatisfied)`, or `errorIs` for any one witness's error, finds it
+ * as `errors.Is` does, and its message is the one `errors.Join` builds. `checkpoint`
+ * carries the value half: the under-signed checkpoint accumulated so far; `witnessErrors`
+ * lists the witness errors on their own. See
+ * docs/decisions/0075-policy-not-satisfied-error-carries-checkpoint.md.
  */
-export class PolicyNotSatisfiedError extends Error {
+export class PolicyNotSatisfiedError extends JoinError {
 	readonly checkpoint: Uint8Array;
 	readonly witnessErrors: readonly unknown[];
 
 	constructor(checkpoint: Uint8Array, witnessErrors: readonly unknown[]) {
-		const lines = [
-			ErrPolicyNotSatisfied.message,
-			...witnessErrors.map((e) => (e instanceof Error ? e.message : String(e))),
-		];
-		super(lines.join("\n"), { cause: ErrPolicyNotSatisfied });
+		const err = joinErrors(witnessErrors);
+		super(err === undefined ? [ErrPolicyNotSatisfied] : [ErrPolicyNotSatisfied, err]);
 		this.name = "PolicyNotSatisfiedError";
 		this.checkpoint = checkpoint;
 		this.witnessErrors = witnessErrors;
@@ -303,6 +299,25 @@ class sharedConsistencyProofFetcher {
 }
 
 /**
+ * maxWitnessResponseBytes caps a witness's response body.
+ *
+ * Port note: hardening with no Go counterpart, where io.ReadAll reads whatever the
+ * witness sends. A reply is a few signature lines, or a decimal tree size. See
+ * docs/decisions/0195-response-size-caps.md.
+ */
+const maxWitnessResponseBytes = 16 << 10;
+
+/**
+ * maxStaleSizeRetries caps how many times one update retries after a witness replies
+ * that the size it was sent is stale.
+ *
+ * Port note: hardening with no Go counterpart, where the retries go on until the
+ * context is done — the cap upstream's own comment on the retry contemplates. See
+ * docs/decisions/0198-witness-stale-size-retry-cap.md.
+ */
+const maxStaleSizeRetries = 3;
+
+/**
  * witness is the log's model of a witness's view of this log.
  * It has a URL which is the address to which updates to this log's state can be posted to the witness,
  * using the https://github.com/C2SP/C2SP/blob/main/tlog-witness.md spec.
@@ -331,11 +346,16 @@ class witness {
 		this.#size = size;
 	}
 
+	/**
+	 * Port note: `staleRetries` has no Go counterpart; it counts the retries this update
+	 * has already made after a stale-size reply (see maxStaleSizeRetries).
+	 */
 	async update(
 		cp: Uint8Array,
 		size: bigint,
 		fetchProof: (from: bigint, to: bigint, signal?: AbortSignal) => Promise<Uint8Array[]>,
 		signal?: AbortSignal,
+		staleRetries = 0,
 	): Promise<Uint8Array> {
 		let proof: Uint8Array[] = [];
 		if (this.#size > 0n) {
@@ -358,13 +378,27 @@ class witness {
 		bodyText += "\n";
 		const body = concatBytes(toUTF8(bodyText), cp);
 
+		// Port note: Go's http.NewRequestWithContext fails only when the URL does not
+		// parse; `fetch` would report that as a failure to post, so the URL is parsed
+		// first to report it the way Go does.
+		try {
+			new URL(this.#url);
+		} catch (err) {
+			throw new Error(`failed to construct request to ${quote(this.#url)}: ${errText(err)}`);
+		}
 		let httpResp: Response;
 		try {
 			// Port note: TypeScript's DOM lib types `BodyInit` such that a plain
 			// `Uint8Array` is not directly assignable (a known lib-typing friction,
 			// not a runtime concern -- `fetch` accepts any `ArrayBufferView` at
 			// runtime, and `Uint8Array` is one).
-			const init: RequestInit = { method: "POST", body: body as BodyInit };
+			//
+			// Port note: hardening with no Go counterpart: credentials are omitted, so a
+			// browser never attaches its cookies for the witness's origin, and a redirect
+			// is never followed (Go's client follows it); see below and
+			// docs/decisions/0197-fetch-credentials-and-redirects.md. "manual", not "error",
+			// because workerd rejects the latter.
+			const init: omitCredentials = { method: "POST", body: body as BodyInit, credentials: "omit", redirect: "manual" };
 			if (signal !== undefined) {
 				init.signal = signal;
 			}
@@ -376,10 +410,20 @@ class witness {
 		} catch (err) {
 			throw new Error(`failed to post to witness at ${quote(this.#url)}: ${errText(err)}`);
 		}
+		// A browser reports a redirect it did not follow as an "opaqueredirect" response
+		// with status 0; Node and workerd return the 3xx response itself. (workerd's
+		// Response type has no "opaqueredirect" member, hence the widening to string.)
+		const respType: string = httpResp.type;
+		if (respType === "opaqueredirect" || (httpResp.status >= 300 && httpResp.status < 400)) {
+			httpResp.body?.cancel().catch(() => undefined);
+			throw new Error(
+				`witness at ${quote(this.#url)} replied with a redirect, which is not followed: ${httpResp.status}`,
+			);
+		}
 
 		let rb: Uint8Array;
 		try {
-			rb = new Uint8Array(await httpResp.arrayBuffer());
+			rb = await readAllLimited(httpResp, maxWitnessResponseBytes);
 		} catch (err) {
 			throw new Error(`failed to read body from witness at ${quote(this.#url)}: ${errText(err)}`);
 		}
@@ -387,9 +431,10 @@ class witness {
 		switch (httpResp.status) {
 			case 200: {
 				// Concatenate the signature to the checkpoint passed in and verify it is valid.
-				// The result is a fresh Uint8Array, never a view aliasing `cp`, so building it
-				// cannot race with another witness's concurrent use of `cp` -- the same
-				// carefulness Go's comment about `append` being "dangerous" here is about.
+				// append is tempting here but is dangerous because it can modify `cp` and race with other
+				// witnesses, causing signatures to be swapped. cp must not be modified.
+				//
+				// Port note: concatBytes always returns a fresh Uint8Array, never a view of `cp`.
 				const signed = concatBytes(cp, rb);
 				let n: Note;
 				try {
@@ -402,7 +447,8 @@ class witness {
 				}
 				const sig = (n.sigs ?? [])[0];
 				if (sig === undefined) {
-					// Unreachable: open() always returns at least one verified signature or throws.
+					// Port note: unreachable, as open() returns at least one verified
+					// signature or throws; Go indexes `n.Sigs[0]` unguarded.
 					throw new Error(
 						`witness ${quote(this.#verifier.name())} at ${quote(this.#url)} replied with no verified signature`,
 					);
@@ -420,7 +466,7 @@ class witness {
 				// followed by a newline (U+000A). The response MUST have a Content-Type of text/x.tlog.size
 				const ct = httpResp.headers.get("Content-Type");
 				if (ct === "text/x.tlog.size") {
-					const bodyStr = fromUTF8(rb).trim();
+					const bodyStr = trimSpace(fromUTF8(rb));
 					let newWitSize: bigint;
 					try {
 						newWitSize = parseUint(bodyStr, 10, 64);
@@ -439,7 +485,14 @@ class witness {
 					this.#size = newWitSize;
 					// Witnesses could cause this recursion to go on for longer than expected if the value they kept returning
 					// this case with slightly larger values. Consider putting a max recursion cap if context timeout isn't enough.
-					return this.update(cp, size, fetchProof, signal);
+					//
+					// Port note: capped at maxStaleSizeRetries; see its doc comment.
+					if (staleRetries >= maxStaleSizeRetries) {
+						throw new Error(
+							`witness at ${quote(this.#url)} replied with a stale x.tlog.size after ${maxStaleSizeRetries} retries, the last ${newWitSize}`,
+						);
+					}
+					return this.update(cp, size, fetchProof, signal, staleRetries + 1);
 				}
 
 				// If the old size matches the checkpoint size, the witness MUST check that the root hashes are also identical.

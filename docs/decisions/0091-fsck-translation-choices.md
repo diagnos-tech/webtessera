@@ -324,3 +324,25 @@ worker's *own* failure still gets cleaned up via `eg.signal`; only a failure *el
   only the *reasoning about where a bound could live* was incomplete, exactly as the reviewer's "gap
   in the ADR's reasoning" note says. §1's original body above is left unedited as the historical
   record; the note at its top points here.
+
+## Update (2026-10-02): §7 and §8 — worker failures and worker counts
+
+**§8.** A failure of the worker group is reported as Go reports it, and never hangs. When a
+`resourceCheckWorker` fails, `ErrGroup` aborts `eg.signal`; `check()`'s producer loop then stops
+(before the next bundle, or while waiting in `waitUntilBelow` or `entryBundles`), skips
+`flushPartialTiles`, closes the queue, and `eg.wait()`'s first error is thrown as `failed: <err>`,
+which is Go's `fmt.Errorf("failed: %v", err)` from `eg.Wait()`. If the caller's own signal is
+aborted, its reason is rethrown unchanged instead. Against the same corrupted 5000-entry log, Go
+returned `failed: tile/0/000: log has:...` for N=2 and N=3 and the port now returns the same
+message for N=1, 2 and 3.
+
+Go's behaviour for **N=1** is a deliberate divergence: its producer keeps sending on
+`expectedResources` after the only worker has returned, the buffered channel fills, and `Check`
+never returns (observed: no result within 5s). The port reports the worker's error instead. For
+N ≥ 2, Go's producer keeps going while any worker is left; the port stops at the first failure,
+which changes nothing observable except how much of the log is read before the error is reported.
+
+**§7.** `newFsck` keeps the zero-value rule and now throws a `RangeError` for a negative,
+fractional or NaN `n`, which a Go `uint` cannot hold; see ADR-0192.
+
+*Review of this update: pending.*

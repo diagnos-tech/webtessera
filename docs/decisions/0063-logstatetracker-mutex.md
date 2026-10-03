@@ -116,3 +116,20 @@ single-threaded runtime.
   forced by PORTING.md §3.7 (no `ctx` in Go's `Latest`). The retained `Mutex` on `update` is
   genuinely needed — its critical section spans the tile-fetching `await`, the real interleaving
   point two concurrent updates could race on. Reasoning is correct; no RWMutex needed.
+
+## Update (2026-10-02): what `latest()` observes, and value semantics
+
+The Decision overstates the equivalence with `RLock`. Go's `Latest()` takes `RLock`, which waits for
+an `Update` holding the write lock — including across its consistency-proof fetch — so a caller of
+`Latest()` during an update sees the state *after* that update. The port's `latest()` takes no lock
+and returns at once, so during an in-flight `update()` it sees the state *before* it. Both are
+untorn snapshots; they are not the same snapshot. The port's choice still follows from §3.7 (no
+`ctx`, so synchronous), and no caller in Tessera depends on the difference, but it is a semantic
+difference, not merely an optimisation dropped.
+
+Separately, Go's tracker holds a `log.Checkpoint` value: `lst.latestConsistent = *c` copies the
+consensus function's checkpoint in, and `Latest()` returns a copy out. The port held and returned
+the same object, so a caller mutating either one changed the tracker's state. Both directions now
+copy (`copyCheckpoint`; the `hash` bytes stay shared, as Go's slice header copy shares them).
+
+*Review of this update: pending.*

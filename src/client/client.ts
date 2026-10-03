@@ -24,8 +24,9 @@
 //
 // [tlog-tiles API]: https://c2sp.org/tlog-tiles
 
-import { nodeCoordsToTileAddress, partialTileSize } from "../api/layout/tile.ts";
+import { EntryBundleWidth, nodeCoordsToTileAddress, partialTileSize, TileWidth } from "../api/layout/tile.ts";
 import { EntryBundle, HashTile } from "../api/state.ts";
+import { asUint64 } from "../internal/gostd/bits.ts";
 import { Mutex } from "../internal/gostd/sync.ts";
 import { Checkpoint, parseCheckpoint } from "../vendor/formats/log/index.ts";
 import { type NodeID, newNodeID, RangeFactory, rangeNodes } from "../vendor/merkle/compact/index.ts";
@@ -183,7 +184,9 @@ export async function fetchLeafHashes(
 ): Promise<Uint8Array[]> {
 	const nc = newNodeCache(f, logSize);
 	const hashes: Uint8Array[] = [];
-	for (let i = first, end = first + N; i < end; i++) {
+	// Port note: `first+N` wraps as Go's uint64 addition does, so a range whose end
+	// overflows fetches nothing, as in Go (docs/decisions/0014-uint64-wrapping-made-explicit.md).
+	for (let i = first, end = asUint64(first + N); i < end; i++) {
 		const nID = newNodeID(0, i);
 		let h: Uint8Array;
 		try {
@@ -221,6 +224,13 @@ export async function getEntryBundle(
 	} catch (err) {
 		throw new Error(`failed to parse EntryBundle at index ${i}: ${errText(err)}`);
 	}
+	// Port note: hardening with no Go counterpart: a bundle holding more entries than the
+	// requested partial size is rejected, unless it is the full bundle a fetcher falls back
+	// to. Fewer entries are passed through, as upstream does. See
+	// docs/decisions/0194-tile-and-bundle-size-limits.md.
+	if (p !== 0 && bundle.entries.length > p && bundle.entries.length !== EntryBundleWidth) {
+		throw new Error(`EntryBundle at index ${i} has ${bundle.entries.length} entries, more than the ${p} expected`);
+	}
 	return bundle;
 }
 
@@ -233,10 +243,10 @@ export async function getEntryBundle(
  */
 export class ProofBuilder {
 	readonly #treeSize: bigint;
-	readonly #nodeCache: NodeCache;
+	readonly #nodeCache: nodeCache;
 
 	/** @internal Stands in for Go's `&ProofBuilder{...}` composite literal; construct via {@link newProofBuilder}. */
-	constructor(treeSize: bigint, nodeCache: NodeCache) {
+	constructor(treeSize: bigint, nodeCache: nodeCache) {
 		this.#treeSize = treeSize;
 		this.#nodeCache = nodeCache;
 	}
@@ -337,22 +347,31 @@ export interface UpdateResult {
  * `await` in its body, and a synchronous JavaScript statement cannot be interleaved with
  * another one, so it can never observe a torn write. `latest` therefore takes no lock at
  * all and is a plain synchronous method (matching PORTING.md §3.7: `Latest()` takes no
- * `ctx` in Go, so it stays synchronous here too). See
- * docs/decisions/0063-logstatetracker-mutex.md.
+ * `ctx` in Go, so it stays synchronous here too). Unlike Go's `RLock`, which waits for an
+ * in-flight `Update` to finish, `latest` therefore returns the state from before that
+ * update. See docs/decisions/0063-logstatetracker-mutex.md.
  */
 export class LogStateTracker {
 	readonly #origin: string;
 	readonly #consensusCheckpoint: ConsensusCheckpointFunc;
 	readonly #cpSigVerifier: Verifier;
 	readonly #tileFetcher: TileFetcherFunc;
+
+	// The fields under here will all be updated at the same time.
+	// Access to any of these fields is guarded by mu.
+	//
+	// Port note: `mu` guards `update` only; `latest` reads without it (see the class
+	// Port note).
 	readonly #mu = new Mutex();
 
 	/**
-	 * @internal latestConsistent is the deserialised form of _latestConsistentRaw.
-	 * Unexported in Go, but newLogStateTracker (a module-level function, not a method)
-	 * populates it directly on the bootstrap-from-an-initial-checkpoint path, the way
-	 * Go's same-package NewLogStateTracker writes `ret.latestConsistent` directly. See
-	 * docs/decisions/0010-package-private-members.md.
+	 * @internal latestConsistent is the deserialised form of LatestConsistentRaw
+	 *
+	 * Port note: unexported in Go, but newLogStateTracker (a module-level function, not a
+	 * method) populates it directly on the bootstrap-from-an-initial-checkpoint path, the
+	 * way Go's same-package NewLogStateTracker writes `ret.latestConsistent` directly. See
+	 * docs/decisions/0010-package-private-members.md. Go holds a `log.Checkpoint` value,
+	 * so every assignment and every `latest()` copies it (copyCheckpoint).
 	 */
 	_latestConsistent: Checkpoint = new Checkpoint();
 	/**
@@ -360,7 +379,7 @@ export class LogStateTracker {
 	 * LogState seen by this tracker.
 	 */
 	_latestConsistentRaw: Uint8Array | undefined;
-	/** @internal proofBuilder for building proofs at _latestConsistent checkpoint. */
+	/** @internal proofBuilder for building proofs at LatestConsistent checkpoint. */
 	_proofBuilder: ProofBuilder | undefined;
 
 	/** @internal Stands in for Go's `&LogStateTracker{...}` composite literal; construct via {@link newLogStateTracker}. */
@@ -382,8 +401,14 @@ export class LogStateTracker {
 	 * that it is consistent with the local state before updating the tracker's
 	 * view.
 	 * Returns the old checkpoint, consistency proof, and newer checkpoint used to update.
-	 * If the _latestConsistent checkpoint is 0 sized, no consistency proof will be
-	 * returned since it would be meaningless to do so.
+	 * If the LatestConsistent checkpoint is 0 sized, no consistency proof will be returned
+	 * since it would be meaningless to do so.
+	 *
+	 * Port note: hardening with no Go counterpart: a checkpoint that is not newer is no
+	 * longer ignored unchecked. One of the same size must have the same root hash, and a
+	 * smaller one must be proven consistent with the tracked checkpoint; either failure
+	 * throws ErrInconsistency, and neither changes what is returned on success. See
+	 * docs/decisions/0196-logstatetracker-checks-older-checkpoints.md.
 	 */
 	async update(signal?: AbortSignal): Promise<UpdateResult> {
 		const { checkpoint: c, raw: cRaw } = await this.#consensusCheckpoint(this.#cpSigVerifier, this.#origin, signal);
@@ -398,6 +423,7 @@ export class LogStateTracker {
 			let p: Uint8Array[] = [];
 			if (this._latestConsistent.size > 0n) {
 				if (c.size <= this._latestConsistent.size) {
+					await this.#verifyNotNewer(c, cRaw, signal);
 					return { old: this._latestConsistentRaw, proof: p, newer: this._latestConsistentRaw };
 				}
 				p = await builder.consistencyProof(this._latestConsistent.size, c.size, signal);
@@ -410,16 +436,57 @@ export class LogStateTracker {
 			}
 			const oldRaw = this._latestConsistentRaw;
 			this._latestConsistentRaw = cRaw;
-			this._latestConsistent = c;
+			this._latestConsistent = copyCheckpoint(c);
 			this._proofBuilder = builder;
 			return { old: oldRaw, proof: p, newer: this._latestConsistentRaw };
 		});
 	}
 
-	/** latest returns the tracker's current view of the log's checkpoint. */
-	latest(): Checkpoint {
-		return this._latestConsistent;
+	/**
+	 * verifyNotNewer checks a checkpoint no larger than the tracked one against it: equal
+	 * sizes must have equal root hashes, and a smaller tree must be consistent with the
+	 * tracked one. Must be called with mu held.
+	 *
+	 * Port note: has no Go counterpart; see the Port note on update.
+	 */
+	async #verifyNotNewer(c: Checkpoint, cRaw: Uint8Array, signal?: AbortSignal): Promise<void> {
+		const tracked = this._latestConsistent;
+		const trackedRaw = this._latestConsistentRaw ?? new Uint8Array(0);
+		if (c.size === tracked.size) {
+			try {
+				verifyConsistency(hasher, tracked.size, c.size, [], tracked.hash, c.hash);
+			} catch (err) {
+				throw new ErrInconsistency(trackedRaw, cRaw, [], err);
+			}
+			return;
+		}
+		const pb = this._proofBuilder ?? (await newProofBuilder(tracked.size, this.#tileFetcher));
+		const p = await pb.consistencyProof(c.size, tracked.size, signal);
+		try {
+			verifyConsistency(hasher, c.size, tracked.size, p, c.hash, tracked.hash);
+		} catch (err) {
+			throw new ErrInconsistency(cRaw, trackedRaw, p, err);
+		}
 	}
+
+	/**
+	 * Port note: Go's `Latest()` has no doc comment. It returns the tracked checkpoint by
+	 * value, so this returns a copy (copyCheckpoint), and it takes no lock (see the class
+	 * Port note).
+	 */
+	latest(): Checkpoint {
+		return copyCheckpoint(this._latestConsistent);
+	}
+}
+
+/**
+ * copyCheckpoint is Go's assignment of a `log.Checkpoint` value: a new struct with the
+ * same fields, whose Hash slice still shares its bytes with the original.
+ *
+ * Port note: has no Go counterpart; Go copies the struct implicitly.
+ */
+function copyCheckpoint(c: Checkpoint): Checkpoint {
+	return new Checkpoint({ origin: c.origin, size: c.size, hash: c.hash });
 }
 
 /**
@@ -445,7 +512,7 @@ export async function newLogStateTracker(
 	if (checkpointRaw.length > 0) {
 		ret._latestConsistentRaw = checkpointRaw;
 		const checkpoint = parseCheckpoint(checkpointRaw, origin, nV).checkpoint;
-		ret._latestConsistent = checkpoint;
+		ret._latestConsistent = copyCheckpoint(checkpoint);
 		try {
 			ret._proofBuilder = await newProofBuilder(ret._latestConsistent.size, tF);
 		} catch (err) {
@@ -455,6 +522,17 @@ export async function newLogStateTracker(
 	}
 	await ret.update(signal);
 	return ret;
+}
+
+/**
+ * tileKey is used as a key in nodeCache's tile map.
+ *
+ * Port note: Go's `tileKey` is a struct of the two coordinates, used directly as a map
+ * key. A JavaScript Map compares object keys by reference, so tileKey here is a function
+ * that renders the coordinates as the composite string the map is keyed by instead.
+ */
+function tileKey(tileLevel: bigint, tileIndex: bigint): string {
+	return `${tileLevel}:${tileIndex}`;
 }
 
 /**
@@ -473,10 +551,10 @@ export async function newLogStateTracker(
  * relying on Go's structural map-key equality. JavaScript's Map keys object values by
  * reference, so two different NodeID instances with the same level/index would not
  * collide the way Go's do; both caches are therefore keyed by a composite string built
- * from the coordinates, the same technique note.ts's `nameHash` already uses for the same
- * reason.
+ * from the coordinates (nodeIDKey, tileKey), the same technique note.ts's `nameHash`
+ * already uses for the same reason.
  */
-export class NodeCache {
+export class nodeCache {
 	readonly #logSize: bigint;
 	readonly #ephemeral = new Map<string, Uint8Array>();
 	readonly #tiles = new Map<string, HashTile>();
@@ -488,7 +566,7 @@ export class NodeCache {
 		this.#getTile = f;
 	}
 
-	/** setEphemeralNode stores a derived "ephemeral" tree node. */
+	/** setEphemeralNode stored a derived "ephemeral" tree node. */
 	setEphemeralNode(id: NodeID, h: Uint8Array): void {
 		this.#ephemeral.set(nodeIDKey(id), h);
 	}
@@ -507,7 +585,7 @@ export class NodeCache {
 		}
 		// Otherwise look in fetched tiles:
 		const { tileLevel, tileIndex, nodeLevel, nodeIndex } = nodeCoordsToTileAddress(BigInt(id.level), id.index);
-		const tKey = tileCacheKey(tileLevel, tileIndex);
+		const tKey = tileKey(tileLevel, tileIndex);
 		let t = this.#tiles.get(tKey);
 		if (t === undefined) {
 			const p = partialTileSize(tileLevel, tileIndex, this.#logSize);
@@ -522,6 +600,14 @@ export class NodeCache {
 				tile.unmarshalText(tileRaw);
 			} catch (err) {
 				throw new Error(`failed to parse tile: ${errText(err)}`);
+			}
+			// Port note: hardening with no Go counterpart: a tile holding more hashes than
+			// the requested partial size is rejected, unless it is the full tile a fetcher
+			// falls back to. Fewer are tolerated, as upstream does; the range check below
+			// reports any node that is then missing. See
+			// docs/decisions/0194-tile-and-bundle-size-limits.md.
+			if (p !== 0 && tile.nodes.length > p && tile.nodes.length !== TileWidth) {
+				throw new Error(`tile has ${tile.nodes.length} hashes, more than the ${p} expected`);
 			}
 			t = tile;
 			this.#tiles.set(tKey, tile);
@@ -553,16 +639,11 @@ export class NodeCache {
 }
 
 /** @internal newNodeCache creates a new nodeCache instance for a given log size. */
-export function newNodeCache(f: TileFetcherFunc, logSize: bigint): NodeCache {
-	return new NodeCache(f, logSize);
+export function newNodeCache(f: TileFetcherFunc, logSize: bigint): nodeCache {
+	return new nodeCache(f, logSize);
 }
 
 /** nodeIDKey renders a NodeID as a Map key, standing in for Go's struct-keyed ephemeral map. */
 function nodeIDKey(id: NodeID): string {
 	return `${id.level}:${id.index}`;
-}
-
-/** tileCacheKey renders a tile address as a Map key, standing in for Go's tileKey struct used as a map key. */
-function tileCacheKey(tileLevel: bigint, tileIndex: bigint): string {
-	return `${tileLevel}:${tileIndex}`;
 }

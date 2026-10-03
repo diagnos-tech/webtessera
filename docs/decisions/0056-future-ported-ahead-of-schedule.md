@@ -118,3 +118,15 @@ there is no transposition risk of the kind that ADR exists to prevent, and
   if a caller passed `null` for "no error" it would reject rather than resolve; no path does, so it
   is not a defect, but future consumers should keep using `undefined`. `newFutureErr`'s tuple
   return is fine (object + function, no transposition risk). Approved as a faithful dependency.
+
+## Update (2026-10-02): `null` is a nil error; the value half of `Get`
+
+The review note above records that `set(t, null)` would reject. It now resolves: Go's `err != nil`
+becomes `err !== undefined && err !== null`, so either spelling of "no error" means success.
+
+`Get() (T, error)` in Go returns the value even when the error is non-nil. A rejected Promise carries
+only the error, so a value set together with an error is not observable through `get()`. No caller in
+Tessera reads the value when the error is non-nil (`queue.go`'s callers check `err` first), so nothing
+depends on it; `get()`'s doc comment says so.
+
+*Review of this update: pending.*

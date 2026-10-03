@@ -474,3 +474,56 @@ describe("TestRange", () => {
 		});
 	}
 });
+
+// Port addition: Range's uint64 arithmetic wraps exactly as Go's does (ADR-0014). The
+// expected values are what api/layout.Range printed at the pinned commit for the same
+// arguments, truncated to the first four bundles.
+describe("Port addition: Range wraps like Go's uint64 arithmetic", () => {
+	const MaxUint64 = 0xffffffffffffffffn;
+	const first4 = (from: bigint, N: bigint, treeSize: bigint): RangeInfo[] => {
+		const got: RangeInfo[] = [];
+		for (const ri of range(from, N, treeSize)) {
+			got.push(ri);
+			if (got.length === 4) {
+				break;
+			}
+		}
+		return got;
+	};
+
+	it("Range(1, MaxUint64, 10): from+N wraps, so N is not truncated", () => {
+		// Go: {Index:0 Partial:10 First:1 N:255} {Index:1 Partial:0 First:0 N:256} {Index:2 ...} {Index:3 ...}
+		expect(first4(1n, MaxUint64, 10n)).toEqual([
+			{ index: 0n, partial: 10, first: 1, n: 255 },
+			{ index: 1n, partial: 0, first: 0, n: 256 },
+			{ index: 2n, partial: 0, first: 0, n: 256 },
+			{ index: 3n, partial: 0, first: 0, n: 256 },
+		]);
+	});
+
+	it("Range(10, MaxUint64-9, 20)", () => {
+		// Go: {Index:0 Partial:20 First:10 N:246} {Index:1 Partial:0 First:0 N:256} {Index:2 ...} {Index:3 ...}
+		expect(first4(10n, MaxUint64 - 9n, 20n)).toEqual([
+			{ index: 0n, partial: 20, first: 10, n: 246 },
+			{ index: 1n, partial: 0, first: 0, n: 256 },
+			{ index: 2n, partial: 0, first: 0, n: 256 },
+			{ index: 3n, partial: 0, first: 0, n: 256 },
+		]);
+	});
+
+	it("Range(0, MaxUint64, 600): no wrap, truncated at the tree size", () => {
+		// Go: {Index:0 Partial:0 First:0 N:256} {Index:1 Partial:0 First:0 N:256} {Index:2 Partial:88 First:0 N:88}
+		expect(first4(0n, MaxUint64, 600n)).toEqual([
+			{ index: 0n, partial: 0, first: 0, n: 256 },
+			{ index: 1n, partial: 0, first: 0, n: 256 },
+			{ index: 2n, partial: 88, first: 0, n: 88 },
+		]);
+	});
+
+	it("Range(5, MaxUint64-2, 10): Go's uint N wraps to 18446744073709551613, which a number cannot hold", () => {
+		// Go: {Index:0 Partial:10 First:5 N:18446744073709551613}
+		expect(() => first4(5n, MaxUint64 - 2n, 10n)).toThrow(
+			new RangeError("RangeInfo count 18446744073709551613 does not fit in a number"),
+		);
+	});
+});
