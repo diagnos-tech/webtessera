@@ -34,6 +34,7 @@ import { EntryBundleWidth, type RangeInfo, TileHeight, tilePath } from "../api/l
 import { HashTile } from "../api/state.ts";
 import { type CheckpointFetcherFunc, type EntryBundleFetcherFunc, fetchCheckpoint } from "../client/index.ts";
 import { type Bundle, entryBundles, type TreeSizeFunc } from "../client/stream.ts";
+import { asUint64 } from "../internal/gostd/bits.ts";
 import { bytesEqual, toHex } from "../internal/gostd/bytes.ts";
 import { throwIfAborted } from "../internal/gostd/errors.ts";
 import { ErrGroup } from "../internal/gostd/sync.ts";
@@ -135,9 +136,15 @@ export class Fsck {
 		// ctx directly and are not cancelled on each other's first error. Our
 		// ErrGroup always derives and cancels its own signal on first error (a
 		// documented, strictly-safer superset of a bare Group -- see
-		// docs/decisions/0004-errors-context-and-concurrency.md's Consequences),
-		// so threading `eg.signal` through here costs nothing and only adds safety.
+		// docs/decisions/0004-errors-context-and-concurrency.md's Consequences).
+		// The producer loop below stops as soon as that happens, closes the queue
+		// and reports the group's first error as `failed: <err>`, exactly as Go's
+		// eg.Wait does. Go's producer instead keeps going while any worker is left
+		// and, when n == 1, blocks forever on the channel once its only worker has
+		// failed. A caller's own abort is rethrown as its reason, unwrapped. See
+		// docs/decisions/0091-fsck-translation-choices.md.
 		const eg = new ErrGroup(signal);
+		const groupFailed = (): boolean => eg.signal.aborted && signal?.aborted !== true;
 
 		// Kick off resource comparing workers
 		for (let i = 0; i < this.#opts.n; i++) {
@@ -172,10 +179,19 @@ export class Fsck {
 		// distinct error messages in Go, each from its own `if err != nil` check.
 		const bundles = entryBundles(this.#opts.n, getSize, trackBundle, 0n, cpSize, eg.signal);
 		for (;;) {
+			if (groupFailed()) {
+				break;
+			}
 			let next: IteratorResult<Bundle>;
 			try {
 				next = await bundles.next();
 			} catch (err) {
+				if (signal?.aborted === true) {
+					throw signal.reason;
+				}
+				if (groupFailed()) {
+					break;
+				}
 				throw new Error(`error while streaming bundles: ${errText(err)}`);
 			}
 			if (next.done === true) {
@@ -197,11 +213,25 @@ export class Fsck {
 			// synchronous VisitFn), so check() applies the same bound here instead, at
 			// the one point in the loop that *can* await. See ResourceQueue.waitUntilBelow
 			// and docs/decisions/0091-fsck-translation-choices.md.
-			await tree.expectedResources.waitUntilBelow(resourceBackpressureThreshold(this.#opts.n), eg.signal);
+			try {
+				await tree.expectedResources.waitUntilBelow(resourceBackpressureThreshold(this.#opts.n), eg.signal);
+			} catch (err) {
+				if (signal?.aborted === true) {
+					throw signal.reason;
+				}
+				if (groupFailed()) {
+					break;
+				}
+				throw err;
+			}
 		}
 
 		// Ensure we see process any partial tiles too.
-		tree.flushPartialTiles();
+		//
+		// Port note: skipped once the group has failed; no worker is left to check them.
+		if (!groupFailed()) {
+			tree.flushPartialTiles();
+		}
 		// Signal that there will be no more resource checking jobs coming so workers can exit when the channel is drained.
 		tree.expectedResources.close();
 
@@ -209,6 +239,9 @@ export class Fsck {
 		try {
 			await eg.wait();
 		} catch (err) {
+			if (signal?.aborted === true) {
+				throw signal.reason;
+			}
 			throw new Error(`failed: ${errText(err)}`);
 		}
 
@@ -271,6 +304,10 @@ function rangeInfoText(ri: RangeInfo): string {
  * Port note: Go's package-level `New` collides with the reserved word `new` once
  * camelCased; renamed `newFsck`, matching this codebase's `new<Type>` factory convention.
  * See docs/decisions/0091-fsck-translation-choices.md.
+ *
+ * Port note: Go's `N` is a `uint` whose zero value means 1; here an unset or zero `n`
+ * means 1, and an `n` that is negative, fractional or NaN — which a `uint` cannot hold —
+ * throws a RangeError. See docs/decisions/0192-numworkers-below-one-is-rejected.md.
  */
 export function newFsck(
 	origin: string,
@@ -280,6 +317,9 @@ export function newFsck(
 	opts: Opts,
 ): Fsck {
 	const n = opts.n === undefined || opts.n === 0 ? 1 : opts.n;
+	if (!Number.isInteger(n) || n < 1) {
+		throw new RangeError(`Opts.n must be an integer of at least 1, got ${n}`);
+	}
 	return new Fsck(origin, verifier, newCountingFetcher(f), bundleHasher, { n });
 }
 
@@ -387,12 +427,8 @@ export class ResourceQueue {
 	/** close signals that no more items will be pushed. */
 	close(): void {
 		this.#closed = true;
-		// Port note: `splice(0)` both drains and returns the waiters in one step.
-		// Capturing `this.#waiters` by reference and then truncating it via
-		// `.length = 0` would empty the very array being iterated below, since
-		// both names would refer to the same backing array -- a real bug caught by
-		// the fixture-backed check() integration tests (a since-corrected earlier
-		// draft of this method left every worker but one waiting forever).
+		// `splice(0)` both drains and returns the waiters, so the loop below walks a
+		// copy rather than the array it empties.
 		const waiters = this.#waiters.splice(0);
 		for (const w of waiters) {
 			w(null);
@@ -498,7 +534,7 @@ interface pendingTileEntry {
  * Go's structural map-key equality. A JavaScript Map compares object keys by reference, so
  * this port uses a composite string key instead, following
  * docs/decisions/0050-storage-internal-map-keys-and-callback-types.md's precedent (and
- * client.ts's `tileCacheKey`, the same technique for the same reason). The map's value
+ * client.ts's `tileKey`, the same technique for the same reason). The map's value
  * carries the (level, index) back out, exactly as ADR-0050 recommends, since `visit` and
  * `flushPartialTiles` both need to recover them from the key alone -- Go gets that for
  * free from the struct key, this port stores it alongside the tile instead.
@@ -566,14 +602,31 @@ export class fsckTree {
 		this.tree = compactRangeFactory.newEmptyRange(0n);
 	}
 
-	/** appendBundle appends leaf hashes from the provided entry bundle. */
+	/**
+	 * appendBundle appends leaf hashes from the provided entry bundle.
+	 *
+	 * Port note: impliedSeq wraps as Go's uint64 arithmetic does
+	 * (docs/decisions/0014-uint64-wrapping-made-explicit.md).
+	 *
+	 * Port note: hardening with no Go counterpart: a bundle with fewer hashes than the
+	 * range needs, where Go's `hs[i]` panics, or with more than the bundle's partial size
+	 * (other than the full bundle a fetcher falls back to) is rejected with an error. See
+	 * docs/decisions/0194-tile-and-bundle-size-limits.md.
+	 */
 	appendBundle(ri: RangeInfo, data: Uint8Array): void {
-		const impliedSeq = ri.index * entryBundleWidth64 + BigInt(ri.first);
+		const impliedSeq = asUint64(ri.index * entryBundleWidth64 + BigInt(ri.first));
 		if (impliedSeq !== this.tree.end()) {
 			throw new Error(`bundle with implied sequence number ${impliedSeq} but expected ${this.tree.end()}`);
 		}
 
 		const hs = this.bundleHasher(data);
+		if (hs.length < ri.first + ri.n) {
+			throw new Error(`bundle ${ri.index} has ${hs.length} entries, but the range needs ${ri.first + ri.n}`);
+		}
+		const want = ri.partial === 0 ? EntryBundleWidth : ri.partial;
+		if (hs.length > want && hs.length !== EntryBundleWidth) {
+			throw new Error(`bundle ${ri.index} has ${hs.length} entries, more than the ${want} expected`);
+		}
 		for (let i = ri.first; i < ri.first + ri.n; i++) {
 			this.tree.append(hs[i] as Uint8Array, this.visit);
 		}

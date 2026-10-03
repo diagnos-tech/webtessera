@@ -226,7 +226,144 @@ it("check() rejects a log with a corrupted tile (not part of upstream fsck_test.
 	resources.set(corruptPath, corrupted);
 
 	const f = newFsck(fixture.origin, verifier, new fixtureFetcher(resources), defaultMerkleLeafHasher, { n: 2 });
-	await expect(f.check()).rejects.toThrow(/log has:/);
+	await expect(f.check()).rejects.toThrow(/^failed: tile\/0\/000\.p\/15: log has:/);
+});
+
+interface LogFixture {
+	readonly origin: string;
+	readonly logVkey: string;
+	readonly checkpoint: string;
+	readonly tiles: readonly FixtureResourceFile[];
+	readonly entryBundles: readonly FixtureResourceFile[];
+}
+
+/** loadLogResources loads a log_<N> fixture's resources, with tile/0/000's first byte flipped if corrupt is set. */
+async function loadLogResources(
+	name: string,
+	corrupt: boolean,
+): Promise<{ fixture: LogFixture; resources: Map<string, Uint8Array> }> {
+	const fixture = await loadFixture<LogFixture>(name);
+	const resources = new Map<string, Uint8Array>();
+	resources.set(CheckpointPath, hexToBytes(fixture.checkpoint));
+	for (const t of fixture.tiles) {
+		resources.set(t.path, hexToBytes(t.raw));
+	}
+	for (const b of fixture.entryBundles) {
+		resources.set(b.path, hexToBytes(b.raw));
+	}
+	if (corrupt) {
+		const c = (resources.get("tile/0/000") as Uint8Array).slice();
+		c[0] = (c[0] as number) ^ 0xff;
+		resources.set("tile/0/000", c);
+	}
+	return { fixture, resources };
+}
+
+// Not part of upstream fsck_test.go. A worker's failure is reported as `failed: <err>`,
+// as Go's eg.Wait reports it. Against the same corrupted multi-tile log, Go returned
+// "failed: tile/0/000: log has:\nbf766b20…" for N=2 and N=3, and never returned for N=1:
+// its producer blocks on the channel once the only worker has gone. The port stops
+// producing when the group fails, so N=1 reports the same error (ADR-0091).
+describe("check() reports a worker failure in a multi-tile log as Go does", () => {
+	for (const n of [1, 2, 3]) {
+		it(`n=${n}`, async () => {
+			const { fixture, resources } = await loadLogResources("log_5000", true);
+			const f = newFsck(
+				fixture.origin,
+				newVerifier(fixture.logVkey),
+				new fixtureFetcher(resources),
+				defaultMerkleLeafHasher,
+				{
+					n,
+				},
+			);
+			await expect(f.check()).rejects.toThrow(/^failed: tile\/0\/000: log has:\nbf766b2033429026/);
+		});
+	}
+});
+
+// Not part of upstream fsck_test.go: the caller's own abort surfaces as its reason,
+// unwrapped (ADR-0091).
+it("check() rethrows the caller's abort reason unchanged", async () => {
+	const { fixture, resources } = await loadLogResources("log_5000", false);
+	const ctrl = new AbortController();
+	const reason = new Error("caller gave up");
+	const fetcher = new fixtureFetcher(resources);
+	const slow: Fetcher = {
+		readCheckpoint: () => fetcher.readCheckpoint(),
+		readTile: (l, i, p) => fetcher.readTile(l, i, p),
+		readEntryBundle: async (i, p, s) => {
+			if (i === 3n) {
+				ctrl.abort(reason);
+			}
+			s?.throwIfAborted();
+			return fetcher.readEntryBundle(i, p);
+		},
+	};
+	const f = newFsck(fixture.origin, newVerifier(fixture.logVkey), slow, defaultMerkleLeafHasher, { n: 2 });
+	await expect(f.check(ctrl.signal)).rejects.toBe(reason);
+});
+
+// Not part of upstream fsck_test.go. Go's N is a uint whose zero value means 1; values a
+// uint cannot hold are refused (docs/decisions/0192).
+describe("newFsck validates Opts.n", () => {
+	const fetcher = new fixtureFetcher(new Map());
+	const verifier = newVerifier("example.com/log/testdata+33d7b496+AeHTu4Q3hEIMHNqc6fASMsq3rKNx280NI+oO5xCFkkSx");
+	for (const n of [undefined, 0, 1, 5]) {
+		it(`accepts n=${n}`, () => {
+			const opts = n === undefined ? {} : { n };
+			expect(() => newFsck("o", verifier, fetcher, defaultMerkleLeafHasher, opts)).not.toThrow();
+		});
+	}
+	for (const n of [-1, 1.5, Number.NaN]) {
+		it(`throws a RangeError for n=${n}`, () => {
+			expect(() => newFsck("o", verifier, fetcher, defaultMerkleLeafHasher, { n })).toThrow(
+				new RangeError(`Opts.n must be an integer of at least 1, got ${n}`),
+			);
+		});
+	}
+});
+
+// Not part of upstream fsck_test.go. impliedSeq wraps as Go's uint64 arithmetic does: at
+// the pinned commit, AppendBundle(RangeInfo{Index: 1 << 56, First: 0, N: 1}, ...) on an
+// empty tree succeeded, leaving it at size 1 (ADR-0014).
+it("appendBundle wraps impliedSeq like Go", () => {
+	const tree = new fsckTree({
+		expectedResources: new ResourceQueue(),
+		fetcher: newCountingFetcher(new fakeFetcher(new Uint8Array())),
+		rangeTracker: newRangeTracker(1n),
+		bundleHasher: () => [sha256(toUTF8("x"))],
+	});
+	tree.appendBundle({ index: 1n << 56n, partial: 1, first: 0, n: 1 }, new Uint8Array());
+	expect(tree.tree.end()).toBe(1n);
+});
+
+// Not part of upstream fsck_test.go. Hardening (docs/decisions/0194): Go's `hs[i]` panics
+// on a bundle shorter than its range, and a bundle longer than its partial size goes
+// unnoticed; both are reported as errors.
+describe("appendBundle checks the bundle's size", () => {
+	const treeWith = (hashes: number): fsckTree =>
+		new fsckTree({
+			expectedResources: new ResourceQueue(),
+			fetcher: newCountingFetcher(new fakeFetcher(new Uint8Array())),
+			rangeTracker: newRangeTracker(4n),
+			bundleHasher: () => Array.from({ length: hashes }, (_, i) => sha256(toUTF8(fmt50d(i)))),
+		});
+	it("rejects too few hashes", () => {
+		expect(() => treeWith(3).appendBundle({ index: 0n, partial: 4, first: 0, n: 4 }, new Uint8Array())).toThrow(
+			"bundle 0 has 3 entries, but the range needs 4",
+		);
+	});
+	it("rejects more hashes than the partial size", () => {
+		expect(() => treeWith(5).appendBundle({ index: 0n, partial: 4, first: 0, n: 4 }, new Uint8Array())).toThrow(
+			"bundle 0 has 5 entries, more than the 4 expected",
+		);
+	});
+	it("accepts the full bundle a fetcher falls back to", () => {
+		const tree = treeWith(256);
+		tree.appendBundle({ index: 0n, partial: 4, first: 0, n: 4 }, new Uint8Array());
+		expect(tree.tree.end()).toBe(4n);
+	});
 });
 
 // Not part of upstream fsck_test.go. The `client_log` fixture is only size 15, so no tile
@@ -354,7 +491,8 @@ it("check()'s backpressure caps buffered resources regardless of log size (ADR-0
 		expectedResources: q,
 		fetcher: newCountingFetcher(new fakeFetcher(new Uint8Array())),
 		rangeTracker: newRangeTracker(BigInt(fullTileCount * 256)),
-		bundleHasher: () => hashes,
+		// Every bundle is appended from first=0, so only the first 256 hashes are used.
+		bundleHasher: () => hashes.slice(0, 256),
 	});
 
 	let peakSize = 0;

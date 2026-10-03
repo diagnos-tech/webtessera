@@ -28,7 +28,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { CheckpointPath, partialTileSize, TileHeight, TileWidth, tilePath } from "../api/layout/index.ts";
 import { HashTile } from "../api/state.ts";
-import { fromUTF8, toUTF8 } from "../internal/gostd/bytes.ts";
+import { appendUint16BE, concatBytes, fromUTF8, toUTF8 } from "../internal/gostd/bytes.ts";
 import { ErrNotExist } from "../internal/gostd/errors.ts";
 import { type Fixture, hexToBytes, loadFixture } from "../testonly/fixtures.ts";
 import { Checkpoint, parseCheckpoint } from "../vendor/formats/log/index.ts";
@@ -38,6 +38,7 @@ import { newSigner, newVerifier, sign, type Verifier } from "../vendor/note/note
 import {
 	type CheckpointFetcherFunc,
 	ErrInconsistency,
+	fetchLeafHashes,
 	getEntryBundle,
 	newLogStateTracker,
 	newNodeCache,
@@ -365,4 +366,146 @@ describe("TestNodeFetcherAddressing", () => {
 			expect(gotTileSize, "tileSize").toBe(test.wantPartialTileSize);
 		});
 	}
+});
+
+/** forgeCheckpoint signs, with the test log's own key, a checkpoint for the given size and hash. */
+function forgeCheckpoint(size: bigint, hash: Uint8Array): Uint8Array {
+	return sign({ text: fromUTF8(new Checkpoint({ origin: testOrigin, size, hash }).marshal()) }, testLogSigner);
+}
+
+// Port additions: hardening with no Go counterpart (docs/decisions/0196). Upstream's
+// Update ignores any checkpoint no larger than the tracked one; the port checks it.
+describe("Port addition: LogStateTracker checks checkpoints that are not newer", () => {
+	it("rejects a checkpoint of the tracked size with a different root hash", async () => {
+		const initial = testRawCheckpoints[5] as Uint8Array;
+		const forgedRaw = forgeCheckpoint(5n, new Uint8Array(32).fill(0x42));
+		const shim = new FetchCheckpointShim([forgedRaw]);
+		const lst = await newLogStateTracker(
+			testLogTileFetcher,
+			initial,
+			testLogVerifier,
+			testOrigin,
+			unilateralConsensus(shim.fetchCheckpoint),
+		);
+
+		const caught = await lst.update().catch((err: unknown) => err);
+		expect(caught).toBeInstanceOf(ErrInconsistency);
+		const ei = caught as ErrInconsistency;
+		expect(ei.smallerRaw).toEqual(initial);
+		expect(ei.largerRaw).toEqual(forgedRaw);
+		expect(ei.proof).toEqual([]);
+		expect(lst.latest().hash).toEqual((testCheckpoints[5] as Checkpoint).hash);
+	});
+
+	it("rejects a smaller checkpoint that is not consistent with the tracked one", async () => {
+		const initial = testRawCheckpoints[10] as Uint8Array;
+		const forgedRaw = forgeCheckpoint(5n, new Uint8Array(32).fill(0x42));
+		const shim = new FetchCheckpointShim([forgedRaw]);
+		const lst = await newLogStateTracker(
+			testLogTileFetcher,
+			initial,
+			testLogVerifier,
+			testOrigin,
+			unilateralConsensus(shim.fetchCheckpoint),
+		);
+
+		const caught = await lst.update().catch((err: unknown) => err);
+		expect(caught).toBeInstanceOf(ErrInconsistency);
+		const ei = caught as ErrInconsistency;
+		expect(ei.smallerRaw).toEqual(forgedRaw);
+		expect(ei.largerRaw).toEqual(initial);
+		expect(ei.proof.length).toBeGreaterThan(0);
+		expect(lst.latest().size).toBe(10n);
+	});
+
+	it("accepts a smaller checkpoint that is consistent, returning the tracked one as before", async () => {
+		const initial = testRawCheckpoints[10] as Uint8Array;
+		const shim = new FetchCheckpointShim([testRawCheckpoints[5] as Uint8Array]);
+		const lst = await newLogStateTracker(
+			testLogTileFetcher,
+			initial,
+			testLogVerifier,
+			testOrigin,
+			unilateralConsensus(shim.fetchCheckpoint),
+		);
+
+		const { old, proof, newer } = await lst.update();
+		expect(old).toEqual(initial);
+		expect(proof).toEqual([]);
+		expect(newer).toEqual(initial);
+	});
+});
+
+// Port addition: Go's LogStateTracker holds a log.Checkpoint value, so neither the
+// checkpoint it was updated from nor the one Latest() returns aliases its state.
+it("LogStateTracker copies checkpoints in and out, as Go's value semantics do", async () => {
+	const lst = await newLogStateTracker(
+		testLogTileFetcher,
+		testRawCheckpoints[5] as Uint8Array,
+		testLogVerifier,
+		testOrigin,
+		unilateralConsensus(new FetchCheckpointShim([testRawCheckpoints[6] as Uint8Array]).fetchCheckpoint),
+	);
+	const before = lst.latest();
+	before.size = 999n;
+	expect(lst.latest().size).toBe(5n);
+
+	const served = new Checkpoint({ origin: testOrigin, size: 6n, hash: (testCheckpoints[6] as Checkpoint).hash });
+	const tracker = await newLogStateTracker(
+		testLogTileFetcher,
+		testRawCheckpoints[5] as Uint8Array,
+		testLogVerifier,
+		testOrigin,
+		async () => ({ checkpoint: served, raw: testRawCheckpoints[6] as Uint8Array, note: { text: "", sigs: [] } }),
+	);
+	await tracker.update();
+	served.size = 999n;
+	expect(tracker.latest().size).toBe(6n);
+});
+
+// Port addition: `first+N` wraps as Go's uint64 addition does (ADR-0014). At the pinned
+// commit, FetchLeafHashes(ctx, f, MaxUint64-2, 5, 100) returned no hashes and fetched no tile.
+it("fetchLeafHashes wraps first+N like Go", async () => {
+	let fetches = 0;
+	const f: TileFetcherFunc = async (): Promise<Uint8Array> => {
+		fetches++;
+		return new Uint8Array(32 * 256);
+	};
+	expect(await fetchLeafHashes(f, 0xffffffffffffffffn - 2n, 5n, 100n)).toEqual([]);
+	expect(fetches).toBe(0);
+});
+
+// Port additions: hardening with no Go counterpart (docs/decisions/0194). A resource with
+// more elements than its requested partial size is rejected, unless it is the full
+// resource a fetcher falls back to; fewer are passed through, as upstream does (its own
+// TestGetEntryBundleAddressing and TestNodeCacheHandlesInvalidRequest rely on that).
+describe("Port addition: surplus entries and hashes are rejected", () => {
+	const bundleOf = (n: number): Uint8Array => {
+		let b: Uint8Array = new Uint8Array(0);
+		for (let i = 0; i < n; i++) {
+			b = concatBytes(appendUint16BE(b, 1), Uint8Array.of(i & 0xff));
+		}
+		return b;
+	};
+	const tileOf = (n: number): Uint8Array => new Uint8Array(32 * n);
+
+	it("getEntryBundle: rejects 35 entries for a partial bundle of 34", async () => {
+		await expect(getEntryBundle(async () => bundleOf(35), 0n, 34n)).rejects.toThrow(
+			"EntryBundle at index 0 has 35 entries, more than the 34 expected",
+		);
+	});
+
+	it("getEntryBundle: accepts the full bundle a fetcher falls back to", async () => {
+		expect((await getEntryBundle(async () => bundleOf(256), 0n, 34n)).entries).toHaveLength(256);
+	});
+
+	it("nodeCache: rejects 11 hashes for a partial tile of 10", async () => {
+		const nc = newNodeCache(async () => tileOf(11), 10n);
+		await expect(nc.getNode(newNodeID(0, 0n))).rejects.toThrow("tile has 11 hashes, more than the 10 expected");
+	});
+
+	it("nodeCache: accepts the full tile a fetcher falls back to", async () => {
+		const nc = newNodeCache(async () => tileOf(256), 10n);
+		expect(await nc.getNode(newNodeID(0, 9n))).toEqual(new Uint8Array(32));
+	});
 });

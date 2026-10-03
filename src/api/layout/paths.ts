@@ -21,7 +21,7 @@
 //
 // [tlog-tiles API]: https://c2sp.org/tlog-tiles
 
-import { MaxUint64 } from "../../internal/gostd/bits.ts";
+import { asUint64, MaxUint64 } from "../../internal/gostd/bits.ts";
 import { parseUint } from "../../internal/gostd/strconv.ts";
 import { EntryBundleWidth, partialTileSize, TileWidth } from "./tile.ts";
 
@@ -52,17 +52,23 @@ export function entriesPathForLogIndex(seq: bigint, logSize: bigint): string {
 // Port note: Go's `iter.Seq[RangeInfo]` becomes a generator (AGENTS.md §3.5). Upstream's
 // `if !yield(ri) { return }` early exit is what a consumer's `break` does to a generator,
 // so it needs no equivalent here.
+//
+// Port note: `from+N` and `endInc` wrap as Go's uint64 arithmetic does, so a request whose
+// end overflows yields exactly the bundles Go yields. In the one case where that overflow
+// makes Go's `uint` count N itself wrap (a single bundle whose wrapped end falls before
+// First), the result does not fit RangeInfo.n's `number` and a RangeError is thrown
+// instead. See docs/decisions/0014-uint64-wrapping-made-explicit.md.
 export function* range(from: bigint, N: bigint, treeSize: bigint): Generator<RangeInfo> {
 	// Range is empty if we're entirely beyond the extent of the tree, or we've been asked for zero items.
 	if (from >= treeSize || N === 0n) {
 		return;
 	}
 	// Truncate range at size of tree if necessary.
-	if (from + N > treeSize) {
+	if (asUint64(from + N) > treeSize) {
 		N = treeSize - from;
 	}
 
-	const endInc = from + N - 1n;
+	const endInc = asUint64(from + N - 1n);
 	const sIndex = from / entryBundleWidth64;
 	const eIndex = endInc / entryBundleWidth64;
 
@@ -81,7 +87,7 @@ export function* range(from: bigint, N: bigint, treeSize: bigint): Generator<Ran
 
 			// Handle corner-case where the range is entirely contained in first bundle, if applicable:
 			if (ri.index === eIndex) {
-				ri.n = Number(endInc % entryBundleWidth64) - ri.first + 1;
+				ri.n = uintToNumber(asUint64((endInc % entryBundleWidth64) - BigInt(ri.first) + 1n));
 			}
 		} else if (ri.index === eIndex) {
 			ri.partial = partialTileSize(0n, eIndex, treeSize);
@@ -247,6 +253,15 @@ export function parseTileIndexPartial(index: string): TileIndexPartial {
 // Below this line are the small pieces of Go's `fmt` and `strings` that this file
 // leans on. They are local because they are one-liners over TypeScript built-ins;
 // anything with real behaviour of its own lives in src/internal/gostd/.
+
+// uintToNumber narrows a Go `uint` result to the `number` RangeInfo carries, throwing a
+// RangeError when it does not fit exactly; see the Port note on range.
+function uintToNumber(v: bigint): number {
+	if (v > BigInt(Number.MAX_SAFE_INTEGER)) {
+		throw new RangeError(`RangeInfo count ${v} does not fit in a number`);
+	}
+	return Number(v);
+}
 
 // fmt03d renders v the way Go's `fmt.Sprintf("%03d", v)` does: decimal, zero-padded to
 // a minimum width of three digits, and never truncated — a value of 1000 or more prints

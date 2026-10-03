@@ -25,6 +25,7 @@
 // Module stream provides support for streaming contiguous entries from logs.
 
 import { EntryBundleWidth, type RangeInfo, range } from "../api/layout/index.ts";
+import { asUint64 } from "../internal/gostd/bits.ts";
 import type { EntryBundleFetcherFunc } from "./client.ts";
 
 const entryBundleWidth64 = BigInt(EntryBundleWidth);
@@ -53,8 +54,8 @@ export interface Bundle {
  * If the adaptor encounters an error while reading an entry bundle, the encountered error will be thrown from the generator.
  *
  * This adaptor is optimised for the case where calling getBundle has some appreciable latency, and works
- * around that by maintaining a read-ahead window of up to numWorkers concurrent in-flight requests to
- * getBundle. The request parallelism is set by the value of the numWorkers paramemter, which can be tuned
+ * around that by maintaining a read-ahead cache of subsequent bundles which is populated a number of parallel
+ * requests to getBundle. The request parallelism is set by the value of the numWorkers paramemter, which can be tuned
  * to balance throughput against consumption of resources, but such balancing needs to be mindful of the nature of the
  * source infrastructure, and how concurrent requests affect performance (e.g. GCS buckets vs. files on a single disk).
  *
@@ -62,10 +63,34 @@ export interface Bundle {
  * futures and a token bucket. JavaScript has no goroutines; a sliding window of up to
  * `numWorkers` in-flight promises, refilled as each one is awaited (in dispatch order),
  * gives the same bound on concurrency and the same strict in-order delivery without that
- * machinery — see docs/decisions/0004-errors-context-and-concurrency.md's guidance to
- * check whether a simpler translation suffices before reaching for ErrGroup/Mutex.
+ * machinery. See docs/decisions/0066-entrybundles-sliding-window-concurrency.md.
+ *
+ * Port note: Go's producer goroutine starts when EntryBundles is called, so getSize and
+ * the first numWorkers fetches begin before the caller first iterates, and whether or not
+ * it ever does. An async generator runs only once asked for a value, so here nothing is
+ * fetched until the first `next()` (docs/decisions/0066).
+ *
+ * Port note: a numWorkers that is not an integer of at least 1 throws a RangeError when
+ * entryBundles is called. Go's token bucket never yields a token for numWorkers == 0, so
+ * its iterator blocks forever. See
+ * docs/decisions/0192-numworkers-below-one-is-rejected.md.
  */
-export async function* entryBundles(
+export function entryBundles(
+	numWorkers: number,
+	getSize: TreeSizeFunc,
+	getBundle: EntryBundleFetcherFunc,
+	fromEntry: bigint,
+	N: bigint,
+	signal?: AbortSignal,
+): AsyncGenerator<Bundle> {
+	if (!Number.isInteger(numWorkers) || numWorkers < 1) {
+		throw new RangeError(`numWorkers must be an integer of at least 1, got ${numWorkers}`);
+	}
+	return streamEntryBundles(numWorkers, getSize, getBundle, fromEntry, N, signal);
+}
+
+/** streamEntryBundles is the body of entryBundles, once numWorkers has been checked. */
+async function* streamEntryBundles(
 	numWorkers: number,
 	getSize: TreeSizeFunc,
 	getBundle: EntryBundleFetcherFunc,
@@ -83,13 +108,17 @@ export async function* entryBundles(
 	// as layout.Range's own "N" (count) parameter relies on Range's `min(from+N,
 	// treeSize)` saturation to turn it into "everything from fromEntry up to the
 	// current tree size, capped at fromEntry+N" — porting `N` instead here would
-	// silently change behaviour for every fromEntry != 0 caller.
-	const infos = range(fromEntry, fromEntry + N, treeSize);
+	// silently change behaviour for every fromEntry != 0 caller. The sum wraps as Go's
+	// uint64 addition does (docs/decisions/0014-uint64-wrapping-made-explicit.md).
+	const infos = range(fromEntry, asUint64(fromEntry + N), treeSize);
 
-	// window holds up to numWorkers in-flight bundle fetches, oldest-dispatched-first.
-	// fillWindow tops it back up to numWorkers every time a slot frees, which happens
-	// as soon as the oldest fetch has been awaited -- the same point at which upstream
-	// returns a token to its bucket.
+	// Fetch entry bundle resources in parallel.
+	// We use a limited number of tokens here to prevent this from
+	// consuming an unbounded amount of resources.
+	//
+	// Port note: window holds up to numWorkers in-flight bundle fetches,
+	// oldest-dispatched-first; it stands in for both the token bucket and the channel of
+	// futures. fillWindow tops it back up to numWorkers every time a slot frees.
 	const window: Promise<Bundle>[] = [];
 	const fillWindow = (): void => {
 		while (window.length < numWorkers) {
@@ -114,13 +143,15 @@ export async function* entryBundles(
 	fillWindow();
 
 	while (window.length > 0) {
-		// Port note: Go's consumer loop only continues after the current bundle has
-		// been yielded and the caller has asked for the next one; if `next` rejects,
-		// the exception propagates out of this generator here, which is the port of
-		// "yield(bundleOrErr{err: err}); return" -- the generator is done after a throw,
-		// exactly as the upstream iterator stops after yielding an error.
 		const next = window.shift() as Promise<Bundle>;
+		// For now, force the iterator to stop if we've just returned an error.
+		// If there's a good reason to allow it to continue we can change this.
+		//
+		// Port note: if `next` rejects, the exception propagates out of this generator
+		// here, and a generator that has thrown is done -- the stop Go writes out
+		// explicitly after yielding the error.
 		const bundle = await next;
+		// We're about to yield a value, so we can now return the token and unblock another fetch.
 		fillWindow();
 		yield bundle;
 	}
@@ -148,14 +179,24 @@ export async function* entries<T>(
 		if (es.length <= b.rangeInfo.first) {
 			throw new Error(`logic error: First is ${b.rangeInfo.first} but only ${es.length} entries`);
 		}
+		// Port note: hardening with no Go counterpart: Go yields however many of the range's
+		// N entries the bundle actually holds, so a short bundle silently drops entries. See
+		// docs/decisions/0194-tile-and-bundle-size-limits.md.
+		if (es.length < b.rangeInfo.first + b.rangeInfo.n) {
+			throw new Error(
+				`bundle ${b.rangeInfo.index} has ${es.length} entries, but the range needs ${b.rangeInfo.first + b.rangeInfo.n}`,
+			);
+		}
 		es = es.slice(b.rangeInfo.first);
 		if (es.length > b.rangeInfo.n) {
 			es = es.slice(0, b.rangeInfo.n);
 		}
 
-		const rIdx = b.rangeInfo.index * entryBundleWidth64 + BigInt(b.rangeInfo.first);
+		// Port note: the index arithmetic wraps as Go's uint64 arithmetic does
+		// (docs/decisions/0014-uint64-wrapping-made-explicit.md).
+		const rIdx = asUint64(b.rangeInfo.index * entryBundleWidth64 + BigInt(b.rangeInfo.first));
 		for (let i = 0; i < es.length; i++) {
-			yield { index: rIdx + BigInt(i), entry: es[i] as T };
+			yield { index: asUint64(rIdx + BigInt(i)), entry: es[i] as T };
 		}
 	}
 }

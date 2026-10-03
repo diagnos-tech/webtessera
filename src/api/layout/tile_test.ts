@@ -16,7 +16,7 @@
 // Ported from tessera/api/layout/tile_test.go @ 4a6d9f9
 
 import { describe, expect, it } from "vitest";
-import { nodeCoordsToTileAddress } from "./tile.ts";
+import { nodeCoordsToTileAddress, partialTileSize } from "./tile.ts";
 
 describe("TestNodeCoordsToTileAddress", () => {
 	const tests: {
@@ -76,6 +76,23 @@ describe("TestNodeCoordsToTileAddress", () => {
 			expect(tileIndex).toBe(test.wantTileIndex);
 			expect(nodeLevel).toBe(test.wantNodeLevel);
 			expect(nodeIndex).toBe(test.wantNodeIndex);
+		});
+	}
+});
+
+// Port addition: PartialTileSize's `level * TileHeight` wraps, and its shift saturates, as
+// Go's uint64 arithmetic does (ADR-0014). The expected values are what
+// layout.PartialTileSize returned at the pinned commit.
+describe("Port addition: PartialTileSize wraps like Go's uint64 arithmetic", () => {
+	const tests: { level: bigint; index: bigint; logSize: bigint; want: number }[] = [
+		{ level: 1n << 61n, index: 60n, logSize: 12345n, want: 57 },
+		{ level: 1n << 61n, index: 0n, logSize: 12345n, want: 0 },
+		{ level: 8n, index: 0n, logSize: 12345n, want: 0 },
+		{ level: 63n, index: 0n, logSize: 12345n, want: 0 },
+	];
+	for (const test of tests) {
+		it(`PartialTileSize(${test.level}, ${test.index}, ${test.logSize})`, () => {
+			expect(partialTileSize(test.level, test.index, test.logSize)).toBe(test.want);
 		});
 	}
 });

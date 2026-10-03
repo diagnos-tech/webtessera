@@ -44,6 +44,11 @@ export class FutureErr<T> {
 	 * get resolves the future, returning either a valid T or throwing an error.
 	 *
 	 * This function will block until the future has had its value set.
+	 *
+	 * Port note: Go's `Get() (T, error)` returns the value even alongside an error. A
+	 * rejected Promise carries only the error, so a value set together with an error is
+	 * not observable here; no caller in Tessera reads the value when the error is non-nil.
+	 * See docs/decisions/0056-future-ported-ahead-of-schedule.md.
 	 */
 	async get(): Promise<T> {
 		return this.#promise;
@@ -86,7 +91,9 @@ export function newFutureErr<T>(): readonly [FutureErr<T>, (t: T, err: unknown) 
 			return;
 		}
 		done = true;
-		if (err !== undefined) {
+		// Port note: Go's `err != nil` test. `null` is the other spelling of Go's nil a caller
+		// can reach for, so it means success here exactly as `undefined` does.
+		if (err !== undefined && err !== null) {
 			rejectFn(err);
 		} else {
 			resolveFn(t);

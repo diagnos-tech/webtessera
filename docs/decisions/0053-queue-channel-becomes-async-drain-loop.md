@@ -172,3 +172,15 @@ fires.
   (`queue_test.ts`, "processes every item exactly once when adds interleave with an in-flight
   flush") that holds the first flush open while 20 further adds enqueue behind it, asserting
   exactly-once, in-order delivery — it passes.
+
+## Update (2026-10-02): a logic error settles every pending future
+
+`queueItem.notify` panics in Go when a flush reports success but an entry was never assigned an
+index — storage forgot `MarshalBundleData`. The panic ends the process, and every caller waiting on
+an `IndexFuture` with it. In the port the panic is an exception thrown from the drain loop, and the
+futures still pending in that batch would otherwise never settle. `#doFlush` now settles each
+remaining future in the batch with the same logic error and then rethrows it, so it still surfaces
+(as an unhandled rejection of the drain loop). `notify`'s nil test treats `null` like `undefined`, as
+`newFutureErr` does (ADR-0056).
+
+*Review of this update: pending.*

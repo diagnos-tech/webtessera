@@ -246,6 +246,35 @@ export class rangeTracker {
 	}
 }
 
+/**
+ * Range describes the common state of a range of bundles/tiles.
+ * The range covers [First, First+N) in tile-space, and all resources in the range share the same State.
+ */
+export class Range {
+	/** first is the index of the first resource covered by this range. */
+	first: bigint;
+	/** n is the number of resources covered by this range. */
+	n: bigint;
+	/** state is the state all resources covered by this range have. */
+	state: State;
+
+	constructor(first: bigint, n: bigint, state: State = Unchecked) {
+		this.first = first;
+		this.n = n;
+		this.state = state;
+	}
+
+	/** toString returns a simple human readable representation of the range. Port of `(*Range) String`. */
+	toString(): string {
+		return `[${this.first}, ${this.first + this.n}):${stateString(this.state)}`;
+	}
+
+	// containts returns true iff the provided index is covered by this range.
+	contains(idx: bigint): boolean {
+		return idx >= this.first && idx < this.first + this.n;
+	}
+}
+
 // Port note: the constants below are untyped in Go, so each use site adopts whichever
 // integer type it needs. See docs/decisions/0030-untyped-go-constants.md.
 const tileHeight64 = BigInt(TileHeight);
@@ -307,34 +336,5 @@ function maybeMergeWithNext(e: Element<Range> | null, l: List<Range>): void {
 			ev.n += nv.n;
 			l.remove(n);
 		}
-	}
-}
-
-/**
- * Range describes the common state of a range of bundles/tiles.
- * The range covers [First, First+N) in tile-space, and all resources in the range share the same State.
- */
-export class Range {
-	/** first is the index of the first resource covered by this range. */
-	first: bigint;
-	/** n is the number of resources covered by this range. */
-	n: bigint;
-	/** state is the state all resources covered by this range have. */
-	state: State;
-
-	constructor(first: bigint, n: bigint, state: State = Unchecked) {
-		this.first = first;
-		this.n = n;
-		this.state = state;
-	}
-
-	/** toString returns a simple human readable representation of the range. Port of `(*Range) String`. */
-	toString(): string {
-		return `[${this.first}, ${this.first + this.n}):${stateString(this.state)}`;
-	}
-
-	// containts returns true iff the provided index is covered by this range.
-	contains(idx: bigint): boolean {
-		return idx >= this.first && idx < this.first + this.n;
 	}
 }
