@@ -40,7 +40,13 @@
 //    overridden), and never in CI, where nothing is committed. A checkout without git and a
 //    tarball therefore do nothing. Installs from the registry never get here at all: npm and
 //    Bun run `prepare` for the root project, for git dependencies and for `pack` and
-//    `publish`, not for registry packages.
+//    `publish`, not for registry packages. `git config` writes the repository's shared
+//    configuration, so in a repository with several worktrees the hook is on for all of them
+//    (each runs the copy in its own .githooks).
+//
+// A caveat the other way: the packed package.json still names this script, which is not in the
+// tarball. Anything that runs `prepare` on an unpacked tarball fails: `npm pack <directory>`
+// does, even with --ignore-scripts, which is why scripts/release/rescope.mjs repacks with Bun.
 //
 // Zero dependencies; needs Node >= 20 and, for the hook, git on PATH.
 
@@ -100,7 +106,9 @@ function enableGitHooks() {
 		warn("could not set core.hooksPath; run `git config core.hooksPath .githooks` to enable the pre-commit hook");
 		return;
 	}
-	process.stdout.write("prepare: git hooks enabled (core.hooksPath = .githooks)\n");
+	// stderr, like every message here: `npm pack --json` and the like run this script and must find
+	// nothing but their own output on stdout.
+	process.stderr.write("prepare: git hooks enabled (core.hooksPath = .githooks)\n");
 }
 
 for (const step of [linkLibrary, enableGitHooks]) {
