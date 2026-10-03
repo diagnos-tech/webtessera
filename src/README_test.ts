@@ -52,6 +52,8 @@ import { generateKey, newSigner, newVerifier, type Signer } from "webtessera/not
 import { newIndexedDBDriver } from "webtessera/storage/indexeddb";
 import { MemoryObjectStore } from "webtessera/storage/memory";
 import { fromSqliteSync, newSqliteDriver } from "webtessera/storage/sqlite";
+import { openBrowserLog, openDeviceKey } from "webtessera/browser";
+import { importLogKey, openServerLog, verifyReceipt } from "webtessera/server";
 import { newInProcessLockManager } from "./storage/indexeddb/testing/locks.ts";
 
 // fastOptions keeps the snippets' logs quick to publish under test; the README's
@@ -192,6 +194,57 @@ async function useSqlite(): Promise<void> {
 	}
 }
 
+// The safe API (webtessera/server and webtessera/browser) has no upstream counterpart; its
+// snippets document docs/guides/safe-api.md and the README section that introduces it.
+
+async function safeServerLog(): Promise<void> {
+	const dir = mkdtempSync(`${tmpdir()}/webtessera-readme-`);
+	const file = `${dir}/log.db`;
+	const env = { LOG_SKEY: generateKey(undefined, "example.com/my-log").skey };
+	const entry = new TextEncoder().encode("hello");
+
+	// #region safe_server_example
+	// The key comes from your secret store, never from source code.
+	const log = await openServerLog({
+		key: await importLogKey(env.LOG_SKEY),
+		storage: { sqlite: fromSqliteSync(new DatabaseSync(file)) },
+	});
+
+	// Resolves once a published checkpoint commits to the entry, with a receipt that
+	// proves it offline: a C2SP tlog-proof, already verified.
+	const receipt = await log.append(entry);
+	// #endregion
+
+	try {
+		// #region safe_verify_example
+		// Anyone with the log's vkey and the entry can check a receipt, offline.
+		const { index, checkpoint } = verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });
+		// #endregion
+		expect(index).toBe(0n);
+		expect(checkpoint.size).toBe(1n);
+		expect((await log.handler(new Request("https://log.example/checkpoint")))?.status).toBe(200);
+	} finally {
+		await log.close();
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+async function safeBrowserLog(): Promise<void> {
+	// Node has no Web Locks; a browser provides navigator.locks in every secure context.
+	vi.stubGlobal("navigator", { locks: newInProcessLockManager() });
+
+	// #region safe_browser_example
+	// A key generated on this device and kept in IndexedDB, which no script can export.
+	const key = await openDeviceKey("device.example/7f3a");
+	const log = await openBrowserLog({ key });
+
+	const receipt = await log.append(new TextEncoder().encode("signed the form"));
+	// #endregion
+
+	expect(receipt.index).toBe(0n);
+	await log.close();
+}
+
 describe("README", () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
@@ -219,6 +272,14 @@ describe("README", () => {
 
 	it("keeps a log in SQLite", async () => {
 		await useSqlite();
+	});
+
+	it("keeps a log on a server with the safe API, and verifies its receipt", async () => {
+		await safeServerLog();
+	});
+
+	it("keeps a log in the browser with the safe API", async () => {
+		await safeBrowserLog();
 	});
 });
 

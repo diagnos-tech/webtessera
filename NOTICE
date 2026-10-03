@@ -38,6 +38,13 @@ Ported at v0.0.0-20251017110053-404c0d5b696c.
 Translated into: src/vendor/formats/log/.
 The module ships no NOTICE file at that version.
 
+transparency-dev/formats (package proof) - https://github.com/transparency-dev/formats
+Copyright Google LLC
+Licensed under the Apache License, Version 2.0.
+Ported at v0.1.1.
+Translated into: src/vendor/formats/proof/.
+The module ships no NOTICE file at that version.
+
 AWS Signature Version 4 test suite, as published in AWS C Auth -
 https://github.com/awslabs/aws-c-auth
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
