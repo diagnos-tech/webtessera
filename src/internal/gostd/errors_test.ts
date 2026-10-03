@@ -87,6 +87,72 @@ describe("gostd/errors", () => {
 			expect(errorIs(a, ErrNotExist)).toBe(false);
 			expect(errorIs(a, b)).toBe(true);
 		});
+
+		it("finds a target among the errors a JoinError joins, like errors.Is on Unwrap() []error", () => {
+			const a = new SentinelError("a");
+			const b = new SentinelError("b");
+			const joined = joinErrors([a, b]);
+			expect(errorIs(joined, a)).toBe(true);
+			expect(errorIs(joined, b)).toBe(true);
+			expect(errorIs(joined, new SentinelError("c"))).toBe(false);
+		});
+
+		it("finds a joined target through a wrapping error's cause", () => {
+			const a = new SentinelError("a");
+			const b = new SentinelError("b");
+			const wrapped = wrapError("context", joinErrors([a, b]));
+			expect(errorIs(wrapped, b)).toBe(true);
+		});
+
+		it("finds a target joined at any depth", () => {
+			const target = new SentinelError("target");
+			const inner = joinErrors([new Error("x"), wrapError("deep", target)]);
+			const outer = joinErrors([new Error("y"), wrapError("middle", inner)]);
+			expect(errorIs(outer, target)).toBe(true);
+		});
+
+		it("honours is() on an error that was joined", () => {
+			class KindError extends Error {
+				is(target: unknown): boolean {
+					return target === ErrNotExist;
+				}
+			}
+			expect(errorIs(joinErrors([new Error("x"), new KindError("k")]), ErrNotExist)).toBe(true);
+		});
+
+		it("visits err, then each joined error depth-first and in order, as errors.Is does", () => {
+			const visited: string[] = [];
+			class Probe extends Error {
+				constructor(name: string, options?: { cause?: unknown }) {
+					super(name, options);
+					this.name = name;
+				}
+				is(): boolean {
+					visited.push(this.name);
+					return false;
+				}
+			}
+			const first = new Probe("first", { cause: new Probe("first-cause") });
+			const second = new Probe("second");
+			const root = new Probe("root", { cause: new JoinError([first, second]) });
+			expect(errorIs(root, ErrNotExist)).toBe(false);
+			expect(visited).toEqual(["root", "first", "first-cause", "second"]);
+		});
+
+		it("terminates on a cycle that runs through a JoinError", () => {
+			const a = new Error("a");
+			const b = new Error("b");
+			const joined = joinErrors([a, b]);
+			(a as { cause?: unknown }).cause = joined;
+			expect(errorIs(joined, ErrNotExist)).toBe(false);
+			expect(errorIs(joined, b)).toBe(true);
+		});
+
+		it("does not look inside an ordinary error's own errors property", () => {
+			const target = new SentinelError("target");
+			const err = Object.assign(new Error("not a join"), { errors: [target] });
+			expect(errorIs(err, target)).toBe(false);
+		});
 	});
 
 	describe("errorAs", () => {
@@ -108,6 +174,34 @@ describe("gostd/errors", () => {
 			(a as { cause?: unknown }).cause = b;
 			(b as { cause?: unknown }).cause = a;
 			expect(errorAs(a, SentinelError)).toBeUndefined();
+		});
+
+		it("finds an error of the class among the errors a JoinError joins", () => {
+			class E1 extends Error {}
+			const e1 = new E1("e1");
+			expect(errorAs(joinErrors([e1]), E1)).toBe(e1);
+			expect(errorAs(joinErrors([new Error("plain"), e1]), E1)).toBe(e1);
+			expect(errorAs(wrapError("context", joinErrors([new Error("plain"), e1])), E1)).toBe(e1);
+		});
+
+		it("returns the first match in depth-first order", () => {
+			class E1 extends Error {}
+			const deep = new E1("deep");
+			const later = new E1("later");
+			const tree = joinErrors([wrapError("a", joinErrors([new Error("x"), deep])), later]);
+			expect(errorAs(tree, E1)).toBe(deep);
+		});
+
+		it("matches the JoinError itself before looking inside it", () => {
+			const joined = joinErrors([new SentinelError("inside")]);
+			expect(errorAs(joined, JoinError)).toBe(joined);
+		});
+
+		it("terminates on a cycle that runs through a JoinError", () => {
+			const a = new Error("a");
+			const joined = joinErrors([a]);
+			(a as { cause?: unknown }).cause = joined;
+			expect(errorAs(joined, SentinelError)).toBeUndefined();
 		});
 	});
 
@@ -136,6 +230,29 @@ describe("gostd/errors", () => {
 		it("stringifies a non-Error entry", () => {
 			const err = joinErrors(["plain string", new Error("real")]);
 			expect(err?.message).toBe("plain string\nreal");
+		});
+
+		it("wraps a single error that does not itself wrap several, as Go 1.25.5 does", () => {
+			const a = new Error("only");
+			const err = joinErrors([a]) as JoinError;
+			expect(err).toBeInstanceOf(JoinError);
+			expect(err.errors).toEqual([a]);
+			expect(err.message).toBe("only");
+		});
+
+		it("returns a single JoinError unchanged instead of wrapping it again (Go 1.25)", () => {
+			const joined = joinErrors([new Error("a"), new Error("b")]);
+			expect(joinErrors([joined])).toBe(joined);
+			expect(joinErrors([undefined, joined, null])).toBe(joined);
+		});
+
+		it("still wraps a JoinError that is joined with another error", () => {
+			const joined = joinErrors([new Error("a"), new Error("b")]);
+			const other = new Error("c");
+			const err = joinErrors([joined, other]) as JoinError;
+			expect(err).not.toBe(joined);
+			expect(err.errors).toEqual([joined, other]);
+			expect(err.message).toBe("a\nb\nc");
 		});
 	});
 

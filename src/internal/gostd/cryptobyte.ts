@@ -1,39 +1,9 @@
 // Copyright 2017 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck. All Rights Reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
-// Use of this source code is governed by a BSD-style license, reproduced here
-// because this file is a derivative work of golang.org/x/crypto/cryptobyte and
-// this repository is otherwise Apache-2.0:
-//
-// Copyright 2009 The Go Authors.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-//    * Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//    * Redistributions in binary form must reproduce the above
-// copyright notice, this list of conditions and the following disclaimer
-// in the documentation and/or other materials provided with the
-// distribution.
-//    * Neither the name of Google LLC nor the names of its
-// contributors may be used to endorse or promote products derived from
-// this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Ported from golang.org/x/crypto@v0.46.0/cryptobyte/{string,builder}.go
+// Ported from golang.org/x/crypto@v0.46.0/cryptobyte/{builder,string}.go
 
 // Package cryptobyte contains types that help with parsing and constructing
 // length-prefixed, binary messages.
@@ -53,48 +23,26 @@
 const emptyBytes = new Uint8Array(0);
 
 /**
- * BuildError wraps an error. If a BuilderContinuation throws this value, it will be
- * caught and the inner error will be reported by Builder.bytes.
+ * newBuilder creates a Builder that appends its output to the given buffer.
+ * Like append(), the buffer is reallocated if its capacity is exceeded. Use bytes to get
+ * the final buffer.
  *
- * Port note: Go's BuildError is a plain struct used as a panic payload. Here it
- * extends Error, because throwing a non-Error breaks stack capture in every JS
- * runtime; the wrapped error is still available as `err`, exactly as in Go.
+ * Port note: a Go slice has a length and a capacity, and `NewBuilder(buf[0:0])` appends
+ * into the spare capacity behind a zero length. A Uint8Array has only a length, so the
+ * whole of `buffer` counts as already written and the first append reallocates, leaving
+ * `buffer` as it was; that is also what Go does when len equals cap. The spare capacity
+ * can still be had as in Go, by rolling the length back: after `unwrite(buffer.length)`
+ * the next appends overwrite `buffer` in place (cryptobyte_test.ts's TestPreallocatedBuffer
+ * relies on this), and once an append outgrows it the builder moves to a new array and the
+ * caller's `buffer` is left behind. Callers that need the result must read it from
+ * bytes(). See docs/decisions/0041-cryptobyte-builder-buffer-model.md.
+ *
+ * It is declared here, above the class, because a class body cannot be interleaved with a
+ * function declaration; Go declares NewBuilder right after the Builder struct.
  */
-export class BuildError extends Error {
-	readonly err: Error;
-
-	constructor(err: Error) {
-		super(err.message, { cause: err });
-		this.name = "BuildError";
-		this.err = err;
-	}
+export function newBuilder(buffer: Uint8Array): Builder {
+	return new Builder(buffer);
 }
-
-/**
- * BuilderContinuation is a continuation-passing interface for building
- * length-prefixed byte sequences. Builder methods for length-prefixed
- * sequences (addUint8LengthPrefixed etc) will invoke the BuilderContinuation
- * supplied to them. The child builder passed to the continuation can be used
- * to build the content of the length-prefixed sequence. For example:
- *
- *	const parent = new Builder();
- *	parent.addUint8LengthPrefixed((child) => {
- *	  child.addUint8(42);
- *	  child.addUint8LengthPrefixed((grandchild) => {
- *	    grandchild.addUint8(5);
- *	  });
- *	});
- *
- * It is an error to write more bytes to the child than allowed by the reserved
- * length prefix. After the continuation returns, the child must be considered
- * invalid, i.e. users must not store any copies or references of the child
- * that outlive the continuation.
- *
- * If the continuation throws a value of type BuildError then the inner error
- * will be reported as the error from bytes. If the child throws otherwise then
- * bytes will rethrow the same value.
- */
-export type BuilderContinuation = (child: Builder) => void;
 
 /**
  * A Builder builds byte strings from fixed-length and length-prefixed values.
@@ -146,8 +94,9 @@ export class Builder {
 	 *
 	 * Port note: Go returns `([]byte, error)` here and panics in BytesOrPanic; in
 	 * TypeScript both throw, so the two are the same function. bytesOrPanic is kept so
-	 * that call sites stay in one-to-one correspondence with the Go source. See
-	 * docs/decisions/0042-cryptobyte-error-and-out-parameter-shape.md.
+	 * that call sites stay in one-to-one correspondence with the Go source. A builder
+	 * that has written nothing returns an empty Uint8Array where Go returns a nil slice.
+	 * See docs/decisions/0042-cryptobyte-error-and-out-parameter-shape.md.
 	 */
 	bytes(): Uint8Array {
 		if (this.err !== undefined) {
@@ -391,16 +340,51 @@ export class Builder {
 	}
 }
 
+// Port note: Go declares BuilderContinuation and BuildError between Builder's methods, after
+// AddBytes. A class body cannot be split, so they follow the class here, in Go's order.
+
 /**
- * newBuilder creates a Builder that appends its output to the given buffer.
+ * BuilderContinuation is a continuation-passing interface for building
+ * length-prefixed byte sequences. Builder methods for length-prefixed
+ * sequences (addUint8LengthPrefixed etc) will invoke the BuilderContinuation
+ * supplied to them. The child builder passed to the continuation can be used
+ * to build the content of the length-prefixed sequence. For example:
  *
- * Port note: unlike Go's NewBuilder, the buffer is never written to in place — a
- * Uint8Array has no spare capacity to write into, so the first append copies. Callers
- * that relied on Go's aliasing must read the result back from bytes(). See
- * docs/decisions/0041-cryptobyte-builder-buffer-model.md.
+ *	const parent = new Builder();
+ *	parent.addUint8LengthPrefixed((child) => {
+ *	  child.addUint8(42);
+ *	  child.addUint8LengthPrefixed((grandchild) => {
+ *	    grandchild.addUint8(5);
+ *	  });
+ *	});
+ *
+ * It is an error to write more bytes to the child than allowed by the reserved
+ * length prefix. After the continuation returns, the child must be considered
+ * invalid, i.e. users must not store any copies or references of the child
+ * that outlive the continuation.
+ *
+ * If the continuation throws a value of type BuildError then the inner error
+ * will be reported as the error from bytes. If the child throws otherwise then
+ * bytes will rethrow the same value.
  */
-export function newBuilder(buffer: Uint8Array): Builder {
-	return new Builder(buffer);
+export type BuilderContinuation = (child: Builder) => void;
+
+/**
+ * BuildError wraps an error. If a BuilderContinuation throws this value, it will be
+ * caught and the inner error will be reported by Builder.bytes.
+ *
+ * Port note: Go's BuildError is a plain struct used as a panic payload. Here it
+ * extends Error, because throwing a non-Error breaks stack capture in every JS
+ * runtime; the wrapped error is still available as `err`, exactly as in Go.
+ */
+export class BuildError extends Error {
+	readonly err: Error;
+
+	constructor(err: Error) {
+		super(err.message, { cause: err });
+		this.name = "BuildError";
+		this.err = err;
+	}
 }
 
 /**
@@ -410,15 +394,25 @@ export function newBuilder(buffer: Uint8Array): Builder {
  * Port note: Go's `type String []byte` is consumed through a pointer receiver that
  * reslices the value in place. TypeScript has no reslicing, so String is a cursor
  * object over a Uint8Array. Its read methods return the value read, or undefined where
- * Go returns false, and leave the cursor untouched on failure exactly as Go does. See
+ * Go returns false, and leave the cursor untouched on failure exactly as Go does.
+ *
+ * Port note: `new String()` is Go's zero value, a nil String, not an empty one. Go's
+ * `read` returns nil for a nil String even when n is 0, so every read on it fails,
+ * `skip(0)` and `readBytes(0)` included; on an empty but non-nil String
+ * (`new String(new Uint8Array(0))`, or what remains after the last byte is read) a read
+ * of 0 bytes succeeds. Both report `empty()` and have `length` 0. See
  * docs/decisions/0042-cryptobyte-error-and-out-parameter-shape.md.
  */
 // biome-ignore lint/suspicious/noShadowRestrictedNames: the name mirrors Go's cryptobyte.String; see ADR-0042.
 export class String {
 	private s: Uint8Array;
+	// nil marks Go's nil String: the one that `new String()` makes. It never changes, as
+	// no read can succeed on it.
+	private nil: boolean;
 
 	constructor(b?: Uint8Array) {
 		this.s = b ?? emptyBytes;
+		this.nil = b === undefined;
 	}
 
 	/** length reports the number of unread bytes, standing in for Go's `len(s)`. */
@@ -439,6 +433,10 @@ export class String {
 	// remain, it returns undefined.
 	private read(n: number): Uint8Array | undefined {
 		if (this.s.length < n || n < 0) {
+			return undefined;
+		}
+		// Go slices a nil String to nil, which its callers read as failure, even for n == 0.
+		if (this.nil) {
 			return undefined;
 		}
 		const v = this.s.subarray(0, n);

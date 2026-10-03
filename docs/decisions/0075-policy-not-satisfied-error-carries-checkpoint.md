@@ -93,3 +93,17 @@ condition the same way `log.go`'s `ErrPushback` is checked (`AGENTS.md` §3.6).
   walk. `witnessErrors: readonly unknown[]` is justified — Go's accumulator is `error` and the
   settlements arrive as `unknown` (ADR-0072). Correctly scoped as a local fix rather than reopening
   the shared, already-reviewed `gostd/errors.ts`. New public symbol flagged per AGENTS.md §6.
+
+## Update (2026-10-02)
+
+The gap this ADR works around is closed: `errorIs` and `errorAs` in `gostd/errors.ts` now walk
+`JoinError.errors` depth-first, as Go's `errors.Is` and `errors.As` walk `Unwrap() []error` (see the
+update to ADR-0057). The decision above still holds and is still correct: `PolicyNotSatisfiedError`
+sets `cause` to `ErrPolicyNotSatisfied`, so `errorIs(e, ErrPolicyNotSatisfied)` succeeds, and the message
+text is unchanged. What no longer holds is the reason given for not using `joinErrors`: building the
+error with `joinErrors([ErrPolicyNotSatisfied, ...witnessErrors])` would now also satisfy `errorIs`. This
+update changes no code; whether to switch to `joinErrors`, which would also let `errorIs` find each
+witness's own error, is for the owner of `internal/witness/witness.ts`, whose comment on
+`PolicyNotSatisfiedError` still describes the old gap.
+
+*Review of this update: pending.*

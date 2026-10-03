@@ -1,4 +1,12 @@
+// Copyright 2011 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck. All Rights Reserved.
+//
+// This file has mixed provenance. `isSpace` is a derivative work of Go's standard library
+// `unicode.IsSpace` (unicode/graphic.go) and of its White_Space range table
+// (unicode/tables.go), and remains subject to the Go project's BSD-style licence: use of
+// that code is governed by a BSD-style license that can be found in
+// LICENSES/BSD-3-Clause-Go.txt. Everything else in this file is original to this project
+// and is licensed under the Apache License, Version 2.0:
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +19,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// Ported from unicode/graphic.go (Go standard library) @ Go 1.25.5 (IsSpace only)
 
 // This file is not a port of a Tessera file. It stands in for the parts of Go's
 // `unicode` and `unicode/utf8` packages that the port relies on. `sumdb/note`
@@ -18,8 +28,16 @@
 // right is part of getting the note wire format right.
 
 /**
- * isSpace reports whether r is a space character as defined by Unicode's White_Space
- * property (`unicode.IsSpace`).
+ * isSpace reports whether r is a space character as defined by Unicode's White Space
+ * property; in the Latin-1 space this is
+ *
+ *	'\t', '\n', '\v', '\f', '\r', ' ', U+0085 (NEL), U+00A0 (NBSP).
+ *
+ * Other definitions of spacing characters are set by category Z and property
+ * Pattern_White_Space.
+ *
+ * Derived from `unicode.IsSpace` in unicode/graphic.go and the White_Space table in
+ * unicode/tables.go, Go 1.25.5: the Latin-1 switch and the ranges above it are Go's.
  *
  * Port note: this is deliberately not `/\s/`. JavaScript's whitespace class differs
  * from Unicode's White_Space property in two code points, and both of them matter
@@ -34,8 +52,8 @@
  * implementation, so the set is written out.
  */
 export function isSpace(r: number): boolean {
-	// White_Space is not the same set as the Unicode category Z (it also contains the
-	// controls U+0009-U+000D and U+0085), so the Latin-1 range is enumerated.
+	// This property isn't the same as Z; special-case it. (It also contains the controls
+	// U+0009-U+000D and U+0085, so the Latin-1 range is enumerated.)
 	if (r <= 0xff) {
 		switch (r) {
 			case 0x09: // '\t'

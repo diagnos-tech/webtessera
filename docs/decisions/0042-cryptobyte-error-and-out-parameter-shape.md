@@ -149,3 +149,21 @@ global `String` is shadowed only inside `cryptobyte.ts` itself, which never need
   value with the high bit set comes out negative. The `length` getter and `bytes()` aliasing addition
   are the documented Go-syntax stand-ins. The `String`-shadows-global concern is handled by the
   namespace-import convention. No out-parameter shape leaked into the port.
+
+## Update (2026-10-02)
+
+**`String`'s zero value is Go's nil `String`.** `new String()` (or `new String(undefined)`) now behaves
+like `var s cryptobyte.String`: every read on it fails, including a read of zero bytes. Go's `read`
+slices the String, and slicing a nil slice gives nil, which every caller reads as failure, so
+`Skip(0)` and `ReadBytes(0)` are false on a nil String and true on an empty one that is not nil
+(`cryptobyte.String([]byte{})`, or what is left after the last byte is read, or a zero-length
+length-prefixed value). Before, the no-argument form was an empty non-nil String and `skip(0)` succeeded.
+Both forms have `length` 0 and report `empty()`. A `Uint8Array` passed to the constructor is always
+non-nil, which is the only form `ct_only.ts` uses, so no caller changes. This was checked against Go
+1.24.7 with `golang.org/x/crypto@v0.46.0` and is pinned in `cryptobyte_test.ts`.
+
+**`bytes()` of a builder that has written nothing** returns an empty `Uint8Array`, where Go returns a
+nil slice. TypeScript has no nil `Uint8Array`; the two are indistinguishable to every caller
+(`len(result) == 0`). Noted on `bytes()`.
+
+*Review of this update: pending.*
