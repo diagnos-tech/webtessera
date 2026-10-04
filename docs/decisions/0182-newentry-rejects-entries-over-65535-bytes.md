@@ -1,6 +1,6 @@
 # ADR-0182: `newEntry` rejects entry data longer than 65535 bytes
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** root-package fidelity agent
 - **Upstream reference:** `entry.go` (`NewEntry`)
@@ -56,6 +56,10 @@ low-level helper from truncating either.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `entry.go` `NewEntry` marshals `binary.BigEndian.AppendUint16(r, uint16(len(Data)))`, which truncates; nothing upstream checks the length.
+  - TS side: `src/entry.ts` `newEntry` throws `entry data is <n> bytes, more than the 65535 a tlog-tiles entry bundle can hold` when `data.length > 0xffff`, before building the entry; 65535 is accepted. `convertCTEntry` does not go through `newEntry` (`ct_only.ts:72` builds `new Entry()`, as `ct_only.go:50` builds its own), so the 'unaffected' claim holds.
+  - Tests: `entry_test.ts` accepts exactly 65535 bytes (prefix `ff ff`, 2+65535 bytes marshalled) and rejects 65536 with the exact message. The differential allow-list row `entry-size-limit` (ADR-0216) names this ADR.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

@@ -1,6 +1,6 @@
 # ADR-0203: A checkpoint origin must be valid UTF-8
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening agent
 - **Upstream reference:** `formats/log/checkpoint.go` (`Checkpoint.Unmarshal`, `Checkpoint.Marshal`), `formats/log/identifier.go` (`ID`); `golang.org/x/mod/sumdb/note` (`Open`); C2SP tlog-checkpoint, signed-note
@@ -59,9 +59,12 @@ Choose the safe direction — reject — rather than document the replacement:
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `Checkpoint.Unmarshal` takes `string(l[0])` keeping invalid bytes; `ID` hashes `[]byte(origin)`; `Marshal` formats with `%s`.
+  - TS: `unmarshal` throws `invalid checkpoint - origin is not valid UTF-8` after the too-few-newlines, empty-origin, size and hash checks and assigns nothing; `marshal` throws the same for an unpaired surrogate; `fromUTF8`'s doc now says it matches Go only for valid UTF-8. `checkpoint_test.ts` has both cases; the differential allow-list row `checkpoint-origin-utf8` names it. Through `parseCheckpoint` the note has already passed `open`'s UTF-8 check, as stated.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
 
 ## Update (2026-10-04)
 
@@ -82,3 +85,7 @@ UTF-16 surrogate) was silently turned into U+FFFD, the conversion this ADR rejec
 
 `identifier_test.ts` and `note_async_test.ts` pin both. Neither changes the bytes of any note, checkpoint or
 ID for a string UTF-8 can encode.
+
+**Review of this update** — Reviewer: ADR review agent (independent), 2026-10-04. Verdict: approved.
+
+- Checked `identifier.ts`: `id("\ud800")` now throws `origin is not valid UTF-8` and every other string hashes as Go's `ID` does (`identifier_test.ts`). Checked `note.ts`: `sign` and `signAsync` throw `errMalformedNote` for a text with an unpaired surrogate, after the trailing-newline check and before any signer is called (Go's `Sign` order: newline check, then signers); `note_async_test.ts` pins `a\ud800b\n`, `\udfff\n` and a text ending in a lone high surrogate, and a valid surrogate pair still signs.

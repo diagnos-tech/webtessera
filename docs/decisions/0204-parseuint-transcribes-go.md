@@ -1,6 +1,6 @@
 # ADR-0204: `parseUint` transcribes Go's `strconv.ParseUint`, and bounds the input it quotes
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening agent
 - **Upstream reference:** Go `strconv/atoi.go` (`ParseUint`, `NumError`, `ErrSyntax`, `ErrRange`, `underscoreOK`) and `strconv/quote.go`/`strconv/isprint.go` (`Quote`, `IsPrint`), Go 1.25.5
@@ -66,6 +66,10 @@ input.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read Go's `strconv.ParseUint`, `underscoreOK` and `lower` (local Go 1.24.7 source; the ADR cites 1.25.5, which I could not run) against `strconv.ts`; the control flow, base/bit-size handling, cutoff and `maxVal` checks, and error precedence are a line-for-line transcription, with a `number` fast path below 2^53 that makes the same decisions.
+  - Differential against real Go (my own corpus, not the ADR's): 120,000 inputs over bases {0,2,8,10,16,36,1,37,-1}, bit sizes {0,8,16,32,53,63,64,-1,65}, digit/underscore/prefix/sign/space/non-ASCII alphabets, lengths up to 200. Zero differences in value, error class (`errorIs` against `ErrRange`/`ErrSyntax`) or text, other than 19,451 messages for inputs over 64 code points, all of which are exactly Go's text with the quoted input cut to 64 code points plus `...` (checked by reconstruction). `quote` compared on all 1,112,064 Unicode scalar values against Go's `strconv.Quote`: byte-identical. A 4,000,000-digit input is rejected in about 3 ms. `NumError`, `ErrSyntax` and `ErrRange` behave as described (`cause` chain, sentinels).
+  - Wording, non-blocking: 'an attacker-supplied number of a few hundred thousand digits took seconds of synchronous CPU' is the one phrase in the ADR that reads as an attack description with a payload size; 'cost quadratic in the input length, so a long digit string from a peer could occupy the event loop' says the same neutrally. No construction is given.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

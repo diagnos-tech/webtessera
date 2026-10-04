@@ -1,6 +1,6 @@
 # ADR-0181: Delete the instrumentation that only fed dropped metrics and logs; supersede ADR-0080's "keep as logic"
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** root-package fidelity agent
 - **Upstream reference:** `append_lifecycle.go` (`idxAt`, `integrationStats` with `sample`/`latency`/`updateStats`/`statsDecorator`, `followerStats`, their wiring in `NewAppender`), `migrate_lifecycle.go` (`progress`)
@@ -78,6 +78,10 @@ ADR-0070's statement that `progress` is still ported.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `idxAt`, `integrationStats` (`sample`, `latency`, `updateStats` on a 100ms ticker reading `IntegratedSize` and `NextIndex`, `statsDecorator`) and `followerStats` (200ms ticker) in `append_lifecycle.go`, and `progress` (`migrate_lifecycle.go:213`, called only at lines 140/141/148 inside the `klog.Infof` goroutine). Every sink is a dropped OTel instrument or klog.
+  - TS side: grep of `src/` finds none of `idxAt|integrationStats|followerStats|statsDecorator|updateStats|progress` apart from the port-note comments; `newAppender`'s `add` is one wrapper shallower. The ObjectStore driver's `integratedSize`/`nextIndex` do read `.state/treeState` (`driver.ts:842-848`), so the I/O argument holds, and 2 reads x 10/s = about 1.7 million a day. ADR-0070, ADR-0080 and PORTING-MAP carry the matching supersession notes.
+  - Imprecision, non-blocking: the Context says ADR-0070 kept `progress` 'with the justification that tooling might scrape its output from logs'. ADR-0070/0074 only say it stays ported and tested; that rationale was in `progress`'s own doc comment (`git show 1df0c81:src/migrate_lifecycle.ts`). The 'rounded halves up / no 2^64 wrap' remark about the deleted formatter is consistent with that old source (`Number(p * 100n)`, no wrap) but I could not run it, since it is deleted.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

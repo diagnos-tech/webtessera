@@ -1,6 +1,6 @@
 # ADR-0206: Verify Ed25519 exactly as Go does, and refuse degenerate verifier keys when they are configured
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening agent
 - **Upstream reference:** `golang.org/x/mod/sumdb/note/note.go` (`NewVerifier`); Go 1.25.5 `crypto/ed25519/ed25519.go` (`Verify`, `VerifyWithOptions`) and `crypto/internal/fips140/ed25519/ed25519.go` (`NewPublicKey`, `verifyWithDom`); supersedes ADR-0025
@@ -77,6 +77,10 @@ enter: when a verifier is configured.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side, read in the local Go 1.24.7 source (the ADR cites 1.25.5, which I could not run): `crypto/internal/fips140/ed25519` `newPublicKey` only calls `edwards25519.Point.SetBytes` ('accepts all non-canonical encodings of valid points'), `verifyWithDom` checks length 64, `sig[63]&224`, canonical S, computes `k` over the key bytes as given and compares `R.Bytes()` byte for byte. So the ADR's correction of ADR-0025 is right. ADR-0025 is marked superseded and carries the note.
+  - TS: `verifyEd25519` is that algorithm built from noble's `Point` arithmetic; `checkEd25519PublicKey` throws `errVerifierSmallOrderKey` (also for non-canonical encodings of small-order points, checked first) or `errVerifierNonCanonicalKey` and lets non-points through; `newVerifier` and `newVerifierForCosignatureV1` call it. Independent check: I recomputed all 2,366 vectors of `fixtures/data/differential_ed25519.json` with real `crypto/ed25519.Verify` (Go 1.24.7): 327 accepted, 0 disagreements with the fixture, and the TS differential suite agrees. `note_test.ts` pins the 13 small-order encodings, the non-canonical large-order case and mixed-order acceptance.
+  - Wording: neutral. 'signatures that pass this check can be produced without any private key' is a statement of a known property of small-order keys, with no recipe. Observation for the maintainers, outside the ADR: `note_test.ts` embeds Go-verified vectors that include valid signatures under small-order keys; they come from the audit corpus and serve fidelity, but they are ready-made inputs.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

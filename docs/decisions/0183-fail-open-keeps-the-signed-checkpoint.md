@@ -1,6 +1,6 @@
 # ADR-0183: When failing open, publish the log-signed checkpoint for errors other than a policy failure
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** root-package fidelity agent
 - **Upstream reference:** `append_lifecycle.go:614-667` (`CheckpointPublisher`), `internal/witness/witness.go` (`WitnessGateway.Witness`)
@@ -59,9 +59,13 @@ still thrown.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `CheckpointPublisher` (`append_lifecycle.go` 614-667) swallows the error under `FailOpen` and publishes whatever `wg.Witness` returned; `WitnessGateway.Witness` returns `nil` only from its two early returns, a checkpoint `parse.CheckpointUnsafe` cannot parse and a `client.NewProofBuilder` failure. A policy failure returns `sigBlock.Bytes()` with the error.
+  - TS side: `append_lifecycle.ts` `checkpointPublisher` keeps `signed`, and on a caught error with `failOpen` publishes `err.checkpoint` for a `PolicyNotSatisfiedError` and `signed` for anything else; without `failOpen` every error is rethrown. Probe: a policy whose `satisfied` throws gives a 195-byte log-signed checkpoint with `failOpen` and the rethrown error without it. Tests 'publishes the log-signed checkpoint when failing open on an error other than a policy failure' and 'still fails on that error when not failing open' exist and assert exactly that. ADR-0082 carries the supersession note.
+  - Gap, non-blocking: no test publishes a partially cosigned checkpoint on a policy failure (the existing fail-open test reaches no witness, so the partial checkpoint equals the signed one); 'exactly as before and as in Go' rests on reading `PolicyNotSatisfiedError.checkpoint` (= `sigBlock`).
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
 
 ## Update (2026-10-04): the reasons, corrected
 
@@ -82,3 +86,9 @@ The decision stands; the Context and Consequences misdescribed both Go and the t
   (`append_lifecycle_test.ts`, "publishes the log-signed checkpoint when failing open on an error other than a policy
   failure") uses a policy whose `satisfied` throws (`explodingPolicy`), and its companion checks that the error is
   thrown when not failing open.
+
+**Review of this update** — Reviewer: ADR review agent (independent), 2026-10-04. Verdict: changes requested.
+
+- Verified: with a cancelled signal the port reaches the policy-failure path (`failOpen` publishes the 195-byte log-signed checkpoint; otherwise `witness policy was not satisfied` followed by `failed to post to witness at "...": ...`). `client.NewProofBuilder` never returns an error (`client.go:191-197`), and `PolicyNotSatisfiedError` is what Go's join maps to. The named test uses a throwing `satisfied` (`explodingPolicy`) as stated.
+- Factual error: the Update says the case the decision covers is a `WitnessGroup` component 'whose `satisfied` or `endpoints` throws'. Only `satisfied` is covered. `checkpointPublisher` calls `newWitnessGateway(...)`, which calls `group.endpoints()`, outside the `try` that implements fail-open. Probe with `failOpen: true`: a throwing `satisfied` publishes 195 bytes, a throwing `endpoints` rejects with the thrown error. Change the Update to name `satisfied` only, or move the construction under the same handling and add a test.
+- Minor: the Update quotes Go's `context canceled`; the port's tail of that message is whatever the abort reason is ('This operation was aborted' for a bare `AbortController.abort()`), so 'the port does both' holds for the shape, not the exact text.

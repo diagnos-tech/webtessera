@@ -1,6 +1,6 @@
 # ADR-0187: `witness_test.ts` carries no Tessera copyright line, because upstream's file has none
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** root-package fidelity agent
 - **Upstream reference:** `witness_test.go`
@@ -39,6 +39,9 @@ copyright line is attributed to a file whose authors did not write one.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Checked every `.go` file in the pinned checkout's root: `witness_test.go` is the only one with no copyright header (it starts at `package tessera_test`).
+  - `src/witness_test.ts` carries the MedDeck line, the Apache-2.0 notice, a `Ported from tessera/witness_test.go @ 4a6d9f9` line pointing at NOTICE, and a note that no upstream header exists. That is what AGENTS.md section 9 asks for ('exactly as the original file has it'), and NOTICE attributes Tessera as a whole. No script checks headers, so nothing else depends on the old borrowed line.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

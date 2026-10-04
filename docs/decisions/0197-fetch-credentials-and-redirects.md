@@ -1,6 +1,6 @@
 # ADR-0197: Requests omit credentials; witness requests do not follow redirects
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** api/client/fsck/storage-internal fidelity agent
 - **Upstream reference:** `client/fetcher.go` (`HTTPFetcher.fetch`, `NewHTTPFetcher`), `internal/witness/witness.go` (`witness.update`)
@@ -45,6 +45,10 @@ As hardening:
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `http.Client` sends no ambient credentials and follows up to ten redirects (`HTTPFetcher.fetch`, `witness.update`).
+  - TS: every `HTTPFetcher` request and the witness POST set `credentials: "omit"`; `newHTTPFetcher(url, fetch, { redirect })` defaults to `"follow"`; the witness POST uses `redirect: "manual"` and fails with `witness at "<url>" replied with a redirect, which is not followed: <status>` on a 3xx or an `opaqueredirect` response. Tests in `fetcher_test.ts` and `witness_test.ts` cover these.
+  - Verified the workerd claim: with the repository's workerd 1.20260815.1 a scratch worker's `fetch(..., { redirect: "error" })` throws `Invalid redirect value, must be one of "follow" or "manual"`, `"manual"` returns the 302 itself (type `default`), `"follow"` follows. Browser behaviour of `credentials` and `opaqueredirect` is not verified (no Chromium installed here).
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

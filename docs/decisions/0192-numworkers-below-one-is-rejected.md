@@ -37,6 +37,10 @@ TypeScript's `number` can also hold negative, fractional and NaN values a `uint`
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** changes requested
 - **Notes:**
+  - Code matches the Decision: `entryBundles` is a plain function that throws `RangeError("numWorkers must be an integer of at least 1, got <n>")` before any fetch, and `newFsck` maps unset/0 to 1 and throws `Opts.n must be an integer of at least 1, got <n>` for negative, fractional or NaN values; tests exist (`stream_test.ts` 'numWorkers below 1', `fsck_test.ts` 'newFsck validates Opts.n').
+  - Factual error in the Context, which understates the divergence. It says that with `numWorkers == 0` 'the producer blocks and the iterator never yields or returns'. I ran the pinned Go `EntryBundles` with 0 workers: a non-empty range hangs (2s timeout), but an empty tree and `N = 0` return after zero yields, and a failing `getSize` yields that error and returns. The port's check is unconditional, so in those three cases Go terminates normally and the port now throws `RangeError`. The Consequences ('where Go blocks forever, the port fails immediately') hide that.
+  - Required change: amend the Context to say the hang needs at least one bundle to fetch, and the Consequences to record that `entryBundles(0, ...)` now throws even for an empty range or a failing `getSize`, where Go returns an empty or error-only iteration (or restrict the check to what hangs).
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

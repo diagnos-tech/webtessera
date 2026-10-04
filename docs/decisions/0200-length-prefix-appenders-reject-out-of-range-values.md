@@ -1,6 +1,6 @@
 # ADR-0200: Big-endian appenders reject values their Go parameter type cannot hold
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening agent
 - **Upstream reference:** Go's `encoding/binary` (`BigEndian.AppendUint16/32/64`); `tessera/entry.go` (`Entry.LeafData`'s length prefix); C2SP tlog-tiles (entry bundles)
@@ -52,9 +52,12 @@ root package; this ADR fixes the primitive so that no caller can produce a wrapp
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `binary.BigEndian.AppendUint16/32/64` take typed parameters; `entry.go` truncates explicitly with `uint16(len(...))`.
+  - TS (`gostd/bytes.ts`): the three appenders throw `RangeError` with `binary: <v> is out of range for uint16|uint32|uint64` for anything outside the range (non-integers, NaN, Infinity included for 16/32; non-bigint for 64). Callers are `entry.ts` (guarded earlier by ADR-0182), `note.ts` (uint32 key hash), `note_cosigv1.ts` (signing timestamp from `Date.now()`), and the merkle differential helper, so nothing relied on wrapping. Tests in `bytes_test.ts` pin the boundaries and the message.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
 
 ## Update (2026-10-04): cryptobyte's `addUint` methods
 
@@ -66,3 +69,7 @@ parameter type: `uint8`, `uint16`, `uint32` (for `addUint24` and `addUint32`) an
 `addUint64`). Within those types nothing changes: `AddUint24` still drops the top byte of its `uint32` and `AddUint48`
 the top 16 bits of its `uint64`, as Go documents and does. The audit's 360,000 random builder programs against
 `x/crypto/cryptobyte` v0.46.0 still match with no mismatch; `cryptobyte_test.ts` pins the boundaries.
+
+**Review of this update** — Reviewer: ADR review agent (independent), 2026-10-04. Verdict: approved.
+
+- Checked `Builder.addUint8/16/24/32/48/64` in `cryptobyte.ts` against x/crypto v0.46.0's parameter types (`uint8`, `uint16`, `uint32` for `AddUint24`/`AddUint32`, `uint64` for `AddUint48`/`AddUint64`): each calls `checkUint`/`checkUint64` and throws `cryptobyte: <v> is out of range for uint<N>`; `addUint24` still drops the top byte of its uint32 and `addUint48` the top 16 bits, as Go does. `cryptobyte_test.ts` has the RangeError cases and the cryptobyte/gostd differential tests pass. I did not re-run the audit's 360,000 random programs.

@@ -1,6 +1,6 @@
 # ADR-0186: `TestAwait_multiClient` runs under a 15s bound instead of Go's 1s
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** root-package fidelity agent
 - **Upstream reference:** `await_test.go` (`TestAwait_multiClient`)
@@ -48,6 +48,9 @@ and covers it. A port note at the constant points here.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `await_test.go` `TestAwait_multiClient` uses `testTimeout := 1 * time.Second`, 300 clients, 3ms reads, 15ms futures, 10ms polls, and verifies every released checkpoint with `log.ParseCheckpoint`. TS (`await_test.ts`) keeps every value and assertion; only the context bound is 15s and the Vitest timeout 30s.
+  - Measured: the test takes 0.5-0.6 s on its own, 0.85-1.0 s with four busy processes on this four-core container, and 1257 ms inside the full parallel unit run. So the ADR's 1.1-1.3 s is reproduced under suite load, not in isolation; the 1s bound would be flaky there rather than always failing. The decision (relax a hang guard, keep the assertions) holds either way. Non-blocking: say 'under the full parallel suite' in the Context.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
