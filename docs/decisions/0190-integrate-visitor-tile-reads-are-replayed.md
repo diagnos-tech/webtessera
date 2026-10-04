@@ -1,6 +1,6 @@
 # ADR-0190: `integrate`'s visitor reads tiles exactly as Go's does, by replaying reads made up front
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** api/client/fsck/storage-internal fidelity contributor
 - **Upstream reference:** `storage/internal/integrate.go` (`treeBuilder.integrate`, `tileReadCache.Get`/`Prewarm`, `tileWriteCache.Visitor`, `populatedTile.Set`), `merkle/compact/range.go` (`VisitFn`, `Append`, `AppendRange`)
@@ -103,6 +103,10 @@ errors in both), and the crash-recovery case (same calls, root and 256-node tile
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `storage/internal/integrate.go` against `integrate.ts` in full. Go's visitor calls `tc.getTile` = `readCache.Get` (blocking) for any tile with `minImpliedTreeSize <= treeSize`; the port replays reads made up front. I re-derived the ADR's call log by running the real Go code (a scratch copy of the pinned checkout, not the repo): `0->255: [] ; [{0 0}]@0`, `255->256: [{0 0}]@255 ; [{1 0}]@255`, `256->257: [{1 0}]@256 ; [{0 1}]@256`, `257->557: [{1 0} {0 1}]@257`, which is exactly the ADR's table and shows ADR-0052's invariant was false.
+  - Independent differential against Go (my own harness, same deterministic inputs on both sides, Prewarm ID lists sorted because Go draws them from a map): (a) a 236-step random sequence from size 0 to 70,208 (crossing the level-1 boundary) with random crash leftovers and random failing reads, 862 lines of getTiles calls, errors, roots and tile digests, byte-identical; (b) a grid of 1,232 scenarios, sizes {0,1,255,256,257,511,512,513,65535,65536,65537} x n {0,1,2,255,256,257,300,513} x failing tile {none or one of six} x leftovers {no,yes}, 2,464 lines, byte-identical, including joined multi-line errors from repeated failed reads. The Go panic sites (257th leaf, `t[0]` of an empty result) are reproduced as panics in Go and as `panicError` in TS, and `Weird node ID: {0 256}` is Go's text.
+  - Tests cited exist in `integrate_test.ts` ('makes the same getTiles calls as Go...', crash recovery with root `e2f77598...`, 511 calls / 510 joined errors, the panic cases) and pass.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

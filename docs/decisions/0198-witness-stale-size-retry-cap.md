@@ -1,6 +1,6 @@
 # ADR-0198: A witness update retries a stale-size reply at most three times
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** api/client/fsck/storage-internal fidelity contributor
 - **Upstream reference:** `internal/witness/witness.go` (`witness.update`)
@@ -38,6 +38,9 @@ recorded size is still updated from each reply, as in Go.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `witness.update` recurses on a 409 with `text/x.tlog.size` and its own comment contemplates a cap.
+  - TS: `staleRetries` starts at 0 and the update throws once it reaches 3, so four requests are made and the message is `witness at "<url>" replied with a stale x.tlog.size after 3 retries, the last <n>`; the recorded size is updated from each reply before the cap check, as in Go. The test 'gives up after three stale-size retries' asserts `requests === 4` and the message.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

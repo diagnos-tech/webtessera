@@ -1,6 +1,6 @@
 # ADR-0193: `internal/witness`'s tests serve the `client_log` fixture instead of a POSIX-backed reader
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** api/client/fsck/storage-internal fidelity contributor
 - **Upstream reference:** `internal/witness/witness_test.go` (`TestWitness_UpdateRequest`, `testLogTileFetcher`, `loadCheckpoint`)
@@ -39,6 +39,9 @@ and parses and verifies the checkpoint after it with the log's verifier before s
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `internal/witness/witness_test.go` loads `loadCheckpoint(t, 9)` and `testLogTileFetcher` from `testdata/log`, and `TestWitness_UpdateRequest` wraps `posix.New("../../testdata/log/")` in `tessera.NewAppender` for its tile reader.
+  - TS (`internal/witness/witness_test.ts`) serves the `client_log` fixture (checkpoints for sizes 0-15, the 15 partial tiles of a 15-entry log; `fixtures/gen/client.go` reads `.upstream/tessera/testdata/log`, ADR-0065). The expected bodies are upstream's literals (`old 6\nycRkk...`), and the fake witness splits at the first blank line, fails without one, and parses and verifies the checkpoint with the log verifier before signing. A POSIX reader over the same directory returns the same bytes for the paths requested, and none needs the partial-to-full fallback. The ADR's claim that `testonly.newTestLog` cannot serve this log (own key) is right, and recomputing the proof lines would indeed be circular.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

@@ -1,6 +1,6 @@
 # ADR-0209: `parseCheckpoint` wraps the port's returned errors, not programming errors
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening contributor
 - **Upstream reference:** `formats/log/note.go` (`ParseCheckpoint`); ADR-0004, ADR-0021, ADR-0022
@@ -42,6 +42,9 @@ with upstream's text.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `ParseCheckpoint` wraps what `note.Open` and `Unmarshal` return; a panic passes through. TS `note.ts` `isReturnedError` wraps a caught `Error` unless it is a `TypeError`, `RangeError`, `ReferenceError` or `SyntaxError`, and rethrows those and any non-Error unchanged; the messages and `ParseCheckpointError.note` are as before. Every error class the note and checkpoint code throw for results is a plain `Error` or subclass (`SentinelError`, `NumError`, the note errors).
+  - Checked that no legitimate failure of the port turns into a raw error: I fuzzed `parseCheckpoint` with 60,000 mutated fixture checkpoints (bit flips, truncations, inserted control/non-ASCII bytes) and every outcome was either success (451) or `ParseCheckpointError` (59,549); no `TypeError` or `RangeError` escaped. A direct probe of `multiplyUnsafe(0n)` in the Ed25519 path, which could have been a source, does not throw. The test 'wraps returned errors but lets panic-like errors through unchanged' exists in `formats/log/note_test.ts`.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

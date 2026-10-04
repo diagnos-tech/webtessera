@@ -53,6 +53,10 @@ Three findings of the 2026-10-02 merkle fidelity audit concern the shape of the 
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** changes requested
 - **Notes:**
+  - Code matches the Decision: `compact/index.ts` exports `Range` as a type and `NodeID` as a value, `proof/index.ts` exports `Nodes` as a type and re-exports `LogHasher` as a type; the tuple returns stay. Upstream's destructuring (`left, right := Decompose(...)`, `begin, end := fork.Coverage()`) and `Nodes.Ephem()`'s order are as the ADR says; I compared the exported symbols of the Go `compact` and `proof` packages with the two barrels and nothing else is missing.
+  - Factual error in the Context and Consequences: they say Go's `Nodes{...}` literal is package-private 'because the types have unexported fields', that outside their modules only `inclusion`/`consistency` construct a `Nodes` 'exactly as in Go', and that the barrels no longer offer constructors 'Go keeps package-private'. In Go `proof.Nodes` has an exported field, `IDs []compact.NodeID` (`proof.go:28-31`), so `proof.Nodes{IDs: ids}` compiles outside the package and works with `Rehash`/`Ephem`; TypeScript's type-only export also leaves `ids` assignable. The decision to hide the constructor is defensible, but it narrows Go's surface for `Nodes` (and `&compact.Range{}` is a legal zero literal outside Go's package too).
+  - Required change: correct those statements and list the narrowing for `Nodes` under Consequences.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

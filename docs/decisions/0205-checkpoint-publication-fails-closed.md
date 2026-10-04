@@ -96,6 +96,11 @@ a migration target has no checkpoint of its own.)
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** changes requested
 - **Notes:**
+  - Code matches the described checks: `driver.ts` `checkPublishable` parses `newCP`'s output with `checkpointUnsafe` and requires the asked size and root, throwing the two messages quoted, before `createOverwrite`; `initialise` stats `checkpoint` when `.state/treeState` is missing and throws the quoted refusal. `MigrationStorage.initialise` is unchanged, as stated. Compared with Go's `publishCheckpoint` (`files.go:605-666`) and `initialise` (487-530). The ported `TestPublishTree` writes base64 with a port note, and the new tests ('refuses to start a new tree over a published checkpoint...', 'still initialises a store that has neither...') exist and pass.
+  - Required change 1 (factual): the Decision says that on refusal the driver 'writes nothing'. `ensureVersion` runs first (as in Go) and creates `.state/version`. In the scenario the ADR itself describes (public files without `.state/`), a probe on the memory driver shows the store ends as `['.state/version', 'checkpoint']` after the refusal. The existing test hides this because it deletes only `treeState`. Either say 'writes nothing but the `.state/version` marker' or reorder the check, and make the test cover the no-`.state/` case.
+  - Required change 2 (unsupported claim): the Context says an empty or malformed checkpoint from the publisher 'is possible upstream (it is reported privately)', and the Consequences repeat that upstream's behaviour 'is reported privately'. I could find no such path in Go's own components: `newCP` always returns a signed note or an error, and the only nil return in `CheckpointPublisher` comes from `Witness`'s two early returns, which ADR-0183's 2026-10-04 Update shows are unreachable with Go's components. State the actual path or reword to what is reachable (a custom publisher or policy), and reconcile with ADR-0183.
+  - Wording: describes the fork hazard and accidental causes; no construction. Unverifiable disclosure claims are the issue above.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

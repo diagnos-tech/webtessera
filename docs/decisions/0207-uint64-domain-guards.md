@@ -1,6 +1,6 @@
 # ADR-0207: Reject values outside the uint64 domain at the exported uint64 entry points
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening contributor
 - **Upstream reference:** `merkle/compact/nodes.go`, `merkle/compact/range.go`, `merkle/proof/proof.go`, `merkle/proof/verify.go`, `formats/log/checkpoint.go`; extends ADR-0003 and ADR-0014
@@ -55,6 +55,8 @@ cannot leave the domain except where Go's own arithmetic wraps.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - `assertUint64` (`gostd/bits.ts`) throws `TypeError` for a non-bigint and `RangeError` `<name> = <v> is outside the uint64 range [0, 2^64-1]`. It is called first in every function the ADR lists: `rangeNodes`, `rangeSize`, `NodeID` constructor, `decompose`, `RangeFactory.newRange`/`newEmptyRange`, `inclusion`, `consistency`, `rootFromInclusionProof`, `verifyInclusion`, `verifyConsistency`, `Checkpoint` constructor and `marshal` (also `tlog_proof.ts`, which belongs to ADR-0224). In-domain behaviour is unchanged: the merkle differential and fixture suites pass, and `verify_test.ts`, `proof_test.ts` and the compact tests cover the RangeError cases.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

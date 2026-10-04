@@ -1,6 +1,6 @@
 # ADR-0191: `tileWriteCache.tiles()` rejects a tile with an unset leaf, where Go writes it short
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** api/client/fsck/storage-internal fidelity contributor
 - **Upstream reference:** `storage/internal/integrate.go` (`tileWriteCache.Tiles`, `populatedTile.Set`), `api/state.go` (`HashTile.MarshalText`)
@@ -36,6 +36,10 @@ from storage is rebuilt contiguously by `newPopulatedTile`.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `populatedTile.Set` pads `leaves` with nil up to the index, `Tiles()` copies them into `HashTile{Nodes: t.leaves}`, and `HashTile.MarshalText` does `Buffer.Write(n)` per node, so a nil leaf writes nothing. `compact.Range.AppendRange` visits only nodes of level 1 and above (`appendImpl` reports `NodeID(h+1, ...)`); level-0 visits come only from `Append`, in index order, so no well-formed integration leaves a gap, as the ADR says.
+  - TS: `tileWriteCache.tiles()` throws `populatedTile has an unset leaf at index <i> in tile <key>`. Probe: visiting leaf 5 of an empty tile then calling `tiles()` throws `... index 0 in tile 0/0`; three contiguous leaves are fine.
+  - Non-blocking: no test in the repository pins this throw (grep for 'unset leaf' finds only `integrate.ts`). A three-line test using the exported `newTileWriteCache` would do.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

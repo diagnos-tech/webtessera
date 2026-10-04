@@ -1,6 +1,6 @@
 # ADR-0180: Start `Follower.follow` as a detached task, as Go starts it on a goroutine
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** root-package fidelity contributor
 - **Upstream reference:** `lifecycle.go` (`Follower`), `append_lifecycle.go` (`NewAppender`), `migrate_lifecycle.go` (`MigrationTarget.Migrate`)
@@ -75,6 +75,10 @@ implementer that `follow` must return promptly and keep running in the backgroun
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `append_lifecycle.go:275-276` (`go f.Follow(ctx, r)`) and `migrate_lifecycle.go:173-174` (`go f.Follow(cctx, mt.reader)` followed by `errG.Go(awaitFollower(...))`); `Follower.Follow` has no result (`lifecycle.go:82`). So nothing a follower does can fail `NewAppender`/`Migrate`, as the Context says.
+  - TS side: `lifecycle.ts` types `follow(reader, signal?): void | Promise<void>` with the contract in a port note; `append_lifecycle.ts:227` and `migrate_lifecycle.ts:226` both run `void Promise.resolve().then(() => f.follow(...))` after their own synchronous work and never await it. A synchronous throw and a rejection both end in that unhandled detached promise. No concrete `Follower` exists in `src/` that the typing change could break.
+  - Tests cited exist and assert what is claimed: `append_lifecycle_test.ts` 'starts each follower as a detached task that newAppender does not wait for' (reader identity; signal aborted when the caller's is) and `migrate_lifecycle_test.ts` 'runs only the followers configured before newMigrationTarget, each as a detached task' (a never-settling `follow` does not block `migrate`). Small gap, non-blocking: 'a signal bound to the caller's' is asserted for `newAppender` only. The throwing-follower case is untested, as the ADR itself says.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

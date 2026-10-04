@@ -1,6 +1,6 @@
 # ADR-0201: Refuse to open an IndexedDB log without Web Locks unless the caller declares a single writer
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening contributor
 - **Upstream reference:** `storage/posix/files.go` (`lockFile`); amends ADR-0112 and ADR-0113
@@ -77,6 +77,10 @@ process, for code that should run unchanged against `navigator.locks` (the READM
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - No Go original (amends ADR-0112/0113; ObjectStore contract in `objectstore.ts`). Checked `indexeddb.ts`: `openIndexedDBObjectStore` rejects before touching the database when `locks` is null or `navigator.locks` is missing unless `singleWriter: true`, with a message naming the three ways out; `singleWriter` has no effect when a LockManager exists; `newIndexedDBDriver` returns an `IndexedDBDriver` that subclasses `ObjectStoreDriver` (`super(base.cfg)`) and adds `lockScope`. `testing/locks.ts` provides `newInProcessLockManager()` (exclusive only, arrival order, abort reason). ADR-0112 and ADR-0113 carry the notes the ADR promises.
+  - Node tests (`indexeddb_test.ts`) cover refusal, `singleWriter`, scope reporting and the in-process manager; they pass. Not verified: the real-Chromium behaviour (`indexeddb_browser_test.ts`, cross-tab Web Locks) because no Playwright browser is installed in this environment.
+  - The wording describes the misconfiguration hazard, with no construction of one.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

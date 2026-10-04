@@ -1,6 +1,6 @@
 # ADR-0195: Response bodies are read with a size cap
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** api/client/fsck/storage-internal fidelity contributor
 - **Upstream reference:** `client/fetcher.go` (`HTTPFetcher.fetch`), `internal/witness/witness.go` (`witness.update`)
@@ -42,6 +42,9 @@ uses for a failed read.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `HTTPFetcher.fetch` and `witness.update` read with `io.ReadAll`.
+  - TS: `readAllLimited` (`client/fetcher.ts`) checks `Content-Length` first, then counts chunks and cancels the stream past the cap, throwing `response body exceeds the limit of <n> bytes`. Caps match the table: tile `256*32+1024 = 9216`, bundle `256*(2+65535) = 16,777,472`, checkpoint `1<<20`, witness `16<<10`. `HTTPFetcher` reports `get("<url>"): ...`; the witness client reports `failed to read body from witness at "<url>": ...`. `readAllLimited` is not in the `client` barrel. Tests in `fetcher_test.ts` (tile at/over cap, checkpoint stream cancelled, bundle `Content-Length` over cap) and `witness_test.ts` (16384) exist and pass.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.

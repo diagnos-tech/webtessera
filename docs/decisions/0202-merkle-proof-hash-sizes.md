@@ -1,6 +1,6 @@
 # ADR-0202: Require every proof hash and root to be a node hash of the hasher's size
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening contributor
 - **Upstream reference:** `merkle/proof/verify.go` (`RootFromInclusionProof`, `VerifyInclusion`, `VerifyConsistency`); `formats/log/note.go` (`ParseCheckpoint`); C2SP tlog-checkpoint; C2SP tlog-tiles; RFC 6962 §2.1
@@ -89,9 +89,13 @@ tlog-checkpoint, which `parseCheckpoint` is the entry point for.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `merkle@v0.0.2/proof/verify.go` against `verify.ts` and `formats/log/note.go` against `note.ts`. `rootFromInclusionProof` now rejects a proof element whose length is not `hasher.size()`, `verifyInclusion` a mis-sized root, `verifyConsistency` a mis-sized root1, root2 or proof element on every path, each with the stated text; `parseCheckpoint` rejects a root hash that is not 32 bytes after upstream's signature, unmarshal and origin checks, carrying the note. The checks run after all of upstream's own, so upstream's errors keep their precedence (test 'upstream's own errors keep their precedence over the size checks').
+  - The two adapted upstream tests have port notes (`TestVerifyConsistency` roots hashed to 32 bytes with a separate test that the unhashed values are now rejected; `TestParseCheckpoint` pads `abcdef`). The differential harness (Go-generated `differential_proof_*` corpora) passes with the `merkle-hash-size` and `checkpoint-root-hash-size` allow-list entries of ADR-0216.
+  - Wording: states the invariant and the RFC 6962 / C2SP basis; contains no construction. Two phrases I would change, non-blocking: the Update's 'the size error against the forged one' (and the test's `forged`/`forgedRoots` names) read as an attack frame, where 'the root the mangled proof chains to' is neutral; and 'The issue is reported upstream privately' is a disclosure claim I cannot verify, so the maintainers should confirm it or drop it.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
 
 ## Update (2026-10-04)
 
@@ -117,3 +121,7 @@ still rejects every such proof; `verify_test.ts` pins both halves (Go's `RootMis
 root, the size error against the forged one). The differential corpora include wrong-size hashes, and the
 merkle harness now applies the `merkle-hash-size` divergence only where Go verified the proof, as ADR-0216
 states, instead of wherever Go returned a `RootMismatchError`.
+
+**Review of this update** — Reviewer: ADR reviewer (independent), 2026-10-04. Verdict: approved.
+
+- Checked in `verify.ts`: `verifyInclusion` computes the root with `rootFromInclusionProofUnchecked`, calls `verifyMatch`, and only then checks proof hashes and `root`; `rootFromInclusionProof` checks proof hashes on its success path; `verifyConsistency` checks root1, root2 and the full proof after both root comparisons on the general path and after `verifyMatch` on the size1 == size2 path; the size1 == 0 path, where upstream compares nothing, checks the roots after upstream's empty-proof check. `verify_test.ts` pins both halves (Go's `RootMismatchError` against the true root, the size error against the root the mangled proof chains to). ADR-0216's text and the harness (`checkVerify` applies `merkle-hash-size` only where Go verified) agree.

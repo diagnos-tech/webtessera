@@ -1,6 +1,6 @@
 # ADR-0184: Witness policies reject repeated group children, shared verifier keys and a zero threshold
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** root-package fidelity contributor
 - **Upstream reference:** `witness.go` (`NewWitnessGroupFromPolicy`, `WitnessGroup.Satisfied`), `witness_policy_test.go`
@@ -58,6 +58,11 @@ written for; a port addition keeps upstream's shared-key shape as a rejected pol
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Go side: `NewWitnessGroupFromPolicy` (`witness.go:52-168`). Confirmed that upstream accepts a repeated child, two witnesses with one key, and a numeric threshold of 0, and that `witness_policy_test.go` itself declares `w3` with `w2`'s key in the GroupN and 'negative threshold' policies.
+  - TS side (`witness.ts`): `repeated component "<n>" in group definition`, `witness "<new>" has the same verifier key as witness "<old>"` and `invalid threshold "0" for group "<n>": must be at least 1` are thrown after upstream's own checks for that line (the key check runs after `newWitnessFromRoot`, so it never pre-empts an upstream error). `verifierKeyID` keys on the 32 public-key bytes, so a different key name or algorithm byte (0x01 vs 0x04) is still caught: probed, and `newVerifierForCosignatureV1` (Go and port) accepts both algorithm bytes. `quorum none`, `all`, `any` and `newWitnessGroup` are unchanged. A threshold written `00` is also refused; `+0` is refused as a syntax error, as in Go.
+  - Tests: the ported GroupN cases and 'negative threshold' use the `Wit3` key from `witness_test.go` with a port note, and 'rejects a second witness name for the same key' keeps upstream's shape as a rejected policy; each of the three rejections has an exact-message test. Upstream's 'duplicate component name' case still gets upstream's message (name check precedes the key check).
+  - Pushback, non-blocking: `group g all` with no children yields n = 0 and `satisfied` is true for empty input (probe), which is the same degenerate class this ADR rejects for `group g 0 w1`. Consequences lists nested overlap as not rejected but not this; please list it, or reject it.
+  - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
