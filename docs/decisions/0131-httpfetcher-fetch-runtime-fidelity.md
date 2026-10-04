@@ -1,6 +1,6 @@
 # ADR-0131: `HTTPFetcher` accommodates how `fetch` differs from `net/http`
 
-- **Status:** proposed; superseded in part by [ADR-0195](0195-response-size-caps.md) (reading the body)
+- **Status:** accepted; superseded in part by [ADR-0195](0195-response-size-caps.md) (reading the body)
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `client/fetcher.go` (`NewHTTPFetcher`, `HTTPFetcher.fetch`, `ReadCheckpoint`, `ReadTile`, `ReadEntryBundle`)
@@ -94,9 +94,22 @@ unmodified in browsers and edge runtimes.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `client/fetcher.go` against `src/client/fetcher.ts`. The Context table is right for the behaviours it lists
+    (trailing-slash append and nil client default, `Authorization` only when set, `Parse` resolution, `get(%q): %v`,
+    404 wrapping `ErrNotExist`, partial fallback only for tile and bundle). Both fixes are in the code: `fetch` is called
+    through a local (`const c = this.#c`), so it has no receiver, and the body of a 404 or other non-200 is cancelled
+    without awaiting (`discardBody`). `fetcher_test.ts` (35 cases now; all pass) pins the receiver (`undefined`), the global
+    `fetch` default, cancellation of error bodies, reading of success bodies, the signal reaching `fetch`, and Go's exact
+    `get(%q)` text for each failure. As the ADR says, the receiver failure cannot be reproduced in Node and was not run
+    in a browser or workerd by this ADR.
+  - Not blocking, one stale claim: "What the port does not reproduce" lists `fmt.Errorf("invalid URL: %v")`. Commit 52c7b46
+    (2026-10-03) put that branch back (`throw new Error(...)` with the text `invalid URL: <cause>` around `new URL(p, root)`), so the port now
+    reproduces it. Harmless, and more faithful than the ADR says; an Update line should record it.
+  - Status keeps its "superseded in part by ADR-0195" wording: ADR-0195 does replace `io.ReadAll` by `readAllLimited`
+    (`fetcher.ts`), and the note is accurate.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
@@ -119,3 +132,11 @@ on the same requests:
   URL as written, requests `/a%2Fb/checkpoint`. That is the one root form for which the two request different paths.
   Two others are spelled differently but request the same resources: `%7Efoo` is normalised to `~foo` only by Go, and
   `/./dot/../x` is resolved when the fetcher is built only by the port.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Approved. Checked against real Go 1.24.7 and the
+code. (1) `io.ReadAll` is replaced by `readAllLimited` (ADR-0195). (2) `net/http`'s `*url.Error` prefix (`Get "<url>": `)
+is absent from `fetch` rejections, and the witness POST message is `failed to post to witness at %q: %v` in
+`internal/witness/witness.go`. (3) Root URL path, run through Go's `url.Parse` and `Path += "/"` and through the port's
+`URL`: `http://h/a%2Fb` requests `/a/b/checkpoint` in Go and `/a%2Fb/checkpoint` here; `%7Efoo` becomes `~foo` only in
+Go, and `/./dot/../x` resolves at construction only in the port, both requesting the same resource. All three bullets
+reproduce exactly. The `invalid URL` observation in the Review above is not covered by this update.

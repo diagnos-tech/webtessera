@@ -1,6 +1,6 @@
 # ADR-0100: Run one port of the POSIX driver over a minimal key/value contract
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go`, `storage/posix/file_ops.go`, `storage/posix/otel.go`,
@@ -95,6 +95,30 @@ dropped (ADR-0103), and the public names differ (ADR-0104).
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `storage/posix/files.go` and `file_ops.go` in full against all of `src/storage/objectstore/driver.ts` and
+    `objectstore.ts`. The six-operation table is exact: files.go touches storage only through `os.ReadFile`
+    (`readAll`, `ReadCheckpoint`, `readTreeState`, `readGCState`), `os.Stat` (`ensureVersion`, `publishCheckpoint`),
+    `overwrite`, `createEx` (only `ensureVersion`'s version file), `os.RemoveAll` (`removeDirAll`, called only from
+    `garbageCollect`) and the fcntl `lockFile`; `mkdirAll` exists only for directories. Each maps one to one onto
+    `get`/`stat`/`put`/`create`/`deletePrefix`/`lock`.
+  - Declaration and branch walk. Every function of files.go has its counterpart in Go's order (`newAppender` with
+    the 100 ms minimum rendered as Go's `%v` Duration, `Add`, the three readers through `partialOrFullResource`,
+    `sequenceBatch`, `doIntegrate`, `readTile(s)`, `storeTile`, `writeTile`, `writeBundle`, `initialise`,
+    `ensureVersion`, tree/GC state read and write, `publishCheckpoint`, `publishedSize`, `garbageCollectorJob`,
+    `garbageCollect` including the `d > maxBundles` bound, `isLastLeafInParent`, `MigrationWriter`, `MigrationStorage`
+    with `buildTree` and `fetchLeafHashes`). The constants and the six state and lock names equal Go's. I compared
+    every error text: all are Go's except where an `os` function is named (`ReadFile` becomes `get`), which the ADR
+    says; the one other departure, the ADR-0205 refusals, is a later ADR. `driver.ts` never imports `entriesPath`
+    (`storage_test.ts` enforces it).
+  - Consequences, by running: `driver_fixtures_test.ts` runs `describeGoldenCompatibility("memory")` and passes for
+    every `log_<N>` (tiles, bundles, signed checkpoint, `.state/treeState` and `.state/version` byte-identical to what
+    the real POSIX driver wrote; a Go-written state continued into the next fixture). `vitest run` over
+    `src/storage/objectstore` and `src/storage/memory`: 7 files, 178 tests, all passed (45.75 s).
+  - Alternatives are fair (a driver per backend, a cloud driver as the model, compact keys). Dropping `file_ops.go` is
+    right: it is only the write primitives, and the contract restates what they guarantee (see ADR-0141 section 1).
+  - Not blocking, but the record should be kept straight with an Update line: (1) the Decision names
+    `src/storage/durableobject/`, which ADR-0150 deleted (ADR-0120 to ADR-0123 carry the supersession); (2) "every other
+    error text is upstream's" is no longer exact after ADR-0205 added `initialise`'s refusal and `checkPublishable`.

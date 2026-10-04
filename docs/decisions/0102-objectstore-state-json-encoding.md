@@ -88,9 +88,32 @@ The driver wraps any decoding error as `files.go` does, `error in Unmarshal: <me
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** changes requested
+- **Notes:**
+  - Differential run against real Go 1.24.7 `encoding/json`: 1,156 raw inputs through `unmarshalTreeState` and
+    `unmarshalGCState` against `json.Unmarshal` into the same structs (numbers in every form, `root` as strings, arrays
+    and every other type, extra and nested fields, key case and order, duplicates, BOM, invalid UTF-8, control
+    characters, truncations, 500 and 20,000 deep nesting), and 781 (size, root) pairs, 11 sizes up to MaxUint64 by root lengths 0 to 70, through the marshal side.
+    Marshal output is byte-identical (1,562 lines). The codec never accepts an input Go rejects. Type-error texts, base64
+    errors and `unexpected end of JSON input` equal Go's, and the ADR's disclaimed text differences (numeric-literal,
+    literal, control-character, BOM, whole-document `treeState`, depth) are exactly the ones I saw. The table's five rows
+    plus the `null` size row reproduce.
+  - **The ADR says it lists every way the decoder differs from Go; two are missing, and one sentence is wrong.** The
+    decision text and the Update must be corrected, or the code changed:
+    1. "unknown keys are skipped, whatever their value ... as it would in Go" is false for an extra field holding a nested
+       object with a repeated key: `{"size":1,"root":"AAAA","x":{"a":1,"a":2}}` (and the same inside an array) is rejected
+       with `json: duplicate field "a"` (`object()` checks duplicates at every depth), where Go loads it with size 1.
+    2. A key differing only in case when the exact key is also present: `{"size":1,"root":"AAAA","Size":3}` (or
+       `"Size":3`) loads with size 1 here and size 3 in Go (last match wins). The table's "ignored, so the field is missing"
+       covers only the case where the exact key is absent; here nothing is rejected and the value silently differs.
+    3. The Update says the codec reports the first of Go's errors "and only then applies its own refusals". The
+       duplicate-key refusal fires during parsing, so `{"size":5,"size":6,"root":"cm9vdCk"}` reports `duplicate field "size"`
+       where Go reports `illegal base64 data at input byte 4`. Both reject; only the text differs, but the sentence is
+       wrong as written.
+    4. Nit: "under 400 lines" is stale, `json.ts` is 442.
+  - Neither input in 1 or 2 can come from a file either driver writes, so the code is safe, but AGENTS.md section 6 asks
+    for every divergence, however small, to be recorded.
 
 ## Update (2026-10-04)
 
@@ -121,3 +144,11 @@ Marshal output was byte-identical. Decoding differed from Go in more ways than t
   exceeded`) where Go reports a type or depth error. Still an error.
 
 `json_test.ts` pins the array decoding, the document order and the `null` precedence against Go's output.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Changes requested, as in the Review above. Checked
+against real Go 1.24.7 (see the Review notes): arrays decoded as Go does (`[1,2,255]`, `null` elements, `256` giving
+`... of type uint8`, other element types); type errors reported in document order (`{"root":5,"size":-1}` reports `root`);
+the explicit `null` size or `fromSize` row; and every listed syntax-error wording difference, including the 10,000-deep
+nesting case (Go reports `exceeded max depth`, the codec overflows its stack, both reject). Marshal is byte-identical across
+781 inputs. Not covered by the update, so still missing from the ADR: nested duplicate keys and the exact-plus-case-variant
+key (items 1 and 2 of the Review), and the "only then applies its own refusals" sentence (item 3).

@@ -1,6 +1,6 @@
 # ADR-0103: Replace the POSIX driver's double locking with ObjectStore.lock alone
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`Storage.mu`, `lockFile`, `sequenceBatch`, `initialise`,
@@ -75,6 +75,20 @@ the lock left.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Checked against `files.go`: `Storage.mu` and the "Double locking" comment are as quoted; the process-scoped fcntl
+    explanation matches `lockFile`; Go panics on a lock failure in `sequenceBatch`, `initialise` (both `appender` and
+    `MigrationStorage`) and `buildTree`, and wraps `lockFile(%s): %v` in `publishCheckpoint` and `garbageCollect`, as stated.
+    `driver.ts` holds each lock around exactly the code Go holds it around, with the same names and
+    `lockFile(<name>): <cause>` wrapping done once in `ObjectStoreDriver.lockFile` (errors thrown inside the critical
+    section are passed through unwrapped; tested). Lock order checked: `initialise` publishes under the tree-state lock;
+    nothing takes the tree-state lock under the publish lock.
+  - The test claim, by mutation: with `lock` replaced by a no-op (a wrapper store), `describeDriverConformance`'s "never
+    assigns an index twice when two drivers share a store" fails (`index 2 assigned twice`); with `lockFile` bypassing only
+    `treeStateLock` in a scratch copy of `src/`, the same case, and only that one, fails. Tree state is read under the lock
+    for every batch (`sequenceBatch`, `buildTree`) and never cached.
+  - Not blocking: Consequences say `MemoryObjectStore` "uses a per-name `Mutex`" and that a Durable Object "may need a lock
+    across `await` points". Memory now uses `NamedLocks` (ADR-0142) and the Durable Object backend is gone (ADR-0150,
+    ADR-0152 local locking). A pointer to those in an Update would help.

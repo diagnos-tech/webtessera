@@ -148,6 +148,11 @@ interfaces naming only the methods it calls (`get`, `transaction`, and on the tr
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Reviewed only for the accuracy of the supersession note, as the ADR is superseded. The Status reads
+    `superseded by ADR-0150`, in the template's form. ADR-0150 states that it replaces the Durable Object KV backend ADR-0120 describes (its Context names ADR-0120 to ADR-0123; "KV-backed Durable Objects are no longer supported"), and the layout and chunking ADR-0120 decides are redone as ADR-0151, which ADR-0150 points to; ADR-0151 cites ADR-0120 as the rejected per-version chunk naming. The note is accurate as it stands (it could also name ADR-0151).
+  - Confirmed in the tree: `src/storage/durableobject/` does not exist and `package.json` `exports` has no
+    `./storage/durableobject` entry (only `./storage/sqlite`); `ADR-0150` to `ADR-0154` exist (`proposed`, reviewed
+    separately); `ADR-0001`'s 2026-10-03 Update and its review say the same, and `docs/PORTING-MAP.md` agrees.

@@ -90,6 +90,11 @@ We verified the following in workerd (`src/storage/durableobject/driver_test.ts`
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Reviewed only for the accuracy of the supersession note, as the ADR is superseded. The Status reads
+    `superseded by ADR-0153`, in the template's form. ADR-0153 covers durability per engine and has a Durable Object row. It says "On Durable Objects the decision of ADR-0122 stands: writes do not call `sync()` ...", so the decision is carried forward rather than reversed; what is superseded is the `newDurableObjectDriver` framing (the driver no longer exists). Accurate; a clause saying the decision is retained would help a reader.
+  - Confirmed in the tree: `src/storage/durableobject/` does not exist and `package.json` `exports` has no
+    `./storage/durableobject` entry (only `./storage/sqlite`); `ADR-0150` to `ADR-0154` exist (`proposed`, reviewed
+    separately); `ADR-0001`'s 2026-10-03 Update and its review say the same, and `docs/PORTING-MAP.md` agrees.

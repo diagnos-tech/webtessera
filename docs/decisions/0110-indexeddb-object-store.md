@@ -1,6 +1,6 @@
 # ADR-0110: Keep a log in IndexedDB as one record per ObjectStore key
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go`, `storage/posix/file_ops.go` (the model the ObjectStore
@@ -108,9 +108,30 @@ The engine driver convenience built on this store is ADR-0113.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - No Go original; reviewed under REVIEW-PROTOCOL 2.6 against the contract in `objectstore.ts`. Read
+    `src/storage/indexeddb/indexeddb.ts` and `locks.ts` in full. One transaction per method, all requests issued
+    synchronously, promises settle on `complete`/`abort`; `put` is `put`, `create` is `add` with the `ConstraintError`
+    cancelled (`preventDefault`) so the transaction completes and resolves `false`; `deletePrefix` deletes
+    `[prefix, successor)` where the successor increments the last code unit below U+FFFF, `clear()` for the empty prefix,
+    `lowerBound` for an all-U+FFFF prefix; `put`/`create` store `data.slice()`; the connection closes on `versionchange`
+    and `close` with `ErrClosed` as the cause of every later rejection; newer-schema (`VersionError`) and "no `objects`
+    store" opens are refused; `signal` abandons an open and the late connection is closed. Layout and `upgradeSchema`
+    as described.
+  - Run in both runtimes. Node with fake-indexeddb: `src/storage/indexeddb` unit suites passed (part of the 312-test
+    run over objectstore, memory, `storage_test.ts` and indexeddb). Real Chromium (`bun run test:browser` config,
+    chromium-1194, `src/storage/indexeddb`): 2 files, 72 tests passed, which includes `describeObjectStoreConformance`,
+    `describeDriverConformance` and `describeGoldenCompatibility` unmodified, the `deletePrefix` boundary table
+    (`testing/prefix_cases.ts`: U+FFFF, surrogate halves, the empty prefix) shared by both runtimes, and the two-realm
+    (page and module worker) cases. The view-copy, close-on-`versionchange`, in-flight-write and malformed-record cases exist
+    and pass.
+  - Consequences checked: the driver `stat`s only `.state/version` and the checkpoint (small); the persistence advice is
+    in the `IndexedDBObjectStore` doc comment and in `examples/client-only` (`navigator.storage.persist()`). Alternatives
+    (separate metadata store, Blobs, `count` then `add`, public constructor, rejecting on `blocked`) are reasoned.
+  - Not blocking: the `opts` list omits `singleWriter` (ADR-0201, a later ADR), and `lockScope` was added by ADR-0112's
+    Update.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

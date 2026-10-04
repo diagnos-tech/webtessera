@@ -1,6 +1,6 @@
 # ADR-0132: `TestForbiddenFunction` walks syntax trees from a Vite glob instead of grepping the file system
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/storage_test.go` (`TestForbiddenFunction`)
@@ -101,9 +101,25 @@ exercised without ever adding a violating file to the tree.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `storage/storage_test.go` against `src/storage/storage_test.ts`. Go walks the storage directory from `.` and
+    flags any non-test `.go` file containing `layout.EntriesPath`; the port walks every `.ts` file under `src/storage/`
+    delivered by `import.meta.glob("./**/*.ts", { query: "?raw", eager: true })`, skips `*_test.ts` and `testing/`
+    directories (both excluded by `tsconfig.build.json`), and asserts the walk reached `./internal/integrate.ts`, so an
+    empty glob cannot pass. The detector parses with the `typescript` compiler API (a devDependency) and reports a named
+    import or re-export of `entriesPath`/`entriesPathForLogIndex` from an `api/layout` specifier under any alias, a member
+    access on a namespace import of it, and the literal `layout.entriesPath`; fields and methods called `entriesPath`,
+    other modules' functions of that name, comments and strings are allowed. `entriesPathForLogIndex` is rightly forbidden
+    too: Go's substring is a prefix of `layout.EntriesPathForLogIndex`.
+  - Run: `src/storage/storage_test.ts` 26 tests pass, and the real tree is clean. The "25 port additions" total is right
+    (12 flagged, 9 allowed, 1 appended to the real text of `integrate.ts`, 2 for strings and comments, 1 for
+    `isImplementation`); the ADR's own breakdown names only the first three groups, so it sums to 22. Project facts
+    check out: `tsconfig.json` has `types: []`, no `@types/node`, no dependency on `vite/client`, and only
+    `vitest.config.ts` picks the file up.
+  - Alternatives are honest (the hand-written scanner is recorded as built and discarded). The blind spots (dynamic
+    `import()`, a re-export through a third module) are the same as upstream's grep.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

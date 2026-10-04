@@ -1,6 +1,6 @@
 # ADR-0111: Commit every IndexedDB write with strict durability, with no opt-out
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/file_ops.go` (`createTemp`, `syncDir`, `createEx`, `overwrite`)
@@ -62,9 +62,18 @@ that Chromium reports `durability === "strict"` on those transactions.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Checked the quoted `syncDir` comment against `file_ops.go` (verbatim), and that `createTemp` opens with `O_SYNC` and
+    `overwrite`/`createEx` run inside `syncDir`, with no switch to turn it off. In `indexeddb.ts` every `readwrite`
+    transaction is opened with `{ durability: "strict" }` and read-only ones with no options.
+  - The test claims hold. `indexeddb_test.ts` "commits every write with strict durability" spies on `IDBDatabase.transaction`
+    and asserts modes `readwrite` x5, `readonly` x2 and durability `strict` x5, `default` x2; `indexeddb_browser_test.ts`
+    asserts the same in real Chromium, which reports `strict` on the write transactions (both ran and passed).
+  - The unknown-dictionary-member claim for browsers without the hint is standard WebIDL behaviour. The reasoning
+    (a relaxed commit can lose acknowledged indices and fork the log) is sound, and rejecting an option is the right
+    call given upstream offers no such switch.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
