@@ -253,6 +253,10 @@ worker's *own* failure still gets cleaned up via `eg.signal`; only a failure *el
   - **§9 (manual `.next()` loop):** correct — verified the two error messages ("error while
     streaming bundles" vs. "failure calling appendBundle(...)") stay distinct, matching Go's two
     separate `if err != nil` checks; a single `for await…of` would conflate them.
+    *Correction (2026-10-04):* the port's message read `failure calling appendBundle(...)`, with
+    the method name camelCased, where Go's reads `failure calling AppendBundle(...)`. Error text is
+    carried verbatim (AGENTS.md §3.6), so the port now reads `AppendBundle(` too, and
+    `fsck_test.ts` pins it with a bundle hasher that throws.
   - **Self-reported `ResourceQueue.close()` bug:** independently reproduced. Reverting
     `splice(0)` to the described `this.#waiters.length = 0`-before-iterate form makes **both**
     fixture-backed `check()` tests time out (the 4 `TestTrimFullToPartial` subtests still pass,

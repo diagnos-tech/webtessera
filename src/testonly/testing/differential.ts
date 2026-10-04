@@ -72,7 +72,9 @@ export const DIVERGENCES = {
 		rule:
 			"verifyInclusion/rootFromInclusionProof/verifyConsistency throw " +
 			'"<proof[i]|root|root1|root2> has unexpected size N, want 32" for a proof hash or root that is not ' +
-			"32 bytes, after every check upstream makes; Go treats such a hash as opaque bytes.",
+			"32 bytes, only where Go succeeds: after every check upstream makes, its root comparisons included. " +
+			"Go treats such a hash as opaque bytes; where Go rejects, the port returns Go's error, a " +
+			"RootMismatchError with Go's calculated root included.",
 	},
 	"witness-quorum-hardening": {
 		adrs: ["0184"],
@@ -84,25 +86,27 @@ export const DIVERGENCES = {
 			"reports a later error of the same group.",
 	},
 	"witness-url-https": {
-		adrs: ["0185"],
+		adrs: ["0185", "0241"],
 		rule:
-			"newWitnessGroupFromPolicy rejects a witness URL that is not https (or http to a loopback host) with " +
-			'"invalid witness config %q: witness URL %q must use https (http is accepted only for a loopback host)".',
+			"newWitnessGroupFromPolicy rejects a witness URL, which Go accepts, whose endpoint (as Go's url.Parse, " +
+			"JoinPath and String make it) does not use https, or http to a loopback host, relative references " +
+			'included, with "invalid witness config %q: witness URL %q must use https (http is accepted only for ' +
+			'a loopback host)".',
 	},
-	"witness-url-absolute": {
-		adrs: ["0078"],
+	"witness-url-fetchable": {
+		adrs: ["0241"],
 		rule:
-			"newWitnessGroupFromPolicy rejects a witness URL that is not absolute with a // authority, which Go's " +
-			'url.Parse accepts as a relative reference, with "invalid witness URL %q: parse %q: not an absolute URL ' +
-			'with a "//" authority"; for a URL Go rejects too, that message replaces url.Parse\'s.',
+			"newWitnessGroupFromPolicy rejects an https or http witness URL, which Go accepts, whose endpoint has no " +
+			'host in Go\'s reading, with "invalid witness config %q: witness URL %q has no host", or that the ' +
+			'platform URL parser rejects, with "invalid witness config %q: witness URL %q is rejected by the ' +
+			'platform URL parser, which fetch uses".',
 	},
-	"witness-url-escaping": {
-		adrs: ["0078"],
+	"witness-policy-utf8": {
+		adrs: ["0242"],
 		rule:
-			"A witness URL is kept as written apart from its scheme: where Go's (*url.URL).String percent-encodes " +
-			"non-ASCII characters, decoding Go's escapes gives the port's URL exactly; and a malformed " +
-			'percent-escape that Go rejects ("invalid witness URL %q: parse %q: invalid URL escape %q") is ' +
-			"accepted, so the port either accepts the policy with that URL as written or stops at a later line.",
+			"newWitnessGroupFromPolicy rejects a policy line whose text before its first '#' is not valid UTF-8, " +
+			'when it reaches that line, with "witness policy line is not valid UTF-8"; Go reads the bytes. Lines ' +
+			"before it get Go's verdict, and invalid bytes in a comment are accepted, as in Go.",
 	},
 	"numerror-quote-bound": {
 		adrs: ["0204"],

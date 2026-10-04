@@ -89,3 +89,30 @@ inside it), which changes nothing observable because nothing runs between the lo
 loop. The error is now the shared `ErrTooLong` sentinel, unwrapped. `witness_policy_test.ts` (its line-length
 cases, plus two asserting the sentinel's identity and that nothing after the long line is parsed),
 `witness_test.ts` and the differential corpus in `root_differential_test.ts` pass unchanged.
+
+## Update (2026-10-04): the scanner's state machine is Go's, and canonicality errors come last
+
+The final fidelity audit found two places where the code did not do what the Decision says.
+
+- **"Everything Go rejects is rejected first, with Go's error"** did not hold. The canonical-base64 check threw as soon
+  as a line Go accepts was non-canonical, before later lines Go rejects were read: `index 1`, a hash with a `\r` inside
+  it, then `!!!` gave `tlog proof hash not canonically base64 encoded` where Go says `tlog proof hash not base64
+  encoded: illegal base64 data at input byte 0`, and non-canonical extra data with no index line gave the extra-data
+  message where Go says `tlog proof missing required index` (43 of the audit's 36,506 records). `unmarshal` now
+  remembers the first non-canonical line, parses on exactly as Go does, and throws that error only once the parse,
+  including the scanner's own error check, has finished without an error of Go's. `tlog_proof_test.ts` pins the
+  audit's two inputs, a wrong hash length and a too-long line after non-canonical extra data, and that the first of
+  two non-canonical lines is the one reported; the audit's corpus now shows no record where the canonicality error
+  pre-empts Go's.
+- **"Follows line for line"** did not hold for a scanner stopped by `ErrTooLong`. Go's `Scanner` is not done after
+  that error: its next `Scan` hands `ScanLines` the buffered 64 KiB at EOF, returns true with them as a token (less a
+  final `\r`), and only then returns false for good, which `tlog_proof.go`'s checkpoint loop reaches after its hash
+  loop ended on the error. The stand-in stayed stopped. `src/internal/gostd/bufio.ts` now transcribes Go 1.25.5's
+  `Scan`, `advance`, `setErr`, `ScanLines` and `dropCR` over an in-memory reader (the buffer starts at 4,096 bytes and
+  doubles to `MaxScanTokenSize`, shifting unread bytes to the front as Go does), so every call, including those after
+  a false, returns what Go's returns; the branches only a custom split function or a misbehaving reader can reach are
+  left out, and listed in its header. `Bytes` is now a view of the scanner's buffer, as in Go, so `tlog_proof.ts`
+  copies each checkpoint line, as Go's `checkpoint.Write` does. The file is a transcription of Go code and carries the
+  Go Authors' BSD notice; `NOTICE` lists it. Neither caller's output changes: `TLogProof.unmarshal` still ends with
+  `scanning tlog proof: bufio.Scanner: token too long`, and the policy parser still stops at its first false. On the
+  audit's 20,000 inputs with lines around 64 KiB and eight `Scan` calls each, the stand-in now equals Go on every call.

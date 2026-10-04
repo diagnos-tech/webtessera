@@ -159,6 +159,17 @@ describe("newMigrationTarget", () => {
 			"does not implement MigrationTarget lifecycle",
 		);
 	});
+
+	// Port addition: Go's %T of a nil interface is "<nil>"; a value with no constructor is
+	// named by its typeof rather than crashing on the missing constructor.
+	it("names the driver it rejects as Go's %T would, whatever it is", async () => {
+		await expect(newMigrationTarget(Object.create(null), newMigrationOptions())).rejects.toThrow(
+			"driver object does not implement MigrationTarget lifecycle",
+		);
+		await expect(newMigrationTarget(undefined, newMigrationOptions())).rejects.toThrow(
+			"driver <nil> does not implement MigrationTarget lifecycle",
+		);
+	});
 });
 
 describe("MigrationTarget followers", () => {

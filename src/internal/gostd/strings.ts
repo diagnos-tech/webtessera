@@ -50,7 +50,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Doc comments taken from strings/strings.go (Go standard library) @ Go 1.24.7
+// Doc comments taken from strings/strings.go (Go standard library) @ Go 1.25.5
 
 // This file is not a port of a Tessera file. It stands in for the parts of Go's
 // `strings` package that the port relies on and TypeScript does not provide.
@@ -104,8 +104,10 @@ export function trimSpace(s: string): string {
 /**
  * fields splits the string s around each instance of one or more consecutive white space
  * characters, as defined by unicode.IsSpace, returning a slice of substrings of s or an
- * empty slice if s contains only white space (`strings.Fields`; doc comment derived from
- * Go's).
+ * empty slice if s contains only white space. Every element of the returned slice is
+ * non-empty. Unlike Split, leading and trailing runs runs of white space characters
+ * are discarded. (`strings.Fields`; doc comment derived from Go's, its doubled "runs"
+ * included.)
  *
  * Port note: not `s.split(/\s+/)`, for the reason given on trimSpace.
  */

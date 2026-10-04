@@ -32,8 +32,10 @@ import type { FetchFn } from "./client/fetcher.ts";
 import type { Entry } from "./entry.ts";
 import { fromUTF8 } from "./internal/gostd/bytes.ts";
 import { ErrNotExist, errorIs, throwIfAborted, wrapError } from "./internal/gostd/errors.ts";
+import { formatType } from "./internal/gostd/fmt.ts";
 import { quote } from "./internal/gostd/strconv.ts";
 import { Mutex, sleep } from "./internal/gostd/sync.ts";
+import { durationFromMs } from "./internal/gostd/time.ts";
 import { checkpointUnsafe } from "./internal/parse/parse.ts";
 import { newWitnessGateway, PolicyNotSatisfiedError } from "./internal/witness/witness.ts";
 import { type Antispam, defaultIDHasher, type Follower, type LogReader } from "./lifecycle.ts";
@@ -190,7 +192,7 @@ export async function newAppender(
 	signal?: AbortSignal,
 ): Promise<NewAppenderResult> {
 	if (!isAppendLifecycle(d)) {
-		throw new Error(`driver ${typeName(d)} does not implement Appender lifecycle`);
+		throw new Error(`driver ${formatType(d)} does not implement Appender lifecycle`);
 	}
 	if (opts === null) {
 		throw new Error("opts cannot be nil");
@@ -415,6 +417,7 @@ export class AppendOptions {
 	 *
 	 * Port note: public (Go: unexported) because it is read cross-module by ct_only.ts's WithCTLayout,
 	 * as ct_only.go reads it cross-file within the package.
+	 * @internal
 	 */
 	bundleIDHasher: (bundle: Uint8Array) => Uint8Array[];
 
@@ -429,9 +432,13 @@ export class AppendOptions {
 	 *
 	 * Port note: public (Go: unexported) because newAppender, a module-level function, reads it;
 	 * a `#private` field would be unreachable from outside the class body.
+	 * @internal
 	 */
 	addDecorators: ((fn: AddFn) => AddFn)[];
-	/** followers is the list of Followers to run against the log (Go: unexported; public for newAppender). */
+	/**
+	 * followers is the list of Followers to run against the log (Go: unexported; public for newAppender).
+	 * @internal
+	 */
 	followers: Follower[];
 
 	// garbageCollectionInterval of zero should be interpreted as requesting garbage collection to be disabled.
@@ -845,7 +852,9 @@ export class WitnessOptions {
 	 * will stop waiting for more responses. The failOpen option below controls whether or not the
 	 * checkpoint will be published in this case.
 	 *
-	 * If unset (0), uses DefaultWitnessTimeout.
+	 * If unset, uses DefaultWitnessTimeout.
+	 *
+	 * Port note: unset is 0 ms, the zero value of Go's Duration.
 	 */
 	timeout: number; // ms
 
@@ -864,17 +873,6 @@ export class WitnessOptions {
 	}
 }
 
-/** typeName renders a value's dynamic type the way Go's `%T` verb does (best effort). */
-function typeName(d: unknown): string {
-	if (d === null) {
-		return "<nil>";
-	}
-	if (typeof d === "object") {
-		return d.constructor?.name ?? typeof d;
-	}
-	return typeof d;
-}
-
 // messageOf renders a caught value the way Go's `%v` renders an error (no wrapping).
 function messageOf(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
@@ -883,11 +881,5 @@ function messageOf(err: unknown): string {
 // goDuration renders a millisecond interval the way Go's `%d` renders the equivalent
 // time.Duration: as a whole number of nanoseconds.
 function goDuration(ms: number): string {
-	if (Number.isInteger(ms)) {
-		return (BigInt(ms) * 1_000_000n).toString();
-	}
-	if (Number.isFinite(ms)) {
-		return BigInt(Math.round(ms * 1_000_000)).toString();
-	}
-	return String(ms);
+	return Number.isFinite(ms) ? durationFromMs(ms).toString() : String(ms);
 }

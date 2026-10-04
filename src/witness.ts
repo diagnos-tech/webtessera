@@ -19,24 +19,28 @@
 // uses one (that is internal/witness/witness.go's job, see src/internal/witness/witness.ts).
 // `bufio.NewScanner(bytes.NewBuffer(p))` becomes `Scanner` from src/internal/gostd/bufio.ts,
 // the shared stand-in, which keeps the scanner's line splitting and its 64 KiB line limit
-// (docs/decisions/0224-port-formats-proof-for-tlog-proof.md). `url.Parse` and
-// `(*url.URL).JoinPath` have no JavaScript/DOM equivalent that keeps a URL as written (the
-// platform `URL` type normalises it), so small scoped helpers at the end of this file
-// reproduce what this file needs of them -- see their own comments and
-// docs/decisions/0078-witness-url-joinpath-reimplemented.md.
+// (docs/decisions/0224-port-formats-proof-for-tlog-proof.md). `url.Parse`,
+// `(*url.URL).JoinPath` and `(*url.URL).String` come from src/internal/gostd/url.ts, a
+// transcription of Go's net/url: the platform `URL` type accepts, rejects and normalises
+// different URLs (docs/decisions/0241-witness-policy-urls-parsed-as-go-parses-them.md).
 //
-// Port note: three deliberate hardening divergences from Go live in this file:
+// Port note: these deliberate hardening divergences from Go live in this file:
 // newWitnessGroupFromPolicy rejects a group that names the same child twice, two witnesses
 // with the same verifier key, and an explicit group threshold of 0
-// (docs/decisions/0184-witness-policy-rejects-ambiguous-quorums.md); and newWitness accepts
-// only https witness URLs, or http to a loopback host
-// (docs/decisions/0185-witness-urls-require-https.md).
+// (docs/decisions/0184-witness-policy-rejects-ambiguous-quorums.md), and a policy line that
+// is not valid UTF-8 (docs/decisions/0242-witness-policy-must-be-utf8.md); and newWitness
+// accepts only https witness URLs, or http to a loopback host
+// (docs/decisions/0185-witness-urls-require-https.md), that have a host and that the
+// platform URL parser, which fetch uses, accepts
+// (docs/decisions/0241-witness-policy-urls-parsed-as-go-parses-them.md).
 
 import { Scanner } from "./internal/gostd/bufio.ts";
 import { fromBase64, toHex } from "./internal/gostd/bytes.ts";
 import { wrapError } from "./internal/gostd/errors.ts";
 import { parseUint, quote } from "./internal/gostd/strconv.ts";
 import { cut, fields as splitFields, trimSpace } from "./internal/gostd/strings.ts";
+import { validUTF8 } from "./internal/gostd/unicode.ts";
+import * as url from "./internal/gostd/url.ts";
 import { newVerifierForCosignatureV1 } from "./vendor/formats/note/note_cosigv1.ts";
 import { open, type Verifier, verifierList } from "./vendor/note/note.ts";
 
@@ -78,6 +82,16 @@ export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 
 	let quorumName = "";
 	while (scanner.scan()) {
+		// Port note: hardening with no Go counterpart (ADR-0242). Go compares names as the
+		// bytes they are; a JavaScript string cannot hold bytes that are not valid UTF-8, and
+		// decoding them to U+FFFD would make distinct names, keys and URLs compare equal. So
+		// the part of the line Go goes on to read, everything before its first '#', must be
+		// valid UTF-8; a comment, which Go discards, may hold any bytes.
+		const raw = scanner.bytes();
+		const hash = raw.indexOf(0x23);
+		if (!validUTF8(hash < 0 ? raw : raw.subarray(0, hash))) {
+			throw new Error("witness policy line is not valid UTF-8");
+		}
 		let line = trimSpace(scanner.text());
 		const i = line.indexOf("#");
 		if (i >= 0) {
@@ -110,9 +124,9 @@ export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 				if (components.has(name)) {
 					throw new Error(`duplicate component name: ${quote(name)}`);
 				}
-				let witnessURL: string;
+				let witnessURL: url.URL;
 				try {
-					witnessURL = parseWitnessURL(witnessURLStr);
+					witnessURL = url.parse(witnessURLStr);
 				} catch (err) {
 					throw wrapError(`invalid witness URL ${quote(witnessURLStr)}`, err);
 				}
@@ -245,29 +259,30 @@ function isBadName(n: string): boolean {
  * newWitness returns a Witness given a verifier key and the root URL for where this
  * witness can be reached.
  *
- * Port note: throws unless the witness URL uses https, or http to a loopback host, as
- * hardening with no Go counterpart (docs/decisions/0185-witness-urls-require-https.md). The
- * endpoint is joined onto `witnessRoot.href`, which the platform URL type has already
- * normalised; newWitnessGroupFromPolicy keeps a policy's URL as written instead.
+ * Port note: Go takes a `*url.URL`; this takes the platform URL type and reads its `href`
+ * with url.parse, Go's parser, which accepts every href the platform produces except one
+ * holding a malformed percent-escape, and then throws Go's error for it. Throws unless the
+ * endpoint uses https, or http to a loopback host, as hardening with no Go counterpart
+ * (docs/decisions/0185-witness-urls-require-https.md).
  */
 export function newWitness(vkey: string, witnessRoot: URL): Witness {
-	return newWitnessFromRoot(vkey, witnessRoot.href);
+	return newWitnessFromRoot(vkey, url.parse(witnessRoot.href));
 }
 
 /**
- * newWitnessFromRoot is newWitness for a witness root URL held as a string, which is how
- * newWitnessGroupFromPolicy keeps it so that the URL is not normalised (see parseWitnessURL).
+ * newWitnessFromRoot is newWitness for a witness root URL as Go's url.Parse reads it, which
+ * is how newWitnessGroupFromPolicy holds a policy's URL.
  *
- * Port note: the https check is hardening with no Go counterpart, see
- * docs/decisions/0185-witness-urls-require-https.md.
+ * Port note: the checks on the endpoint are hardening with no Go counterpart, see
+ * checkWitnessURL.
  */
-function newWitnessFromRoot(vkey: string, witnessRoot: string): Witness {
+function newWitnessFromRoot(vkey: string, witnessRoot: url.URL): Witness {
 	const v = newVerifierForCosignatureV1(vkey);
 
-	const u = urlJoinPath(witnessRoot, "/add-checkpoint");
+	const u = witnessRoot.joinPath("/add-checkpoint");
 	checkWitnessURL(u);
 
-	return new Witness(v, u);
+	return new Witness(v, u.string());
 }
 
 /**
@@ -408,102 +423,40 @@ function verifierKeyID(vkey: string): string {
 }
 
 /**
- * parseWitnessURL checks a witness URL from a policy file and returns it unchanged.
+ * checkWitnessURL throws unless the witness endpoint u is one fetch will send to the host Go
+ * would: an https URL, or an http URL whose host is a loopback address; with a host; and
+ * accepted by the platform URL parser.
  *
- * Port note: Go parses it with `url.Parse` and later writes it back out with
- * `(*url.URL).String`, which keeps the URL as written apart from lower-casing the scheme.
- * The platform `URL` type normalises far more: it lower-cases the host, drops a default port
- * and rewrites some paths. So the string itself is kept, and the platform parser is used
- * only to reject what is not an absolute URL. That rejection is a narrowing of Go, whose
- * url.Parse accepts relative references too; a witness URL must be absolute and have a
- * `//` authority. Go's own check for control characters is kept, with Go's error text. See
- * docs/decisions/0078-witness-url-joinpath-reimplemented.md.
+ * Port note: hardening with no Go counterpart. The scheme rule is
+ * docs/decisions/0185-witness-urls-require-https.md; the scheme is Go's reading of it. The
+ * other two refuse a URL Go's url.Parse accepts but fetch cannot use as Go's HTTP client
+ * would (docs/decisions/0241-witness-policy-urls-parsed-as-go-parses-them.md): one without a
+ * host, which Go's client refuses to send and the platform parser reads differently
+ * (`https:///x` as host `x`), and one the platform parser rejects (a port above 65535, an
+ * IPv6 zone, a host of `256.1.1.1` or with `<` in it). The loopback check reads the URL with
+ * the platform parser because that is the parser fetch uses, so what is checked is where
+ * requests go.
  */
-function parseWitnessURL(rawURL: string): string {
-	const [u] = cut(rawURL, "#");
-	for (let i = 0; i < u.length; i++) {
-		const c = u.charCodeAt(i);
-		if (c < 0x20 || c === 0x7f) {
-			throw new Error(`parse ${quote(u)}: net/url: invalid control character in URL`);
-		}
+function checkWitnessURL(u: url.URL): void {
+	const s = u.string();
+	const mustUseHTTPS = `witness URL ${quote(s)} must use https (http is accepted only for a loopback host)`;
+	if (u.scheme !== "https" && u.scheme !== "http") {
+		throw new Error(mustUseHTTPS);
 	}
-	const colon = rawURL.indexOf(":");
-	if (!URL.canParse(rawURL) || !rawURL.startsWith("//", colon + 1)) {
-		throw new Error(`parse ${quote(u)}: not an absolute URL with a "//" authority`);
+	if (u.host === "") {
+		throw new Error(`witness URL ${quote(s)} has no host`);
 	}
-	return rawURL;
-}
-
-/**
- * urlJoinPath reproduces Go's `url.Parse(rawURL)` followed by `.JoinPath(elem...).String()`
- * for an absolute URL with a `//` authority, which is every URL parseWitnessURL accepts and
- * every `URL.href` newWitness can be given: the scheme is lower-cased, the authority, query
- * and fragment are kept as written, and the path is joined with elem the way JoinPath joins
- * it (path.Join, keeping one trailing slash when the last element has one, and making the
- * path rooted when there is a host).
- *
- * Port note: Go also re-escapes a path, userinfo, host or fragment that is not validly
- * percent-encoded (non-ASCII bytes, for example); this keeps such bytes as written. See
- * docs/decisions/0078-witness-url-joinpath-reimplemented.md.
- */
-function urlJoinPath(rawURL: string, ...elem: string[]): string {
-	const [beforeFragment, fragment] = cut(rawURL, "#");
-	const [beforeQuery, query, hasQuery] = cut(beforeFragment, "?");
-	const colon = beforeQuery.indexOf(":");
-	const scheme = beforeQuery.slice(0, colon).toLowerCase();
-	const hierarchical = beforeQuery.slice(colon + 3);
-	const slash = hierarchical.indexOf("/");
-	const authority = slash < 0 ? hierarchical : hierarchical.slice(0, slash);
-	const path = slash < 0 ? "" : hierarchical.slice(slash);
-	const host = authority.slice(authority.lastIndexOf("@") + 1);
-
-	const elems = [path, ...elem];
-	let p: string;
-	if (!path.startsWith("/")) {
-		p = goPathJoin(`/${path}`, ...elem).slice(1);
-	} else {
-		p = goPathJoin(...elems);
+	if (!URL.canParse(s)) {
+		throw new Error(`witness URL ${quote(s)} is rejected by the platform URL parser, which fetch uses`);
 	}
-	if ((elems[elems.length - 1] as string).endsWith("/") && !p.endsWith("/")) {
-		p += "/";
-	}
-
-	let out = `${scheme}://${authority}`;
-	if (p !== "" && !p.startsWith("/") && host !== "") {
-		out += "/";
-	}
-	out += p;
-	if (hasQuery) {
-		out += `?${query}`;
-	}
-	if (fragment !== "") {
-		out += `#${fragment}`;
-	}
-	return out;
-}
-
-/**
- * checkWitnessURL throws unless u, as fetch will read it, is an https URL, or an http URL
- * whose host is a loopback address.
- *
- * Port note: hardening with no Go counterpart, see
- * docs/decisions/0185-witness-urls-require-https.md. The check reads u with the platform URL
- * parser because that is the parser fetch uses, so what is checked is where requests go.
- */
-function checkWitnessURL(u: string): void {
-	let parsed: URL;
-	try {
-		parsed = new URL(u);
-	} catch (err) {
-		throw wrapError(`witness URL ${quote(u)} is not a valid URL`, err);
-	}
+	const parsed = new URL(s);
 	if (parsed.protocol === "https:") {
 		return;
 	}
 	if (parsed.protocol === "http:" && isLoopbackHost(parsed.hostname)) {
 		return;
 	}
-	throw new Error(`witness URL ${quote(u)} must use https (http is accepted only for a loopback host)`);
+	throw new Error(mustUseHTTPS);
 }
 
 /**
@@ -512,46 +465,4 @@ function checkWitnessURL(u: string): void {
  */
 function isLoopbackHost(hostname: string): boolean {
 	return hostname === "localhost" || hostname === "[::1]" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
-}
-
-/**
- * goPathJoin mirrors Go's `path.Join`: empty elements are ignored, the rest are joined with
- * "/" and the result is Cleaned; if every element is empty the result is "".
- */
-function goPathJoin(...elem: string[]): string {
-	const first = elem.findIndex((e) => e !== "");
-	if (first < 0) {
-		return "";
-	}
-	return goPathClean(elem.slice(first).join("/"));
-}
-/** goPathClean mirrors Go's `path.Clean`, scoped to the rooted (absolute) paths this file produces. */
-function goPathClean(p: string): string {
-	if (p === "") {
-		return ".";
-	}
-	const rooted = p.startsWith("/");
-	const segments = p.split("/");
-	const out: string[] = [];
-	for (const seg of segments) {
-		if (seg === "" || seg === ".") {
-			continue;
-		}
-		if (seg === "..") {
-			if (out.length > 0 && out[out.length - 1] !== "..") {
-				out.pop();
-			} else if (!rooted) {
-				out.push("..");
-			}
-			continue;
-		}
-		out.push(seg);
-	}
-	let result = out.join("/");
-	if (rooted) {
-		result = `/${result}`;
-	} else if (result === "") {
-		result = ".";
-	}
-	return result;
 }

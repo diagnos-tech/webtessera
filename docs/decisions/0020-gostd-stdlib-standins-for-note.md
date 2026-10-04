@@ -5,6 +5,11 @@
 - **Author:** note agent
 - **Upstream reference:** `golang.org/x/mod/sumdb/note/note.go`, `github.com/transparency-dev/formats/log/checkpoint.go`
 
+> **Reading note (2026-10-04):** the "deliberate limits" listed under Decision describe the files as first written.
+> Two of them (base 0 in `parseUint`, Go's `IsPrint` in `quote`) were lifted by the inline update of 2026-10-02 and
+> ADR-0204, and the updates at the end of this ADR add the stand-ins written since (`trimSpace`, `fields`, `time.ts`,
+> `fmt.ts`, `quoteBytes`, `decodeRune`). Read the updates before relying on the original table.
+
 ## Context
 
 `sumdb/note` is not mostly cryptography. It is mostly *parsing*, and it is written directly against
@@ -174,5 +179,35 @@ Deliberate limits, so that no untested parser branch ships:
   header now says so, as AGENTS.md section 9 prescribes for mixed files: both copyright lines, the
   derived declaration named, the Apache-2.0 notice for the remainder, and the pointer to
   `LICENSES/BSD-3-Clause-Go.txt`. `NOTICE` lists it with the other Go-derived files.
+
+*Review of this update: pending.*
+
+## Update (2026-10-04)
+
+Stand-ins added since this ADR's table, none of them previously recorded in an ADR:
+
+- **`strings.ts`: `trimSpace` and `fields`** (`strings.TrimSpace`, `strings.Fields`), which the witness policy parser
+  (`src/witness.ts`) uses to split each line. Both are built on `isSpace`, so they trim and split at exactly Unicode's
+  White_Space code points, as Go does, and not at JavaScript's `\s` (which adds U+FEFF and omits U+0085);
+  `String.prototype.trim` and `split(/\s+/)` would split policies differently from Go. They walk UTF-16 code units,
+  which is equivalent because every White_Space code point is in the BMP and no surrogate half is White_Space. On a Go
+  string that is not valid UTF-8, Go's versions treat each invalid byte as a non-space rune; a JavaScript string cannot
+  hold such bytes, and the policy parser rejects such a line before splitting it (ADR-0242). The `fields` section of
+  `differential_gostd.json` (1,500 strings mixing every White_Space code point with look-alikes) pins both. The file now
+  cites Go 1.25.5, whose `strings.go` differs from 1.24.7's here only in two sentences added to `Fields`' doc comment,
+  which are carried; the test tables in `strings_test.ts` are identical in both releases.
+- **`time.ts`: `durationString` and `durationFromMs`** (`time.Duration.String`, mixed provenance). AGENTS.md §3.5 maps
+  a Duration to milliseconds; `durationFromMs` converts back to Go's int64 nanoseconds, rounding to the nearest one, and
+  `durationString` transcribes `(Duration).String`. They reproduce the error messages that print a Duration:
+  `ObjectStoreDriver`'s `requested CheckpointInterval (500µs) ...` (`%v`) and `AppendOptions.valid`'s `%d`.
+- **`strconv.ts`: `quoteBytes`** (`strconv.Quote(string(b))` for arbitrary bytes, spelling each invalid byte `\xNN`) and
+  **`unicode.ts`: `decodeRune`** (`utf8.DecodeRune`). `url.ts` needs them to quote byte slices that Go's `net/url` cuts
+  inside a character, as `%q` does.
+- **`fmt.ts`: `formatType`** (`%T`), shared by `newAppender` and `newMigrationTarget` for their
+  `driver %T does not implement ... lifecycle` errors. It renders null and undefined as Go renders a nil interface,
+  `<nil>`, and otherwise the value's constructor name, or its `typeof` when it has none; the two private helpers it
+  replaces disagreed on `undefined` and one crashed on an object with a null prototype.
+- **`url.ts`** (`net/url`'s `Parse`, `JoinPath` and `String`) is recorded in ADR-0241, and the transcription of
+  `bufio.Scanner`'s state machine in ADR-0224's update of the same date.
 
 *Review of this update: pending.*

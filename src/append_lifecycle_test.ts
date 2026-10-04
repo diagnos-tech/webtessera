@@ -373,6 +373,10 @@ describe("newAppender (port additions)", () => {
 		await expect(
 			newAppender({}, newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey))),
 		).rejects.toThrow("does not implement Appender lifecycle");
+		// Port addition: a nil driver is named "<nil>", as Go's %T names a nil interface.
+		await expect(
+			newAppender(undefined, newAppendOptions().withCheckpointSigner(mustCreateSigner(testSignerKey))),
+		).rejects.toThrow("driver <nil> does not implement Appender lifecycle");
 	});
 
 	it("throws when opts is null", async () => {

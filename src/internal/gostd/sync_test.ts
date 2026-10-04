@@ -453,6 +453,47 @@ describe("sleep", () => {
 		ctrl.abort(new Error("gone"));
 		await expect(sleep(1000, ctrl.signal)).rejects.toThrow("gone");
 	});
+
+	// A timer fires at once for a delay above 2^31-1 ms; Go's time.After waits the whole
+	// duration, so sleep chains timers no longer than that.
+	it("waits the whole of a delay longer than a timer can hold", async () => {
+		vi.useFakeTimers();
+		const spy = vi.spyOn(globalThis, "setTimeout");
+		try {
+			const max = 2 ** 31 - 1;
+			const ms = 3.3e9;
+			let done = false;
+			const ctrl = new AbortController();
+			void sleep(ms, ctrl.signal).then(() => {
+				done = true;
+			});
+			await vi.advanceTimersByTimeAsync(max);
+			expect(done).toBe(false);
+			await vi.advanceTimersByTimeAsync(ms - max - 1);
+			expect(done).toBe(false);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(done).toBe(true);
+			for (const call of spy.mock.calls) {
+				expect(call[1] ?? 0).toBeLessThanOrEqual(max);
+			}
+		} finally {
+			spy.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("can be aborted during a later timer of a long delay", async () => {
+		vi.useFakeTimers();
+		try {
+			const ctrl = new AbortController();
+			const p = sleep(3.3e9, ctrl.signal);
+			await vi.advanceTimersByTimeAsync(2 ** 31);
+			ctrl.abort(new Error("stop"));
+			await expect(p).rejects.toThrow("stop");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe("ticker", () => {

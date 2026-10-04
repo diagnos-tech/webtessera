@@ -172,13 +172,39 @@ class Pool {
 
 const hashChildren = DefaultHasher.hashChildren.bind(DefaultHasher);
 
-/** upstreamCheckFirst lists the errors upstream raises before the port's hash-size checks. */
+/** sizeErrorPattern matches the port's hash-size error, the "merkle-hash-size" divergence. */
 const sizeErrorPattern = /^(proof\[(\d+)\]|root|root1|root2) has unexpected size (\d+), want 32$/;
 
 /**
- * checkVerify compares one verification outcome with Go's. named resolves the hash a
- * "has unexpected size" error names, for the "merkle-hash-size" divergence: it applies
- * when some proof hash or root is not 32 bytes and Go got past all of its own checks.
+ * checkSizeError applies the "merkle-hash-size" divergence to an input Go accepted although
+ * one of its hashes is not 32 bytes: the port must throw the size error, naming a hash
+ * (resolved by named) that really has the size the message says and is not 32 bytes.
+ */
+function checkSizeError(
+	rep: DifferentialReport,
+	rid: string,
+	got: Outcome<unknown>,
+	named: (name: string, index: number) => Uint8Array | undefined,
+	what: string,
+): void {
+	const m = got.ok ? null : sizeErrorPattern.exec(messageOf(got.error));
+	const h = m ? named(m[1]?.startsWith("proof") ? "proof" : (m[1] as string), Number(m[2] ?? -1)) : undefined;
+	if (m && h !== undefined && h.length === Number(m[3]) && h.length !== 32) {
+		rep.diverge("merkle-hash-size");
+	} else {
+		rep.fail(
+			rid,
+			`${what}: go accepted a wrong-size hash, expected a "has unexpected size" error, got ${got.ok ? "success" : messageOf(got.error)}`,
+		);
+	}
+}
+
+/**
+ * checkVerify compares one verification outcome with Go's. The "merkle-hash-size"
+ * divergence applies only where ADR-0216 says it does: Go verified the proof (it got past
+ * every one of its checks, root comparisons included) although some proof hash or root is
+ * not 32 bytes. Everywhere else, a wrong-size hash included, the port must return Go's
+ * verdict: the same error text, or a RootMismatchError with Go's calculated root.
  */
 function checkVerify(
 	rep: DifferentialReport,
@@ -189,18 +215,8 @@ function checkVerify(
 	named: (name: string, index: number) => Uint8Array | undefined,
 	text: string | undefined,
 ): void {
-	if (outOfDomain && !(typeof go === "string" && go !== "")) {
-		// Go accepted, or computed a root, from a hash of the wrong size.
-		const m = got.ok ? null : sizeErrorPattern.exec(messageOf(got.error));
-		const h = m ? named(m[1]?.startsWith("proof") ? "proof" : (m[1] as string), Number(m[2] ?? -1)) : undefined;
-		if (m && h !== undefined && h.length === Number(m[3]) && h.length !== 32) {
-			rep.diverge("merkle-hash-size");
-		} else {
-			rep.fail(
-				rid,
-				`wrong-size hash: expected a "has unexpected size" error, got ${got.ok ? "success" : messageOf(got.error)} (go: ${JSON.stringify(go)})`,
-			);
-		}
+	if (outOfDomain && go === "") {
+		checkSizeError(rep, rid, got, named, "verify");
 		return;
 	}
 	if (go === "") {
@@ -276,10 +292,20 @@ export function describeMerkleDifferential(): void {
 					named,
 					texts.get(row),
 				);
-				if (!outOfDomain) {
-					const rf = attempt(() => rootFromInclusionProof(DefaultHasher, i, s, leafHash, proof));
-					const want =
-						result === "" ? `ok:${bytesToHex(root)}` : typeof result === "string" ? `err:${result}` : `ok:${result[1]}`;
+				// rootFromInclusionProof succeeds in Go wherever VerifyInclusion got as far as its
+				// root comparison; the port's size check then applies to the proof alone.
+				const rf = attempt(() => rootFromInclusionProof(DefaultHasher, i, s, leafHash, proof));
+				const want =
+					result === "" ? `ok:${bytesToHex(root)}` : typeof result === "string" ? `err:${result}` : `ok:${result[1]}`;
+				if (want.startsWith("ok:") && proof.some((h) => h.length !== 32)) {
+					checkSizeError(
+						rep,
+						rid,
+						rf,
+						(name, k) => (name === "proof" ? proof[k] : undefined),
+						"rootFromInclusionProof",
+					);
+				} else {
 					rep.equal(
 						rid,
 						"rootFromInclusionProof",

@@ -125,3 +125,26 @@ it("TestDedupDoesNotCacheError", async () => {
 		}
 	}
 });
+
+// Port addition: sync.OnceValue re-panics with the first panic's value on every later call,
+// without calling its function again. A delegate that throws instead of returning a failing
+// future is called once; the throw reaches the first caller, and the duplicate's future
+// rejects with the same value, as Go's re-panics when it is called.
+it("does not call a delegate that threw again for the same entry", async () => {
+	let calls = 0;
+	const boom = new Error("delegate exploded");
+	const delegate = (): IndexFuture => {
+		calls++;
+		if (calls === 1) {
+			throw boom;
+		}
+		return async (): Promise<Index> => ({ index: 7n, isDup: false });
+	};
+	const dedupAdd = newInMemoryDedup(256)(delegate);
+	const e = newEntry(toUTF8("foo"));
+
+	expect(() => dedupAdd(e)).toThrow(boom);
+	const second = dedupAdd(e);
+	await expect(second()).rejects.toBe(boom);
+	expect(calls).toBe(1);
+});

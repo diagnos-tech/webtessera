@@ -33,6 +33,10 @@ Tessera's own dependencies, which this repository also ports, are read from the 
 | `github.com/transparency-dev/formats` | `v0.0.0-20251017110053-404c0d5b696c` | Go module cache |
 | `golang.org/x/mod/sumdb/note` | `golang.org/x/mod@v0.31.0` | Go module cache |
 | `golang.org/x/crypto/cryptobyte` | `golang.org/x/crypto@v0.46.0` | Go module cache |
+| `golang.org/x/sync/errgroup` | `golang.org/x/sync@v0.19.0` | Go module cache (the `ErrGroup` stand-in, ADR-0004) |
+| `github.com/avast/retry-go/v4` | `v4.7.0` | Go module cache (`src/mirror/retry.ts`'s defaults, ADR-0173) |
+| `github.com/transparency-dev/formats/proof` | `formats@v0.1.1` | Go module cache (`src/vendor/formats/proof`, ADR-0224) |
+| Go standard library | Go `1.25.5` | `go1.25.5 env GOROOT` (the `src/internal/gostd` stand-ins) |
 
 ### The goal that overrides every other goal
 

@@ -55,3 +55,14 @@ root package; this ADR fixes the primitive so that no caller can produce a wrapp
 - **Reviewer:** _pending_
 - **Verdict:** _pending_
 - **Notes:**
+
+## Update (2026-10-04): cryptobyte's `addUint` methods
+
+`src/internal/gostd/cryptobyte.ts`'s `Builder.addUint8`, `addUint16`, `addUint24`, `addUint32`, `addUint48` and
+`addUint64` wrote the low bits of whatever number or bigint they were given, the same silent truncation this ADR removes
+from the `encoding/binary` appenders; `ctonly`'s `TimestampedEntry` encoder reaches `addUint64` with the entry's
+timestamp. They now throw `RangeError("cryptobyte: <v> is out of range for uint<N>")` for a value outside their Go
+parameter type: `uint8`, `uint16`, `uint32` (for `addUint24` and `addUint32`) and `uint64` (for `addUint48` and
+`addUint64`). Within those types nothing changes: `AddUint24` still drops the top byte of its `uint32` and `AddUint48`
+the top 16 bits of its `uint64`, as Go documents and does. The audit's 360,000 random builder programs against
+`x/crypto/cryptobyte` v0.46.0 still match with no mismatch; `cryptobyte_test.ts` pins the boundaries.

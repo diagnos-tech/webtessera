@@ -118,9 +118,10 @@ export function withCTLayout(o: AppendOptions | MigrationOptions): AppendOptions
 		o.internal.bundleLeafHasher = ctMerkleLeafHasher;
 		return o;
 	}
-	// Unreachable for callers the overloads admit. It is reachable when two copies of this library
-	// are loaded and the receiver was built by the other one, where a bare property write would
-	// either fail with an unrelated TypeError or silently configure the wrong object.
+	// Port note: no Go counterpart (docs/decisions/0130-ct-only-port-completed.md). Unreachable
+	// for callers the overloads admit. It is reachable when two copies of this library are loaded
+	// and the receiver was built by the other one, where a bare property write would either fail
+	// with an unrelated TypeError or silently configure the wrong object.
 	throw new Error("withCTLayout: unsupported options type");
 }
 

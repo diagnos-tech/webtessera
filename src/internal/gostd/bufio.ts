@@ -1,105 +1,237 @@
+// Copyright 2013 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck. All Rights Reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Ported from bufio/scan.go (Go standard library) @ Go 1.25.5
+// (Scanner with the ScanLines split function, over an in-memory reader)
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 // This file is not a port of a Tessera file. It stands in for the one use of Go's
 // `bufio` package that the port's sources share: a `bufio.Scanner` over an in-memory
 // byte slice with the default `ScanLines` split function, as `bufio.NewScanner(
 // bytes.NewReader(p))` builds it. Tessera's witness policy parser (witness.go) and
 // transparency-dev/formats' tlog-proof decoder (proof/tlog_proof.go) both read their
 // input that way, and both depend on its exact edge cases: a `\r` before the newline is
-// dropped, a final line without a newline is still a line, and a line of
-// MaxScanTokenSize bytes or more stops the scan with ErrTooLong.
+// dropped, a final line without a newline is still a line, a line of MaxScanTokenSize
+// bytes or more stops the scan with ErrTooLong, and a Scanner stopped by ErrTooLong
+// returns the buffered start of that line from the next Scan. The scanner's state machine
+// is transcribed rather than reimplemented so that every one of those, and the state after
+// a call that returned false, is Go's. See docs/decisions/0224-port-formats-proof-for-tlog-proof.md.
+//
+// Port note: what is not here is what this use cannot reach. The split function is always
+// ScanLines, which never returns an error (so neither ErrFinalToken, nor the split-error
+// path, nor ErrNegativeAdvance or ErrAdvanceTooFar) and never returns a token without
+// advancing at EOF (so the empty-token panic). The reader is always the in-memory slice,
+// whose Read fills any non-empty buffer it is given while input remains and then reports
+// io.EOF, the way bytes.Reader's and bytes.Buffer's do (so neither ErrBadReadCount nor
+// io.ErrNoProgress). `Buffer`, `Split` and the other split functions have no caller.
 
 import { fromUTF8 } from "./bytes.ts";
 import { SentinelError } from "./errors.ts";
+import { EOF } from "./io.ts";
 
 /**
- * MaxScanTokenSize is `bufio.MaxScanTokenSize`, the maximum size of a token a default
- * Scanner accepts: a line (counting a `\r` before its newline, but not the newline
- * itself) must be shorter than this.
+ * ErrTooLong is one of the errors returned by Scanner; Scanner.err() reports it for a token
+ * too large to fit in the buffer.
  */
-export const MaxScanTokenSize = 64 * 1024;
-
-/** ErrTooLong stands in for `bufio.ErrTooLong`, which Scanner.err() reports for a line that is too long. */
 export const ErrTooLong = new SentinelError("bufio.Scanner: token too long");
 
 /**
- * Scanner stands in for a `bufio.Scanner` reading p with the `ScanLines` split function.
+ * MaxScanTokenSize is the maximum size used to buffer a token
+ * unless the user provides an explicit buffer with [Scanner.Buffer].
+ * The actual maximum token size may be smaller as the buffer
+ * may need to include, for instance, a newline.
+ */
+export const MaxScanTokenSize = 64 * 1024;
+
+const startBufSize = 4096; // Size of initial allocation for buffer.
+
+/**
+ * Scanner provides a convenient interface for reading data such as
+ * a file of newline-delimited lines of text. Successive calls to
+ * the {@link Scanner.scan} method will step through the 'tokens' of a file, skipping
+ * the bytes between the tokens. The default split function breaks the input into lines
+ * with line termination stripped.
  *
- * Successive calls to {@link scan} step through the lines of p, skipping the bytes
- * between them: one line per `\n`, with the `\n` and a `\r` immediately before it
- * removed, and no empty final line for input that ends with a newline. The scan stops
- * at the end of the input, or at the first line of {@link MaxScanTokenSize} bytes or
- * more, after which {@link err} returns {@link ErrTooLong}. As in Go, {@link text} and
- * {@link bytes} return the empty value once scan has returned false.
+ * Scanning stops unrecoverably at EOF, the first I/O error, or a token too
+ * large to fit in the buffer. When a scan stops, the reader may have
+ * advanced arbitrarily far past the last token.
+ *
+ * Port note: `bufio.NewScanner(bytes.NewReader(p))` becomes `new Scanner(p)`; the split
+ * function is always ScanLines (see the header). "Stops unrecoverably" is Go's wording: a
+ * Scanner stopped by ErrTooLong still returns the line's buffered first MaxScanTokenSize
+ * bytes (less a final `\r`) from the next scan, as Go's does, before returning false for
+ * good; err() keeps reporting ErrTooLong.
  */
 export class Scanner {
-	readonly #p: Uint8Array;
-	#start = 0;
-	#token: Uint8Array = new Uint8Array(0);
-	#err: Error | undefined;
-	#done = false;
+	readonly #r: Uint8Array; // The reader provided by the client.
+	#rOff = 0; // Read offset of the in-memory reader.
+	readonly #maxTokenSize = MaxScanTokenSize; // Maximum size of a token.
+	#token: Uint8Array | null = null; // Last token returned by split.
+	#buf: Uint8Array = new Uint8Array(0); // Buffer used as argument to split.
+	#start = 0; // First non-processed byte in buf.
+	#end = 0; // End of data in buf.
+	#err: Error | undefined; // Sticky error.
 
 	constructor(p: Uint8Array) {
-		this.#p = p;
+		this.#r = p;
 	}
 
-	/**
-	 * scan advances the Scanner to the next line, which is then available through
-	 * {@link bytes} or {@link text}. It returns false when the scan stops, by reaching the
-	 * end of the input or an error; {@link err} then returns the error, or undefined if
-	 * the scan stopped at the end of the input.
-	 */
-	scan(): boolean {
-		this.#token = new Uint8Array(0);
-		if (this.#done) {
-			return false;
-		}
-		const p = this.#p;
-		if (this.#start >= p.length) {
-			this.#done = true;
-			return false;
-		}
-		const nl = p.indexOf(0x0a, this.#start);
-		const end = nl < 0 ? p.length : nl;
-		if (end - this.#start >= MaxScanTokenSize) {
-			this.#done = true;
-			this.#err = ErrTooLong;
-			return false;
-		}
-		// ScanLines' dropCR.
-		const lineEnd = end > this.#start && p[end - 1] === 0x0d ? end - 1 : end;
-		this.#token = p.subarray(this.#start, lineEnd);
-		this.#start = end + 1;
-		return true;
-	}
-
-	/**
-	 * bytes returns the line produced by the most recent call to {@link scan}. It is a
-	 * view of the input, as Go's Bytes is a view of the Scanner's buffer.
-	 */
-	bytes(): Uint8Array {
-		return this.#token;
-	}
-
-	/** text returns the line produced by the most recent call to {@link scan}, as a string. */
-	text(): string {
-		return fromUTF8(this.#token);
-	}
-
-	/** err returns the error that stopped the scan, or undefined if it reached the end of the input. */
+	/** err returns the first non-EOF error that was encountered by the Scanner. */
 	err(): Error | undefined {
+		if (this.#err === EOF) {
+			return undefined;
+		}
 		return this.#err;
 	}
+
+	/**
+	 * bytes returns the most recent token generated by a call to {@link Scanner.scan}.
+	 * The underlying array may point to data that will be overwritten
+	 * by a subsequent call to Scan. It does no allocation.
+	 *
+	 * Port note: Go returns a nil slice when there is no token; this returns an empty array.
+	 */
+	bytes(): Uint8Array {
+		return this.#token ?? new Uint8Array(0);
+	}
+
+	/**
+	 * text returns the most recent token generated by a call to {@link Scanner.scan}
+	 * as a newly allocated string holding its bytes.
+	 *
+	 * Port note: `string(s.token)` keeps the bytes as they are; a JavaScript string cannot,
+	 * so an invalid UTF-8 sequence decodes to U+FFFD, as fromUTF8 documents. Callers that
+	 * must see the bytes use {@link Scanner.bytes}.
+	 */
+	text(): string {
+		return fromUTF8(this.bytes());
+	}
+
+	/**
+	 * scan advances the Scanner to the next token, which will then be
+	 * available through the {@link Scanner.bytes} or {@link Scanner.text} method. It returns
+	 * false when there are no more tokens, either by reaching the end of the input or an
+	 * error. After Scan returns false, the {@link Scanner.err} method will return any error
+	 * that occurred during scanning, except that if it was io.EOF, Err will return nil.
+	 */
+	scan(): boolean {
+		// Port note: Go returns false at once when s.done is set, which only ErrFinalToken
+		// does; see the header.
+		// Loop until we have a token.
+		for (;;) {
+			// See if we can get a token with what we already have.
+			// If we've run out of data but have an error, give the split function
+			// a chance to recover any remaining, possibly empty token.
+			if (this.#end > this.#start || this.#err !== undefined) {
+				const [advance, token] = scanLines(this.#buf.subarray(this.#start, this.#end), this.#err !== undefined);
+				// Port note: Go's advance(n) also rejects a negative or too large n, which
+				// ScanLines never returns.
+				this.#start += advance;
+				this.#token = token;
+				if (token !== null) {
+					return true;
+				}
+			}
+			// We cannot generate a token with what we are holding.
+			// If we've already hit EOF or an I/O error, we are done.
+			if (this.#err !== undefined) {
+				// Shut it down.
+				this.#start = 0;
+				this.#end = 0;
+				return false;
+			}
+			// Must read more data.
+			// First, shift data to beginning of buffer if there's lots of empty space
+			// or space is needed.
+			if (this.#start > 0 && (this.#end === this.#buf.length || this.#start > Math.floor(this.#buf.length / 2))) {
+				this.#buf.copyWithin(0, this.#start, this.#end);
+				this.#end -= this.#start;
+				this.#start = 0;
+			}
+			// Is the buffer full? If so, resize.
+			if (this.#end === this.#buf.length) {
+				if (this.#buf.length >= this.#maxTokenSize) {
+					this.#setErr(ErrTooLong);
+					return false;
+				}
+				let newSize = this.#buf.length * 2;
+				if (newSize === 0) {
+					newSize = startBufSize;
+				}
+				newSize = Math.min(newSize, this.#maxTokenSize);
+				const newBuf = new Uint8Array(newSize);
+				newBuf.set(this.#buf.subarray(this.#start, this.#end));
+				this.#buf = newBuf;
+				this.#end -= this.#start;
+				this.#start = 0;
+			}
+			// Finally we can read some input.
+			//
+			// Port note: Go loops here to guard against a Reader that returns no bytes and no
+			// error; the in-memory reader returns bytes or io.EOF, so one read is enough.
+			const [n, err] = this.#read(this.#buf.subarray(this.#end));
+			this.#end += n;
+			if (err !== undefined) {
+				this.#setErr(err);
+			}
+		}
+	}
+
+	/**
+	 * read is the in-memory reader's Read: it copies as much of the remaining input as p
+	 * holds, or reports io.EOF once none is left, as bytes.Reader's Read does.
+	 */
+	#read(p: Uint8Array): [n: number, err: Error | undefined] {
+		if (this.#rOff >= this.#r.length) {
+			return [0, EOF];
+		}
+		const n = Math.min(p.length, this.#r.length - this.#rOff);
+		p.set(this.#r.subarray(this.#rOff, this.#rOff + n));
+		this.#rOff += n;
+		return [n, undefined];
+	}
+
+	/** setErr records the first error encountered. */
+	#setErr(err: Error): void {
+		if (this.#err === undefined || this.#err === EOF) {
+			this.#err = err;
+		}
+	}
+}
+
+/** dropCR drops a terminal \r from the data. */
+function dropCR(data: Uint8Array): Uint8Array {
+	if (data.length > 0 && data[data.length - 1] === 0x0d) {
+		return data.subarray(0, data.length - 1);
+	}
+	return data;
+}
+
+/**
+ * scanLines is a split function for a Scanner that returns each line of
+ * text, stripped of any trailing end-of-line marker. The returned line may
+ * be empty. The end-of-line marker is one optional carriage return followed
+ * by one mandatory newline. In regular expression notation, it is `\r?\n`.
+ * The last non-empty line of input will be returned even if it has no
+ * newline.
+ *
+ * Port note: Go's `ScanLines` also returns an error, which is always nil; the token is null
+ * where Go's is a nil slice.
+ */
+function scanLines(data: Uint8Array, atEOF: boolean): [advance: number, token: Uint8Array | null] {
+	if (atEOF && data.length === 0) {
+		return [0, null];
+	}
+	const i = data.indexOf(0x0a);
+	if (i >= 0) {
+		// We have a full newline-terminated line.
+		return [i + 1, dropCR(data.subarray(0, i))];
+	}
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if (atEOF) {
+		return [data.length, dropCR(data)];
+	}
+	// Request more data.
+	return [0, null];
 }

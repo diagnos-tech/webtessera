@@ -4134,7 +4134,25 @@
     ["++65e35e9+BDtghIJqySP6H0o",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
     ["",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
     ["",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
-    ["with nbsp+34f99c08+BDtghIJqySP6H0o0HEF6NtJn8lI06EAGjW3bx2",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]]
+    ["with nbsp+34f99c08+BDtghIJqySP6H0o0HEF6NtJn8lI06EAGjW3bx2",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["log+éééé+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["","log",272809379],["invalid key hash"]],
+    ["log+😀😀+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["","log",272809379],["invalid key hash"]],
+    ["log+éabcdef+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["","log",272809379],["invalid key hash"]],
+    ["log+﻿abcde+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["","log",272809379],["invalid key hash"]],
+    ["log+abcdef+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["","log",272809379],["invalid key hash"]],
+    ["log+éééééééé+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["log+1234567é+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["log+abcdéf12+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["log+１２３４５６７８+AcxerD8rSNT9oSd0+EyvXtrZGV4q5eTuKO9BoXRBm+wl",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["Señor-0+éééé+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["","Señor-0",3041823501],["invalid key hash"]],
+    ["Señor-0+😀😀+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["","Señor-0",3041823501],["invalid key hash"]],
+    ["Señor-0+éabcdef+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["","Señor-0",3041823501],["invalid key hash"]],
+    ["Señor-0+﻿abcde+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["","Señor-0",3041823501],["invalid key hash"]],
+    ["Señor-0+abcdef+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["","Señor-0",3041823501],["invalid key hash"]],
+    ["Señor-0+éééééééé+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["Señor-0+1234567é+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["Señor-0+abcdéf12+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]],
+    ["Señor-0+１２３４５６７８+AT4QItze8aWSUxeztQvM2154w4vHSKExDpIo9FUXImiz",["malformed verifier id"],["malformed verifier id"],["malformed verifier id"]]
   ],
   "signer": [
     ["PRIVATE+KEY+log+253a2c45+AXewt62dK8fX8ZHALfHs7hF+onwPKLcIj5pyL54U8tBx",["","log",624569413],["","log",1468613149]],
@@ -5084,7 +5102,25 @@
     ["PRIVATE+key+with\u000bvt+3b3a5bbf+AS02vBKzUIa+EZq5rmNesgj6nrXHQpGpOJVxNih+8YEy",["malformed verifier id"],["malformed signer id"]],
     ["PRIVATE+KEY",["malformed verifier id"],["malformed signer id"]],
     ["PRIVATE+KEY+with\u000bvt",["malformed verifier id"],["malformed signer id"]],
-    ["with\u000bvt+3b3a5bbf+AS02vBKzUIa+EZq5rmNesgj6nrXHQpGpOJVxNih+8YEy",["malformed verifier id"],["malformed signer id"]]
+    ["with\u000bvt+3b3a5bbf+AS02vBKzUIa+EZq5rmNesgj6nrXHQpGpOJVxNih+8YEy",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+log+éééé+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["","log",272809379]],
+    ["PRIVATE+KEY+log+😀😀+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["","log",272809379]],
+    ["PRIVATE+KEY+log+éabcdef+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["","log",272809379]],
+    ["PRIVATE+KEY+log+﻿abcde+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["","log",272809379]],
+    ["PRIVATE+KEY+log+abcdef+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["","log",272809379]],
+    ["PRIVATE+KEY+log+éééééééé+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+log+1234567é+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+log+abcdéf12+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+log+１２３４５６７８+ARgpCq0soDoicvvUrZUEbux3y6zDbL30ShbojEgnLRa9",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+Señor-0+éééé+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["","Señor-0",3041823501]],
+    ["PRIVATE+KEY+Señor-0+😀😀+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["","Señor-0",3041823501]],
+    ["PRIVATE+KEY+Señor-0+éabcdef+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["","Señor-0",3041823501]],
+    ["PRIVATE+KEY+Señor-0+﻿abcde+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["","Señor-0",3041823501]],
+    ["PRIVATE+KEY+Señor-0+abcdef+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["","Señor-0",3041823501]],
+    ["PRIVATE+KEY+Señor-0+éééééééé+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+Señor-0+1234567é+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+Señor-0+abcdéf12+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["malformed signer id"]],
+    ["PRIVATE+KEY+Señor-0+１２３４５６７８+AQ1LXkt+Rva7qIaXvQzHDvKIgc/YYnH8Yt/jHe/8NUlD",["malformed verifier id"],["malformed signer id"]]
   ],
   "encode": [
     ["log","47964ed3d890575a32cc04a8316f58d43e1c44bba067a7675117502f13830d36","","log+8a2c0179+AUeWTtPYkFdaMswEqDFvWNQ+HES7oGenZ1EXUC8Tgw02"],

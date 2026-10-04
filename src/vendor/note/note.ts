@@ -944,6 +944,14 @@ export function sign(n: Note, ...signers: Signer[]): Uint8Array {
 	if (!n.text.endsWith("\n")) {
 		throw errMalformedNote;
 	}
+	// Port note: Go signs whatever bytes the text holds. A JavaScript string can hold an
+	// unpaired surrogate, which UTF-8 cannot encode and toUTF8 would replace with U+FFFD, so
+	// the signers would sign a text other than the caller's; such a text is rejected with
+	// errMalformedNote before any signer sees it. See
+	// docs/decisions/0203-checkpoint-origin-must-be-utf8.md.
+	if (!validUTF8String(n.text)) {
+		throw errMalformedNote;
+	}
 	// Port note: Go accumulates the whole message in one bytes.Buffer, starting with
 	// the text. Here the text is encoded once, up front, because the signers have to
 	// be handed exactly those bytes; the rest of the message is assembled as a string
@@ -1043,6 +1051,10 @@ export interface AsyncSigner {
  */
 export async function signAsync(n: Note, ...signers: (Signer | AsyncSigner)[]): Promise<Uint8Array> {
 	if (!n.text.endsWith("\n")) {
+		throw errMalformedNote;
+	}
+	// As in sign: a text UTF-8 cannot encode is rejected before any signer sees it.
+	if (!validUTF8String(n.text)) {
 		throw errMalformedNote;
 	}
 	const textBytes = toUTF8(n.text);

@@ -13,7 +13,7 @@ The Go code the claim refers to is Tessera at the commit pinned in [`scripts/ups
 | Component tests | Each ported package reproduces its fixtures byte for byte. | `src/**/*_fixtures_test.ts` and the Go-mirrored tests |
 | Golden suite, per backend | Every backend, in every runtime it supports, stores exactly the files Tessera's POSIX driver stores for the fixture logs, and carries on logs Go wrote. | [`golden.ts`](../src/storage/objectstore/testing/golden.ts), ADR-0160 |
 | Go interop harness | Tessera's own Go code verifies logs webtessera wrote on each Node backend, reproduces them byte for byte, and carries them on; webtessera does the same with logs Go wrote. | [`interop/`](../interop), [`scripts/interop.mjs`](../scripts/interop.mjs), ADR-0162 |
-| Differential corpora | Go's verdict, error text and outputs on ~86 000 generated inputs (most of them malformed) and on every Unicode scalar, replayed in Node, Chromium and workerd; every difference is either a named, ADR-backed divergence or a failure. | [`fixtures/gen/differential*.go`](../fixtures/gen), [`src/testonly/testing/differential/`](../src/testonly/testing/differential), ADR-0215, ADR-0216 |
+| Differential corpora | Go's verdict, error text and outputs in 86 008 records over generated inputs (most of them malformed), plus exhaustive sweeps (every Unicode scalar, about 910 000 UTF-8 sequences), replayed in Node, Chromium and workerd; every difference is either a named, ADR-backed divergence or a failure. | [`fixtures/gen/differential*.go`](../fixtures/gen), [`src/testonly/testing/differential/`](../src/testonly/testing/differential), ADR-0215, ADR-0216 |
 
 ### Golden suite
 
@@ -123,27 +123,32 @@ divergence says otherwise. They are the permanent form of the fidelity audits' G
 
 ### What exists
 
+A record is one row of a corpus's tables, the unit the suites replay and the site counts; the table below gives the
+total for each file, all of its tables included. A few records stand for many inputs: the `quoteEscaped` ranges of
+`differential_gostd.json` cover every scalar value, and `differential_unicode.json`'s five sweeps cover about 910 000
+byte sequences and its `isSpace` table every code point.
+
 | Corpus (`fixtures/data/`) | Size | Records | What Go recorded |
 | --- | --- | --- | --- |
-| `differential_checkpoint.json` | 1.1 MB | 8 460 | `Checkpoint.Unmarshal` over boundary and random bodies (valid and invalid UTF-8), `Marshal`, `log.ID`, `ParseCheckpoint` over signed, mutated checkpoints |
-| `differential_note_keys.json` | 0.8 MB | 5 224 | `NewVerifier`, `NewSigner`, `NewEd25519VerifierKey`, `GenerateKey`, and formats/note's cosignature/v1 constructors and `VKeyToCosignatureV1`, over names with every Unicode space, BOM, controls and `+`, every algorithm byte and key length, malformed hash and base64 fields |
+| `differential_checkpoint.json` | 1.2 MB | 8 460 | `Checkpoint.Unmarshal` over boundary and random bodies (valid and invalid UTF-8), `Marshal`, `log.ID`, `ParseCheckpoint` over signed, mutated checkpoints |
+| `differential_note_keys.json` | 0.8 MB | 5 260 | `NewVerifier`, `NewSigner`, `NewEd25519VerifierKey`, `GenerateKey`, and formats/note's cosignature/v1 constructors and `VKeyToCosignatureV1`, over names with every Unicode space, BOM, controls and `+`, every algorithm byte and key length, malformed hash and base64 fields, and hash fields whose length in bytes and in UTF-16 code units differ |
 | `differential_note_open.json` | 0.9 MB | 1 654 | `note.Open` of notes signed under valid and invalid names, with stray bytes, invalid UTF-8, BOM, truncation, duplicate and broken signature lines, 100 and 101 signatures, ambiguous verifiers |
-| `differential_note_sign.json` | 0.2 MB | 1 500 | `note.Sign` with existing (malformed) signatures and signers under invalid names: error text or exact bytes |
-| `differential_ed25519.json` | 0.6 MB | 2 366 | Go's `crypto/ed25519.Verify` on honest and corrupted signatures, S+L, S high bits, small-order and non-canonical keys with cofactorless-valid signatures, mixed-order keys, torsion on R; every key classified and `NewVerifier`'s verdict on it |
-| `differential_cosig.json` | 0.7 MB | 3 631 | cosignature/v1 key hashes, the signature a signer must produce at fixed seconds (proven by upstream's verifier), `Sign` errors, `Verify` up to t = 2^64-1, `CoSigV1Timestamp`, cosigned notes through `Open` |
+| `differential_note_sign.json` | 0.2 MB | 1 508 | `note.Sign` with existing (malformed) signatures and signers under invalid names: error text or exact bytes |
+| `differential_ed25519.json` | 0.6 MB | 3 420 | Go's `crypto/ed25519.Verify` on honest and corrupted signatures, S+L, S high bits, small-order and non-canonical keys with cofactorless-valid signatures, mixed-order keys, torsion on R; every key classified and `NewVerifier`'s verdict on it |
+| `differential_cosig.json` | 0.7 MB | 3 636 | cosignature/v1 key hashes, the signature a signer must produce at fixed seconds (proven by upstream's verifier), `Sign` errors, `Verify` up to t = 2^64-1, `CoSigV1Timestamp`, cosigned notes through `Open` |
 | `differential_layout.json` | 0.7 MB | 8 664 | `ParseTileIndexPartial`, `ParseTileLevel`, `ParseTileLevelIndexPartial` over generated segments; path builders, `PartialTileSize`, `NodeCoordsToTileAddress` and `Range` over random uint64s |
-| `differential_proof_inclusion.json` | 0.9 MB | 4 635 | `VerifyInclusion` over random and exhaustive-small (index, size) up to 2^64-1, wrong proof lengths, wrong-size hashes; each mismatch replayed with Go's calculated root (the success path) |
-| `differential_proof_consistency.json` | 1.2 MB | 4 481 | `VerifyConsistency` likewise, through the second-root check to the success path |
+| `differential_proof_inclusion.json` | 0.9 MB | 4 835 | `VerifyInclusion` over random and exhaustive-small (index, size) up to 2^64-1, wrong proof lengths, wrong-size hashes; each mismatch replayed with Go's calculated root (the success path) |
+| `differential_proof_consistency.json` | 1.3 MB | 4 681 | `VerifyConsistency` likewise, through the second-root check to the success path |
 | `differential_proof_nodes.json` | 0.8 MB | 3 023 | `proof.Inclusion`/`Consistency` node IDs, ephemeral node and `Rehash` output, for every tree up to 40 and random sizes up to 2^64-1 |
 | `differential_compact.json` | 1.1 MB | 6 061 | `Decompose`, `RangeNodes`, `RangeSize`, `NodeID`, and `Range` traces: appends from begins near 2^63 and 2^64 and past 2^64-1, recursive merges, merge errors, `NewRange` |
 | `differential_rfc6962.json` | 0.2 MB | 436 | `HashLeaf` for every length up to 140 and the SHA-256 block boundaries, `HashChildren`, `EmptyRoot` |
-| `differential_gostd.json` | 1.5 MB | 25 246 | `base64.StdEncoding.DecodeString`, `hex.DecodeString`, `strconv.ParseUint` (16/32, 16/64, 10/64, 10/8), `strconv.Quote` for every scalar value (escaped ranges, exact text for a sample), `strings.Fields`/`TrimSpace`, `math/bits` and shifts |
-| `differential_unicode.json` | 0.1 MB | ~910 000 sequences, 1 114 112 code points | `utf8.Valid` over structured sweeps of every byte-class boundary (1 and 2 bytes exhaustively) and random strings; `unicode.IsSpace` for every code point |
-| `differential_witness_policy.json` | 0.2 MB | 695 | `NewWitnessGroupFromPolicy` over hand-written and generated policies: error text, or the group tree and endpoints |
+| `differential_gostd.json` | 2.0 MB | 28 260 | `base64.StdEncoding.DecodeString`, `hex.DecodeString`, `strconv.ParseUint` (16/32, 16/64, 10/64, 10/8), `strconv.Quote` for every scalar value (escaped ranges, exact text for a sample), `strings.Fields`/`TrimSpace`, `math/bits` and shifts, and `url.Parse` with `String` and `JoinPath` over 3 000 generated URLs |
+| `differential_unicode.json` | 0.1 MB | 4 005 (about 910 000 sequences, 1 114 112 code points) | `utf8.Valid` over structured sweeps of every byte-class boundary (1 and 2 bytes exhaustively) and random strings; `unicode.IsSpace` for every code point |
+| `differential_witness_policy.json` | 0.2 MB | 875 | `NewWitnessGroupFromPolicy` over hand-written and generated policies, URLs `url.Parse` accepts but fetch cannot use, and policies that are not valid UTF-8: error text, or the group tree and endpoints |
 | `differential_bundle_hashers.json` | 0.2 MB | 400 | the tlog-tiles and static-ct identity and Merkle leaf hashers over well-formed and corrupted bundles |
 | `differential_checkpoint_publisher.json` | 0.1 MB | 414 | `CheckpointPublisher`'s signed checkpoints, and its rejection of each previous checkpoint `internal/parse.CheckpointUnsafe` rejects |
 | `differential_api.json` | 0.5 MB | 108 | `HashTile` and `EntryBundle` `UnmarshalText` up to 300 elements (the spec allows 256), truncated and padded; `NewEntry` around the 65 535-byte length-prefix limit |
-| `differential_ct_log.json` | 0.1 MB | 300 entries, 8 files | a static-ct log built by the POSIX driver with `WithCTLayout` and `NewCertificateTransparencyAppender`: every file, `.state` included, rebuilt on the ObjectStore driver |
+| `differential_ct_log.json` | 0.1 MB | 308 (300 entries, 8 files) | a static-ct log built by the POSIX driver with `WithCTLayout` and `NewCertificateTransparencyAppender`: every file, `.state` included, rebuilt on the ObjectStore driver |
 
 ### How they are generated
 
@@ -161,7 +166,7 @@ next to the code they cover (`bun run test:unit`), and all of them again in Chro
 (`src/testonly/differential_browser_test.ts`, `bun run test:browser`) and workerd
 (`src/testonly/differential_workers_test.ts`, `bun run test:workers`), because several stand-ins depend on the
 runtime: `validUTF8` and `fromUTF8` on `TextDecoder`, `quote` on the runtime's Unicode property tables, the
-witness URL checks on the platform URL parser. A failing suite prints how many records it replayed and
+witness URL checks on the platform URL parser (ADR-0241). A failing suite prints how many records it replayed and
 mismatched, how often each divergence applied, and the first mismatches with their inputs.
 
 ### How divergences are allow-listed

@@ -50,7 +50,7 @@ split-view failure mode: a webtessera client and a Go witness reaching different
    from `src/testonly/differential_browser_test.ts` and `differential_workers_test.ts`: `validUTF8` and
    `fromUTF8` rest on `TextDecoder`, `quote` on the runtime's Unicode property tables and the witness URL
    checks on the platform URL parser, so a verdict proven on Node is not proven elsewhere.
-5. **CI regenerates them with the rest**: `pnpm fixtures` must leave `fixtures/data` unchanged, which now also
+5. **CI regenerates them with the rest**: `pnpm fixtures` (`bun run fixtures` since ADR-0240) must leave `fixtures/data` unchanged, which now also
    proves the corpora are what the pinned Go code produces.
 
 ## Consequences

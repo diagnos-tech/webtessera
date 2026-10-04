@@ -43,6 +43,8 @@ export function marshalTreeState(ts: treeState): Uint8Array {
  */
 export function unmarshalTreeState(raw: Uint8Array): treeState {
 	const fields = decodeObject(raw, "treeState");
+	const kinds = { size: "uint64", root: "bytes" } as const;
+	checkTypes(fields, "treeState", kinds);
 	return {
 		size: uint64Field(fields, "treeState", "size"),
 		root: bytesField(fields, "treeState", "root"),
@@ -57,20 +59,22 @@ export function marshalGCState(gs: gcState): Uint8Array {
 /** unmarshalGCState parses a gcState written by marshalGCState or by the Go POSIX driver. */
 export function unmarshalGCState(raw: Uint8Array): gcState {
 	const fields = decodeObject(raw, "gcState");
+	checkTypes(fields, "gcState", { fromSize: "uint64" });
 	return { fromSize: uint64Field(fields, "gcState", "fromSize") };
 }
 
 /**
  * jsonValue is a decoded JSON value. Numbers keep their source text so that integers beyond
- * 2^53 survive; values the state files never contain (booleans, arrays, objects) are
- * validated and then reduced to their kind, since they can only appear under keys the
- * decoder ignores.
+ * 2^53 survive; an array keeps its elements, since Go decodes an array of numbers into a
+ * `[]byte`; values the state files never contain (booleans, objects) are validated and then
+ * reduced to their kind.
  */
 type jsonValue =
 	| { readonly kind: "number"; readonly text: string }
 	| { readonly kind: "string"; readonly value: string }
 	| { readonly kind: "null" }
-	| { readonly kind: "bool" | "array" | "object" };
+	| { readonly kind: "array"; readonly elements: readonly jsonValue[] }
+	| { readonly kind: "bool" | "object" };
 
 /**
  * decodeObject parses raw as a single JSON object and returns its members.
@@ -108,9 +112,37 @@ function decodeObject(raw: Uint8Array, structName: string): Map<string, jsonValu
 	return fields;
 }
 
-/** uint64Field returns the named member, which must be a JSON integer in [0, 2^64). */
-function uint64Field(fields: Map<string, jsonValue>, structName: string, name: string): bigint {
-	const v = requiredField(fields, structName, name);
+/**
+ * checkTypes throws the error `json.Unmarshal` returns for the first member, in document
+ * order, whose value its field cannot hold: Go keeps decoding after such an error and
+ * reports the earliest one. kinds maps each field's JSON key to its Go type. A null is not
+ * an error here, as it is not in Go (it leaves the field unchanged); the port's own refusal
+ * of a null or missing field comes afterwards, in uint64Field and bytesField, so every input
+ * Go rejects gets Go's error.
+ */
+function checkTypes(
+	fields: Map<string, jsonValue>,
+	structName: string,
+	kinds: Readonly<Record<string, "uint64" | "bytes">>,
+): void {
+	for (const [name, v] of fields) {
+		const kind = kinds[name];
+		if (kind === "uint64") {
+			uint64Value(v, structName, name);
+		} else if (kind === "bytes") {
+			bytesValue(v, structName, name);
+		}
+	}
+}
+
+/**
+ * uint64Value returns v as a uint64: a JSON integer in [0, 2^64), or undefined for null,
+ * which leaves a Go field unchanged. Anything else throws Go's `*json.UnmarshalTypeError`.
+ */
+function uint64Value(v: jsonValue, structName: string, name: string): bigint | undefined {
+	if (v.kind === "null") {
+		return undefined;
+	}
 	if (v.kind !== "number") {
 		throw typeError(v.kind, structName, name, "uint64");
 	}
@@ -121,18 +153,54 @@ function uint64Field(fields: Map<string, jsonValue>, structName: string, name: s
 }
 
 /**
- * bytesField returns the named member, which must be a standard base64 string or null, the
- * two forms Go's encoding/json produces for a `[]byte`.
+ * bytesValue returns v as Go's encoding/json decodes it into a `[]byte`: a standard base64
+ * string, null (nil), or an array whose elements each decode into a uint8, a null element
+ * leaving its byte 0. Anything else throws Go's error for it.
  */
+function bytesValue(v: jsonValue, structName: string, name: string): Uint8Array {
+	switch (v.kind) {
+		case "null":
+			return new Uint8Array(0);
+		case "string":
+			return fromBase64(v.value);
+		case "array": {
+			const out = new Uint8Array(v.elements.length);
+			v.elements.forEach((e, i) => {
+				if (e.kind === "null") {
+					return;
+				}
+				if (e.kind !== "number") {
+					throw typeError(e.kind, structName, name, "uint8");
+				}
+				if (!/^(?:0|[1-9][0-9]*)$/.test(e.text) || BigInt(e.text) > 255n) {
+					throw typeError(`number ${e.text}`, structName, name, "uint8");
+				}
+				out[i] = Number(e.text);
+			});
+			return out;
+		}
+		default:
+			throw typeError(v.kind, structName, name, "[]uint8");
+	}
+}
+
+/**
+ * uint64Field returns the named member as a uint64.
+ *
+ * Port note: a missing member, or a null, throws (docs/decisions/0102): Go leaves the field
+ * zero, and a zero tree size would make the driver treat an existing log as new.
+ */
+function uint64Field(fields: Map<string, jsonValue>, structName: string, name: string): bigint {
+	const v = uint64Value(requiredField(fields, structName, name), structName, name);
+	if (v === undefined) {
+		throw typeError("null", structName, name, "uint64");
+	}
+	return v;
+}
+
+/** bytesField returns the named member as a `[]byte`; a missing member throws (docs/decisions/0102). */
 function bytesField(fields: Map<string, jsonValue>, structName: string, name: string): Uint8Array {
-	const v = requiredField(fields, structName, name);
-	if (v.kind === "null") {
-		return new Uint8Array(0);
-	}
-	if (v.kind !== "string") {
-		throw typeError(v.kind === "number" ? "number" : v.kind, structName, name, "[]uint8");
-	}
-	return fromBase64(v.value);
+	return bytesValue(requiredField(fields, structName, name), structName, name);
 }
 
 function requiredField(fields: Map<string, jsonValue>, structName: string, name: string): jsonValue {
@@ -201,8 +269,7 @@ class decoder {
 				this.object();
 				return { kind: "object" };
 			case "[":
-				this.#array();
-				return { kind: "array" };
+				return { kind: "array", elements: this.#array() };
 			case '"':
 				return { kind: "string", value: this.#stringBody() };
 			case "t":
@@ -253,18 +320,19 @@ class decoder {
 		}
 	}
 
-	#array(): void {
+	#array(): jsonValue[] {
+		const elements: jsonValue[] = [];
 		this.skipSpace();
 		if (this.peek() === "]") {
 			this.#i++;
-			return;
+			return elements;
 		}
 		for (;;) {
-			this.value();
+			elements.push(this.value());
 			this.skipSpace();
 			const c = this.#next();
 			if (c === "]") {
-				return;
+				return elements;
 			}
 			if (c !== ",") {
 				throw new Error(`invalid character ${quoteChar(c)} after array element`);

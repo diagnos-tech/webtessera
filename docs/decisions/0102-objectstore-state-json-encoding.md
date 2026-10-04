@@ -91,3 +91,33 @@ The driver wraps any decoding error as `files.go` does, `error in Unmarshal: <me
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:** pending
+
+## Update (2026-10-04)
+
+The final fidelity audit ran 573 `treeState`, 18 `gcState` and 48 marshal inputs through Go and through this codec.
+Marshal output was byte-identical. Decoding differed from Go in more ways than the table above lists:
+
+- **A JSON array for `root`.** `encoding/json` decodes an array into a `[]byte` element by element (`[1,2,255]` is
+  three bytes, a `null` element leaves its byte zero, an element that does not fit a `uint8` is
+  `json: cannot unmarshal number 256 into Go struct field treeState.root of type uint8`, and likewise `string`, `bool`,
+  `array` or `object`). The codec rejected every array. It now decodes arrays exactly as Go does, with Go's error
+  texts; an array of bytes is as unambiguous as base64, so there is nothing to gain by refusing it.
+- **The order of type errors.** Go keeps decoding after a type error and returns the earliest one in document order
+  (`{"root":5,"size":-1}` reports `root`). The codec checked `size` before `root` whatever their order. It now checks
+  the members in document order and reports the first of Go's errors, and only then applies its own refusals below.
+- **An explicit `null` for `size` or `fromSize`.** Go leaves the field zero, as for a missing field. The codec rejects
+  it, with `json: cannot unmarshal null into Go struct field treeState.size of type uint64`, for the reason it rejects a
+  missing field: a zero tree size would make the driver treat an existing log as new. This is a sixth row of the table
+  above, recorded now. Like the missing-field check, it runs after every check of Go's, so an input Go rejects gets
+  Go's error.
+- **Syntax-error texts.** Only the type-error texts (`json: cannot unmarshal ...`), the base64 errors, `unexpected end
+  of JSON input` and the texts the tests pin are Go's. Other syntax errors are worded after `encoding/json`'s
+  `SyntaxError` but are not its texts: `{"size":01}` gives `invalid character '1' in numeric literal` where Go says
+  `invalid character '1' after object key:value pair`, and the exponent, literal (`tru`), control-character (`'\u0001'`
+  for Go's `'\x01'`), byte-order-mark and non-ASCII messages differ similarly, as does a whole-document type error
+  (`treeState` for Go's `posix.treeState`). Every one of them is a rejection where Go rejects too; reproducing the texts
+  would mean porting `encoding/json`'s scanner for files that only a corrupt store can make malformed.
+- A 10,000-deep nesting in an ignored field exhausts the recursive reader's stack (`Maximum call stack size
+  exceeded`) where Go reports a type or depth error. Still an error.
+
+`json_test.ts` pins the array decoding, the document order and the `null` precedence against Go's output.

@@ -20,6 +20,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/transparency-dev/tessera"
 	"github.com/transparency-dev/tessera/ctonly"
@@ -111,6 +112,22 @@ func genDiffWitnessPolicy() diffFile {
 	for _, u := range urls {
 		policies = append(policies, "witness w1 "+W1+" "+u+"\nquorum w1")
 	}
+	// URLs url.Parse accepts but fetch cannot use as Go's HTTP client would (no host, or
+	// rejected by the WHATWG parser), and url.Parse's own errors. Bracketed hosts are only
+	// those every supported Go release reads alike: since Go 1.24.8 and 1.25.2
+	// (CVE-2025-47912) url.Parse also rejects "[1.2.3.4]", "[v1.x]" and "a[b]", which
+	// earlier releases accept, so those would make the corpus depend on the toolchain.
+	for _, u := range []string{
+		"https://example.com:99999/x", "https://256.1.1.1/x", "https://[fe80::1%25eth0]/x", "https:///x",
+		"https:example.com", "https://a<b>.com/x", "https://[::1]:99999/x", "https://[::ffff:1.2.3.4]/x",
+		"https://ü@example.com/", "https://example.com:abc/x", "https://[::1/x", "https://[::1]x/", "https://a{b}/",
+		"1a:b/x", "https://example.com/%zé", "https://u%40x@example.com/x", "https://example.com/a%2Fb",
+		"https://example.com:/x", "https://:443/x", "https://0x7f.1/x", "http://127.1/x", "https://example.com./x",
+		"https://a$b.com/x", "https://%C3%A4.example/x", "https://%41.example/x", "https://example.com/%2e%2e/x",
+		"https://example.com/a?", "https://example.com/日本?q=é", "https://u:p:q@example.com/x",
+	} {
+		policies = append(policies, "witness w1 "+W1+" "+u+"\nquorum w1")
+	}
 	for _, k := range badKeys {
 		policies = append(policies, "witness w1 "+k+" "+U1+"\nquorum w1")
 	}
@@ -158,12 +175,10 @@ func genDiffWitnessPolicy() diffFile {
 		policies = append(policies, b.String())
 	}
 
-	var rows [][]any
-	for _, p := range policies {
-		wg, err := tessera.NewWitnessGroupFromPolicy([]byte(p))
+	record := func(p []byte, key any) []any {
+		wg, err := tessera.NewWitnessGroupFromPolicy(p)
 		if err != nil {
-			rows = append(rows, []any{p, err.Error()})
-			continue
+			return []any{key, err.Error()}
 		}
 		var eps []string
 		for u := range wg.Endpoints() {
@@ -173,18 +188,82 @@ func genDiffWitnessPolicy() diffFile {
 		if eps == nil {
 			eps = []string{}
 		}
-		rows = append(rows, []any{p, "", diffPolicyComponent(wg), eps})
+		return []any{key, "", diffPolicyComponent(wg), eps}
 	}
+	var rows [][]any
+	for _, p := range policies {
+		rows = append(rows, record([]byte(p), p))
+	}
+
+	// Policies that are not valid UTF-8, which Go reads as bytes: invalid sequences put into a
+	// name, a key, a URL, a keyword, a quorum or a comment of hand-written policies. A JSON
+	// string cannot hold them, so these records carry the policy in hex.
+	rb := newDiffRand(0x9011c2)
+	invalid := [][]byte{{0xff}, {0xfe}, {0xc0, 0x80}, {0xed, 0xa0, 0x80}, {0xe2, 0x82}, {0x80}, {0xf4, 0x90, 0x80, 0x80}}
+	bases := []string{
+		"witness w1 " + W1 + " " + U1 + "\nwitness w2 " + W2 + " " + U2 + "\ngroup g 2 w1 w2\nquorum g",
+		"witness w1 " + W1 + " " + U1 + "\nquorum w1",
+		"witness w1 " + W1 + " " + U1 + " # comment\n# another\nquorum w1",
+		"log example.com/log\nwitness w1 " + W1 + " " + U1 + "\ngroup g any w1\nquorum g",
+	}
+	// recordBinary records a policy that is not valid UTF-8. Where Go accepts it with a
+	// tree that holds such bytes (an opaque witness URL is written back as it was), the
+	// tree is recorded as "notUTF8": no JSON string can hold it, and the port rejects
+	// every such policy.
+	recordBinary := func(p []byte) []any {
+		row := record(p, hx(p))
+		if len(row) > 2 && !validUTF8Tree(row[2:]) {
+			return []any{hx(p), "", "notUTF8"}
+		}
+		return row
+	}
+	var binRows [][]any
+	for i := 0; i < scaled(150); i++ {
+		b := []byte(bases[rb.Intn(len(bases))])
+		for k := 1 + rb.Intn(2); k > 0; k-- {
+			at := rb.Intn(len(b) + 1)
+			ins := invalid[rb.Intn(len(invalid))]
+			b = append(b[:at:at], append(append([]byte{}, ins...), b[at:]...)...)
+		}
+		binRows = append(binRows, recordBinary(b))
+	}
+	// Two names that differ only in their invalid bytes, which Go keeps apart.
+	twoNames := []byte("witness w\xff " + W1 + " " + U1 + "\nwitness w\xfe " + W2 + " " + U2 + "\ngroup g all w\xff w\xfe\nquorum g")
+	binRows = append(binRows, recordBinary(twoNames))
 	return diffFile{
-		description: "Differential corpus for NewWitnessGroupFromPolicy: hand-written policies covering every keyword, error path and witness URL form, and generated policies mixing valid and invalid lines, Unicode whitespace (White_Space and look-alikes), comments and CRLF. Records the error text, or the parsed group tree and its sorted endpoint URLs.",
+		description: "Differential corpus for NewWitnessGroupFromPolicy: hand-written policies covering every keyword, error path and witness URL form, generated policies mixing valid and invalid lines, Unicode whitespace (White_Space and look-alikes), comments and CRLF, and policies holding bytes that are not valid UTF-8. Records the error text, or the parsed group tree and its sorted endpoint URLs.",
 		upstream:    "github.com/transparency-dev/tessera (witness.go)",
 		sections: []diffSection{
 			dValue("columns", map[string]any{
-				"cases": []string{"policy", "err", "group tree ([\"group\", N, children] / [\"witness\", key name, key hash, URL])", "sorted endpoint URLs"},
+				"cases":  []string{"policy", "err", "group tree ([\"group\", N, children] / [\"witness\", key name, key hash, URL])", "sorted endpoint URLs"},
+				"binary": []string{"policyHex (not valid UTF-8)", "err", "group tree, or \"notUTF8\" where it holds bytes that are not valid UTF-8", "sorted endpoint URLs"},
 			}),
 			dRows("cases", rows),
+			dRows("binary", binRows),
 		},
 	}
+}
+
+// validUTF8Tree reports whether every string in a recorded policy tree and
+// endpoint list is valid UTF-8.
+func validUTF8Tree(v any) bool {
+	switch x := v.(type) {
+	case string:
+		return utf8.ValidString(x)
+	case []any:
+		for _, e := range x {
+			if !validUTF8Tree(e) {
+				return false
+			}
+		}
+	case []string:
+		for _, e := range x {
+			if !utf8.ValidString(e) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func mustCosigVKey(vkey string) string {

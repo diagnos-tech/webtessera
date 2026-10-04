@@ -21,6 +21,7 @@ import { newAppendOptions } from "../../../append_lifecycle.ts";
 import type { FetchFn } from "../../../client/fetcher.ts";
 import { ctBundleIDHasher, ctMerkleLeafHasher, withCTLayout } from "../../../ct_only.ts";
 import { ErrNotExist } from "../../../internal/gostd/errors.ts";
+import { validUTF8 } from "../../../internal/gostd/unicode.ts";
 import { defaultIDHasher, defaultMerkleLeafHasher, type LogReader } from "../../../lifecycle.ts";
 import { newMigrationOptions } from "../../../migrate_lifecycle.ts";
 import { newSigner } from "../../../vendor/note/note.ts";
@@ -29,7 +30,6 @@ import { bytesToHex, hexToBytes, loadFixture, textToBytes, u64 } from "../../fix
 import {
 	attempt,
 	attemptAsync,
-	canonical,
 	DifferentialReport,
 	type DivergenceName,
 	messageOf,
@@ -38,8 +38,12 @@ import {
 
 type Tree = readonly ["group", number, readonly Tree[]] | readonly ["witness", string, number, string];
 
+type PolicyRow = readonly [policy: string, err: string, tree?: Tree | "notUTF8", endpoints?: readonly string[]];
+
 interface PolicyCorpus {
-	readonly cases: readonly (readonly [policy: string, err: string, tree?: Tree, endpoints?: readonly string[]])[];
+	readonly cases: readonly PolicyRow[];
+	/** binary rows carry the policy in hex: it is not valid UTF-8. */
+	readonly binary: readonly PolicyRow[];
 }
 
 type Hashes = readonly [err: string] | readonly ["", readonly string[]];
@@ -67,7 +71,7 @@ function treeOf(c: unknown): Tree | string {
 
 /**
  * policyHardening names the documented divergence a policy rejection of the port's
- * matches, or undefined: the messages ADR-0184, ADR-0185 and ADR-0078 add.
+ * matches, or undefined: the messages ADR-0184, ADR-0185, ADR-0241 and ADR-0242 add.
  */
 function policyHardening(message: string): DivergenceName | undefined {
 	if (
@@ -84,21 +88,53 @@ function policyHardening(message: string): DivergenceName | undefined {
 	) {
 		return "witness-url-https";
 	}
-	if (/^invalid witness URL "(.*)": parse "\1": not an absolute URL with a "\/\/" authority$/.test(message)) {
-		return "witness-url-absolute";
+	if (
+		/^invalid witness config ".*": witness URL ".*" (has no host|is rejected by the platform URL parser, which fetch uses)$/.test(
+			message,
+		)
+	) {
+		return "witness-url-fetchable";
+	}
+	if (message === "witness policy line is not valid UTF-8") {
+		return "witness-policy-utf8";
 	}
 	return undefined;
 }
 
-/** unescapeURLs decodes the percent-escapes of every witness URL in a Go policy tree. */
-function unescapeURLs(t: Tree | undefined): Tree | undefined {
-	if (t === undefined) {
-		return undefined;
+/**
+ * checkPolicy compares the port's verdict on one policy with Go's: the same error text, or
+ * the same group tree and endpoints, unless the port's rejection is one a documented
+ * divergence permits.
+ */
+function checkPolicy(rep: DifferentialReport, rid: string, p: Uint8Array, row: PolicyRow): void {
+	const [, err, tree, endpoints] = row;
+	const got = attempt(() => newWitnessGroupFromPolicy(p));
+	if (!got.ok) {
+		const ts = messageOf(got.error);
+		if (ts === err) {
+			return;
+		}
+		const hardening = policyHardening(ts);
+		if (hardening === "witness-policy-utf8" && validUTF8(p)) {
+			rep.fail(rid, "witness-policy-utf8 applied to a policy that is valid UTF-8");
+			return;
+		}
+		if (hardening !== undefined) {
+			rep.diverge(hardening);
+			return;
+		}
+		rep.fail(
+			rid,
+			err === "" ? `go accepted, ts rejected: ${ts}` : `err: go=${JSON.stringify(err)} ts=${JSON.stringify(ts)}`,
+		);
+		return;
 	}
-	if (t[0] === "witness") {
-		return ["witness", t[1], t[2], decodeURI(t[3])];
+	if (err !== "") {
+		rep.fail(rid, `go rejected (${err}), ts accepted`);
+		return;
 	}
-	return ["group", t[1], t[2].map((c) => unescapeURLs(c) as Tree)];
+	rep.equal(rid, "tree", tree, treeOf(got.value));
+	rep.equal(rid, "endpoints", endpoints, [...got.value.endpoints().keys()].sort());
 }
 
 function hashes(f: (b: Uint8Array) => Uint8Array[], b: Uint8Array): Hashes {
@@ -136,62 +172,18 @@ export function describeRootDifferential(): void {
 		it("newWitnessGroupFromPolicy reaches Go's verdict, error text, group tree and endpoints", async () => {
 			const f = await loadFixture<PolicyCorpus>("differential_witness_policy");
 			const rep = new DifferentialReport("newWitnessGroupFromPolicy");
-			for (const [policy, err, tree, endpoints] of f.cases) {
+			for (const row of f.cases) {
 				rep.record();
-				const rid = `policy=${JSON.stringify(policy)}`;
-				const got = attempt(() => newWitnessGroupFromPolicy(textToBytes(policy)));
-				const badEscape = /^invalid witness URL "(.*)": parse "\1": invalid URL escape "%[^"]{0,2}"$/.exec(err);
-				if (badEscape !== null && !(got.ok === false && messageOf(got.error) === err)) {
-					// ADR-0078: the port keeps a malformed escape as written. It either accepts the
-					// policy, with that URL among its endpoints, or stops at an independent later line.
-					const u = badEscape[1] as string;
-					const asWritten = u.slice(u.indexOf("://"));
-					if (!got.ok || [...got.value.endpoints().keys()].some((e) => e.includes(asWritten))) {
-						rep.diverge("witness-url-escaping");
-					} else {
-						rep.fail(rid, `malformed escape: ts accepted but no endpoint keeps ${JSON.stringify(u)} as written`);
-					}
-					continue;
-				}
-				if (!got.ok) {
-					const ts = messageOf(got.error);
-					if (ts === err) {
-						continue;
-					}
-					const hardening = policyHardening(ts);
-					if (hardening !== undefined) {
-						rep.diverge(hardening);
-						continue;
-					}
-					rep.fail(
-						rid,
-						err === "" ? `go accepted, ts rejected: ${ts}` : `err: go=${JSON.stringify(err)} ts=${JSON.stringify(ts)}`,
-					);
-					continue;
-				}
-				if (err !== "") {
-					rep.fail(rid, `go rejected (${err}), ts accepted`);
-					continue;
-				}
-				const tsTree = treeOf(got.value);
-				const tsEndpoints = [...got.value.endpoints().keys()].sort();
-				if (canonical(tree) === canonical(tsTree) && canonical(endpoints) === canonical(tsEndpoints)) {
-					continue;
-				}
-				if (
-					canonical(unescapeURLs(tree)) === canonical(tsTree) &&
-					canonical((endpoints ?? []).map(decodeURI).sort()) === canonical(tsEndpoints)
-				) {
-					rep.diverge("witness-url-escaping");
-					continue;
-				}
-				rep.equal(rid, "tree", tree, tsTree);
-				rep.equal(rid, "endpoints", endpoints, tsEndpoints);
+				checkPolicy(rep, `policy=${JSON.stringify(row[0])}`, textToBytes(row[0]), row);
+			}
+			for (const row of f.binary) {
+				rep.record();
+				checkPolicy(rep, `policyHex=${row[0]}`, hexToBytes(row[0]), row);
 			}
 			rep.assertClean(
-				650,
-				["witness-quorum-hardening", "witness-url-https", "witness-url-absolute", "witness-url-escaping"],
-				["witness-quorum-hardening", "witness-url-https", "witness-url-absolute", "witness-url-escaping"],
+				800,
+				["witness-quorum-hardening", "witness-url-https", "witness-url-fetchable", "witness-policy-utf8"],
+				["witness-quorum-hardening", "witness-url-https", "witness-url-fetchable", "witness-policy-utf8"],
 			);
 		});
 

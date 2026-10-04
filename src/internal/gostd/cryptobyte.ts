@@ -116,13 +116,21 @@ export class Builder {
 		return this.buf.slice(this.offset, this.len);
 	}
 
-	/** addUint8 appends an 8-bit value to the byte string. */
+	/**
+	 * addUint8 appends an 8-bit value to the byte string.
+	 *
+	 * Port note: this and the other addUint methods throw a RangeError for a value their Go
+	 * parameter type (uint8, uint16, uint32, uint64) cannot hold, rather than writing its low
+	 * bits; see checkUint and docs/decisions/0200-length-prefix-appenders-reject-out-of-range-values.md.
+	 */
 	addUint8(v: number): void {
+		checkUint(v, 8);
 		this.add(Uint8Array.of(v));
 	}
 
 	/** addUint16 appends a big-endian, 16-bit value to the byte string. */
 	addUint16(v: number): void {
+		checkUint(v, 16);
 		this.add(Uint8Array.of(v >>> 8, v));
 	}
 
@@ -131,16 +139,19 @@ export class Builder {
 	 * byte of the 32-bit input value is silently truncated.
 	 */
 	addUint24(v: number): void {
+		checkUint(v, 32);
 		this.add(Uint8Array.of(v >>> 16, v >>> 8, v));
 	}
 
 	/** addUint32 appends a big-endian, 32-bit value to the byte string. */
 	addUint32(v: number): void {
+		checkUint(v, 32);
 		this.add(Uint8Array.of(v >>> 24, v >>> 16, v >>> 8, v));
 	}
 
 	/** addUint48 appends a big-endian, 48-bit value to the byte string. */
 	addUint48(v: bigint): void {
+		checkUint64(v);
 		this.add(
 			Uint8Array.of(
 				Number((v >> 40n) & 0xffn),
@@ -155,6 +166,7 @@ export class Builder {
 
 	/** addUint64 appends a big-endian, 64-bit value to the byte string. */
 	addUint64(v: bigint): void {
+		checkUint64(v);
 		this.add(
 			Uint8Array.of(
 				Number((v >> 56n) & 0xffn),
@@ -584,5 +596,26 @@ export class String {
 	/** empty reports whether the string does not contain any bytes. */
 	empty(): boolean {
 		return this.s.length === 0;
+	}
+}
+
+/**
+ * checkUint throws a RangeError unless v is a value of Go's uint8, uint16 or uint32 (bits 8,
+ * 16 or 32), the parameter type of the Builder method that calls it.
+ *
+ * Port addition: Go's parameter types make an out-of-range value unrepresentable; a number
+ * is not so constrained, and writing its low bits would put a different value on the wire.
+ * See docs/decisions/0200-length-prefix-appenders-reject-out-of-range-values.md.
+ */
+function checkUint(v: number, bits: 8 | 16 | 32): void {
+	if (!Number.isInteger(v) || v < 0 || v > 2 ** bits - 1) {
+		throw new RangeError(`cryptobyte: ${v} is out of range for uint${bits}`);
+	}
+}
+
+/** checkUint64 is checkUint for Go's uint64 (port addition, as checkUint). */
+function checkUint64(v: bigint): void {
+	if (typeof v !== "bigint" || v < 0n || v > 0xffff_ffff_ffff_ffffn) {
+		throw new RangeError(`cryptobyte: ${v} is out of range for uint64`);
 	}
 }

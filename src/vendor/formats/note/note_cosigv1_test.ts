@@ -268,3 +268,32 @@ describe("newVerifierForCosignatureV1 refuses unsafe Ed25519 public keys", () =>
 		expect(() => newVerifierForCosignatureV1(vkey)).not.toThrow();
 	});
 });
+
+// Port addition: Go's `len(hash16) != 8` counts the bytes of the hash field, not its UTF-16
+// code units. These spellings are 8 bytes but not 8 code units, or the reverse; Go's verdict on
+// each is recorded in fixtures/data/differential_note_keys.json as well.
+describe("the key-hash field is measured in bytes", () => {
+	const { skey, vkey } = generateKey(undefined, "w.example");
+	const withHash = (key: string, field: number, hash: string): string => {
+		const parts = key.split("+");
+		parts[field] = hash;
+		return parts.join("+");
+	};
+	// Eight bytes: "é" is two bytes in UTF-8, "😀" four (and two UTF-16 code units).
+	for (const hash of ["éééé", "😀😀", "éabcdef"]) {
+		it(`accepts the ${new TextEncoder().encode(hash).length}-byte hash field ${JSON.stringify(hash)}`, () => {
+			expect(newVerifierForCosignatureV1(withHash(vkey, 1, hash)).name()).toBe("w.example");
+			expect(newSignerForCosignatureV1(withHash(skey, 3, hash)).name()).toBe("w.example");
+			// vKeyToCosignatureV1 gets past the length check and fails to parse the hash.
+			expect(() => vKeyToCosignatureV1(withHash(vkey, 1, hash))).toThrow("invalid key hash");
+		});
+	}
+	// Eight code units, but not eight bytes.
+	for (const hash of ["éééééééé", "1234567é", "abcdéf12"]) {
+		it(`rejects the ${new TextEncoder().encode(hash).length}-byte hash field ${JSON.stringify(hash)}`, () => {
+			expect(() => newVerifierForCosignatureV1(withHash(vkey, 1, hash))).toThrow("malformed verifier id");
+			expect(() => newSignerForCosignatureV1(withHash(skey, 3, hash))).toThrow("malformed signer id");
+			expect(() => vKeyToCosignatureV1(withHash(vkey, 1, hash))).toThrow("malformed verifier id");
+		});
+	}
+});

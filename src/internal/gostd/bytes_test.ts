@@ -61,7 +61,7 @@ describe("gostd/bytes", () => {
 });
 
 // fromHex transcribes Go's hex.DecodeString, including its error text and precedence.
-// The expected messages were produced by Go 1.24's encoding/hex.
+// The expected messages were produced by Go 1.25.5's encoding/hex.
 describe("gostd/bytes fromHex against Go", () => {
 	const tests: Array<[string, string]> = [
 		["1g", "encoding/hex: invalid byte: U+0067 'g'"],

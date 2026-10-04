@@ -62,3 +62,23 @@ Choose the safe direction — reject — rather than document the replacement:
 - **Reviewer:** _pending_
 - **Verdict:** _pending_
 - **Notes:**
+
+## Update (2026-10-04)
+
+The Decision left two other places where a JavaScript string that UTF-8 cannot encode (one holding an unpaired
+UTF-16 surrogate) was silently turned into U+FFFD, the conversion this ADR rejects for the origin:
+
+- **`id(origin)`.** The Decision said `id` "is unchanged" because every origin it can be given *from a
+  checkpoint* is valid UTF-8. But `id` is exported (`webtessera/formats/log`) and takes any string:
+  `id("\ud800")` returned the ID of the origin `"�"`. It now throws `origin is not valid UTF-8` for such
+  an origin; for every other string it is bit-identical to Go's `ID`, as before.
+- **`note.sign` and `signAsync`.** Go's `Sign` signs whatever bytes `n.Text` holds (a note that is not valid
+  UTF-8 is then rejected by `Open`). The port encoded the text with `toUTF8`, so `sign({text: "a\ud800b\n"})`
+  signed, and returned, a valid note over `"a�b\n"`, a text the caller did not supply. Both now throw
+  `errMalformedNote` ("malformed note") for such a text, after upstream's check that the text ends in a
+  newline and before any signer is asked to sign. Go has no counterpart error, so the only upstream errors this
+  can pre-empt are those `Sign` would report later for the same call (an invalid signer name, a failing signer,
+  a malformed existing signature), on a text Go itself would have signed into a note `Open` rejects.
+
+`identifier_test.ts` and `note_async_test.ts` pin both. Neither changes the bytes of any note, checkpoint or
+ID for a string UTF-8 can encode.

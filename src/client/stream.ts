@@ -118,15 +118,32 @@ async function* streamEntryBundles(
 	//
 	// Port note: window holds up to numWorkers in-flight bundle fetches,
 	// oldest-dispatched-first; it stands in for both the token bucket and the channel of
-	// futures. fillWindow tops it back up to numWorkers every time a slot frees.
+	// futures. fillWindow tops it back up to numWorkers every time a slot frees. Upstream's
+	// comments on the channel, the futures and the tokens it replaces (ADR-0066) are kept
+	// below, each beside the part of the window that does that job:
+	//
+	//   bundleOrErr represents a fetched entry bundle and its params, or an error if we couldn't fetch it for
+	//   some reason.
+	//
+	//   bundles will be filled with futures for in-order entry bundles by the worker
+	//   go routines below.
+	//   This channel will be drained by the loop at the bottom of this func which
+	//   yields the bundles to the caller.
+	//
+	//   We'll limit ourselves to numWorkers worth of on-going work using these tokens:
 	const window: Promise<Bundle>[] = [];
 	const fillWindow = (): void => {
+		// Port note, upstream's comment on its loop: "For each bundle, pop a future into the
+		// bundles channel and kick off an async request to resolve it."
 		while (window.length < numWorkers) {
 			const next = infos.next();
 			if (next.done === true) {
 				return;
 			}
 			const ri = next.value;
+			// Port note, upstream's comment on taking a token: "We'll return a token below, once
+			// the bundle is fetched _and_ is being yielded." Here the slot this fetch takes is
+			// freed by the loop below, once the fetch has resolved and is being yielded.
 			const pending = getBundle(ri.index, ri.partial, signal).then((data) => ({ rangeInfo: ri, data }));
 			// A fetch that rejects while it is still waiting its turn at the front of the
 			// window would otherwise look like an unhandled rejection to the host runtime

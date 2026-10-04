@@ -192,3 +192,13 @@ Two statements above no longer describe the code, and are corrected here rather 
 - **`ticker`'s callers.** The update above names `followerStats` and `updateStats` in
   `append_lifecycle.ts` among `ticker`'s callers. ADR-0181 deletes both, so the garbage collection
   job in `storage/objectstore/driver.ts` is the only caller left.
+
+## Update (2026-10-04): a panic whose text cannot be reproduced
+
+A Go panic becomes a thrown `Error` with the panic's text, like a returned error. One upstream panic formats a value
+whose text depends on memory: `NewWitnessGroup` (`witness.go`) panics with
+`fmt.Errorf("threshold of %d outside bounds for children %s", n, children)`, and `%s` of the children slice prints
+each child's fields, including the address of its verifier's state
+(`[{%!s(*note.verifier=&{Wit1 2604643029 0x6ec920}) https://w.example/add-checkpoint}]`). `newWitnessGroup`
+(`src/witness.ts`) throws `threshold of <n> outside bounds for children <count>` instead, with the number of
+children where Go prints them; its Port note says so. The condition and the prefix are Go's.

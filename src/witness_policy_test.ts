@@ -17,8 +17,9 @@
 
 import { describe, expect, it } from "vitest";
 import { ErrTooLong } from "./internal/gostd/bufio.ts";
-import { toUTF8 } from "./internal/gostd/bytes.ts";
+import { concatBytes, toUTF8 } from "./internal/gostd/bytes.ts";
 import { errorAs, SentinelError } from "./internal/gostd/errors.ts";
+import { URLError } from "./internal/gostd/url.ts";
 import { newWitnessGroupFromPolicy } from "./witness.ts";
 
 describe("TestNewWitnessGroupFromPolicy", () => {
@@ -250,11 +251,10 @@ describe("NewWitnessGroupFromPolicy wrapped errors (port additions)", () => {
 
 	it("wraps the parse error of an invalid witness URL", () => {
 		const err = errorOf(`witness w1 ${w1Key} http://[::1\nquorum w1`);
-		expect(err.message).toBe(
-			'invalid witness URL "http://[::1": parse "http://[::1": not an absolute URL with a "//" authority',
-		);
-		expect(err.cause).toBeInstanceOf(Error);
-		expect((err.cause as Error).message).toBe('parse "http://[::1": not an absolute URL with a "//" authority');
+		expect(err.message).toBe('invalid witness URL "http://[::1": parse "http://[::1": missing \']\' in host');
+		expect(err.cause).toBeInstanceOf(URLError);
+		expect((err.cause as URLError).message).toBe("parse \"http://[::1\": missing ']' in host");
+		expect((err.cause as URLError).err.message).toBe("missing ']' in host");
 	});
 });
 
@@ -284,6 +284,21 @@ describe("NewWitnessGroupFromPolicy witness URLs (port additions)", () => {
 			want: "https://user:pw@example.com/x/add-checkpoint",
 		},
 		{ desc: "keeps an IPv6 host", url: "https://[::1]:8080/x", want: "https://[::1]:8080/x/add-checkpoint" },
+		{
+			desc: "escapes non-ASCII characters in the path",
+			url: "https://example.com/日本",
+			want: "https://example.com/%E6%97%A5%E6%9C%AC/add-checkpoint",
+		},
+		{
+			desc: "escapes non-ASCII characters in the host",
+			url: "https://exämple.com/x",
+			want: "https://ex%C3%A4mple.com/x/add-checkpoint",
+		},
+		{
+			desc: "keeps an escaped slash",
+			url: "https://example.com/a%2Fb",
+			want: "https://example.com/a%2Fb/add-checkpoint",
+		},
 	];
 	for (const tc of tests) {
 		it(tc.desc, () => {
@@ -291,17 +306,109 @@ describe("NewWitnessGroupFromPolicy witness URLs (port additions)", () => {
 		});
 	}
 
-	// Go's url.Parse accepts a relative reference; this port requires an absolute URL.
-	it("rejects a relative witness URL", () => {
-		expect(errorOf(`witness w1 ${w1Key} not-a-url\nquorum w1`).message).toBe(
-			'invalid witness URL "not-a-url": parse "not-a-url": not an absolute URL with a "//" authority',
-		);
-	});
-
 	it("rejects a control character with Go's url.Parse error text", () => {
 		expect(errorOf(`witness w1 ${w1Key} https://example.com/\u0001\nquorum w1`).message).toBe(
 			'invalid witness URL "https://example.com/\\x01": parse "https://example.com/\\x01": net/url: invalid control character in URL',
 		);
+	});
+
+	// Go 1.25.5's url.Parse error for each; the bracketed hosts are rejected since the fix for
+	// CVE-2025-47912 (Go 1.24.8, 1.25.2), which this port follows (ADR-0241).
+	const parseErrors: { url: string; err: string }[] = [
+		{ url: "https://example.com:abc/x", err: 'invalid port ":abc" after host' },
+		{ url: "https://ü@example.com/", err: "net/url: invalid userinfo" },
+		{ url: "https://example.com/%zz", err: 'invalid URL escape "%zz"' },
+		{ url: "https://example.com/%zé", err: 'invalid URL escape "%z\\xc3"' },
+		{ url: "://x", err: "missing protocol scheme" },
+		{ url: "1a:b/x", err: "first path segment in URL cannot contain colon" },
+		{ url: "https://a{b}/", err: 'invalid character "{" in host name' },
+		{ url: "https://[1.2.3.4]/", err: "invalid IP-literal" },
+		{ url: "https://[v1.x]/", err: 'invalid host: ParseAddr("v1.x"): unexpected character (at "v1.x")' },
+	];
+	for (const tc of parseErrors) {
+		it(`rejects ${tc.url} with Go's url.Parse error text`, () => {
+			expect(errorOf(`witness w1 ${w1Key} ${tc.url}\nquorum w1`).message).toBe(
+				`invalid witness URL ${JSON.stringify(tc.url)}: parse ${JSON.stringify(tc.url)}: ${tc.err}`,
+			);
+		});
+	}
+});
+
+// docs/decisions/0241-witness-policy-urls-parsed-as-go-parses-them.md: URLs Go's url.Parse
+// accepts but fetch cannot use as Go's HTTP client would. Go accepts each of these policies.
+describe("NewWitnessGroupFromPolicy witness URLs fetch cannot use (port additions)", () => {
+	const config = (u: string): string => `invalid witness config "witness w1 ${w1Key} ${u}"`;
+	const cases: { url: string; err: string }[] = [
+		{
+			url: "not-a-url",
+			err: 'witness URL "not-a-url/add-checkpoint" must use https (http is accepted only for a loopback host)',
+		},
+		{ url: "mailto:a@b", err: 'witness URL "mailto:a@b" must use https (http is accepted only for a loopback host)' },
+		{ url: "https:///x", err: 'witness URL "https:///x/add-checkpoint" has no host' },
+		{ url: "https:example.com", err: 'witness URL "https:example.com" has no host' },
+		...["https://example.com:99999/x", "https://[fe80::1%25eth0]/x", "https://256.1.1.1/x", "https://a<b>.com/x"].map(
+			(u) => ({
+				url: u,
+				err: `witness URL "${u}/add-checkpoint" is rejected by the platform URL parser, which fetch uses`,
+			}),
+		),
+	];
+	for (const tc of cases) {
+		it(`rejects ${tc.url}`, () => {
+			expect(errorOf(`witness w1 ${w1Key} ${tc.url}\nquorum w1`).message).toBe(`${config(tc.url)}: ${tc.err}`);
+		});
+	}
+});
+
+// docs/decisions/0242-witness-policy-must-be-utf8.md
+describe("NewWitnessGroupFromPolicy invalid UTF-8 (port additions)", () => {
+	const enc = (parts: (string | number[])[]): Uint8Array =>
+		concatBytes(...parts.map((p) => (typeof p === "string" ? toUTF8(p) : new Uint8Array(p))));
+	const policyErr = (p: Uint8Array): string => {
+		try {
+			newWitnessGroupFromPolicy(p);
+		} catch (e) {
+			return (e as Error).message;
+		}
+		return "accepted";
+	};
+
+	// Go accepts the first (two names that differ only in their invalid bytes) and rejects the
+	// second only because the quorum names a component that was never defined; read as U+FFFD,
+	// both would have changed verdict.
+	it("rejects a line whose fields are not valid UTF-8", () => {
+		const twoNames = enc([
+			`witness w`,
+			[0xff],
+			` ${w1Key} https://a.example/\nwitness w`,
+			[0xfe],
+			` ${w2Key} https://b.example/\nquorum none\n`,
+		]);
+		expect(policyErr(twoNames)).toBe("witness policy line is not valid UTF-8");
+		expect(policyErr(enc([`witness w1 ${w1Key} https://a.example/\nquorum `, [0xfe]]))).toBe(
+			"witness policy line is not valid UTF-8",
+		);
+		expect(policyErr(enc([`witness w1 ${w1Key} https://a.example/`, [0xff], "\nquorum w1"]))).toBe(
+			"witness policy line is not valid UTF-8",
+		);
+		// A surrogate half (ED A0 80) and an overlong NUL (C0 80) are not UTF-8 either.
+		for (const bad of [
+			[0xed, 0xa0, 0x80],
+			[0xc0, 0x80],
+		]) {
+			expect(policyErr(enc(["witness w1 ", bad, `${w1Key.slice(10)} https://a.example/\nquorum w1`]))).toBe(
+				"witness policy line is not valid UTF-8",
+			);
+		}
+	});
+
+	it("reports an error on an earlier line first, as Go reads lines in order", () => {
+		expect(policyErr(enc(["bogus\nquorum ", [0xff]]))).toBe('unknown keyword: "bogus"');
+	});
+
+	it("accepts invalid UTF-8 in a comment, which Go discards", () => {
+		const p = enc([`witness w1 ${w1Key} https://a.example/ # `, [0xff, 0xfe], "\n# ", [0xc0], "\nquorum w1"]);
+		expect(newWitnessGroupFromPolicy(p).endpoints().has("https://a.example/add-checkpoint")).toBe(true);
 	});
 });
 

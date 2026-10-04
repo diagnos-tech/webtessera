@@ -58,6 +58,14 @@ function errText(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * rangeInfoText renders a RangeInfo the way Go's default `%v` verb formats a struct:
+ * `{index partial first n}`, in declaration order.
+ */
+function rangeInfoText(ri: RangeInfo): string {
+	return `{${ri.index} ${ri.partial} ${ri.first} ${ri.n}}`;
+}
+
 const entryBundleWidth64 = BigInt(EntryBundleWidth);
 
 /** Fetcher describes a struct which knows how to retrieve tlog-tiles artifacts from a log. */
@@ -65,12 +73,6 @@ export interface Fetcher {
 	readCheckpoint(signal?: AbortSignal): Promise<Uint8Array>;
 	readTile(l: bigint, i: bigint, p: number, signal?: AbortSignal): Promise<Uint8Array>;
 	readEntryBundle(i: bigint, p: number, signal?: AbortSignal): Promise<Uint8Array>;
-}
-
-/** Opts is what {@link newFsck} takes to configure a {@link Fsck} instance. */
-export interface Opts {
-	/** n is the number of concurrent workers to use when comparing resources. */
-	readonly n?: number;
 }
 
 /** Fsck knows how to check the integrity of tlog-tile logs. */
@@ -175,7 +177,7 @@ export class Fsck {
 		// Port note: driven manually via `.next()` rather than `for await...of` so
 		// that a failure fetching a bundle (wrapped below as "error while streaming
 		// bundles") cannot be conflated with a failure in appendBundle (wrapped
-		// separately as "failure calling appendBundle(...)") -- the two have
+		// separately as "failure calling AppendBundle(...)") -- the two have
 		// distinct error messages in Go, each from its own `if err != nil` check.
 		const bundles = entryBundles(this.#opts.n, getSize, trackBundle, 0n, cpSize, eg.signal);
 		for (;;) {
@@ -202,7 +204,7 @@ export class Fsck {
 			try {
 				tree.appendBundle(b.rangeInfo, b.data);
 			} catch (err) {
-				throw new Error(`failure calling appendBundle(${rangeInfoText(b.rangeInfo)}): ${errText(err)}`);
+				throw new Error(`failure calling AppendBundle(${rangeInfoText(b.rangeInfo)}): ${errText(err)}`);
 			}
 			if (tree.tree.end() >= cpSize) {
 				break;
@@ -280,12 +282,10 @@ export class Fsck {
 	}
 }
 
-/**
- * rangeInfoText renders a RangeInfo the way Go's default `%v` verb formats a struct:
- * `{index partial first n}`, in declaration order.
- */
-function rangeInfoText(ri: RangeInfo): string {
-	return `{${ri.index} ${ri.partial} ${ri.first} ${ri.n}}`;
+/** Opts is what {@link newFsck} takes to configure a {@link Fsck} instance. */
+export interface Opts {
+	/** n is the number of concurrent workers to use when comparing resources. */
+	readonly n?: number;
 }
 
 /**

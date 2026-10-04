@@ -90,8 +90,18 @@ export class Entry {
 	 *
 	 * Note that this will include data which IS NOT directly committed to by the entry's
 	 * merkleLeafHash.
+	 *
+	 * Port note: Go's FingerprintsChain is a `[][32]byte`, so every fingerprint is 32 bytes by
+	 * its type; a Uint8Array is not, and a fingerprint of any other length would write a bundle
+	 * entry no parser can split. Such an entry throws a RangeError here instead
+	 * (docs/decisions/0043-ctonly-entry-port.md).
 	 */
 	leafData(idx: bigint): Uint8Array {
+		this.fingerprintsChain.forEach((f, i) => {
+			if (f.length !== 32) {
+				throw new RangeError(`ctonly: fingerprintsChain[${i}] is ${f.length} bytes, want 32`);
+			}
+		});
 		const b = cryptobyte.newBuilder(new Uint8Array(0));
 		b.addUint64(this.timestamp);
 		if (!this.isPrecert) {

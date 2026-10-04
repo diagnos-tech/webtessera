@@ -36,6 +36,10 @@ const wit3_skey = "PRIVATE+KEY+Wit3+d3ed3be7+AR2Kg8k6ccBr5QXz5SHtnkOS4UGQGEQaWi6
 
 const bastion = new URL("https://b1.example.com/");
 const directURL = new URL("https://witness.example.com/");
+// Port note: Go builds these roots with bastion.JoinPath("wit1prefix"). The platform URL type
+// has no JoinPath, and newWitness takes one of its values, so they are built by resolving the
+// relative reference against bastion instead. For a root that ends in "/" and a single
+// segment the two give the same URL, https://b1.example.com/wit1prefix, as Go's do.
 const wit1 = newWitness(wit1_vkey, new URL("wit1prefix", bastion));
 const wit2 = newWitness(wit2_vkey, new URL("wit2prefix", bastion));
 const wit3 = newWitness(wit3_vkey, directURL);

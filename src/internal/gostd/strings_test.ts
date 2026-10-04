@@ -50,7 +50,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Test tables taken from strings/strings_test.go (Go standard library) @ Go 1.24.7
+// Test tables taken from strings/strings_test.go (Go standard library) @ Go 1.25.5
 
 import { describe, expect, it } from "vitest";
 import { cut, fields, trimSpace } from "./strings.ts";

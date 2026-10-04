@@ -282,6 +282,23 @@ describe("check() reports a worker failure in a multi-tile log as Go does", () =
 	}
 });
 
+// Not part of upstream fsck_test.go. A bundle hasher that fails is reported with Go's text,
+// `failure calling AppendBundle(%v): %v`; Go returned exactly these messages for the same logs.
+describe("check() reports a failing bundle hasher with Go's message", () => {
+	const hasherBoom = (): Uint8Array[] => {
+		throw new Error("hasher boom");
+	};
+	for (const n of [1, 2]) {
+		it(`n=${n}`, async () => {
+			const { fixture, resources } = await loadClientLogResources();
+			const f = newFsck(fixture.origin, newVerifier(fixture.logVkey), new fixtureFetcher(resources), hasherBoom, {
+				n,
+			});
+			await expect(f.check()).rejects.toThrow(/^failure calling AppendBundle\(\{0 15 0 15\}\): hasher boom$/);
+		});
+	}
+});
+
 // Not part of upstream fsck_test.go: the caller's own abort surfaces as its reason,
 // unwrapped (ADR-0091).
 it("check() rethrows the caller's abort reason unchanged", async () => {

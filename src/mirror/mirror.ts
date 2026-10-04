@@ -153,8 +153,12 @@ export class Mirror {
 		this.#resourcesFetched = 0n;
 
 		// Port note: Go feeds jobs to the workers through a channel, from a producer goroutine
-		// that stops when ctx is Done. The workers share one generator instead, and check the
-		// signal before taking each job; see docs/decisions/0077-copier-work-distribution-is-a-shared-generator.md.
+		// that stops when ctx is Done. The workers share one generator instead, as the copier
+		// does (docs/decisions/0077-copier-work-distribution-is-a-shared-generator.md), and check
+		// the signal before taking each job. Upstream's workers never look at ctx: once the
+		// producer stops they drain the jobs already queued, Wait returns nil and Run writes the
+		// source checkpoint over a mirror it did not finish. Here a cancelled run rejects at the
+		// next job and never writes the checkpoint; see docs/decisions/0173-mirror-port.md (7).
 		const work = jobs(sourceSize, targetSize, stride);
 
 		// Port note: a plain errgroup.Group, not errgroup.WithContext: as upstream, one
@@ -236,6 +240,8 @@ interface job {
  *
  * Port note: Go's `(job) String()` method; upstream only uses it in log lines, which are
  * dropped (see the header), and it is kept for parity and for tests.
+ *
+ * @internal Exported for mirror_test.ts.
  */
 export function jobString(j: job): string {
 	return `Level: ${j.level}, Range: [${j.from}, ${j.from + j.N})`;

@@ -139,6 +139,71 @@ describe("Mirror", () => {
 		}
 	});
 
+	// Upstream hangs in each of these too: the stride is zero, and jobs() reaches a tile-aligned
+	// `from` below the level's extent after the first, partial job (260 from 250), at level 1
+	// (256 from 255), or straight away (257 from 256). Go was observed spinning on all three.
+	describe("finishes when the zero stride is reached from an unaligned target size", () => {
+		for (const [targetSize, sourceSize, numWorkers] of [
+			[250, 260, 30],
+			[255, 256, 2],
+			[256, 257, 2],
+		] as const) {
+			it(`target ${targetSize}, source ${sourceSize}, ${numWorkers} workers`, async () => {
+				const l = await newTestLog({ origin: "example.com/unaligned" });
+				try {
+					await l.add(entriesOf(targetSize));
+					const store = new MemoryObjectStore();
+					const target = newSinkTarget(store);
+					await new Mirror({ numWorkers, source: l.reader, target }).run();
+					await l.add(entriesOf(sourceSize - targetSize, targetSize));
+					await new Mirror({ numWorkers, source: l.reader, target }).run();
+					expect(checkpointUnsafe((await store.get("checkpoint")) as Uint8Array).size).toBe(BigInt(sourceSize));
+					await newFsck(l.origin, l.verifier, target, defaultMerkleLeafHasher, { n: 2 }).check();
+				} finally {
+					await l.shutdown();
+				}
+			});
+		}
+	});
+
+	it("never writes the checkpoint once its signal is aborted (upstream can, over an incomplete mirror)", async () => {
+		// Two jobs with one worker: level 0 and level 1. The signal is aborted while the first
+		// is copied. Upstream's worker would still take the second job from its channel and Run
+		// would write the checkpoint (for a longer log, over a mirror it did not finish); the
+		// port rejects before taking it (docs/decisions/0173-mirror-port.md, item 7).
+		const l = await newTestLog({ origin: "example.com/cancelled" });
+		try {
+			await l.add(entriesOf(600));
+			const store = new MemoryObjectStore();
+			const sink = newSinkTarget(store);
+			const ac = new AbortController();
+			// Source and target ignore the signal, so only the mirror's own checks see it.
+			const source = {
+				readCheckpoint: () => l.reader.readCheckpoint(),
+				readTile: (lv: bigint, i: bigint, p: number) => l.reader.readTile(lv, i, p),
+				readEntryBundle: (i: bigint, p: number) => l.reader.readEntryBundle(i, p),
+			};
+			const target: Target = {
+				readCheckpoint: () => sink.readCheckpoint(),
+				writeCheckpoint: (d) => sink.writeCheckpoint(d),
+				writeTile: (lv, i, p, d) => {
+					ac.abort();
+					return sink.writeTile(lv, i, p, d);
+				},
+				writeEntryBundle: (i, p, d) => sink.writeEntryBundle(i, p, d),
+			};
+			const m = new Mirror({ numWorkers: 1, source, target });
+			await expect(m.run(ac.signal)).rejects.toThrow(/^failed to migrate static resources: /);
+			expect(await store.get("checkpoint")).toBeUndefined();
+			// The first job's three level-0 tiles and bundles were copied; the level-1 tile was not.
+			const { totalResources, resourcesFetched } = m.progress();
+			expect([resourcesFetched, totalResources]).toEqual([6n, 7n]);
+			expect(await store.get("tile/1/000.p/2")).toBeUndefined();
+		} finally {
+			await l.shutdown();
+		}
+	});
+
 	it("copies the whole log again when the sink cannot read back, harmlessly", async () => {
 		const objects = new Map<string, Uint8Array>();
 		const writeOnly: Sink = { put: async (k, d) => void objects.set(k, d) };

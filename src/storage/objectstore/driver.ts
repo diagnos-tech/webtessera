@@ -60,6 +60,7 @@ import { bytesEqual, concatBytes, fromUTF8, toHex, toUTF8 } from "../../internal
 import { ErrNotExist, errorIs, wrapError } from "../../internal/gostd/errors.ts";
 import { parseUint, quote } from "../../internal/gostd/strconv.ts";
 import { sleep, ticker } from "../../internal/gostd/sync.ts";
+import { durationFromMs, durationString } from "../../internal/gostd/time.ts";
 import type { MigrationWriter } from "../../internal/migrate/migrate.ts";
 import { checkpointUnsafe } from "../../internal/parse/parse.ts";
 import type { LogReader } from "../../lifecycle.ts";
@@ -892,13 +893,16 @@ export class logResourceStorage implements LogReader {
 	}
 
 	/**
-	 * storeTile writes a tile out to the store.
+	 * storeTile writes a tile out to disk.
 	 * Fully populated tiles are stored at the path corresponding to the level &
 	 * index parameters, partially populated (i.e. right-hand edge) tiles are
-	 * stored with a .p/xx suffix where xx is the number of "tile leaves".
+	 * stored with a .xx suffix where xx is the number of "tile leaves" in hex.
 	 *
-	 * Port note: Go's `failed to marshal tile` branch cannot occur (HashTile.marshalText
-	 * cannot fail) and has no counterpart.
+	 * Port note: upstream's comment above predates the tlog-tiles layout both drivers use: a
+	 * partial tile is stored with a `.p/<n>` suffix, n being the number of tile leaves in
+	 * decimal (layout.tilePath), and here "disk" is the ObjectStore. Go's
+	 * `failed to marshal tile` branch cannot occur (HashTile.marshalText cannot fail) and has
+	 * no counterpart.
 	 */
 	async storeTile(level: bigint, index: bigint, logSize: bigint, tile: HashTile): Promise<void> {
 		const tileSize = tile.nodes.length;
@@ -1278,11 +1282,12 @@ class notifyChan {
 }
 
 /**
- * fmtDuration renders a duration of less than a second the way Go's `%v` renders a
- * time.Duration, which is all the one message using it needs.
+ * fmtDuration renders a duration of ms milliseconds the way Go's `%v` renders the
+ * time.Duration it stands for (Duration.String, from the whole number of nanoseconds). A
+ * value no Duration can hold (NaN, ±Infinity) is rendered as JavaScript renders it.
  */
 function fmtDuration(ms: number): string {
-	return ms === 0 ? "0s" : `${ms}ms`;
+	return Number.isFinite(ms) ? durationString(durationFromMs(ms)) : String(ms);
 }
 
 /** errText renders an error the way Go's `%v` verb does. */

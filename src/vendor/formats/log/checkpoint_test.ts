@@ -18,6 +18,7 @@
 
 import { describe, expect, it } from "vitest";
 import { bytesEqual, concatBytes, fromUTF8, toUTF8 } from "../../../internal/gostd/bytes.ts";
+import { wrapError } from "../../../internal/gostd/errors.ts";
 import { parseUint } from "../../../internal/gostd/strconv.ts";
 import { Checkpoint } from "./checkpoint.ts";
 
@@ -262,6 +263,11 @@ describe("Checkpoint hardening", () => {
 	});
 });
 
+////////////////////////////////////////////////////////////////////////////////
+// Below is an example of embedding the minimal checkpoint as one way to extend
+// it to include additional ecosystem-specific data.
+// Reimplementing parsing of the full extended structure would be fine too.
+
 /**
  * moonLogCheckpoint is a hypothetical checkpoint for an ecosystem which requires
  * its checkpoints to commit to more data than the minimum common checkpoint does.
@@ -300,7 +306,13 @@ class moonLogCheckpoint extends Checkpoint {
 		if (l.length !== 2) {
 			throw new Error(`want 2 lines of other data, got ${l.length}`);
 		}
-		this.timestamp = parseUint(l[0] ?? "", 16, 64);
+		let ts: bigint;
+		try {
+			ts = parseUint(l[0] ?? "", 16, 64);
+		} catch (err) {
+			throw wrapError("failed to parse timestamp", err);
+		}
+		this.timestamp = ts;
 		this.phase = l[1] ?? "";
 	}
 }
