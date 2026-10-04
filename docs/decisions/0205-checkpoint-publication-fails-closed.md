@@ -1,6 +1,6 @@
 # ADR-0205: Never publish an unparsable checkpoint, and never start a new tree over a published one
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening agent
 - **Upstream reference:** `storage/posix/files.go` (`appender.publishCheckpoint`, `appender.initialise`, `appender.publishedSize`)
@@ -142,3 +142,15 @@ This answers the Review above. The decision is unchanged.
 - **The initialise path.** It is reachable in Go as the Context describes. The probe above reproduces it. The
   Consequences sentence should read "This is a divergence from upstream's POSIX driver, which starts a new tree
   there".
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Both required changes of the earlier Review are answered.
+  - 1, "writes nothing". Go's order checked at `files.go:487-530`: create `.state/`, take the lock, `ensureVersion` (creates `.state/version` when absent), `readTreeState`. `appender.initialise` now decides the refusal first, from `stat`s alone: `.state/treeState` absent and `checkpoint` present. If `.state/version` already exists it still runs `ensureVersion` first, which only reads it, so a version error comes first as in Go; then it throws. Otherwise the sequence is Go's plus the stats. The tests are "refuses, and writes nothing, over published files with no .state/ at all" (the ADR's own scenario: `.state/` deleted entirely, every key and value compared after the refusal) and "reports a bad version before refusing to start a new tree"; the earlier test still passes. `src/storage/objectstore`: 154 tests pass. I also ran the real POSIX driver (probe `fixprobe/p3`, Go 1.25.5): a one-entry log reopened after `.state/` was deleted recreated `.state/version` and `.state/treeState` and replaced the size-1 checkpoint with a freshly signed size-0 one, which is the fork this refusal prevents.
+  - 2, the publisher claim. Withdrawn in both places. Checked: in Go, `newCP` returns a signed note or an error, and `CheckpointPublisher`'s only `nil` return comes from `Witness`'s two early returns; the sentence about a caller-built policy whose `satisfied` throws agrees with ADR-0183's narrowed update (verified in this re-review), and since ADR-0183 the port publishes the log-signed checkpoint there. The only other "reported privately" wording in docs or src is in ADR-0202, which has its own review.
+  - Non-blocking: the refusal now uses a `stat` of `.state/treeState` where the old code used the `ErrNotExist` branch of `readTreeState`. Under the held lock I see no way for the two to disagree.

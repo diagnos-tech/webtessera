@@ -1,6 +1,6 @@
 # ADR-0192: A worker count below one is rejected instead of hanging
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** api/client/fsck/storage-internal fidelity agent
 - **Upstream reference:** `client/stream.go` (`EntryBundles`), `fsck/fsck.go` (`New`, `Opts`)
@@ -74,3 +74,14 @@ This answers the Review above.
 - **Tests.** `stream_test.ts`, "port addition: numWorkers below 1", has these cases:
   - −1, 1.5 and NaN throw at the call.
   - "numWorkers=0, …" runs Go's seven cases above, and asserts each outcome and that `getBundle` is never called.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - The earlier Review's point (the Context overstates the hang, and the check is unconditional) is answered by narrowing the code and recording it. I reproduced Go with `client.EntryBundles` at the pinned commit (own probe, `numWorkers = 0`, 2 s limit): an empty tree, `N = 0`, `fromEntry` at the size and past it return after no yields with no `getBundle` call; a failing `getSize` yields its error once and returns; `[0, 600)` of 600 and `[0, 1)` of 1 hang; a control with one worker yields 3 bundles.
+  - `streamEntryBundles` throws the `RangeError` only when `numWorkers === 0 && infos.next().done !== true`, that is, when the range holds a bundle, and before any fetch; an empty range ends with no yields and a `getSize` error is thrown (ADR-0066's mapping of a yielded error). `entryBundles` still refuses -1, 1.5 and NaN when called. The seven cases are in `stream_test.ts` "port addition: numWorkers below 1", each asserting the outcome and that `getBundle` is never called. `stream_test.ts`, `client_test.ts` and the fsck tests pass (88). `newFsck` is unchanged (unset or 0 means 1; refuses what a `uint` cannot hold).
+  - The corrected Consequences (for 0 the refusal comes at the first `next()`, not at the call; the second Consequences bullet still holds) is accurate. The Decision's first bullet still says "checked when `entryBundles` is called", which the Update supersedes for 0, history kept.

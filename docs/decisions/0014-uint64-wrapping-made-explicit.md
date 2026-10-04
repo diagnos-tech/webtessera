@@ -1,6 +1,6 @@
 # ADR-0014: uint64 wrapping and Go shift semantics are written out via `internal/gostd/bits`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** merkle agent
 - **Upstream reference:** `merkle/compact/range.go` (`getMergePath`, `Decompose`, `appendImpl`, `GetRootHash`), `merkle/compact/nodes.go` (`Coverage`, `RangeNodes`, `RangeSize`), `merkle/proof/proof.go`, `merkle/proof/verify.go`
@@ -242,3 +242,16 @@ This answers the three points of the Review above. The decision is unchanged.
 
 The non-blocking note also holds: `bits.ts` has grown beyond the 110 lines that Consequences gives, and it now
 includes `assertUint64` (ADR-0207).
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - All three points of the earlier Review are answered; I re-ran Go and the tests.
+  - Point 1, the reachable `getMergePath` wrap. Reproduced under Go 1.24.7 and 1.25.5 (probe `fixprobe/p1`, `NewRange(0, MaxUint64, 64 hashes)`, then `NewEmptyRange(0).AppendRange`): 63 visitor calls from node (65, 0) to (127, 0), last hash `eafdf4dd...bb12`, then `panic: runtime error: index out of range [63] with length 63`, and the range left at end 0 with no hashes. In `Range.#appendImpl`, `mergeHigh < 0` stands for Go's `uint(high-1)` = MaxUint: it is not clamped to `low` (Go's comparison is unsigned), the loop is unbounded, and the bounds check on `hashes[idx2]` throws Go's text before `_hashes` and `_end` are assigned, so the range is unchanged. The arithmetic that keeps `-1` gives Go's values (`shiftLeft64(1n, high - low)` saturates to 0, so the mask is all ones; `zeros` is negative as Go's `int(high-low)`). The Update's claim that this is the only input inside the precondition holds: `high` from `begin` is 0 only when `mid < begin`, and `high2` is 0 only when `end == mid-1` modulo 2^64, which with `mid <= end` forces `mid = 0`, `end = MaxUint64`, hence `begin = 0`. The test "panics as Go does when [0, MaxUint64) is appended to an empty range" asserts the exact text, the 63 visits, the first and last node IDs, the last hash and the unchanged range, and passes. `getMergePath` carries a Port note.
+  - Point 2, `index>>inner` at `proof.go:96`. Go computes `inner := bits.Len64(index^(size>>level)) - 1` as an `int` and shifts by it with no `uint(...)`. The Update's argument that it is never negative is right: `Inclusion` rejects `index >= size` first, and in `Consistency` `index = (size1-1)>>level` is below `size1>>level`, which is at most `size2>>level`, because `level` is `TrailingZeros64(size1)`.
+  - Point 3, `minImpliedTreeSize`. It is exported `@internal` and the test "port additions: minImpliedTreeSize wraps as Go's uint64 does" has ten cases. I recomputed all ten with a Go program that transcribes `(id.Index * layout.TileWidth) << (id.Level * 8)` on uint64 (the function itself is unexported in an internal package): every value equals the test's (256, 65536, 0, 0, 0, 18446744073709551360, 768, 196608, 5001117282205630464, 0). `range_test.ts` and `integrate_test.ts`: 500 tests pass.
+  - The original Consequences bullet that calls the case unreachable stays in the file as history, and the Update says plainly that it is wrong; that is the form the protocol wants. The non-blocking `bits.ts` line count is acknowledged in the Update.

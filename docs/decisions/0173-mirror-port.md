@@ -108,5 +108,17 @@ mirror's per-run state is ADR-0176's update.
 ## Update (2026-10-04)
 
 `webtessera/mirror` is a port of Tessera's experimental mirror, a copy tool. It is unrelated to C2SP tlog-mirror, in
-which a mirror cosigns the checkpoints it serves. Neither `newMirror` nor `newVerifiedMirror` cosigns anything or
+which a mirror cosigns the checkpoints it serves. Neither the `Mirror` class nor `newVerifiedMirror` cosigns anything or
 implements that protocol.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: changes requested (one wrong name; the substance is right).
+The substance holds. C2SP `tlog-mirror` (the editor's copy, fetched today) opens "A mirror is a cosigner that stores a copy of a log", says a mirror's
+cosignature makes the additional statement that it has durably logged the checkpoint's contents, and requires the checkpoint served from the mirror's prefix
+to "include a cosignature from the mirror". `src/mirror/` signs no checkpoint (the only signing in it is AWS SigV4 request signing for the S3 sink, `sigv4.ts`; no note signer or cosignature appears in any non-test file), `Mirror.run` copies
+resources and then the source's checkpoint as it is, and `verify.ts` only verifies. What is wrong: the Update says "Neither `newMirror` nor
+`newVerifiedMirror` cosigns anything". There is no `newMirror` in the port (nor in Go, whose `Mirror` is built with a struct literal). `src/mirror/index.ts`
+exports the class `Mirror`, constructed with `new Mirror({ source, target })`, and `newVerifiedMirror`. The sentence must name `Mirror` (the class), not
+`newMirror`. ADR-0176's Update of the same date repeats the sentence and the error.
+
+- *Correction (2026-10-04, after review):* the Update above named a `newMirror` function, which exists neither here
+  nor in Go; it now names the `Mirror` class (`new Mirror({ source, target })`), as the review asked.

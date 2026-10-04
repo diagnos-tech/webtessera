@@ -85,5 +85,14 @@ The port stays faithful (ADR-0173). Verification is a separate `Source` decorato
 ## Update (2026-10-04)
 
 Verification does not change this (see ADR-0173's update). `webtessera/mirror` is a port of Tessera's experimental mirror, a copy tool. It is unrelated to C2SP tlog-mirror, in
-which a mirror cosigns the checkpoints it serves. Neither `newMirror` nor `newVerifiedMirror` cosigns anything or
+which a mirror cosigns the checkpoints it serves. Neither the `Mirror` class nor `newVerifiedMirror` cosigns anything or
 implements that protocol.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: changes requested (one wrong name; the substance is right). As for ADR-0173's
+Update: C2SP `tlog-mirror` defines a mirror as a cosigner whose cosignature is on the checkpoint it serves, and nothing in `src/mirror/verify.ts` or
+the rest of `src/mirror/` signs or cosigns a checkpoint (the only signing there is AWS SigV4 for the S3 sink); `newVerifiedMirror` verifies what it copies and writes the source's own checkpoint. The sentence names
+`newMirror`, which does not exist: `src/mirror/index.ts` exports the class `Mirror` (built with `new Mirror({ source, target })`) and `newVerifiedMirror`. It must read
+`Mirror` (the class) where it reads `newMirror`; the same sentence in ADR-0173's Update needs the same change.
+
+- *Correction (2026-10-04, after review):* the Update above named a `newMirror` function, which exists neither here
+  nor in Go; it now names the `Mirror` class (`new Mirror({ source, target })`), as the review asked.

@@ -33,7 +33,13 @@ export interface PackageInfo {
 	readonly version: string;
 	readonly description: string;
 	readonly keywords: readonly string[];
+	/** license is package.json's SPDX expression, as written. */
 	readonly license: string;
+	/**
+	 * licenses are the SPDX identifiers the expression combines with AND, the package's own licence first:
+	 * the code is Apache-2.0, and the files translated from Go's own libraries keep their BSD-3-Clause.
+	 */
+	readonly licenses: readonly string[];
 	readonly author: string;
 	readonly node: string;
 	readonly dependencies: readonly string[];
@@ -87,6 +93,11 @@ export function loadPackage(repo: Repo): PackageInfo {
 		description: raw.description ?? "",
 		keywords: raw.keywords ?? [],
 		license: raw.license ?? "",
+		licenses: (raw.license ?? "")
+			.replace(/[()]/g, "")
+			.split(/\s+AND\s+/)
+			.map((id) => id.trim())
+			.filter((id) => id !== ""),
 		author: raw.author ?? "",
 		node: raw.engines?.node ?? "",
 		dependencies: Object.keys(raw.dependencies ?? {}),

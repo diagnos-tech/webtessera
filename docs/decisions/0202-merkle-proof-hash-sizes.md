@@ -134,3 +134,11 @@ Two phrases, following the Review's notes:
 - **The first 2026-10-04 update.** "the size error against the forged one" should read "the size error against the
   root the mangled proof chains to". The test's variables in `verify_test.ts` are renamed to match: `chainedRoot` and
   `chainedRoots`.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `src/vendor/merkle/proof/verify_test.ts` no longer has
+`forged` or `forgedRoots`: the roots a mangled proof chains to are read from Go's `RootMismatchError` as `chainedRoot` and `chainedRoots`
+(lines 515 and 535). The test file passes. The only places that still say the sentence withdrawn are the Context itself (left as written, which is how an
+Update works) and the Review's note that asked for the change; no other file in `docs/`, `CHANGELOG.md`, `README.md`, `SECURITY.md` or `src/` claims a private report of
+this issue. The Update's second bullet is a correction to the first 2026-10-04 Update, whose own text still reads "the forged one"; the reading
+it gives, "the root the mangled proof chains to", is what the test now asserts. The disclosure claim is withdrawn rather than confirmed, which is the
+repository's side of what the Review left to the maintainers.

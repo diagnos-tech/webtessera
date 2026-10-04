@@ -49,6 +49,19 @@ benchmarks, it supersedes this ADR rather than quietly adding a `bench()` here a
 > helper `benchmarkLotsOfIDs`). None is ported; each sits beside tests that are (`TestAppend`,
 > `TestRFC6962Hasher`, `TestParseCheckpoint`/`TestSumDBNoteParsing`).
 
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. Every benchmark the Update names exists in
+the pinned dependencies and is not ported: `BenchmarkAppend` (`merkle@v0.0.2/compact/range_test.go:579`), `BenchmarkHashChildren`
+(`rfc6962/rfc6962_test.go:100`), and `BenchmarkParse`, `BenchmarkLotsOfIDs` and the helper `benchmarkLotsOfIDs`
+(`formats@v0.0.0-20251017110053-404c0d5b696c/log/note_test.go:255,333,349`). Those are the only benchmarks in `merkle@v0.0.2`. The
+tests beside them (`TestAppend`, `TestRFC6962Hasher`, `TestParseCheckpoint`, `TestSumDBNoteParsing`) exist upstream and as
+`describe` blocks of the same name in `range_test.ts`, `rfc6962_test.ts` and `note_test.ts`, and `src/` has no `bench()` call and no `*_bench.ts`.
+PORTING-MAP's rows for the three test files say "not ported — ADR-0034". Not blocking: the enumeration is not complete.
+`golang.org/x/mod@v0.31.0/sumdb/note/note_test.go:449` has `BenchmarkOpen` (with `Sig0` and `Sig1`), a benchmark of a vendored
+dependency this port ships; PORTING-MAP's `note_test.go` row already says "`BenchmarkOpen` not ported — ADR-0034", but this
+Update does not list it. `golang.org/x/sync@v0.19.0/errgroup/errgroup_test.go:292` (`BenchmarkGo`) is likewise unported and
+unlisted (the `ErrGroup` stand-in, ADR-0004, has no counterpart of that test file). The Update's general sentence ("the same decision
+covers the benchmarks of the vendored dependencies") covers both; adding them to the list would make it match PORTING-MAP.
+
 ## Consequences
 
 - No performance regression detection. If someone makes `EntryBundle.unmarshalText` allocate a copy

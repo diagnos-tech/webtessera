@@ -108,6 +108,16 @@ persisting and integrating data, and what does not:
 `newMigrationTarget` and `migrate` with a stub `MigrationWriter` that has nothing to copy, to pin
 how followers are started (ADR-0180) and which followers a target takes from its options.
 
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `progress` is gone from
+`src/migrate_lifecycle.ts` (only the header's Port note names it, pointing at ADR-0181) and from `migrate_lifecycle_test.ts`, which now has
+`awaitFollower`, `MigrationOptions`, `newMigrationTarget` and `MigrationTarget followers` blocks. The last one drives `newMigrationTarget` and
+`migrate` with a stub `MigrationWriter` over an empty log (`integratedSize` 0, nothing to copy), and its one case asserts that only the follower
+configured before `newMigrationTarget` is started, as a detached task whose Promise never settles, so `migrate` must not wait for it. That is Go's
+behaviour: `NewMigrationTarget` copies `opts.followers` into the target at construction (`migrate_lifecycle.go:48`, a slice header copy), the port
+copies the array (`[...opts.internal.followers]`), and `Migrate` starts each with `go f.Follow` (`migrate_lifecycle.go:171`, ADR-0180). I ran
+`migrate_lifecycle_test.ts` and `driver_migration_test.ts`: 18 passed. The stub does not weaken the Decision's reasoning: it has nothing to copy,
+so it cannot make a real migration "pass" (the real one is ADR-0105's).
+
 ## Update (2026-10-04): upstream has no migration test
 
 The Context said that these paths "are exercised by Tessera's `integration/` end-to-end suite", and the Upstream
@@ -118,3 +128,12 @@ it. So the port's migration tests (ADR-0105) add coverage that upstream does not
 reference to `integration/integration_test.go` should be read as dropped. The header of
 `src/storage/objectstore/driver_migration_test.ts`, which repeated the premise, has been corrected. ADR-0105's
 review found this.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. At `4a6d9f9`, `grep -ril migrat` finds no
+`*_test.go` file, nothing under `integration/` and nothing under `.github/` (the twelve workflows included). The files that do mention
+migration are non-test source (`migrate.go`, `migrate_lifecycle.go`, `internal/migrate/migrate.go`, the four storage drivers, `ct_only.go`, and
+`cmd/experimental/`) and documentation (`README.md`, `docs/design/lifecycle.md`, `storage/mysql/DESIGN.md`). `integration/integration_test.go` has `TestMain` and `TestLiveLogIntegration` only. So the Context's "exercised by
+Tessera's `integration/` end-to-end suite" was wrong, as the Update says, and ADR-0105's migration tests add coverage that upstream does not
+have. The header of `src/storage/objectstore/driver_migration_test.ts` now says so ("Upstream has no test of the migration lifecycle at the pinned
+commit ... so these tests add coverage rather than port it"). The Update reads the Upstream reference's `integration/integration_test.go` as dropped; the
+Consequences' "mirroring upstream's own `integration/integration_test.go` shape" rests on the same premise and is covered by that reading.

@@ -142,3 +142,14 @@ matters: `Entry.leafData` throws `RangeError("ctonly: fingerprintsChain[<i>] is 
 anything, instead of writing a bundle entry that no parser can split. The field's type is unchanged, and every entry
 Go can represent encodes exactly as before (the golden fixtures and the audit's 49 `LeafData`/`MerkleTreeLeaf` cases
 are unaffected). `ct_test.ts` pins it.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `Entry.leafData` (`src/ctonly/ct.ts`)
+checks every `fingerprintsChain[i]` first, before the builder is created, and throws
+`RangeError("ctonly: fingerprintsChain[<i>] is <n> bytes, want 32")` with the text the Update quotes. The Go type `[][32]byte`
+cannot hold any other length, so no entry Go can represent is refused. The only change to `ct.ts` in the commit that added it is
+that pre-check (`git show 9849188 -- src/ctonly/ct.ts`: 10 added lines), so encoding is otherwise as before. `merkleTreeLeaf`,
+`merkleLeafHash` and `identity` do not read the chain, so only `leafData` needed it. `ct_test.ts` pins it for 0, 31 and 33
+bytes (the message carries the index of the offending fingerprint) and accepts 32; I ran the file: 56 tests passed, including the 34-case
+golden fixture `ctonly.json`. Not verified: "the audit's 49 `LeafData`/`MerkleTreeLeaf` cases". The audit's output is not in the repository, so I
+cannot count them; the claim that they are unaffected follows from the diff above and the passing fixture. The Decision's paragraph
+saying "the port cannot reject a malformed chain" is superseded by this Update, which is what an Update is for.

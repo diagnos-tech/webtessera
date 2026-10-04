@@ -131,3 +131,12 @@ The final fidelity audit found two places where the code did not do what the Dec
 "Error texts are Go's" holds except where ADR-0203 and ADR-0204 apply. An index that is not valid UTF-8 is quoted with
 U+FFFD where Go writes `\xNN`. An index longer than 64 code points is quoted up to that bound and then `...`. The
 review's replay of 36,000 mutated proofs found 112 such messages and no other difference in text.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. I ran my own replay instead of repeating the Review's figures: 8,005 inputs
+(8,000 seeded mutations of valid proofs, with flipped, inserted, deleted and truncated bytes, CRs, odd and over-long indices and invalid UTF-8, plus five lines around
+64 KiB) through real `formats/proof` v0.1.1 (Go 1.25.5) and through `TLogProof.unmarshal`, comparing the parsed index, hashes, extra data, checkpoint and `marshal` output, or the
+error text. 7,599 are identical (5,149 of them identical errors); 278 are accepted by Go and refused by the port only with the "not canonically base64 encoded"
+messages (the hardening); the remaining 128 are errors that differ only in the quoted index: 34 where the index is not valid UTF-8 (Go `"\xff\xfe"`, the port `"��"`) and 94 where
+it has more than 64 code points (the port cuts at 64 and adds `...`). Nothing else differs. That is what the Update says. The causes are what it cites: the U+FFFD
+spelling is the `invalid-utf8-text` rule of ADR-0203 and ADR-0216, and the cut is ADR-0204's `maxQuotedNum`. A direct probe confirms the message shape, for example Go's
+`parsing "\xff\xfe": invalid syntax` against the port's `parsing "��": invalid syntax`.

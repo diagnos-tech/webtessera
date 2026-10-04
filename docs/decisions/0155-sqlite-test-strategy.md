@@ -124,3 +124,12 @@ Tests added with the security-review fixes (ADR-0210 to ADR-0213):
   engine argument. It covers node:sqlite (`sqlite_test.ts`) and libSQL with a busy timeout (`libsql_test.ts`).
   The review of the update above names this as the gap that ADR-0210's review found; ADR-0210's 2026-10-04 update
   explains it.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `package.json` has `test:services`
+(`vitest run --config vitest.services.config.ts`) and `interop` (`node scripts/interop.mjs`), run as `bun run ...` under ADR-0240; the
+two `pnpm` spellings are in the Decision's history (lines 87 and 114). `testing/processes.ts` exports `appendFromProcesses(engine, path, perProcess,
+reopen)`, which spawns three Node children of `testing/append_process.ts`, whose first argument is the engine (`"node:sqlite"` or
+`"libsql"`, the latter `createClient({ url: "file:...", timeout: DefaultBusyTimeoutMs })`); `sqlite_test.ts` and `adapters/libsql_test.ts` each call it
+("keeps one consistent log when processes append to one file with default options"). I ran both cases: 2 passed. `libsql_test.ts` also asserts the adapter's
+error for a client with no busy timeout, which names `createClient({ url, timeout: 5000 })`. ADR-0210 has an Update dated 2026-10-04, "libSQL `file:`
+clients shared by several processes", which is where the gap is explained. The multi-process test still covers only these two engines, which the Update says.

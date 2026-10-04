@@ -1,6 +1,6 @@
 # ADR-0011: Go `New` constructors become class constructors; `crypto.Hash` becomes a noble `CHash`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** merkle agent
 - **Upstream reference:** `merkle/rfc6962/rfc6962.go`, `merkle/testonly/tree.go`, `merkle/hasher.go`
@@ -172,3 +172,13 @@ This answers the Review above. The Decision says that every place upstream passe
 
 The Consequences bullet on "`.bind(...)` at call sites" applies to either form. The Port note on `RangeFactory`
 ("must be bound first (ADR-0011)") holds as written.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - The single point of the earlier Review (the Decision and Consequences describe `.bind` as the call-site form, the library uses an arrow wrapper) is answered by the Update, and its lists are right. Checked by grep over `src/`: arrow wrappers at `storage/internal/integrate.ts` 259 and 683, `client/client.ts` 308 and 629, `fsck/fsck.ts` 521, `mirror/verify.ts` 135 and 429, `vendor/merkle/testonly/tree.ts` 118 and 127, and `storage/objectstore/testing/driver_conformance.ts` 499; `.bind(DefaultHasher)` at `testonly/testing/differential/merkle.ts:173` and in the ported and port tests (`compact/range_test.ts:32`, where Go writes `rfc6962.DefaultHasher.HashChildren` at `range_test.go:33`; also `range_fixtures_test.ts` and `proof_test.ts`). The two forms are equivalent (both keep `this`), so no code needed to change. The `range.ts` port note ("must be bound first (ADR-0011)") is present and accurate.
+  - The non-blocking remark of the earlier Review (the arrow-property alternative is a caution about a design not adopted) stands as it was.

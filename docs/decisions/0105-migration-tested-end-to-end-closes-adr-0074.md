@@ -1,6 +1,6 @@
 # ADR-0105: Test the migration lifecycle end to end against the ObjectStore driver, closing ADR-0074
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`MigrationWriter`, `MigrationStorage`), `migrate.go`,
@@ -92,3 +92,14 @@ coverage rather than port it. The same premise is corrected:
 - in ADR-0074, by an update note;
 - in the header of `src/storage/objectstore/driver_migration_test.ts`, which now says that upstream has no test
   of the migration lifecycle.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - The one point of the earlier Review (the wrong upstream citation) is answered. Checked at 4a6d9f9: no `*_test.go` file in `.upstream/tessera` mentions migration, nothing under `integration/` and nothing under `.github/` does either (`grep -ril migrat` over the whole tree lists only non-test Go files, `README.md`, two design documents and `go.sum`), and `integration/integration_test.go` holds `TestMain` and `TestLiveLogIntegration` only. So the Update's reading, that the reference is removed and the tests add coverage rather than port it, is right.
+  - The two other places the Update names are corrected as it says: ADR-0074 has a dated Update ("upstream has no migration test") and the header of `driver_migration_test.ts` now says that upstream has no test of the migration lifecycle. `driver_migration_test.ts`: 7 tests pass.
+  - Residual wrong premise elsewhere, not blocking this ADR but worth fixing with it: the same claim, that migration coverage comes from Tessera's `integration/` suite, is still in `src/migrate.ts:24`, `src/migrate_test.ts:16`, `src/migrate_lifecycle_test.ts:16-17` and in `docs/PORTING-MAP.md`'s `migrate.go` row ("upstream exercises migration only through `integration/`").

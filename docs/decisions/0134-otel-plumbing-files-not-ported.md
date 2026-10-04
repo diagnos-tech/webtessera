@@ -114,3 +114,12 @@ The Consequences' list of OpenTelemetry files with a recorded decision leaves ou
 - `storage/posix/antispam/otel.go` is not ported, under ADR-0141.
 
 `docs/PORTING-MAP.md` lists both.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. At `4a6d9f9` there are eleven `otel.go` files plus
+`internal/otel/cast.go`. In scope and decided: root (ADR-0080), `client/` (ADR-0061), `internal/witness/` (ADR-0070), `storage/internal/` and
+`cast.go` (this ADR), `storage/posix/` and `storage/posix/antispam/` (the two the Update adds). The other five (`storage/aws/`, `storage/gcp/`,
+`storage/gcp/antispam/`, `cmd/conformance/aws/`, `cmd/conformance/gcp/`) are the cloud-driver and `cmd/` files the Consequences already
+excluded as modules this port does not include (ADR-0141). So with the Update the in-scope list is complete. Both added decisions
+are as stated: ADR-0100's Decision lists `storage/posix/otel.go` as not ported "as ADR-0051 and ADR-0080 do for the rest of the port",
+ADR-0141 disposes of `storage/posix/antispam/` (three files), and PORTING-MAP has `storage/posix/otel.go` (ADR-0100, ADR-0051) and
+`storage/posix/antispam/otel.go` (ADR-0141) as `not ported`.

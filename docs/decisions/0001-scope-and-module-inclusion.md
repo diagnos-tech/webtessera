@@ -1,6 +1,6 @@
 # ADR-0001: Scope — which upstream modules get ported
 
-- **Status:** accepted (framework); per-module rows marked *pending* are **not yet decided**
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** lead (human-directed)
 - **Upstream reference:** whole repository @ `4a6d9f9`
@@ -45,7 +45,7 @@ agent and the reviewer agent.**
 | `storage/posix/` | `files.go` ported as the ObjectStore engine; `file_ops.go`, `otel.go` and `antispam/` (Badger) not ported | ADR-0141, ADR-0100 | accepted — ADR-0141 |
 | `storage/gcp/`, `storage/aws/`, `storage/mysql/` (+ their `antispam/`) | not ported — server SDKs and databases; any object store plugs in through the `ObjectStore` contract | ADR-0141 | not ported — ADR-0141 |
 | `internal/hammer/` (+ `loadtest/`) | not ported — a load-test command with a terminal UI, driving a log over HTTP | ADR-0141 | not ported — ADR-0141 |
-| `cmd/conformance/*`, `cmd/examples/*`, `cmd/experimental/*`, `keygen/` | not ported — binaries and personalities, whose role the examples play; `keygen/` does not exist at the pinned commit. `cmd/experimental/mirror/internal/mirror.go` is the exception: see the next row | ADR-0141 | not ported — ADR-0141 |
+| `cmd/conformance/*`, `cmd/examples/*`, `cmd/experimental/*` | not ported — binaries and personalities, whose role the examples play. `cmd/experimental/mirror/internal/mirror.go` is the exception: see the next row | ADR-0141 | not ported — ADR-0141 |
 | `cmd/experimental/mirror/internal/mirror.go` | port as `src/mirror/` (`webtessera/mirror`), with S3-compatible sinks and verification of what it copies; `cmd/experimental/mirror/posix/main.go` stays not ported | ADR-0173, ADR-0175, ADR-0176 | accepted — ADR-0173 |
 | `integration/`, `integration/fault/` | not ported as files — end-to-end coverage by `describeDriverConformance` on every backend, without fault injection | ADR-0141 | not ported — ADR-0141 |
 
@@ -82,6 +82,11 @@ status that ADR gives them). ADR-0141 also finds that the `keygen/` entry names 
 exist at `4a6d9f9`. Everything else in this ADR is left as written, including the register's `otel.go` and
 `internal/otel` entries, which read `port` and were later recorded as not ported in ADR-0080 and ADR-0134.
 
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. This Update is reviewed claim by claim in the Review section below, which
+found it accurate as of its date; I re-checked what still holds today. `keygen/` does not exist at the pin (`ls` fails and `git ls-tree HEAD keygen` is empty), and
+there is no `src/internal/otel/` and no `src/storage/internal/otel.ts`; ADR-0080 and ADR-0134 are accepted. Its statements that the State column reads `proposed — ADR-0141`
+and that PORTING-MAP keeps the rows at `pending ADR` were true on the day and are replaced by the 2026-10-04 Update below.
+
 **Update (2026-10-03).** The additions have changed since. `storage/sqlite/` replaces
 `storage/durableobject/`: one `ObjectStore` over any SQLite engine, of which a SQLite-backed Durable Object
 is one ([ADR-0150](0150-sqlite-object-store.md) to [ADR-0155](0155-sqlite-test-strategy.md)). It supersedes
@@ -93,6 +98,12 @@ that ADR-0141 proposes not to port is ported after all: `cmd/experimental/mirror
 `webtessera/mirror` ([ADR-0173](0173-mirror-port.md), [ADR-0175](0175-mirror-sinks.md),
 [ADR-0176](0176-mirror-verification.md)). The rows above show the new state; the text of this ADR is
 otherwise as written. Like ADR-0141, the new ADRs are proposed until their reviews are signed.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. This Update is reviewed claim by claim in the Review section below, which
+found it accurate as of its date; I re-checked what still holds today. `src/storage/durableobject/` does not exist and `src/storage/sqlite/` does; ADR-0120 to
+ADR-0123 read `superseded by` ADR-0150, ADR-0152, ADR-0153 and ADR-0154; `package.json` exports `./http`, `./witness` and `./mirror` (and `./storage/sqlite`);
+`cmd/experimental/mirror/internal/mirror.go` is `src/mirror/mirror.ts` (PORTING-MAP `done`). "The new ADRs are proposed until their reviews are signed" was true on the day;
+ADR-0170 to ADR-0176 are accepted now, as the 2026-10-04 Update says.
 
 **Update (2026-10-04).** ADR-0141 is accepted: its review is signed and approved. So are the ADRs the
 register cites for the additions and for `mirror.go`: ADR-0100, ADR-0104, ADR-0106, ADR-0110 to ADR-0113, ADR-0150
@@ -106,6 +117,19 @@ The Decision column no longer carries "proposed:". `docs/PORTING-MAP.md` moves t
 `pending ADR` to `not ported`, with ADR-0141 in their notes. `cmd/experimental/mirror/internal/mirror.go` was
 already `done`, and the four `storage/posix/` files carry ADR-0100's statuses. No register row is `pending` or
 `proposed` any more.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: changes requested (two small items; most of it checks out).
+Checked. ADR-0141 is `accepted` with an approved Review. Every ADR it names is `accepted` (ADR-0100, 0104, 0106, 0110 to 0113, 0150 to 0155, 0170 to 0176; ADR-0150 and ADR-0152
+with their supersession notes for locking, ADR-0210). The register now reads `accepted — ADR-0141` for `storage/posix/` and the additions, `accepted — ADR-0173` for `mirror.go`, and
+`not ported — ADR-0141` for the cloud and MySQL, hammer, `cmd/*` and `integration/` rows, with no "proposed:" left in the Decision column. Against `docs/PORTING-MAP.md` (107 rows, the 106 Go files
+plus `keygen/main.go`): the 40 files that were `pending ADR` (posix antispam 3, aws/gcp/mysql 13, hammer 10, `cmd/` 12, `integration/` 2) are all `not ported` with "ADR-0141" in their notes; `mirror.go` is `done`; the four
+`storage/posix/` rows carry ADR-0100's statuses (`files.go` and `files_test.go` `done`, `file_ops.go` and `otel.go` `not ported`); no row is `pending ADR`. Row by row, the register agrees with ADR-0141's Decision table
+except for the two items below.
+What must change. (1) `keygen/`. ADR-0141's table says "none: the row was a mistake", and its section 6 decides that the entry is withdrawn from the register "when ADR-0001 is next revised". This Update is that revision, and
+the register still lists `keygen/` in the `cmd/*` row with State `not ported — ADR-0141`; PORTING-MAP's `keygen/main.go` row meanwhile says "ADR-0141 withdraws ADR-0001's `keygen/` row". Either remove `keygen/` from
+that row (leaving the sentence in the 2026-10-02 Update, which is history) and say so here, or say here that it is kept, annotated, and correct ADR-0141 section 6 and the PORTING-MAP note. As written the
+three disagree. (2) The Status line, which I may not edit, still reads "per-module rows marked *pending* are **not yet decided**"; with this Update no row is `pending`, so the maintainers should reduce it to "accepted".
+Not blocking: `storage/s3/` reads `accepted — ADR-0141 (deferred; ...)` where ADR-0141 section 8 says to mark the row `deferred`, so the State column has no `deferred` value of its own. The Consequences' "the `pending` rows are the honest state of this port" is history.
 
 ## Alternatives considered
 
@@ -160,3 +184,10 @@ already `done`, and the four `storage/posix/` files carry ADR-0100's statuses. N
     Status `accepted (framework)` was set before this review. It is consistent with AGENTS.md section 6
     only now that the framework part is signed; the per-module rows remain exactly as undecided as the
     ADRs behind them.
+
+## Update (2026-10-04, after review)
+
+Answering the review of the 2026-10-04 Update above: the `keygen/` entry is withdrawn from the register's
+`cmd/*` row, as ADR-0141 §6 decided (it named a directory that does not exist at the pinned commit), so the
+PORTING-MAP note "ADR-0141 withdraws ADR-0001's `keygen/` row" is now true. The Status line no longer mentions
+*pending* rows: none remains, every row of the register carries a decided state.

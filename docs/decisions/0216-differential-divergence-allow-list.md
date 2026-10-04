@@ -1,6 +1,6 @@
 # ADR-0216: Allow documented divergences in the differential suites only by name, with a precise rule
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** Gustavo Simões
 - **Upstream reference:** n/a (test policy for the corpora of ADR-0215)
@@ -137,3 +137,17 @@ now holds for every entry: a suite applies an entry only where Go's verdict and 
 - **The doc comment of `sameModuloInvalidUTF8`** now describes what the port writes: a literal U+FFFD for each
   invalid sequence, and the `�` escape only for a lone surrogate. This matches this ADR's first 2026-10-04
   update.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Request 1 and the minor point of the earlier Review are answered by tightening the code. I checked the chain end to end.
+  - Go's side is recorded. `fixtures/gen/differential_root.go` `policyErrLine` runs upstream's `NewWitnessGroupFromPolicy` on each prefix of whole lines followed by a valid `quorum none` line; I read the parser, and a later `quorum` line overrides an earlier one, so the added suffix cannot itself fail, and `bufio.ScanLines` splits at `\n` as the generator does. It computes no verdict of its own. `differential_witness_policy.json` gains only that column: compared old and new structurally, 875 rows, no row differs in policy, error text or accepted-row data, and each of the 764 rejected rows gains a number. I also re-ran the whole generator into a scratch directory: every file under `fixtures/data` is byte-identical to the committed one.
+  - The checker. `portErrLine` finds the port's line the same way; `goAgrees` then applies: for the URL entries and a verifier key repeated on a witness line, Go must accept that line itself (its error line is later, or 0); for a threshold of 0 or a repeated child, Go may also fail later on the same line, but only with `invalid component name` or `unknown component`; for `witness-policy-utf8` only the earlier lines are constrained; any other record fails, naming both lines. I recomputed the Update's table with my own script from the fixture and the port (Go accepts / fails on a later line / fails later on the same line / fails only after the last line): quorum 5 / 2 / 7 / 1, https 7 / 13 / 0 / 4, fetchable 8 / 0 / 0 / 0, utf8 21 / 6 / 114 / 7; no rejection is unclassified and none has Go failing on an earlier line. These are the ADR's numbers. Every entry is hit and the suite still requires all four.
+  - Mutation check reproduced. In a scratch copy I moved the URL check before the verifier key in `newWitnessFromRoot`: `root_differential_test.ts` fails with 4 mismatches ("witness-url-https applied on line 1, but go rejected on line 1: ... malformed verifier id").
+  - The quote bound. `sameModuloQuoteBound` now requires the port's quoted prefix to be exactly `maxQuotedNum` code points (`quotedCodePoints`: `\xNN` counts 4 characters, `\uNNNN` 6, `\UNNNNNNNN` 10, other escapes 2, an astral character once). Reproduced in a scratch copy: making `quoteBounded` cut at 63 while the constant stays 64 fails the gostd and checkpoint differential suites (5 and 3 mismatches). Limit of that check, not blocking: it compares with the constant, so changing `maxQuotedNum` itself to 63 passes both differential suites and `strconv_test.ts` (which also reads the constant); no test pins the number 64. The Update's mutation sentence is true for an edit of the cut, not of the constant. One literal `64` assertion, in `strconv_test.ts` or in `sameModuloQuoteBound`, would close it.
+  - The bundle-branch rule is stated in `DIVERGENCES` and matches `api.ts` (applied where Go parses over 256 entries or rejects the bundle; tiles only over 256 hashes). The doc comment of `sameModuloInvalidUTF8` now describes the literal U+FFFD. `root_differential_test.ts`: 3 tests pass, and the full unit suite is green (123 files, 3480 tests).

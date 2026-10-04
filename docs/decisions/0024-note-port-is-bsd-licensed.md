@@ -106,3 +106,16 @@ The outstanding obligation is resolved at the repository level, as anticipated a
 Go licence text is `LICENSES/BSD-3-Clause-Go.txt`, `NOTICE` lists every Go-derived file group
 (including `src/vendor/note/`), and `AGENTS.md` §9 prescribes the header form. None of the decisions
 above changed.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `LICENSES/BSD-3-Clause-Go.txt` is
+byte-identical to `golang.org/x/mod@v0.31.0/LICENSE` (`diff` clean), and `Go-PATENTS.txt` sits beside it. `NOTICE` has a
+"BSD-3-Clause sources (The Go Authors)" section that lists `golang.org/x/mod v0.31.0, package sumdb/note` with
+`note.ts`, `note_test.ts` and `example_test.ts`, plus the other Go-derived groups. `AGENTS.md` section 9 prescribes the header form
+and says never to tidy it into an Apache one. `note.ts`, `note_test.ts` and `example_test.ts` carry that header (Go Authors line, MedDeck line, BSD
+notice pointing at `LICENSES/BSD-3-Clause-Go.txt`); the other files in `src/vendor/note/` are not translations and carry the
+Apache header. `package.json` `files` ships `LICENSE`, `LICENSES` and `NOTICE`, and the README's License section says the
+Go-derived files are BSD-3-Clause, so the outstanding obligation (the licence text, and a note that the directory is
+BSD) is met, at repository level and not in `src/vendor/note/LICENSE`. The Decision's header sample says "the LICENSE file"; the
+files now say `LICENSES/BSD-3-Clause-Go.txt`, which is what the Update means by "AGENTS.md section 9 prescribes the header
+form". Not blocking: `package.json` still declares `"license": "Apache-2.0"`, so tooling that reads only that field is not
+told that the package contains BSD-3-Clause files (an SPDX expression such as `Apache-2.0 AND BSD-3-Clause` would).

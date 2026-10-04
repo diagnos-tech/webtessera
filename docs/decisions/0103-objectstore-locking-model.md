@@ -102,3 +102,11 @@ Two things the Consequences describe have since changed:
   ADR-0152, ADR-0210).
 
 The locking model this ADR decides is unchanged.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `MemoryObjectStore` has `readonly #locks = new
+NamedLocks()` and no `Mutex` (`src/storage/memory/memory.ts`). The IndexedDB fallback is `localLocker` in `src/storage/indexeddb/locks.ts`,
+which runs `NamedLocks`, so "as the IndexedDB fallback locker does" is right (the Web Locks path is separate and is not replaced).
+`src/storage/sqlite/sqlite.ts` gives "local" locking `NamedLocks` (`localLocksFor`/`queueFor`) and "lease" locking `LeaseLocks`, with the default failing closed
+to "lease", which is the pair the Update names for ADR-0150, ADR-0152 and ADR-0210. `src/storage/durableobject/` does not exist. The Decision
+itself is untouched: `driver.ts` still takes `ObjectStore.lock` around the same three names, and ADR-0142's `NamedLocks` is
+what supplies the in-process half the Consequences describe.

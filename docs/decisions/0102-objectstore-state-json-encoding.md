@@ -1,6 +1,6 @@
 # ADR-0102: Encode the driver's state files byte-for-byte as Go's encoding/json does, and decode them strictly
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`treeState`, `writeTreeState`, `readTreeState`, `gcState`,
@@ -200,3 +200,16 @@ values of every kind. Results:
 - 1,997 were refused only by the port, each in one of its documented rows: missing field, null field, or field
   set twice.
 - None loaded where Go failed, and none loaded with a different value.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - The first 2026-10-04 update (the fidelity audit) was already reviewed. The second ("which member sets which field") answers the earlier Review's four points and had no review line; it is signed here.
+  - Point 1, repeated keys in skipped members: the reader now returns every member and checks nothing about keys. I probed `{"size":1,"root":"AAAA","x":{"a":1,"a":2}}`, the same inside an array, and a skipped key repeated at the top: all load, as in Go. Point 2, the key rule: `fieldOf` and `foldName` implement `encoding/json`'s rule (exact name, else the case-folded name, else none; last member wins). `ſ` (U+017F) folds with `s`, the dotless `ı` does not; I enumerated every rune under Go's `unicode.SimpleFold` and U+017F and U+212A are the only non-ASCII runes whose fold orbit holds an ASCII letter. Point 3, order of refusals: `fieldValues` checks every member's value in document order, repeated members included, before refusing a field set twice, then a null or missing field; so `{"size":5,"size":6,"root":"cm9vdCk"}` reports `illegal base64 data at input byte 4` and `{"size":5,"Size":-1,...}` reports the type error, as Go does. Point 4: `json.ts` is 476 lines.
+  - Differential against real Go, with fresh corpora of my own (two of 6,000 `treeState` inputs: case variants, `ſ` and `ı`, escapes in keys, whitespace, nulls, arrays, nested objects with repeated keys). Go 1.24.7 and 1.25.5 print identical output on the second corpus. An oracle that asks `encoding/json` itself which field each member sets shows: no input that Go rejects is accepted; no accepted input has a different size or root; every input that Go accepts and the port rejects has two members setting one field, a null size, or a missing size or root (1,222 and 1,771 inputs); every other rejection carries Go's own text, except the documented numeric-literal wording (`01`). The 4,000-input corpus the Update cites (`fixprobe/json`) reproduces as well. `json_test.ts`: 58 pass.
+  - The refusal when two keys set the same field (Go keeps the last): the ADR records it as a divergence, with its reason, in three places. (a) The Decision's table row "a key repeated | last one wins | error", which the Update extends explicitly to case variants: "When two members set the same field, the fourth row applies: the codec refuses (`json: duplicate field "Size"`) where Go keeps the last". (b) The reason: the Decision says each stricter case "means the file was written by neither driver" (Go writes one `size`), and the Alternatives reject "Decode exactly as leniently as Go" because "leniency there can only ever turn corruption into a silently wrong tree size"; for the case-variant the Update adds that the earlier silent pick of the exact key could differ from Go's value, and refusing is consistent with a repeated exact key. (c) `json.ts`'s doc comment and the test comment both say that Go keeps the last. I judge this clear, and the reasoning sound for the one field that decides whether a log restarts at size 0. The Update's sentence "Taking the last member instead would mean dropping the fourth row ... That is left to the maintainers" reads as still open; the re-review brief says the lead decided to keep the refusal, and this Review records that.
+  - Housekeeping, not blocking: the Decision's table row 3 ("a key differing only in case ... ignored") is superseded by the Update, which says so, and the "five cases" are now the original rows plus the null size and the extension of the repeated-key row. The current list of divergences (a top-level `null`, a missing field, a null size, a field set twice under any case, invalid UTF-8; plus syntax-error wording and the 10,000-deep nesting) has to be assembled from three blocks; one consolidated list in a later update would help.

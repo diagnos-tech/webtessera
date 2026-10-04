@@ -253,8 +253,9 @@ cannot enforce on its own:
   rewrites them to `.js` on emit. Type-only imports use `import type`.
 - Erasable syntax only (`erasableSyntaxOnly`): no `enum`, no `namespace`, no constructor parameter
   properties. The sources must run unmodified under Node's type stripping.
-- `#field` is for genuinely private state. A Go identifier that is unexported but used across files
-  or by the ported tests becomes a `_`-prefixed member marked `@internal` (ADR-0010).
+- `#field` is for genuinely private state. An unexported Go struct field that the ported tests or
+  other files touch becomes a `_`-prefixed member marked `@internal`; an unexported function keeps its
+  name and is marked `@internal` (ADR-0010).
 - ESM only. The compiler is strict, including `exactOptionalPropertyTypes` and
   `noUncheckedIndexedAccess`; do not loosen either to make a port compile.
 

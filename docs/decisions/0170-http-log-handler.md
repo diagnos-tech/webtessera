@@ -120,7 +120,8 @@ no signal.
 
 - **Why one year.** The Upstream reference cites `logCacheControl` from `storage/gcp` and `storage/aws`, whose value
   is one week (`max-age=604800,immutable`). The handler's full-tile and bundle policy is one year
-  (`public, max-age=31536000, immutable`), the value Tessera's POSIX conformance server sends. The spec asks only
+  (`public, max-age=31536000, immutable`): the one-year lifetime of Tessera's POSIX conformance server, which
+  sends `max-age=31536000, immutable` (the `public` form is the MySQL personality's header for entry bundles). The spec asks only
   that the headers "SHOULD be long-lived". A full tile or bundle never changes, so the longer lifetime costs nothing
   and saves revalidations. The `DefaultCacheControl` comment in `resources.ts` no longer says that upstream's servers
   all use it, and it names both values.
@@ -128,3 +129,15 @@ no signal.
   index, `tile/entries/x018/…/615.p/255`. The 47-character level-63 tile path is shorter. The comment in
   `resources.ts` and the test, now "accepts the longest resource paths", say so. `MaxResourcePathLength` (96) covers
   both.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved, with one imprecision. Both claims about
+upstream are right in substance. `storage/gcp/gcp.go:77` and `storage/aws/aws.go:71` set `logCacheControl = "max-age=604800,immutable"` (one
+week), and the POSIX conformance server sends a one-year lifetime for tiles (`cmd/conformance/posix/main.go:118`,
+`addCacheHeaders("max-age=31536000, immutable", fs)`). The `DefaultCacheControl` comment in `src/http/resources.ts` now says exactly that, and says the
+lifetime costs nothing and saves revalidations. The precision: the Update writes the policy as `public, max-age=31536000, immutable`,
+"the value Tessera's POSIX conformance server sends". The POSIX server's string has no `public`; that string is the MySQL conformance personality's
+header for entry bundles (`cmd/conformance/mysql/main.go:232`), and its tile handler sends `max-age=31536000, immutable` (line 203). The one-year
+lifetime is the same, so nothing in the decision changes, but the string is not the POSIX server's. Longest path: I computed
+`entriesPath(2^64-1, 255)` and `tilePath(63, 2^64-1, 255)` from `src/api/layout`: `tile/entries/x018/x446/x744/x073/x709/x551/615.p/255` is 52
+characters and the level-63 tile path 47; both parse with `parseLogPath`, and `MaxResourcePathLength` is 96. `resources.ts` says so in its comment and
+`resources_test.ts` ("accepts the longest resource paths") asserts both lengths; 39 tests passed.

@@ -372,3 +372,21 @@ be read as the SQLite backend on a SQLite-backed Durable Object, whose durabilit
 ADR-0122, and whose suites run in workerd (ADR-0150, ADR-0155). The Consequences count, two upstream files ported and 43 not, predates the port of
 `cmd/experimental/mirror/internal/mirror.go` (ADR-0173). With it, three are ported and 42 are not.
 `docs/PORTING-MAP.md` and ADR-0001's register now record the dispositions this ADR decided.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved, with two exceptions to its last sentence that I record
+for the owners of ADR-0001 and PORTING-MAP (see below).
+Claims, checked. The text it says names the Durable Object backend does: section 1 ("a Durable Object relies on its transactional storage and output gates",
+ADR-0120, ADR-0122) and section 7 (the backend list, "Durable Objects in workerd", and "The Durable Object driver tests reset an instance in two cases", ADR-0122). The
+replacement it names is real. ADR-0122 reads `superseded by ADR-0153`, whose Decision says "On Durable Objects the decision of ADR-0122 stands", and
+`src/storage/sqlite/adapters/durableobject_workers_test.ts` has exactly two cases that reset an instance (`resumes after a reset with every integrated entry intact`, `publishes
+after a reset what was integrated but not yet published before it`) and passes in workerd (87 tests, run today); ADR-0150 and ADR-0155 put the SQLite backend's Durable Object
+suites in workerd. The count: PORTING-MAP has 107 rows (the 106 `.go` files plus `keygen/main.go`); of the 45 files in the register's open rows, `files.go`, `files_test.go` and `mirror.go`
+are `done` (3) and the other 42 are `not ported` (`file_ops.go`, `otel.go`, 3 posix antispam, 13 aws/gcp/mysql, 10 hammer, 12 under `cmd/`, 2 `integration/`), so "three ported and 42 not" is right.
+The agreement check. Every PORTING-MAP row this ADR disposes of agrees with its Decision table: the 40 files that were `pending ADR` (3 + 13 + 10 + 12 + 2) are `not ported` with
+"ADR-0141" in their notes; `files.go` and `files_test.go` are `done` onto `driver.ts` and `driver_test.ts`; `file_ops.go` and `otel.go` are `not ported` (ADR-0100); `mirror.go` is `done` and
+`mirror/posix/main.go` `not ported`; no row is `pending ADR`. ADR-0001's register agrees row by row (`storage/posix/`: accepted; cloud and MySQL, hammer, `cmd/*`, `integration/`: `not ported`; additions: accepted)
+except as follows. (1) `keygen/`: the Decision table says "none: the row was a mistake" and section 6 decides to withdraw the entry from the register "when ADR-0001 is next revised"; ADR-0001's
+2026-10-04 Update is that revision and kept `keygen/` in the `cmd/*` row with State "not ported", while PORTING-MAP's `keygen/main.go` row says "ADR-0141 withdraws ADR-0001's `keygen/` row", which is
+not yet true of the register. So this Update's last sentence ("ADR-0001's register now record[s] the dispositions this ADR decided") does not hold for that one entry; I request the change on ADR-0001's Update, not here.
+(2) `storage/s3/`: section 8 and the 2026-10-03 Update say the row is `deferred`; the register's State reads `accepted — ADR-0141 (deferred; ...)`. Not blocking; the word is there. Also not blocking: section 7's
+"a Durable Object is a single instance by construction (ADR-0121)" is a third place that names the removed backend; the Update does not list it (ADR-0121 reads `superseded by ADR-0152`, and the statement holds of a SQLite-backed Durable Object).

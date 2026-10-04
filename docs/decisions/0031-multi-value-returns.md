@@ -90,6 +90,18 @@ under the ADR-0002 field mapping.
 > values are the left and right halves of one thing, and an object would rename them), and that it is not a
 > precedent for mixed-meaning returns.
 
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. Checked against `merkle@v0.0.2` and the port.
+The four functions are tuples in the port as the Update says: `decompose(begin, end): [bigint, bigint]` (Go `Decompose` returns
+`(uint64, uint64)`), `NodeID.coverage(): [bigint, bigint]` (`(uint64, uint64)`), `getMergePath(...): [number, number]` (`(uint, uint)`)
+and `Nodes.ephem(): [NodeID, number, number]` (`(compact.NodeID, int, int)`), so the widths follow ADR-0003. The reasons it
+attributes to ADR-0208 are the ones ADR-0208's Decision gives, and upstream's callers do destructure under those names
+(`left, right := Decompose(...)` in `compact/nodes.go:63,87`, `low, high := getMergePath(...)` in `compact/range.go:167`,
+`begin, end := fork.Coverage()` in `proof/proof.go:98`). The Update does not change the layout and parse functions this ADR decides.
+Not blocking. (1) The list is not complete: the unexported `decompInclProof` (Go `(int, int)`, `proof/verify.go:132`) is also a
+tuple in `verify.ts` (`[number, number]`); ADR-0208 has the same four-function scope, so the omission is shared. (2) "Same-typed pairs and
+triples" does not describe `ephem()`, whose triple is a node and two integers. (3) ADR-0208 was still `proposed` when I read it (its Review
+asks for changes and an Update answers them), so the Update points at a record that is not yet in force.
+
 ## Review
 
 - **Reviewer:** Layout Reviewer (2026-08-19)

@@ -115,3 +115,10 @@ readers who arrive from the Go documentation.
 The Context names `Copier` and `progress` among the test-only identifiers. `progress` was deleted by ADR-0181, and
 the leak test in `src/index_test.ts` asserts `copier` and `bundle` among its names, alongside the `copy*` helpers. The
 exact-set test against Go's root exports catches any leak either way.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `progress` is gone (`migrate_lifecycle.ts`'s header and
+ADR-0181), and the leak test in `src/index_test.ts` ("does not export helpers that exist only for tests") lists `copyBytes`,
+`copyUint16LengthPrefixed`, `copyUint24LengthPrefixed`, `newCopier`, `copier`, `bundle` and `populateWork` among its names and has neither
+`Copier` nor `progress`, as the Update says. The class is `copier` (`src/migrate.ts`, lowercase as Go's unexported type), so the
+Context's capitalised `Copier` names that type loosely. The exact-set test (the sorted list of runtime exports, written out in full) is what catches a
+leak independent of the name list. I ran `index_test.ts`: 33 passed. This restates, in an Update, what the Review's nit already found, and adds nothing wrong.

@@ -1,6 +1,6 @@
 # ADR-0010: Render Go package-private struct fields and functions as `_`-prefixed `@internal` members
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** merkle agent
 - **Upstream reference:** `merkle/compact/range.go`, `merkle/compact/range_internal_test.go`, `merkle/proof/proof.go`, `merkle/proof/proof_test.go`, `merkle/testonly/tree.go`, `merkle/testonly/tree_test.go`
@@ -245,3 +245,16 @@ This answers the two points of the Review above. The decision is unchanged.
    ```
 
    It prints nothing today.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Both points of the earlier Review are answered by the Update (2026-10-04); I checked each against the code and `merkle@v0.0.2`.
+  - Point 1, the rule. The Update states the rule the code applies: an unexported struct field that the in-package tests read or write becomes a `_`-prefixed public `@internal` member, with or without a same-named accessor; an unexported function or method keeps its Go name and is exported or public and `@internal`; a stand-in for a package-private literal is `@internal`; the rest stays module-local or `#private`. I checked the split against Go's exported methods (`Range.Begin/End/Hashes`, `Nodes.Ephem`, `Tree.Size`; there is no `F()`, no `Nodes.Begin/End`, no `Tree.Hasher/Hashes`), so the "no accessor" fields it names are the right ones: `Range._f`, `Nodes._begin/_end`, `Tree._hasher/_hashes`. `getMergePath` (range.ts), `Nodes.skipFirst` and `minImpliedTreeSize` (`storage/internal/integrate.ts`, now exported and marked `@internal`, used by the port-added wrap test, which exists and passes) keep their names. `nodesLiteral` exists (`proof.ts:134`), is `@internal`, and is what the proof builder `nodes()` (behind `inclusion` and `consistency`), `skipFirst` and `proof_test.ts` call. `new Nodes(ids)` is now Go's exported `Nodes{IDs: ids}` (verified under ADR-0208), so the restated row is right. Declaring the "not a general renaming rule" sentence superseded is the correction asked for, without rewriting history.
+  - Point 2, the recipe. The new recipe prints nothing on the tree (grep exits 1). I also ran it on a scratch copy of `src/` with a probe file in `client/` that imports `getMergePath` and reads `r._begin`: both lines are printed. So, unlike the 2026-10-02 recipe, it finds a reach-in from outside `src/vendor/merkle`, which is what the Decision promises a reviewer can do in one command.
+  - Non-blocking: AGENTS.md section 3.8 still says "a Go identifier ... becomes a `_`-prefixed member", looser than this rule for methods (`skipFirst`, `getMergePath` keep their names), while the Update says AGENTS.md follows the rule. Changing "identifier" to "field" there would make that exact.
+  - `bunx vitest run src/vendor/merkle src/client/client_test.ts`: 13 files, 795 tests pass.

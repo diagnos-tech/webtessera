@@ -146,3 +146,13 @@ reproduce exactly. The `invalid URL` observation in the Review above is not cove
 "What the port does not reproduce" lists `fmt.Errorf("invalid URL: %v")`. That item is out of date: commit 52c7b46
 put the branch back. `fetcher.ts` throws `invalid URL: <cause>` around `new URL(p, root)`, as Go does around
 `url.Parse`. `NewRequestWithContext(%q)` stays as written.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `src/client/fetcher.ts` `#fetch` wraps `new URL(p, this.#rootURL)`
+in a `try` and throws `new Error(`invalid URL: ${errText(err)}`)`, where `client/fetcher.go:64-67` does
+`u, err := h.rootURL.Parse(p); if err != nil { return nil, fmt.Errorf("invalid URL: %v", err) }`, so the branch and its prefix are Go's. The
+`NewRequestWithContext(%q)` branch (`fetcher.go:68-71`) has no counterpart in the port, as the Update says: the string appears nowhere in `fetcher.ts`.
+`fetcher_test.ts`: 35 passed. Notes, not blocking. (1) Only the prefix is Go's; the cause is the runtime's `TypeError` text where Go
+prints `parse "<url>": <reason>`, and no test pins this branch (every path comes from `api/layout`, so it cannot be reached through
+the public methods, which is the reason the ADR gave for leaving it out). (2) "Put the branch back": in this repository's history the text
+`invalid URL` first appears in 52c7b46, with no earlier occurrence in `fetcher.ts`, so "added" is what I can confirm; whatever happened before
+the import is not visible here. Neither point changes the Update.

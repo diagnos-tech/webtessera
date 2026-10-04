@@ -149,3 +149,14 @@ Upstream's fuzzing is ClusterFuzzLite, not OSS-Fuzz. `.clusterfuzzlite/` holds `
 `cflite_pr.yml` runs the targets as pull-request fuzzing, for 600 s in `code-change` mode. No continuous batch run
 is in the repository. So "OSS-Fuzz integration runs continuously" in the Context and Consequences overstates what
 is lost by not porting the targets.
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. Read `merkle@v0.0.2` in the Go
+module cache (the module the ADR's reference names; Tessera at the pin has no `.clusterfuzzlite/`). `.clusterfuzzlite/`
+holds `project.yaml` (`language: go`, libfuzzer, address sanitizer), `build.sh` and a `Dockerfile` (the Update names the
+first two). `.github/workflows/cflite_pr.yml` runs `run_fuzzers` with `fuzz-seconds: 600` and `mode: 'code-change'` on
+pull requests. The only other fuzzing workflow, `cflite_build.yml`, builds the fuzzers on push to `main`
+(`upload-build: true`) and runs nothing, and no batch-fuzzing workflow exists, so "no continuous batch run is in the
+repository" holds. The Update is right that the Context's "wired into OSS-Fuzz" and the Consequences' "OSS-Fuzz
+integration runs continuously" overstate what is lost. The Dockerfile's base image and a comment in `build.sh` name
+OSS-Fuzz, as the toolchain ClusterFuzzLite reuses, which is not an OSS-Fuzz project. The Review above already said the
+same, and the decision to omit the targets is unchanged.

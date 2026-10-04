@@ -52,7 +52,7 @@ export function renderHero(d: SiteData): SafeHtml {
 	return html`<section class="hero" id="top" aria-labelledby="hero-title">
 <div class="wrap hero-grid">
 <div class="hero-copy">
-<p class="pills"><span class="pill"><span class="dot" aria-hidden="true"></span>Open source · ${pkg.license} · v${pkg.version}</span><a class="pill pill-link" href="${porting.upstream}/tree/${porting.commit}">Faithful port of Tessera @ <code>${short}</code></a></p>
+<p class="pills"><span class="pill"><span class="dot" aria-hidden="true"></span>Open source · ${pkg.licenses[0] ?? pkg.license} · v${pkg.version}</span><a class="pill pill-link" href="${porting.upstream}/tree/${porting.commit}">Faithful port of Tessera @ <code>${short}</code></a></p>
 <h1 id="hero-title">Transparency logs for browsers, servers and the edge</h1>
 <p class="hero-lead"><strong>${pkg.name}</strong> is a faithful TypeScript port of <a href="${site.tessera}">Tessera</a>, the tile-based transparency log from transparency-dev. <code>append()</code> hands back a signed receipt that anyone can verify offline. The log lives in ${storageWords(d)}, and Tessera’s own Go tools read it byte for byte.</p>
 ${installSwitcher(d.install.managers, "pm-hero")}

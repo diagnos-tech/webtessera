@@ -96,3 +96,10 @@ faithfully in `append_lifecycle.ts`, and is noted where the tests depend on it.
 
 "A restarted Durable Object", in the `reopen` description, refers to the backend that ADR-0150 replaced. The SQLite
 backend's suites, including Durable Object storage in workerd, use the same `reopen` hook (ADR-0155).
+
+**Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. The SQLite suites call
+`describeDriverConformance(name, f.newStore, { reopen: f.reopen })` for node:sqlite (`sqlite_test.ts`), libSQL, D1, rqlite
+(fake and live), sqlite-wasm and Durable Object storage (`durableobject_workers_test.ts`), and `testing/stores.ts` builds `reopen`
+as a second store over the same target. I ran the Durable Object file under workerd (`vitest.workers.config.ts`): 87 tests passed. workerd
+printed "reset by test" exceptions on stderr, from the cases that reset an instance on purpose. The phrase being corrected sits in the Decision's
+description of layer 4, and the Update's reading (the SQLite backend's Durable Object suites in workerd now play that part) is accurate.

@@ -13,7 +13,7 @@
     "indexeddb",
     "sqlite"
   ],
-  "license": "Apache-2.0",
+  "license": "Apache-2.0 AND BSD-3-Clause",
   "author": "MedDeck",
   "homepage": "https://github.com/diagnos-tech/webtessera#readme",
   "repository": {
