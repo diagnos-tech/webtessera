@@ -95,7 +95,7 @@ The Merkle layer stays synchronous, exactly as upstream.
 
 ## Update (2026-10-04)
 
-Two facts, recorded from the Review's notes; the decision is unchanged.
+Two facts, recorded from the Review's notes, and a pointer to the ADRs that build on WebCrypto; the decision is unchanged.
 - "Zero dependencies of their own" holds for `@noble/hashes`. `@noble/curves` 2.3.0 declares one dependency,
   `@noble/hashes` itself, so the transitive set is still exactly the two packages this ADR counts.
 - The independent audits both READMEs list (Cure53: hashes 1.0.0, January 2022; curves 1.6.0, September 2024, with
@@ -103,3 +103,15 @@ Two facts, recorded from the Review's notes; the decision is unchanged.
   constant-time code rests on those.
 - ADR-0223 and ADR-0227 are the "optional async path … a new ADR" that the Consequences anticipated. They add
   WebCrypto signers for non-extractable keys, and keep the Merkle layer and verification on noble and synchronous.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. Checked in
+`node_modules`: `@noble/curves` is 2.3.0 and declares exactly one dependency, `@noble/hashes` 2.3.0, which has none;
+`package.json` pins `^2.3.0` for both. Both READMEs' "Security" sections say what the Update says: Cure53 for hashes at
+1.0.0 (January 2022) and for curves at 1.6.0 (September 2024, scope names ed25519), and for 2.2.0 (April 2026) the
+maintainers' own self-audit. `src/vendor/merkle/{rfc6962,compact,proof}` contain no `async` or `Promise`, and note
+verification (`verifyEd25519`, `src/vendor/note/note.ts`) is synchronous on `@noble/curves`; the only
+`crypto.subtle` calls in `src/` are in the key-custody code (`src/safe/keys.ts`), with doc examples in
+`src/browser/keys.ts` and `note.ts`, so "keep the Merkle layer and verification on noble and synchronous" holds. Not blocking: the Update opens
+"Two facts" and lists three bullets (the third is the pointer to ADR-0223 and ADR-0227, not a fact from the Review),
+and "ADR-0223 and ADR-0227 add WebCrypto signers" is loose: ADR-0223 adds the `AsyncSigner` and `signAsync` path,
+ADR-0227 stores the non-extractable device key, and the WebCrypto key creation itself is ADR-0222's (`src/safe/keys.ts`).

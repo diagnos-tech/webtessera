@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Tests for migrate.ts. There is no migrate_test.go upstream: migrate.go's coverage comes
-// from Tessera's integration/ end-to-end suite, which needs a real storage Driver (see
-// docs/decisions/0074-migrate-untestable-without-driver.md). This file is original to this
+// Tests for migrate.ts. There is no migrate_test.go upstream, and no upstream test exercises
+// migration (see docs/decisions/0074-migrate-untestable-without-driver.md and ADR-0105). This file is original to this
 // project and covers exactly the logic reachable without one: populateWork's chunking
 // arithmetic (an off-by-one there would duplicate or skip entries during a real
 // migration), and copier.copy's worker orchestration and retry policy against in-memory

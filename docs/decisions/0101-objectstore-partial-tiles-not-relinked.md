@@ -1,6 +1,6 @@
 # ADR-0101: Leave superseded partial tiles in place instead of relinking them
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`writeTile`, `garbageCollect`), `internal/fetcher/fallback.go`
@@ -129,3 +129,15 @@ This answers the Review above. The decision stands, on firmer ground.
   case there is no symlink content to emulate, which is one more reason to reject it.
 
 ADR-0162 records the same finding from the interop side.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - The one point of the earlier Review (upstream relinks partial tiles only when the working directory is the log root) is answered by the Update, which covers each place the reviewer named: the Context sentence, both Consequences bullets, and the premise of the first alternative.
+  - Re-checked against the real POSIX driver at 4a6d9f9 (own probe: `posix.New` and `tessera.NewAppender`, one entry per batch up to 300 entries). With the working directory outside the log, `tile/0/000.p/1` (32 bytes), `.p/10`, `.p/100` and the rest are regular files with their partial contents and `tile/0/000` is 8192 bytes. With the working directory at the log root, the same `.p/*` entries are symlinks to `tile/0/000`, a target that resolves relative to the link's own directory, so they dangle. The cause is as the Update says: `writeTile` globs and symlinks the log-root-relative `tPath`, and only `createOverwrite` joins `cfg.Path` (`files.go` `writeTile`). ADR-0162 records the same finding and says ADR-0101 carries an update; both are true. The decision is unchanged and, as the Update says, the normal case (identical partial files in both drivers) strengthens it.
+  - Non-blocking: the Port note on `ObjectStoreDriver.writeTile` (`driver.ts`, about line 928) still says Go "replaces every partial tile ... with a symlink" without the working-directory condition. A clause there would keep the code comment in line with this Update; it is not an ADR matter.
+  - `src/storage/objectstore` tests: 154 pass.

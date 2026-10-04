@@ -1,6 +1,6 @@
 # ADR-0210: Default SQLite stores to lease locking unless the database is provably private
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** Gustavo Simões (security-review fixes)
 - **Upstream reference:** `storage/posix/files.go` (`lockFile`, and its `flock`s, which exclude every
@@ -196,3 +196,17 @@ This answers the Review above. The decision stands.
     reject.
   - `libsql_test.ts`: the actionable error.
 - `pnpm interop` in Consequences is `bun run interop` since ADR-0240.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - The earlier Review asked for either (a) a record that libSQL `file:` clients shared by processes now fail with `SQLITE_BUSY`, or (b) a code fix that makes lease acquisition and renewal wait, plus a multi-process libSQL test, with the engines named. The Update does (b) as far as the engine allows and records the rest.
+  - Reproduced with a scratch append process (3 processes, 100 entries each, one libSQL file, default options). Without a client `timeout`, it fails closed: `SQLITE_BUSY` carrying the new hint ("this libSQL client has no busy timeout ... create it with one, as createClient({ url, timeout: 5000 })") with the original error as `cause`, and no index is ever assigned twice. One run took 61 s before it ended with two failed processes (presumably a lease whose holder had failed, which has to expire; integrity was not affected, and the ADR does not mention the stall). With `createClient({ url, timeout: 5000 })`: 3 of 3 runs, 300 distinct indices, 1.0 to 1.1 s, as the Update says (1.0 to 1.2 s).
+  - Why the adapter cannot set the timeout: I reproduced the pool probe on `@libsql/client` 0.18.0. After `PRAGMA busy_timeout = 4321` through `execute`, four concurrent `PRAGMA busy_timeout` calls read `[4321, 0, 0, 0]`; with `createClient({ timeout: 2500 })` all four read 2500. The two rejected stand-ins (a pragma at the head of each write batch; retrying a failed statement in the adapter) rest on timings I did not reproduce (a stall over 100 s; 42 s and then failure). The reasoning behind each is sound (the pragma runs after `BEGIN IMMEDIATE`; a connection with no timeout gives up its pending lock on every attempt), and the decision does not depend on the numbers.
+  - Code: `LeaseLocks.#acquire` treats a busy batch as a held lock (jittered backoff, abort honoured through `throwIfAborted` and `sleep(..., signal)`); `#renewWhileHeld` retries a busy renewal after the same backoff, not a full interval later; other errors are handled as before; `isBusy` reads `code`, `errcode`, `rawCode`, `resultCode` and the message, and follows the cause chain. `fromLibsql` wraps a busy error from a `file:` client whose `PRAGMA busy_timeout` is 0 (read once; remote clients and clients with a timeout pass errors through). Tests: `lease_test.ts` (busy acquisition retried, abort while busy, non-busy error fatal, busy renewal retried early), `busy_test.ts`, `libsql_test.ts` (three-process append with a busy timeout; the actionable error); `busy_test`, `lease_test` and `libsql_test` run 188 tests, and the node:sqlite three-process test in `sqlite_test.ts` passes.
+  - The corrections hold. The Alternatives sentence is restated with its scope: node:sqlite, bun:sqlite and better-sqlite3 get a busy timeout from the adapter (`DefaultBusyTimeoutMs = 5000`, `syncengine.ts`), the networked engines arbitrate writes themselves, and a libSQL `file:` database shared by processes needs a client with a timeout. The multi-process claim names its engines (node:sqlite; libSQL with a timeout; D1, rqlite, Durable Objects and sqlite-wasm have none). `README.md` and `docs/guides/choosing-storage.md` both carry the libSQL sentence; the Update's "README.md needs the same sentence" is stale wording, since the README already has it.
+  - Non-blocking: the Decision table's `fromLibsql` row is not edited (history), so a reader needs the Update to learn the condition.

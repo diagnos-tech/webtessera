@@ -103,3 +103,10 @@ This is worth reporting upstream; ADR-0101's description of what POSIX does on d
 
 Since ADR-0240, `pnpm interop` in this ADR reads `bun run interop`. ADR-0101 now carries an update that records the
 finding about POSIX's symlinked partials from its side.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `package.json` has `"interop": "node scripts/interop.mjs"`, and the
+`interop` job in `.github/workflows/_compat.yml` runs `bun run interop`; the two `pnpm interop` spellings (Decision and Consequences, lines 32 and 69) are
+the ones the Update rewrites, and ADR-0240 is the Bun move. ADR-0101 has an Update dated 2026-10-04, "what POSIX actually leaves on disk", that records the
+finding from its side: `writeTile` passes the log-relative path unjoined to `filepath.Glob` and `os.Symlink`, so superseded partials stay regular files unless the working
+directory is the log root, and it names the interop harness as a second reproduction. I did not re-run the harness (the Review above ran it end to end,
+about 2.5 minutes, and rebuilds `dist/`); nothing in the Update is about its behaviour.

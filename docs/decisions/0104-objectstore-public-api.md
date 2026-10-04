@@ -110,3 +110,12 @@ Requested `package.json` entry points (not edited here): `"./storage/objectstore
 The memory store's lock, which the Decision describes as "one `Mutex` per lock name", is now `NamedLocks`
 (ADR-0142). Its contract is the same: FIFO, abortable while waiting, and forgotten when nobody holds or waits for
 the lock.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `MemoryObjectStore.lock` is `this.#locks.run(name, fn, signal)`
+on a `NamedLocks` (`src/storage/memory/memory.ts`), and the old `Mutex` version is gone. `NamedLocks` (`namedlocks.ts`) grants in arrival
+order (a queue per held name; release hands the lock to the first waiter), an aborted waiter leaves the queue and `run` rejects with the signal's reason
+without calling `fn`, and a name with no holder and no waiter is deleted from the map, so each of the three properties the Update lists holds. "The
+contract is the same" holds at the interface: the first version (`git show 7e37001`) also rejected an aborted waiter without running `fn`, and also forgot
+idle names. What changed is internal, as ADR-0142's Consequences say: an abandoned waiter now leaves the queue instead of being granted and immediately
+released. I ran `namedlocks_test.ts` and `src/storage/memory`: 40 passed. Not blocking: the barrel's `NamedLocks` export is still absent
+from the Decision's table of exports (ADR-0142 adds it).

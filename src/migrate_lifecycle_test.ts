@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Tests for migrate_lifecycle.ts. There is no migrate_lifecycle_test.go upstream:
-// migrate_lifecycle.go's coverage comes from Tessera's integration/ end-to-end suite,
-// which needs a real storage Driver. See
+// Tests for migrate_lifecycle.ts. There is no migrate_lifecycle_test.go upstream, and no
+// upstream test exercises migration. See
 // docs/decisions/0074-migrate-untestable-without-driver.md for exactly what that leaves
 // untested here: `MigrationTarget.migrate`'s full copy+integrate+follower orchestration
 // against a *real* MigrationWriter (docs/decisions/0105-migration-tested-end-to-end-closes-adr-0074.md

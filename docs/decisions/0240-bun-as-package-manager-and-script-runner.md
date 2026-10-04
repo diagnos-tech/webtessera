@@ -1,6 +1,6 @@
 # ADR-0240: Use Bun as the package manager and script runner; keep Node for the tests and npm for publishing
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** Gustavo Simões
 - **Upstream reference:** n/a (tooling; nothing in Tessera corresponds)
@@ -253,3 +253,17 @@ linked by `scripts/prepare.mjs`. The evidence for it was wrong, and is corrected
   effect for `bun run`, though a project-level one does. `bunfig.toml`'s `bun = false`, kept against the global
   case, is harmless if that case cannot arise. Its comment's claim that a personal setting "would silently move every
   such script onto Bun's runtime" is unverified on Bun 1.3.14.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Both requests and the smaller points of the earlier Review are answered. I re-ran them on Bun 1.3.14 and Node 22.22.0.
+  - Request 1, the workspace-root evidence. Reproduced in a minimal workspace, one dependency form at a time: `workspace:*` fails ("failed to resolve"); `workspace:.` installs `ex/x/node_modules/rootpkg -> ..`, a link to the example itself; `workspace:../..` and `file:../..` both install `node_modules/.bun/rootpkg@root/node_modules/rootpkg`, whose files are hard links to the root's (same inode, link count 2), and a `dist/b.js` added afterwards does not appear in it; `link:../..` fails ("failed to resolve"). So the quoted "No matching version" and `Could not find package.json` errors do not reproduce, the Update withdraws them, and its replacement (no form gives the example a live link to the root, hence the script-made `node_modules/webtessera -> ..`) is what I observed.
+  - Request 2. `require.resolve("esbuild")` from the root now succeeds (`node_modules/.bun/esbuild@0.28.1`), `vite` and `shiki` do not; `package.json` carries `"esbuild": "0.28.1"` as a root devDependency, added in the merge cfb1824.
+  - Figures. The full unit suite on Node at HEAD: 123 files, 3480 tests, all pass (I ran `bun run test:unit`). Six examples plus `site`, each declaring the optional peer `webtessera`: checked in the seven manifests. The tarball count I could not reproduce as 527: a clean `tsc -p tsconfig.build.json` into a scratch directory plus the `files` entries gives 523 files with `bun pm pack --dry-run`, while the working tree's `dist/` holds 8 stale `storage/durableobject/*` files from the removed backend, which gives 531; 527 presumably came from a dist with stale output. Non-blocking, since the Update labels these as measured at the review, but a clean build packs 523.
+  - Global bunfig. Reproduced: `[run] bun = true` in a project `bunfig.toml` moves a `#!/usr/bin/env node` binary onto Bun; the same setting in `$HOME/.bunfig.toml` or under `XDG_CONFIG_HOME` does not; a project `bun = false` keeps Node. The Update's "unverified" is accurate; the `bunfig.toml` comment it refers to is unchanged and still makes the claim.
+  - Not re-verified here, as in the earlier Review: the GitHub issue and pull request numbers, the `setup-bun` SHA, GitHub Actions and Dependabot behaviour, the hoisted-linker and empty-`trustedDependencies` runs.

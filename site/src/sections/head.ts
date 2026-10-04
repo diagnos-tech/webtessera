@@ -30,7 +30,7 @@ export function pageTitle(d: SiteData): string {
 
 /** pageDescription is the meta description: what the package is, for a search result. */
 export function pageDescription(d: SiteData): string {
-	return `Open-source (${d.pkg.license}) TypeScript port of Tessera, the tile-based transparency log: offline-verifiable receipts, any SQLite or IndexedDB, byte for byte with Go.`;
+	return `Open-source (${d.pkg.licenses[0] ?? d.pkg.license}) TypeScript port of Tessera, the tile-based transparency log: offline-verifiable receipts, any SQLite or IndexedDB, byte for byte with Go.`;
 }
 
 /** jsonLd renders structured data, escaped so that no string can close the script element. */
@@ -53,7 +53,10 @@ function jsonLd(d: SiteData): SafeHtml {
 					url: "https://www.typescriptlang.org/",
 				},
 				runtimePlatform: ["Node.js", "Deno", "Bun", "Web browsers", "Cloudflare Workers"],
-				license: `https://spdx.org/licenses/${pkg.license}.html`,
+				license:
+					pkg.licenses.length === 1
+						? `https://spdx.org/licenses/${pkg.licenses[0]}.html`
+						: pkg.licenses.map((id) => `https://spdx.org/licenses/${id}.html`),
 				version: pkg.version,
 				keywords: pkg.keywords.join(", "),
 				isAccessibleForFree: true,

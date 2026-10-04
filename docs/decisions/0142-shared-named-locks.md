@@ -60,3 +60,11 @@ Of the three lockers the Context names, the Durable Object backend's (ADR-0121) 
 The SQLite backend's local locks are `NamedLocks`, from a realm-wide registry keyed by the database's identity
 (ADR-0210). The memory store and the IndexedDB fallback delegate to `NamedLocks` as this ADR decided. ADR-0103 and
 ADR-0104, which still described the memory store's per-name `Mutex`, now carry updates that point here.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `MemoryObjectStore` and the IndexedDB fallback
+(`localLocker`, `src/storage/indexeddb/locks.ts`) both run `NamedLocks`; `src/storage/durableobject/` is gone, and ADR-0121 reads `superseded by
+ADR-0152`. In `src/storage/sqlite/sqlite.ts`, a local-mode store takes `localLocksFor(`${databaseInstance}/${objects table}`)`: a realm-wide
+`Map` of `WeakRef<NamedLocks>` keyed by the identity recorded in the database's meta table (`databaseInstance`, `schema.ts`) and the table name, swept as it
+grows, which is what the Update and ADR-0210 describe. A lease-mode store's in-process queue is also a `NamedLocks`, but is keyed by the `SqlDatabase`
+object (`queueFor`), deliberately, as the code comment says; the Update speaks only of the local locks, so it is not wrong. ADR-0103 and ADR-0104 now carry Updates
+that point to ADR-0142, as the Update says. ADR-0210 was still `proposed` when I read it, so the registry's authority is the code, which I read.

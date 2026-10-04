@@ -79,3 +79,8 @@ fixture size: the largest takes under two seconds in Chromium.
 
 The Consequences sentence on `memory_golden_workers_test.ts` is no longer conditional:
 `vitest.workers.config.ts` includes `src/**/*_workers_test.ts`, so the file runs in every `bun run test:workers`.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `vitest.workers.config.ts` has `include: ["src/**/*_workers_test.ts"]`, and
+`package.json` `test:workers` is `vitest run --config vitest.workers.config.ts`, so the memory golden file is part of every `bun run test:workers`. I ran
+`src/storage/memory/memory_golden_workers_test.ts` under that config: 25 passed (the 25 cases per backend run that PORTING-MAP records).
+The Consequences' next sentence ("Until then it was verified with a temporary configuration") is history that the Update supersedes with the first.

@@ -139,3 +139,12 @@ Answering 403 when a trusted key's signature fails to verify does not come from 
 says 403 only when no signature from a known key verifies. The behaviour comes from signed-note v1.0.0, which says a
 client SHOULD reject a note whose known-key signature fails, and from the tlog-witness editor's draft, which makes it
 a MUST. It belongs among the draft behaviours this ADR adopts, not under "Status codes follow v1.0.0".
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. Checked against the spec texts, fetched from the C2SP repository today.
+`tlog-witness/v1.0.0` says: "If none of the signatures verify against any of the trusted public keys, the witness MUST respond with a 403". The editor's
+draft says 403 "if either no signature from a trusted key for the origin is present, or a signature line's key name and ID match a trusted key but the
+signature itself fails to verify (such a note is malformed per signed-note)". `signed-note/v1.0.0` says "If a signature from a known key fails to verify,
+clients SHOULD reject the whole note", so the Update's three attributions are exact. In `src/witness/server.ts`, `open()` throws `UnverifiedNoteError` (no trusted
+signature) or `InvalidSignatureError` (a signature naming a trusted key that fails), and both become `ErrNoValidSignature`, 403; the two cases are tested in
+`server_test.ts` ("refuses unknown origins, untrusted signatures ...": a wrong key with the log's name, and the log's signature over different text). I
+ran that file: 30 passed. The Decision's bullet "Status codes follow v1.0.0 ... 403 ... or a signature naming a trusted key fails" is the text the Update corrects.

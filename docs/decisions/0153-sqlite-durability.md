@@ -108,3 +108,12 @@ several processes against one file found this.
 The rqlite row of the durability table says the adapter sets "nothing; reads are linearizable by default". rqlite's
 own default read level is `weak`. `fromRqlite` is what sends `level=linearizable` (or `strong`, the only other level
 it accepts) on every request, as this ADR's update table and ADR-0213 state.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. The durability table's rqlite row (line 30) does say "nothing;
+reads are linearizable by default and cannot be weakened", which is what the Update corrects. rqlite's documentation (the read-consistency page, fetched
+today) says "Weak (the default)": weak is used "if you don't specify any level, or if an unrecognized level is specified". In
+`src/storage/sqlite/adapters/rqlite.ts` every statement goes through one `send`, to `/db/request?level=<level>`, with `level` defaulting to
+`"linearizable"` and the set of accepted levels being exactly `linearizable` and `strong` (anything else throws a `RangeError` saying a weaker level "can read stale tree state and assign an index
+twice"), so the adapter sends the level on every request, as the Update says, and the update table's rqlite row (line 89) agrees. ADR-0213 is the
+reference for that table, as cited. The sentence in the Decision's table is left as written, which is how an Update works; the Update
+is the correction.

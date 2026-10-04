@@ -1,6 +1,6 @@
 # ADR-0208: Merkle barrels export `Range` and `Nodes` as types, re-export `LogHasher`, and keep tuple returns
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** hardening contributor
 - **Upstream reference:** `merkle/hasher.go`, `merkle/compact/{nodes,range}.go`, `merkle/proof/proof.go`; amends ADR-0010 and ADR-0031
@@ -85,3 +85,14 @@ This answers the Review above, by the fidelity route. The decision changes for `
   does not offer it: `Range` stays a type-only export, and only `RangeFactory` constructs one. So the Consequences
   sentence "the published surface no longer offers unvalidated constructors that Go keeps package-private" holds
   for `Range`'s four-field literal. Go's zero `&compact.Range{}` is the one narrowing left.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. See the Re-review below.*
+
+## Re-review (2026-10-04)
+
+- **Re-review:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - The Update takes the fidelity route the earlier Review preferred, and every part checks out. Go: `proof.Nodes` has an exported `IDs` field (`proof.go:28-31`), and Tessera's own `client/client_test.go:337` writes `proof.Nodes{IDs: ...}` from outside the package. Probe against `merkle@v0.0.2` (Go 1.25.5, `fixprobe/p7`): an outside-built `Nodes{IDs: ids}` gives `Ephem() = ({0 0}, 0, 0)` and its `Rehash` returns the hashes unchanged; the zero `Nodes{}` behaves the same with no IDs.
+  - Port: `new Nodes(ids = [])` sets `ids` and leaves `_begin = _end = 0` and `_ephem = (0, 0)`; only the `@internal` `nodesLiteral` sets the unexported fields, and the proof builder `nodes()` and `skipFirst` use it (`consistency` of two equal sizes returns `new Nodes([])`, Go's `Nodes{IDs: []compact.NodeID{}}`). The barrel exports `Nodes` as a value again, with a comment saying why. `client_test.ts:358` builds `new Nodes([...])` as Go's test does. The test "Nodes built outside the package" asserts the probe's values through the barrel's export. `src/vendor/merkle` and `client_test.ts`: 795 tests pass.
+  - `Range` stays a type-only export and the Update lists the narrowing (Go's zero `&compact.Range{}` literal), which is what the earlier Review asked to have listed. ADR-0010's Update is consistent with this one.

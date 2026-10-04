@@ -146,3 +146,12 @@ itself. Choosing `locking: "local"` explicitly remains possible and is the calle
 The polling backoff is half-to-full jitter, not full jitter. Each wait is `backoff * (0.5 + random / 2)`. The comment
 in `lease.ts` now says so. Since ADR-0210's 2026-10-04 update, the same backoff also covers an acquisition attempt
 or a renewal that finds the database busy (`SQLITE_BUSY`/`SQLITE_LOCKED`).
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `lease.ts` `#acquire` sleeps
+`backoff * (0.5 + Math.random() / 2)` after a failed attempt, with the comment "Half-to-full jitter keeps contenders that collided from retrying in
+lockstep" (no "full jitter" is left in `src/`; the ADR's Decision text, "full-jitter exponential backoff", is what this Update corrects), and doubles the
+backoff from `minPollIntervalMs` (5 ms) up to `maxPollIntervalMs`. An acquisition batch that throws is swallowed when `isBusy(err)`
+(`busy.ts`: SQLITE_BUSY or SQLITE_LOCKED by `code`, `errcode`, `rawCode`, `resultCode` or message, along the cause chain) and counts as finding the lock held, so it
+is retried after the same backoff. `#renewWhileHeld` retries a busy renewal after `min(renewIntervalMs, backoff * (0.5 + random / 2))` with its own backoff
+sequence from the same 5 ms start, capped by `maxPollIntervalMs`, which is the same schedule but not the same counter; any other failure waits for the next interval, as before.
+I ran `lease_test.ts` and `busy_test.ts`: 21 passed.

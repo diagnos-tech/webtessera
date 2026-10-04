@@ -112,3 +112,9 @@ This answers the review of the update above. The decision is unchanged.
   colon is the signal's abort reason, for a bare `abort()` `This operation was aborted`, where Go's is
   `context canceled`. So "the port does both" holds for the outcome and the shape of the message, not for its last
   words.
+
+**Review of this update** — Reviewer: ADR reviewer (independent), 2026-10-04. Verdict: approved.
+
+- Both points of the review above are answered. `checkpointPublisher` (`append_lifecycle.ts`) builds the gateway with `newWitnessGateway(...)` before the `try` that implements fail-open, so a throwing `endpoints()` rejects with its own error whether or not `failOpen` is set. The new test "rejects when a policy component's endpoints throws, even when failing open" asserts it; `append_lifecycle_test.ts`: 22 tests pass. Go has the same structure: `CheckpointPublisher` calls `witness.NewWitnessGateway`, which calls `group.Endpoints()` (`internal/witness/witness.go:102-103`, a method with no error result), before `wg.Witness`, and the `FailOpen` handling covers only the error `Witness` returns. So narrowing the earlier update's sentence to "a `WitnessGroup` component whose `satisfied` throws" is the right scope, and it agrees with ADR-0205's withdrawal of its "reported privately" claim.
+- The cancelled-context text: the port's tail is the abort reason after `failed to post to witness at "...": `, Go's is the error's `%v` (`witness.go:278`); the Update says this holds for the outcome and shape, not the last words, which is accurate.
+- Status stays accepted: the original decision was approved in the Review above, and only this update was in question.

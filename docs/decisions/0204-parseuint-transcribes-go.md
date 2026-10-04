@@ -79,3 +79,9 @@ input.
 In the Context, "an attacker-supplied number of a few hundred thousand digits took seconds of synchronous CPU"
 should read: the cost was quadratic in the input's length, so a long digit string from a peer could occupy the event
 loop. The fix and its tests are unchanged.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. The replacement wording is accurate, and it is the neutral one the Review asked
+for. I timed the first version of `parseUint` (`git show ddeaec4:src/internal/gostd/strconv.ts`, a `bigint` accumulator with no early exit) on `"9" x n` in base 10, 64 bits, in
+a scratch file: 50,000 digits 213 ms, 100,000 digits 854 ms, 200,000 digits 3.8 s, 400,000 digits 28 s, so the cost is quadratic in the input length (about four times for each
+doubling, worse above that), where the current `parseUint` takes under a millisecond for all four. "Could occupy the event loop" follows from that. The Context's original phrase is
+left in place, which is how an Update works, and the code and tests are untouched by this Update.

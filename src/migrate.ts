@@ -20,10 +20,11 @@
 // (worker retry policy) is a third-party dependency outside this port's allow-list
 // (PORTING.md §7); `retryWithBackoff` at the end of this file reproduces the behaviour of the
 // `backoff.Retry` call the worker makes -- see docs/decisions/0073-migrate-retry-backoff.md.
-// There is no `migrate_test.go` upstream (this file's coverage comes from Tessera's
-// `integration/` end-to-end suite, which needs a real storage `Driver`). `migrate_test.ts`
-// here is new, covering the logic reachable without a driver -- see
-// docs/decisions/0074-migrate-untestable-without-driver.md.
+// There is no `migrate_test.go` upstream, and no upstream test exercises migration at all.
+// `migrate_test.ts` here is new, covering the logic reachable without a driver -- see
+// docs/decisions/0074-migrate-untestable-without-driver.md -- and
+// src/storage/objectstore/driver_migration_test.ts drives the whole lifecycle -- see
+// docs/decisions/0105-migration-tested-end-to-end-closes-adr-0074.md.
 
 import { range } from "./api/layout/index.ts";
 import type { EntryBundleFetcherFunc } from "./client/index.ts";

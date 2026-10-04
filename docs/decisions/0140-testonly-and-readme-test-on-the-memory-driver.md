@@ -102,3 +102,9 @@ running `mdcode` by hand and leaves the check itself as a TODO:
 Decision 3 says that `src/README_sync_test.ts` may embed `examples/cloudflare-durable-object/src/index.ts`. That
 example no longer exists: `examples/` now holds `client-only`, `edge`, `log-server`, `monitor`, `notary` and
 `session-receipts`, and the sync test embeds only `src/README_test.ts`.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `examples/` holds exactly `client-only`, `edge`,
+`log-server`, `monitor`, `notary` and `session-receipts`; there is no `cloudflare-durable-object`. In `src/README_sync_test.ts` the only
+file the glob loads is `./README_test.ts`, and all 12 tagged blocks in `README.md` are `file=src/README_test.ts` regions. The sync test and
+`README_test.ts` pass (21 tests). The Update's other half, that Decision 3 says "may embed", is exactly what the stale sentence says; nothing else in the
+Decision refers to a removed example.

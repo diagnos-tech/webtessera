@@ -129,3 +129,12 @@ The Durable Object backend that the Context and Consequences name (`src/storage/
 ADR-0123) was removed. ADR-0150 replaced it with the SQLite backend, of which a SQLite-backed Durable Object is one
 engine (`fromDurableObjectStorage`). The backends today are memory, IndexedDB and SQLite (ADR-0104, ADR-0110 to
 ADR-0113, ADR-0150 to ADR-0155).
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `src/storage/durableobject/` does not exist;
+`src/storage` holds `indexeddb`, `internal`, `memory`, `objectstore` and `sqlite`, which are the three backends the Update lists.
+`fromDurableObjectStorage` is in `src/storage/sqlite/adapters/durableobject.ts` and is exported from `src/storage/sqlite/index.ts`, and ADR-0150's
+engine table lists it as the SQLite-backed Durable Object engine (ADR-0150: "`src/storage/durableobject/` is deleted"). ADR-0120 to
+ADR-0123 read `superseded by` ADR-0150 to ADR-0154. Not blocking. (1) The directory path is named in the Decision (line 37), not in the Context or
+Consequences, as the Update says: the Context names "Durable Object storage" and the Consequences name no backend. (2) The Review's second
+point (the Decision's "every other error text is upstream's" is no longer exact after ADR-0205's refusals) is not answered by
+this Update; the sentence is still in the Decision, and one more line here would settle it.

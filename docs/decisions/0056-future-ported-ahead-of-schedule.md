@@ -145,3 +145,12 @@ the future's promise. A Go future set with an error that nobody reads is simply 
 nobody awaits is instead reported as an unhandled rejection, which some runtimes make fatal. Marking it handled
 keeps Go's semantics, and `get()` still rethrows the error. The Port note in `future.ts` says so, and
 `future_test.ts` pins it.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `src/internal/future/future.ts`:
+`newFutureErr` calls `promise.catch(() => undefined)` right after creating the promise, with a Port note that says what the Update says. `get()`
+returns the original `#promise`, not the derived one that `catch` returns, so it still rejects with the error. Go's `Future.Get` has no
+equivalent of an unobserved rejection (the error is a plain field). I ran `future_test.ts`: 8 passed. To check that the pinning test is not vacuous, I
+removed the `catch` line from a copy of `future.ts` (a copy in the scratchpad; nothing in the repository was changed) and ran the same test file: the
+8 cases still pass, but Vitest reports "Errors 1 error", an unhandled rejection attributed to "does not report an error nobody reads as an unhandled
+rejection", so the run fails without the line. The sentence "which some runtimes make fatal" matches the Port note ("fails the process under some runtimes'
+defaults").

@@ -388,6 +388,10 @@ describe("gostd/strconv", () => {
 			expect(performance.now() - t0).toBeLessThan(5_000);
 		});
 
+		it("quotes at most 64 code points, the bound ADR-0204 records", () => {
+			expect(maxQuotedNum).toBe(64);
+		});
+
 		it("quotes at most maxQuotedNum characters of the input in the message", () => {
 			const exact = "9".repeat(maxQuotedNum);
 			expect(messageOf(() => parseUint(exact, 10, 64))).toBe(

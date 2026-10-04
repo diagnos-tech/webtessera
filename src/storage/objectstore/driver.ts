@@ -925,9 +925,10 @@ export class logResourceStorage implements LogReader {
 	}
 
 	/**
-	 * Port note: after writing a full tile, Go replaces every partial tile under
+	 * Port note: after writing a full tile, Go tries to replace every partial tile under
 	 * `<tile>.p/` with a symlink to the full tile, using a temporary link and a rename for
-	 * atomicity. An object store has no symlinks, and no listing to find the partials with,
+	 * atomicity; because it globs and links root-relative paths, it only does so when the
+	 * process's working directory is the log root (ADR-0101's update, ADR-0162). An object store has no symlinks, and no listing to find the partials with,
 	 * and nothing needs them replaced: a partial tile is immutable and stays a correct answer
 	 * for the tree size it was written for, readers fall back to the full tile once it is
 	 * gone (partialOrFullResource), and garbageCollect removes the same `.p/` prefixes the
