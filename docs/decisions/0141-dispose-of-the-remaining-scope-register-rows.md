@@ -362,3 +362,13 @@ for a log in a tab. The dispositions themselves are unchanged.
 `edge`, `log-server`, `monitor`, `notary` and `session-receipts`; `cloudflare-durable-object` and `browser` are gone;
 `log-server` and `edge` serve `POST /add` with the bare decimal index (the Review notes record running upstream's
 `TestLiveLogIntegration` and hammer against `log-server`); `client-only` is the in-tab log. The dispositions are unchanged.
+
+## Update (2026-10-04)
+
+The 2026-10-03 update corrected section 8 and the Context for the removal of the Durable Object backend. Sections 1
+and 7 still name it. In section 1, "a Durable Object relies on its transactional storage and output gates". In
+section 7, the backend list, and the Durable Object driver's tests that reset an instance (ADR-0122). Each should
+be read as the SQLite backend on a SQLite-backed Durable Object, whose durability ADR-0153 carries forward from
+ADR-0122, and whose suites run in workerd (ADR-0150, ADR-0155). The Consequences count, two upstream files ported and 43 not, predates the port of
+`cmd/experimental/mirror/internal/mirror.go` (ADR-0173). With it, three are ported and 42 are not.
+`docs/PORTING-MAP.md` and ADR-0001's register now record the dispositions this ADR decided.

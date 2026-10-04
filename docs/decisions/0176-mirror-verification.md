@@ -81,3 +81,9 @@ The port stays faithful (ADR-0173). Verification is a separate `Source` decorato
   ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).
 
 *Review of this update: approved, ADR review agent (independent), 2026-10-04. The verified mirror's S3 behaviour with a 412 is as ADR-0175's update (above) and `verify_test.ts` covers a resumed run over the same history (succeeds, fsck passes) and over another (fails naming the key, no checkpoint). `verifiedMirror` gives each run a fresh `VerifyingSource` and throws `already running` for an overlapping run (`runs once at a time, verifying afresh on each run`); `VerifyingSource` fails a read overtaken by a later `readCheckpoint` (`#stillCurrent`; `fails a read that a later readCheckpoint overtook`); copies are taken before verifying and on return (`keeps what it verified out of reach of the source and of its callers`); `numWorkers` goes through `positiveInteger`.*
+
+## Update (2026-10-04)
+
+Verification does not change this (see ADR-0173's update). `webtessera/mirror` is a port of Tessera's experimental mirror, a copy tool. It is unrelated to C2SP tlog-mirror, in
+which a mirror cosigns the checkpoints it serves. Neither `newMirror` nor `newVerifiedMirror` cosigns anything or
+implements that protocol.

@@ -92,3 +92,13 @@ the lock left.
   - Not blocking: Consequences say `MemoryObjectStore` "uses a per-name `Mutex`" and that a Durable Object "may need a lock
     across `await` points". Memory now uses `NamedLocks` (ADR-0142) and the Durable Object backend is gone (ADR-0150,
     ADR-0152 local locking). A pointer to those in an Update would help.
+
+## Update (2026-10-04)
+
+Two things the Consequences describe have since changed:
+- `MemoryObjectStore` no longer uses a per-name `Mutex`. It takes its locks from `NamedLocks` (ADR-0142), as the
+  IndexedDB fallback locker does.
+- The Durable Object backend was replaced by the SQLite backend, whose locks are `NamedLocks` or leases (ADR-0150,
+  ADR-0152, ADR-0210).
+
+The locking model this ADR decides is unchanged.

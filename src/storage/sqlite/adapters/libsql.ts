@@ -17,9 +17,10 @@
 // docs/decisions/0150-sqlite-object-store.md and
 // docs/decisions/0210-sqlite-locking-fails-closed.md.
 
+import { isBusy } from "../busy.ts";
 import type { SqlDatabase, SqliteLocking, SqlRow, SqlStatement, SqlValue } from "../database.ts";
 import { memoize, normalizeValue } from "./normalize.ts";
-import { mainDatabaseLocking } from "./syncengine.ts";
+import { DefaultBusyTimeoutMs, mainDatabaseLocking } from "./syncengine.ts";
 
 /** LibsqlStatementLike is the statement shape fromLibsql passes to the client. */
 export interface LibsqlStatementLike {
@@ -68,13 +69,48 @@ const databases = new WeakMap<LibsqlClientLike, SqlDatabase>();
  * that more than one client writes, with any locking: see
  * docs/decisions/0153-sqlite-durability.md.
  *
+ * A local database is shared with other processes only as safely as its connections wait
+ * for each other's locks. Unlike the in-process adapters, this one cannot give them a busy
+ * timeout: the client keeps a pool of connections, and a `PRAGMA busy_timeout` would
+ * reach only one of them. Create a client whose file other processes or clients also
+ * open with the client's own `timeout` option, which every connection gets:
+ *
+ *	const client = createClient({ url: "file:log.db", timeout: 5000 });
+ *
+ * Without one, a write that meets another connection's lock fails at once with
+ * SQLITE_BUSY (the log is never forked); the error then says so.
+ *
  * Calling it again with the same client returns the same SqlDatabase. The client stays
  * the caller's to close.
  */
 export function fromLibsql(client: LibsqlClientLike): SqlDatabase {
 	return memoize(databases, client, () => {
 		const statement = (s: SqlStatement): LibsqlStatementLike => ({ sql: s.sql, args: [...s.params] });
-		const query = async (s: SqlStatement): Promise<SqlRow[]> => rowsOf(await client.execute(statement(s)));
+		// busyTimeout is the client's busy timeout, read the first time a local database
+		// reports SQLITE_BUSY. The client gives every connection in its pool the same one.
+		let busyTimeout: Promise<number> | undefined;
+		const explainBusy = async (err: unknown): Promise<never> => {
+			if (client.protocol === "file" && isBusy(err)) {
+				busyTimeout ??= client.execute({ sql: "PRAGMA busy_timeout", args: [] }).then(
+					(rs) => Number(rowsOf(rs)[0]?.timeout ?? 0),
+					() => -1,
+				);
+				if ((await busyTimeout) === 0) {
+					throw new Error(
+						`${err instanceof Error ? err.message : String(err)} (this libSQL client has no busy timeout, so a write that meets another connection's lock fails at once: when other processes or clients open the same file, create it with one, as createClient({ url, timeout: ${DefaultBusyTimeoutMs} }))`,
+						{ cause: err },
+					);
+				}
+			}
+			throw err;
+		};
+		const query = async (s: SqlStatement): Promise<SqlRow[]> => {
+			try {
+				return rowsOf(await client.execute(statement(s)));
+			} catch (err) {
+				return explainBusy(err);
+			}
+		};
 		return {
 			// A client's protocol says only how it connects: "file" is a local database or an
 			// embedded replica alike, so the database is asked what it is.
@@ -85,7 +121,13 @@ export function fromLibsql(client: LibsqlClientLike): SqlDatabase {
 					: "lease",
 			leaseClock: "database",
 			query,
-			batch: async (statements) => (await client.batch(statements.map(statement), "write")).map(rowsOf),
+			batch: async (statements) => {
+				try {
+					return (await client.batch(statements.map(statement), "write")).map(rowsOf);
+				} catch (err) {
+					return explainBusy(err);
+				}
+			},
 		};
 	});
 }

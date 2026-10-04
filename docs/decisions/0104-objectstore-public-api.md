@@ -104,3 +104,9 @@ Requested `package.json` entry points (not edited here): `"./storage/objectstore
   - Not blocking: the barrel also exports `NamedLocks` (ADR-0142), which this table does not list, and the description of
     the memory store's lock ("one `Mutex` per lock name ... a waiter whose signal aborts stays queued") was replaced by
     ADR-0142's `NamedLocks`. An Update line pointing at ADR-0142 would keep this ADR accurate.
+
+## Update (2026-10-04)
+
+The memory store's lock, which the Decision describes as "one `Mutex` per lock name", is now `NamedLocks`
+(ADR-0142). Its contract is the same: FIFO, abortable while waiting, and forgotten when nobody holds or waits for
+the lock.

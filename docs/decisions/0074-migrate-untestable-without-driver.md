@@ -107,3 +107,14 @@ persisting and integrating data, and what does not:
 `progress()` and its tests are deleted (ADR-0181). `migrate_lifecycle_test.ts` now also drives
 `newMigrationTarget` and `migrate` with a stub `MigrationWriter` that has nothing to copy, to pin
 how followers are started (ADR-0180) and which followers a target takes from its options.
+
+## Update (2026-10-04): upstream has no migration test
+
+The Context said that these paths "are exercised by Tessera's `integration/` end-to-end suite", and the Upstream
+reference lists `integration/integration_test.go`. Neither holds at 4a6d9f9. Nothing in `integration/`, in any
+`*_test.go` or in `.github/` mentions migration. `grep -ril migrat` over the test files and workflows finds
+nothing, and `integration_test.go` is `TestLiveLogIntegration`, which appends to a live log over HTTP and verifies
+it. So the port's migration tests (ADR-0105) add coverage that upstream does not have, rather than port it. The
+reference to `integration/integration_test.go` should be read as dropped. The header of
+`src/storage/objectstore/driver_migration_test.ts`, which repeated the premise, has been corrected. ADR-0105's
+review found this.

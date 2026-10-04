@@ -140,3 +140,9 @@ itself. Choosing `locking: "local"` explicitly remains possible and is the calle
   it, which some engines do not give; see ADR-0153's update.
 
 *Review of this update: approved, ADR review agent (independent), 2026-10-04. Verified: the default is lease unless the adapter shows privacy; local locks are keyed by `instance_id` (mutating `openSqliteObjectStore` to key them by `SqlDatabase` again fails `shares local locks between the stores of a realm over one database, and only those`); fencing inserts NULL into a NOT NULL column and recognises the failure by the column's name; timings are positive safe integers with `renewIntervalMs` defaulting to `floor(ttlMs / 3)` (and must be below `ttlMs`, which the update does not say); the read-after-lease assumption is stated in ADR-0153's update.*
+
+## Update (2026-10-04)
+
+The polling backoff is half-to-full jitter, not full jitter. Each wait is `backoff * (0.5 + random / 2)`. The comment
+in `lease.ts` now says so. Since ADR-0210's 2026-10-04 update, the same backoff also covers an acquisition attempt
+or a renewal that finds the database busy (`SQLITE_BUSY`/`SQLITE_LOCKED`).

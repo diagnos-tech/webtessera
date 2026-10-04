@@ -70,9 +70,9 @@ export interface Bundle {
  * it ever does. An async generator runs only once asked for a value, so here nothing is
  * fetched until the first `next()` (docs/decisions/0066).
  *
- * Port note: a numWorkers that is not an integer of at least 1 throws a RangeError when
- * entryBundles is called. Go's token bucket never yields a token for numWorkers == 0, so
- * its iterator blocks forever. See
+ * Port note: Go's numWorkers is a uint, so a negative, fractional or NaN numWorkers throws a
+ * RangeError when entryBundles is called. A numWorkers of 0 behaves as Go's does, except
+ * where Go's blocks forever: see the Port note in the body, and
  * docs/decisions/0192-numworkers-below-one-is-rejected.md.
  */
 export function entryBundles(
@@ -83,10 +83,14 @@ export function entryBundles(
 	N: bigint,
 	signal?: AbortSignal,
 ): AsyncGenerator<Bundle> {
-	if (!Number.isInteger(numWorkers) || numWorkers < 1) {
-		throw new RangeError(`numWorkers must be an integer of at least 1, got ${numWorkers}`);
+	if (!Number.isInteger(numWorkers) || numWorkers < 0) {
+		throw numWorkersError(numWorkers);
 	}
 	return streamEntryBundles(numWorkers, getSize, getBundle, fromEntry, N, signal);
+}
+
+function numWorkersError(numWorkers: number): RangeError {
+	return new RangeError(`numWorkers must be an integer of at least 1, got ${numWorkers}`);
 }
 
 /** streamEntryBundles is the body of entryBundles, once numWorkers has been checked. */
@@ -157,6 +161,15 @@ async function* streamEntryBundles(
 			window.push(pending);
 		}
 	};
+	// Port note: with numWorkers == 0 Go's token bucket never holds a token, so its producer
+	// blocks forever on the first bundle there is to fetch, and the iterator neither yields
+	// nor returns. With no bundle to fetch (an empty tree, N == 0, fromEntry at or past the
+	// tree size) Go's returns after no yields, as the port does, and a getSize error is
+	// returned as usual. The port throws only where Go would block, before any fetch
+	// (docs/decisions/0192-numworkers-below-one-is-rejected.md).
+	if (numWorkers === 0 && infos.next().done !== true) {
+		throw numWorkersError(numWorkers);
+	}
 	fillWindow();
 
 	while (window.length > 0) {

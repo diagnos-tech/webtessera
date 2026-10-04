@@ -53,3 +53,10 @@ custom `ObjectStore` can implement `lock` in one line, and the README points to 
   - Challenge: both alternatives are reasoned. Not blocking: this ADR replaces ADR-0104's description of the memory store's
     per-name `Mutex` (and ADR-0103's Consequences) without saying so; a sentence here or Updates there would keep the
     three consistent. `NamedLocks` is now public API with a one-process scope, which its doc comment states.
+
+## Update (2026-10-04)
+
+Of the three lockers the Context names, the Durable Object backend's (ADR-0121) went with that backend (ADR-0150).
+The SQLite backend's local locks are `NamedLocks`, from a realm-wide registry keyed by the database's identity
+(ADR-0210). The memory store and the IndexedDB fallback delegate to `NamedLocks` as this ADR decided. ADR-0103 and
+ADR-0104, which still described the memory store's per-name `Mutex`, now carry updates that point here.

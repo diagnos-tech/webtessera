@@ -1,6 +1,6 @@
 # ADR-0032: Port `encoding.TextMarshaler` / `TextUnmarshaler` as plain methods on classes
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** layout agent
 - **Upstream reference:** `api/state.go`

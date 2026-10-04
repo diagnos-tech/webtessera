@@ -1,6 +1,6 @@
 # ADR-0060: Fetcher-shaped function types take `AbortSignal` as a trailing parameter
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** client agent
 - **Upstream reference:** `client/client.go`, `client/fetcher.go`, `client/stream.go`, `internal/fetcher/fallback.go`

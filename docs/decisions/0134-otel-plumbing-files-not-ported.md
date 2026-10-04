@@ -106,3 +106,11 @@ The tracer and attribute keys of `storage/internal/otel.go` have no consumer in 
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
+
+## Update (2026-10-04)
+
+The Consequences' list of OpenTelemetry files with a recorded decision leaves out two in the POSIX driver's tree:
+- `storage/posix/otel.go` is not ported, under ADR-0100 and ADR-0051;
+- `storage/posix/antispam/otel.go` is not ported, under ADR-0141.
+
+`docs/PORTING-MAP.md` lists both.

@@ -231,7 +231,11 @@ can be used by implementing `SqlDatabase`: an async `query` and an atomic `batch
   Object's), keeps locks in memory and saves the lease's writes, about a third of append throughput on a
   file at the default batch size. Pass `locking: "local"` for a file only to declare that this process is
   its only writer. A libSQL embedded replica, or any setup that serves reads from a replica, is not safe
-  for a log that several clients write, with either locking.
+  for a log that several clients write, with either locking. A libSQL `file:` database that other
+  processes or clients also open needs a client created with a busy timeout,
+  `createClient({ url, timeout: 5000 })`: the client keeps a pool of connections that only its `timeout`
+  option reaches, and without it a writer that meets another's lock fails with `SQLITE_BUSY` instead of
+  waiting (the log is never forked).
 - **Durability.** An index the appender returns is on durable storage: the in-process adapters raise
   `synchronous` to `FULL`, and the networked engines resolve a write only once they have committed it.
 - **Sharing a database.** `namespace` keeps a log in tables of its own, so several logs, or a log and

@@ -115,3 +115,16 @@ applications whose own routes read the signal. Test: `log_handler_test.ts` serve
 no signal.
 
 *Review of this update: approved, ADR review agent (independent), 2026-10-04. The code never reads `request.signal` (`log_handler.ts`; the reader receives no signal; behind `toNodeListener` the `Request` is built without one). `log_handler_test.ts` serves every resource kind, a 404, a 400 and a preflight from requests whose `signal` getter throws and asserts the reader got `undefined` four times. I could not check the Deno 2.9.7 warning (Deno not installed); the reasoning about per-runtime semantics is plausible and the decision does not depend on it.*
+
+## Update (2026-10-04)
+
+- **Why one year.** The Upstream reference cites `logCacheControl` from `storage/gcp` and `storage/aws`, whose value
+  is one week (`max-age=604800,immutable`). The handler's full-tile and bundle policy is one year
+  (`public, max-age=31536000, immutable`), the value Tessera's POSIX conformance server sends. The spec asks only
+  that the headers "SHOULD be long-lived". A full tile or bundle never changes, so the longer lifetime costs nothing
+  and saves revalidations. The `DefaultCacheControl` comment in `resources.ts` no longer says that upstream's servers
+  all use it, and it names both values.
+- **The longest path.** The longest resource path is the 52-character partial entry bundle at the largest uint64
+  index, `tile/entries/x018/…/615.p/255`. The 47-character level-63 tile path is shorter. The comment in
+  `resources.ts` and the test, now "accepts the longest resource paths", say so. `MaxResourcePathLength` (96) covers
+  both.

@@ -109,3 +109,9 @@ readers who arrive from the Go documentation.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
+
+## Update (2026-10-04)
+
+The Context names `Copier` and `progress` among the test-only identifiers. `progress` was deleted by ADR-0181, and
+the leak test in `src/index_test.ts` asserts `copier` and `bundle` among its names, alongside the `copy*` helpers. The
+exact-set test against Go's root exports catches any leak either way.

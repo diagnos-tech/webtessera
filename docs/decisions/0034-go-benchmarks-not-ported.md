@@ -1,6 +1,6 @@
 # ADR-0034: Do not port Go benchmarks
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** layout agent
 - **Upstream reference:** `api/state_test.go` (`BenchmarkLeafBundle_UnmarshalText`), `internal/parse/parse_test.go` (`BenchmarkCheckpointUnsafe`)

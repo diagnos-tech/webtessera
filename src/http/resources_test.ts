@@ -67,10 +67,13 @@ describe("parseLogPath", () => {
 	}
 });
 
-it("accepts the longest resource path", () => {
-	const longest = "tile/63/x018/x446/x744/x073/x709/x551/615.p/255";
-	expect(longest.length).toBe(47);
-	expect(parseLogPath(longest)).toEqual({ kind: "tile", level: 63n, index: 18446744073709551615n, width: 255 });
+it("accepts the longest resource paths", () => {
+	const longest = "tile/entries/x018/x446/x744/x073/x709/x551/615.p/255";
+	expect(longest.length).toBe(52);
+	expect(parseLogPath(longest)).toEqual({ kind: "entries", index: 18446744073709551615n, width: 255 });
+	const longestTile = "tile/63/x018/x446/x744/x073/x709/x551/615.p/255";
+	expect(longestTile.length).toBe(47);
+	expect(parseLogPath(longestTile)).toEqual({ kind: "tile", level: 63n, index: 18446744073709551615n, width: 255 });
 });
 
 describe("resourceHeaders", () => {

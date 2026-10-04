@@ -17,20 +17,14 @@
 // open it, and through a double that enforces Cloudflare D1's and Durable Objects'
 // production limits.
 
-import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { execPath } from "node:process";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, describe, expect, it } from "vitest";
-import { newFsck } from "../../fsck/fsck.ts";
 import { bytesEqual, toBase64 } from "../../internal/gostd/bytes.ts";
 import { checkpointUnsafe } from "../../internal/parse/parse.ts";
-import { defaultMerkleLeafHasher } from "../../lifecycle.ts";
-import { newSinkTarget } from "../../mirror/sink.ts";
-import { parseCheckpoint } from "../../vendor/formats/log/note.ts";
 import { newSignerForCosignatureV1 } from "../../vendor/formats/note/note_cosigv1.ts";
-import { generateKey, newSigner, newVerifier, sign } from "../../vendor/note/note.ts";
+import { generateKey, newSigner, sign } from "../../vendor/note/note.ts";
 import { newWitnessServer } from "../../witness/server.ts";
 import { describeObjectStoreConformance } from "../objectstore/testing/conformance.ts";
 import { describeDriverConformance } from "../objectstore/testing/driver_conformance.ts";
@@ -39,6 +33,7 @@ import type { SqlDatabase } from "./database.ts";
 import { DefaultMaxChunkBytes, newSqliteDriver, openSqliteObjectStore } from "./index.ts";
 import { describeSqliteBehaviour } from "./testing/behaviour.ts";
 import { appendConcurrently } from "./testing/concurrent.ts";
+import { appendFromProcesses } from "./testing/processes.ts";
 import { otherProcess, type StoreOptions, type StoreTarget, storeFactory, uniqueNamespace } from "./testing/stores.ts";
 import { D1Limits, StrictSqlDatabase } from "./testing/strict.ts";
 
@@ -247,44 +242,9 @@ describe("SqliteObjectStore on node:sqlite", () => {
 		timeout: 60_000,
 	}, async () => {
 		const path = newFile();
-		const origin = "example.com/webtessera-sqlite-processes";
-		const { skey, vkey } = generateKey(undefined, origin);
-		const script = decodeURIComponent(new URL("./testing/append_process.ts", import.meta.url).pathname);
-		const perProcess = 100;
-		const tags = ["p0", "p1", "p2"];
-		const outputs = await Promise.all(
-			tags.map(
-				(tag) =>
-					new Promise<string[]>((resolve, reject) => {
-						const child = spawn(execPath, ["--no-warnings", script, path, tag, String(perProcess), skey], {
-							stdio: ["ignore", "pipe", "pipe"],
-						});
-						let out = "";
-						let err = "";
-						child.stdout.on("data", (d) => {
-							out += String(d);
-						});
-						child.stderr.on("data", (d) => {
-							err += String(d);
-						});
-						child.on("error", reject);
-						child.on("close", (code) =>
-							code === 0 ? resolve(JSON.parse(out) as string[]) : reject(new Error(`${tag} exited ${code}: ${err}`)),
-						);
-					}),
-			),
+		await appendFromProcesses("node:sqlite", path, 100, () =>
+			openSqliteObjectStore({ database: fromSqliteSync(connect(path)) }),
 		);
-		const total = tags.length * perProcess;
-		const indices = outputs.flat();
-		expect(new Set(indices).size).toBe(total);
-		expect(indices.every((i) => BigInt(i) < BigInt(total))).toBe(true);
-
-		// Read the log back as any static tlog-tiles reader would.
-		const reader = newSinkTarget(await openSqliteObjectStore({ database: fromSqliteSync(connect(path)) }));
-		const verifier = newVerifier(vkey);
-		const { checkpoint } = parseCheckpoint(await reader.readCheckpoint(), origin, verifier);
-		expect(checkpoint.size).toBe(BigInt(total));
-		await newFsck(origin, verifier, reader, defaultMerkleLeafHasher, { n: 4 }).check();
 	});
 
 	it("lets exactly one of two witnesses on separate connections to one file cosign from a size", async () => {

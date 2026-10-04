@@ -152,3 +152,23 @@ Each of its three corrections is checked in the Review below.*
     on the shared `DefaultHasher`, where it would not. The reasoning is a caution about a design that was not
     adopted, not a claim about the tests, so I leave it.
   - Status stays `proposed` until the Update is added.
+
+## Update (2026-10-04): a method value is bound with `.bind` or with an arrow
+
+This answers the Review above. The Decision says that every place upstream passes a bare method value is written
+`DefaultHasher.hashChildren.bind(DefaultHasher)`. The code uses two forms, which are equivalent: each calls
+`hashChildren` with its receiver, as Go's method value does.
+- **The ported tests use `.bind`**, for example `compact/range_test.ts`, where Go writes
+  `rfc6962.DefaultHasher.HashChildren`. So does the merkle differential harness
+  (`testonly/testing/differential/merkle.ts`).
+- **The library uses an arrow wrapper**, `(l, r) => DefaultHasher.hashChildren(l, r)` or the same with the
+  caller's hasher, and that is the usual form. The sites are:
+  - `storage/internal/integrate.ts`, twice;
+  - `client/client.ts`, twice;
+  - `fsck/fsck.ts`;
+  - `mirror/verify.ts`, twice;
+  - the merkle port's `testonly/tree.ts`;
+  - the driver conformance suite.
+
+The Consequences bullet on "`.bind(...)` at call sites" applies to either form. The Port note on `RangeFactory`
+("must be bound first (ADR-0011)") holds as written.

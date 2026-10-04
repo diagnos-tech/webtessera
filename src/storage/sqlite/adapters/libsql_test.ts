@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Runs the SQLite ObjectStore on libSQL through @libsql/client, in memory and in a local
-// file, with local and with lease locking.
+// file, with local and with lease locking, and in a file that several processes share.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,6 +24,7 @@ import { describeDriverConformance } from "../../objectstore/testing/driver_conf
 import type { SqlDatabase } from "../database.ts";
 import { openSqliteObjectStore } from "../sqlite.ts";
 import { describeSqliteBehaviour } from "../testing/behaviour.ts";
+import { appendFromProcesses } from "../testing/processes.ts";
 import { otherProcess, type StoreTarget, storeFactory } from "../testing/stores.ts";
 import { D1Limits, StrictSqlDatabase } from "../testing/strict.ts";
 import { fromLibsql, type LibsqlClientLike } from "./libsql.ts";
@@ -118,5 +119,48 @@ describe("fromLibsql", () => {
 	it("returns one SqlDatabase per client", () => {
 		const c = client(":memory:");
 		expect(fromLibsql(c)).toBe(fromLibsql(c));
+	});
+
+	// The libSQL counterpart of sqlite_test.ts's three-process test. The client keeps a pool
+	// of connections, which only its `timeout` option gives a busy timeout; the children
+	// create theirs with one, as fromLibsql's documentation asks of a shared file.
+	it("keeps one consistent log when processes append to one file with default options", {
+		timeout: 60_000,
+	}, async () => {
+		const path = `${dir}/processes-${++files}.db`;
+		await appendFromProcesses("libsql", path, 100, () =>
+			openSqliteObjectStore({ database: fromLibsql(client(`file:${path}`)) }),
+		);
+	});
+
+	it("says how to give a client a busy timeout when a local database is busy", async () => {
+		const busy = Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY", rawCode: 5 });
+		const local = (timeout: number): LibsqlClientLike => ({
+			protocol: "file",
+			execute: async (s) => {
+				if (s.sql === "PRAGMA busy_timeout") {
+					return { columns: ["timeout"], rows: [[timeout]] };
+				}
+				throw busy;
+			},
+			batch: () => Promise.reject(busy),
+		});
+		const hint =
+			"SQLITE_BUSY: database is locked (this libSQL client has no busy timeout, so a write that meets another connection's lock fails at once: when other processes or clients open the same file, create it with one, as createClient({ url, timeout: 5000 }))";
+		for (const call of [
+			(db: SqlDatabase) => db.query({ sql: "SELECT 1", params: [] }),
+			(db: SqlDatabase) => db.batch([{ sql: "SELECT 1", params: [] }]),
+		]) {
+			await expect(call(fromLibsql(local(0)))).rejects.toThrow(new Error(hint));
+			await expect(call(fromLibsql(local(0)))).rejects.toMatchObject({ cause: busy });
+			// A client that has a busy timeout, or a remote one, reports the error as it is.
+			await expect(call(fromLibsql(local(5000)))).rejects.toBe(busy);
+			await expect(call(fromLibsql({ ...local(0), protocol: "https" }))).rejects.toBe(busy);
+		}
+		// Other errors pass through untouched.
+		const other = new Error("SQLITE_CONSTRAINT: UNIQUE constraint failed");
+		await expect(
+			fromLibsql({ ...local(0), batch: () => Promise.reject(other) }).batch([{ sql: "SELECT 1", params: [] }]),
+		).rejects.toBe(other);
 	});
 });

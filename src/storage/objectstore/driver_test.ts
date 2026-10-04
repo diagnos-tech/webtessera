@@ -493,6 +493,51 @@ describe("ObjectStoreDriver", () => {
 		}
 	});
 
+	// The ADR's own scenario: the public tlog-tiles files survive, .state/ does not. The
+	// refusal comes before ensureVersion would create .state/version, so not a key changes.
+	it("refuses, and writes nothing, over published files with no .state/ at all", async () => {
+		const ac = new AbortController();
+		try {
+			const store = new MemoryObjectStore();
+			const [sk] = mustGenerateKeys();
+			const opts = testOptions(sk);
+			const s = newMemoryDriver({ store });
+			const { appender } = await s.newAppender(new logResourceStorage(s, opts.entriesPath()), opts, ac.signal);
+			await appender.sequenceBatch([newEntry(toUTF8("a")), newEntry(toUTF8("b"))]);
+			await appender.publishCheckpoint(0, 0, ac.signal);
+
+			await store.deletePrefix(".state/");
+			const before = new Map<string, Uint8Array | undefined>();
+			for (const key of store.keys()) {
+				before.set(key, await store.get(key));
+			}
+			expect([...before.keys()]).toEqual([CheckpointPath, "tile/0/000.p/2", "tile/entries/000.p/2"]);
+
+			await expect(newMemoryDriver({ store }).appender(opts, ac.signal)).rejects.toThrow(
+				"refusing to initialise a new tree: .state/treeState does not exist but a checkpoint is already published",
+			);
+			expect(store.keys()).toEqual([...before.keys()]);
+			for (const [key, value] of before) {
+				expect(await store.get(key)).toEqual(value);
+			}
+		} finally {
+			ac.abort();
+		}
+	});
+
+	// Go checks the version file before it reads the tree state, so a version error comes
+	// first; the refusal keeps that order wherever the version file exists.
+	it("reports a bad version before refusing to start a new tree", async () => {
+		const store = new MemoryObjectStore();
+		await store.put(".state/version", toUTF8("2"));
+		await store.put(CheckpointPath, toUTF8("published\n"));
+		const [sk] = mustGenerateKeys();
+		await expect(newMemoryDriver({ store }).appender(testOptions(sk))).rejects.toThrow(
+			new Error("wanted version 1 but found 2"),
+		);
+		expect(store.keys()).toEqual([".state/version", CheckpointPath]);
+	});
+
 	it("still initialises a store that has neither tree state nor checkpoint", async () => {
 		const ac = new AbortController();
 		try {

@@ -19,7 +19,8 @@ import { describe, expect, it } from "vitest";
 import { toUTF8 } from "../../../internal/gostd/bytes.ts";
 import { type NodeID, newNodeID } from "../compact/nodes.ts";
 import { DefaultHasher } from "../rfc6962/rfc6962.ts";
-import { consistency, inclusion, Nodes } from "./proof.ts";
+import { Nodes as BarrelNodes } from "./index.ts";
+import { consistency, inclusion, Nodes, nodesLiteral } from "./proof.ts";
 
 const id = newNodeID;
 
@@ -344,11 +345,11 @@ describe("TestRehash", () => {
 // nodes and rehash mirror the local helpers of proof_test.go. They build the
 // expected Nodes value, with the ephemeral node left at its zero value.
 function nodes(...ids: NodeID[]): Nodes {
-	return new Nodes(ids, 0, 0, id(0, 0n));
+	return new Nodes(ids);
 }
 
 function rehash(begin: number, end: number, ...ids: NodeID[]): Nodes {
-	return new Nodes(ids, begin, end, id(0, 0n));
+	return nodesLiteral(ids, begin, end, id(0, 0n));
 }
 
 // Not upstream: inclusion and consistency refuse values Go's uint64 cannot hold
@@ -373,5 +374,26 @@ describe("uint64 domain (port hardening)", () => {
 		const max = B64 - 1n;
 		expect(inclusion(max - 1n, max).ids.length).toBe(63);
 		expect(consistency(1n, max).ids.length).toBe(126);
+	});
+});
+
+// Not upstream: `new Nodes(ids)`, exported from the barrel, is Go's `proof.Nodes{IDs: ids}`,
+// which code outside the package may write (tessera's client_test.go does). The expected
+// values were printed by merkle@v0.0.2 under Go 1.25.5: the unexported fields stay zero,
+// so there is no ephemeral node and Rehash returns the hashes as they are
+// (docs/decisions/0208-merkle-barrels-and-tuple-returns.md).
+describe("Nodes built outside the package", () => {
+	it("has only its ids set, as Go's Nodes{IDs: ids} literal does", () => {
+		const n = new BarrelNodes([id(0, 1n), id(1, 1n)]);
+		expect(n.ids).toEqual([id(0, 1n), id(1, 1n)]);
+		expect(n.ephem()).toEqual([id(0, 0n), 0, 0]);
+		const a = toUTF8("a");
+		const b = toUTF8("b");
+		expect(n.rehash([a, b], DefaultHasher.hashChildren.bind(DefaultHasher))).toEqual([a, b]);
+
+		const zero = new BarrelNodes();
+		expect(zero.ids).toEqual([]);
+		expect(zero.ephem()).toEqual([id(0, 0n), 0, 0]);
+		expect(zero.rehash([], DefaultHasher.hashChildren.bind(DefaultHasher))).toEqual([]);
 	});
 });

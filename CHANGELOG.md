@@ -123,6 +123,12 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
   driver formats durations as Go's `Duration` does (`500µs`); the `bufio.Scanner` stand-in follows Go
   after `ErrTooLong`; `inMemoryDedup` does not call a delegate that threw again; `.state/treeState`
   accepts a root written as a JSON byte array.
+- `compact.Range.appendRange` of `[0, MaxUint64)` onto an empty range at 0 throws Go's `runtime error:
+  index out of range [63] with length 63` instead of succeeding (ADR-0014). `entryBundles` rejects a
+  worker count of 0 only where Go's iterator would hang (a range with a bundle to fetch); otherwise 0
+  behaves as Go's (ADR-0192). `webtessera/merkle/proof` exports `Nodes` as a value: `new Nodes(ids)` is
+  Go's `proof.Nodes{IDs: ids}` (ADR-0208). `.state/` JSON keys are matched as `encoding/json` matches them,
+  repeated keys inside skipped members are accepted, and Go's error is reported first (ADR-0102).
 - `note.sign`/`signAsync` reject a text with an unpaired surrogate, and `id` rejects such an origin,
   instead of silently substituting U+FFFD (ADR-0203). `cryptobyte`'s `addUint*` and CT fingerprints
   reject out-of-range values (ADR-0200, ADR-0043). `newLogStateTracker` accepts `undefined` or `null`
@@ -155,6 +161,10 @@ an ADR says why.
 Hardening beyond Tessera, from input validation that upstream lacks. None of it changes the bytes of a
 valid log.
 
+- **Leases wait out a busy database**: taking or renewing a lease waits on `SQLITE_BUSY`/`SQLITE_LOCKED`
+  instead of failing. A libSQL `file:` database shared by several processes needs a client with a busy
+  timeout, and `fromLibsql`'s busy error says so (ADR-0210). Checkpoint publication's refusal writes
+  nothing to the store (ADR-0205).
 - **SQLite locking fails closed**: stores default to lease locking unless the adapter shows the database
   is private, and an explicit `locking: "local"` declares a single writer. Otherwise two connections or
   processes on one file could assign one index twice, and two witnesses could roll a log back

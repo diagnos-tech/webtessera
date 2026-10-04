@@ -1,6 +1,6 @@
 # ADR-0030: Export the tlog-tiles constants as `number`, with module-local `bigint` companions
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** layout agent
 - **Upstream reference:** `api/layout/tile.go`, `api/layout/paths.go`

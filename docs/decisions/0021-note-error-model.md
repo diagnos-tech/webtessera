@@ -1,6 +1,6 @@
 # ADR-0021: `sumdb/note`'s error values — `keyName` instead of `name`, and `@internal` sentinels
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** note agent
 - **Upstream reference:** `golang.org/x/mod/sumdb/note/note.go`

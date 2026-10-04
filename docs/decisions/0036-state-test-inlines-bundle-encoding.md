@@ -1,6 +1,6 @@
 # ADR-0036: `state_test.ts` inlines the bundle-entry encoding instead of depending on the root package
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** layout agent
 - **Upstream reference:** `api/state_test.go`, `entry.go`

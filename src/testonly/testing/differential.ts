@@ -25,6 +25,7 @@
 // documented divergence occurs and a divergence cannot spread silently.
 
 import { expect } from "vitest";
+import { maxQuotedNum } from "../../internal/gostd/strconv.ts";
 
 /** A DivergenceRule is one documented, ADR-backed way the port may differ from Go. */
 export interface DivergenceRule {
@@ -82,8 +83,9 @@ export const DIVERGENCES = {
 			"newWitnessGroupFromPolicy rejects a group that names a child twice, two witnesses with the same " +
 			'verifier key, and an explicit threshold of 0, with "repeated component %q in group definition", ' +
 			'"witness %q has the same verifier key as witness %q" and "invalid threshold "0" for group %q: ' +
-			'must be at least 1"; the threshold is checked before the children, so it can be reported where Go ' +
-			"reports a later error of the same group.",
+			'must be at least 1". Go processes every earlier line as the port does: it accepts the line, or, for a ' +
+			"group line, may fail later on that same line on a child the port never reaches (the threshold is " +
+			"checked before the children), or fails on a later line, or only after the last.",
 	},
 	"witness-url-https": {
 		adrs: ["0185", "0241"],
@@ -91,7 +93,8 @@ export const DIVERGENCES = {
 			"newWitnessGroupFromPolicy rejects a witness URL, which Go accepts, whose endpoint (as Go's url.Parse, " +
 			"JoinPath and String make it) does not use https, or http to a loopback host, relative references " +
 			'included, with "invalid witness config %q: witness URL %q must use https (http is accepted only for ' +
-			'a loopback host)".',
+			'a loopback host)". Go processes every line up to and including it as the port does, and fails, if at ' +
+			"all, on a later line or after the last.",
 	},
 	"witness-url-fetchable": {
 		adrs: ["0241"],
@@ -99,14 +102,16 @@ export const DIVERGENCES = {
 			"newWitnessGroupFromPolicy rejects an https or http witness URL, which Go accepts, whose endpoint has no " +
 			'host in Go\'s reading, with "invalid witness config %q: witness URL %q has no host", or that the ' +
 			'platform URL parser rejects, with "invalid witness config %q: witness URL %q is rejected by the ' +
-			'platform URL parser, which fetch uses".',
+			'platform URL parser, which fetch uses". Go processes every line up to and including it as the port ' +
+			"does, and fails, if at all, on a later line or after the last.",
 	},
 	"witness-policy-utf8": {
 		adrs: ["0242"],
 		rule:
 			"newWitnessGroupFromPolicy rejects a policy line whose text before its first '#' is not valid UTF-8, " +
 			'when it reaches that line, with "witness policy line is not valid UTF-8"; Go reads the bytes. Lines ' +
-			"before it get Go's verdict, and invalid bytes in a comment are accepted, as in Go.",
+			"before it get Go's verdict (Go fails, if at all, on that line or later), and invalid bytes in a " +
+			"comment are accepted, as in Go.",
 	},
 	"numerror-quote-bound": {
 		adrs: ["0204"],
@@ -125,7 +130,9 @@ export const DIVERGENCES = {
 		rule:
 			'HashTile.unmarshalText rejects more than 256 hashes ("tile of N hashes exceeds the maximum of 256") ' +
 			'and EntryBundle.unmarshalText stops at a 257th entry ("entry bundle holds more than the maximum of ' +
-			"256 entries\"); Go parses any number. A smaller malformed input gets Go's error.",
+			'256 entries"); Go parses any number. Applied to a tile Go parses with more than 256 hashes, and to a ' +
+			"bundle Go parses with more than 256 entries or rejects: the port parsed 256 entries as Go did before " +
+			"stopping, so Go's error is on an entry after them. A smaller malformed input gets Go's error.",
 	},
 	"uint-count-overflow": {
 		adrs: ["0014"],
@@ -259,8 +266,9 @@ export function messageOf(e: unknown): string {
 /**
  * sameModuloInvalidUTF8 reports whether a Go error text and the port's agree once every
  * run of invalid-byte spellings is collapsed: Go's `\xNN` escapes and a literal U+FFFD on
- * one side, the port's `\ufffd` escapes and literal U+FFFD on the other. This is the
- * comparison the "invalid-utf8-text" divergence permits.
+ * one side; on the other, the literal U+FFFD the port writes for each invalid sequence,
+ * and the `\ufffd` escape it writes only for a lone surrogate. This is the comparison the
+ * "invalid-utf8-text" divergence permits.
  */
 export function sameModuloInvalidUTF8(go: string, ts: string): boolean {
 	const g = go.replace(/(?:\\x[89a-f][0-9a-f]|\ufffd)+/g, "\u0000");
@@ -272,7 +280,8 @@ export function sameModuloInvalidUTF8(go: string, ts: string): boolean {
  * sameModuloQuoteBound reports whether the port's error text is Go's with one quoted
  * strconv input cut at 64 code points and marked "...", the "numerror-quote-bound"
  * divergence: ts must read `<before>parsing "<prefix>"...<after>` where Go reads
- * `<before>parsing "<prefix><more>"<after>`.
+ * `<before>parsing "<prefix><more>"<after>`, and `<prefix>` must quote exactly
+ * maxQuotedNum (64) code points of the input.
  */
 export function sameModuloQuoteBound(go: string, ts: string): boolean {
 	const m = /^(.*parsing )("(?:[^"\\]|\\.)*")\.\.\.(.*)$/s.exec(ts);
@@ -282,10 +291,29 @@ export function sameModuloQuoteBound(go: string, ts: string): boolean {
 	const [, before, quoted, after] = m as unknown as [string, string, string, string];
 	const prefix = quoted.slice(0, -1);
 	return (
+		quotedCodePoints(prefix.slice(1)) === maxQuotedNum &&
 		go.startsWith(before + prefix) &&
 		go.endsWith(`"${after}`) &&
 		go.length > before.length + quoted.length + after.length
 	);
+}
+
+/**
+ * quotedCodePoints counts the code points the body of a Go double-quoted string literal
+ * spells: each escape (`\n`, `\"`, `\xNN`, `\uNNNN`, `\UNNNNNNNN`, ...) is one, as is
+ * each other character.
+ */
+function quotedCodePoints(body: string): number {
+	const escapeWidth: Readonly<Record<string, number>> = { x: 4, u: 6, U: 10 };
+	let n = 0;
+	for (let i = 0; i < body.length; n++) {
+		if (body[i] === "\\") {
+			i += escapeWidth[body[i + 1] ?? ""] ?? 2;
+		} else {
+			i += (body.codePointAt(i) ?? 0) > 0xffff ? 2 : 1;
+		}
+	}
+	return n;
 }
 
 const hexDigits = "0123456789abcdef";

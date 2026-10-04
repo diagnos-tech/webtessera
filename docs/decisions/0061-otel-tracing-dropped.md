@@ -1,6 +1,6 @@
 # ADR-0061: OpenTelemetry tracing dropped from client/client.go and client/stream.go
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** client agent
 - **Upstream reference:** `client/otel.go`, `client/client.go`, `client/stream.go`

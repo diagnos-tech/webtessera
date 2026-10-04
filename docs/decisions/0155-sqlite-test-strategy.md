@@ -115,3 +115,12 @@ Tests added with the security-review fixes (ADR-0210 to ADR-0213):
   encoding check read back BLOB expressions, which rqlite returns as text; the check now compares in SQL.
 
 *Review of this update: approved, ADR review agent (independent), 2026-10-04. Verified by running: the three-process test (`sqlite_test.ts`) appends 100 entries each to one file with default options and checks distinct indices, checkpoint size and fsck, and passes; with a scratch copy of its child script forced to `locking: "local"` I got 200 distinct indices out of 300, so the setup does distinguish the modes. `sync_test.ts` checks five kinds of database against `location()`, `libsql_test.ts` an in-memory client, a file client, an embedded-replica stand-in and a remote one, `schema_test.ts` the version 1 to 2 migration and both UTF-16 encodings, `rqlite_workers_test.ts` and `src/mirror/s3_workers_test.ts` workerd's acceptance of the requests (mutating the adapter to `redirect: "error"` makes the workerd test fail with workerd's `Invalid redirect value` message). Gap that the new tests leave: the multi-process test covers node:sqlite only; a libSQL `file:` multi-process test would have found the SQLITE_BUSY failure described in my review of ADR-0210.*
+
+## Update (2026-10-04): commands, and the multi-process test's engines
+
+- Since ADR-0240, `pnpm test:services` and `pnpm interop` in this ADR read `bun run test:services` and
+  `bun run interop`.
+- The three-process append test is now shared, as `testing/processes.ts`, and `testing/append_process.ts` takes an
+  engine argument. It covers node:sqlite (`sqlite_test.ts`) and libSQL with a busy timeout (`libsql_test.ts`).
+  The review of the update above names this as the gap that ADR-0210's review found; ADR-0210's 2026-10-04 update
+  explains it.

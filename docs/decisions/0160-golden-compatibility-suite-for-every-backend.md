@@ -74,3 +74,8 @@ fixture size: the largest takes under two seconds in Chromium.
   - Check of the fixtures the suite leans on: `bun run fixtures`'s generator, run into a scratch directory, reproduces `fixtures/data` byte for byte (`diff -rq` empty over 41 files); commit 670e4c8 added only a `state` key to the eight `log_<N>.json` files (every other key equal).
   - Non-blocking staleness: Consequences say `memory_golden_workers_test.ts` runs only once `vitest.workers.config.ts` includes `*_workers_test.ts`; it now does (it ran in my workerd run). Accurate when written, not now.
   - Alternatives (`list(prefix)` on the contract, Node-only large sizes, comparing partials by name only) are real, and the rejection of name-only comparison is justified: the suite does catch a truncated partial. Status: proposed becomes accepted.
+
+## Update (2026-10-04)
+
+The Consequences sentence on `memory_golden_workers_test.ts` is no longer conditional:
+`vitest.workers.config.ts` includes `src/**/*_workers_test.ts`, so the file runs in every `bun run test:workers`.

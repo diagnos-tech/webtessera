@@ -60,9 +60,9 @@ export function parseLogPath(path: string): LogResource | MalformedPath | undefi
 	if (!path.startsWith("tile/")) {
 		return undefined;
 	}
-	// The longest resource path, a level-63 partial tile at the largest uint64 index, is 47
-	// characters. Anything much longer is refused before it reaches the parsers, whose cost
-	// grows with the length of what they are given.
+	// The longest resource path, a partial entry bundle at the largest uint64 index, is 52
+	// characters (a level-63 partial tile there is 47). Anything much longer is refused before
+	// it reaches the parsers, whose cost grows with the length of what they are given.
 	if (path.length > MaxResourcePathLength) {
 		return malformed(`longer than ${MaxResourcePathLength} characters`);
 	}
@@ -118,11 +118,14 @@ export interface CacheControlPolicy {
 }
 
 /**
- * DefaultCacheControl is the caching policy the spec asks for and upstream's servers use.
+ * DefaultCacheControl is the caching policy the spec asks for.
  *
  * The checkpoint "is mutable, so its headers SHOULD prevent caching beyond a few seconds";
  * `no-cache` is what Tessera's own conformance servers and object-storage drivers send.
- * Tiles and bundles are "immutable, so [their] caching headers SHOULD be long-lived".
+ * Tiles and bundles are "immutable, so [their] caching headers SHOULD be long-lived". One
+ * year is what Tessera's POSIX conformance server sends; its GCP and AWS drivers send one
+ * week (`max-age=604800,immutable`). A full tile or bundle never changes, so the longer
+ * lifetime costs nothing and saves the revalidations.
  *
  * A partial resource never changes either, but a log "MAY delete any partial tile once
  * the corresponding full tile is available", and a reader asked for a partial that no

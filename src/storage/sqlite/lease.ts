@@ -20,7 +20,8 @@
 import { toHex, toUTF8 } from "../../internal/gostd/bytes.ts";
 import { SentinelError } from "../../internal/gostd/errors.ts";
 import { sleep } from "../../internal/gostd/sync.ts";
-import type { SqlDatabase, SqlStatement } from "./database.ts";
+import { isBusy } from "./busy.ts";
+import type { SqlDatabase, SqlRow, SqlStatement } from "./database.ts";
 import { textParam } from "./params.ts";
 import { leaseLostConstraint, type Tables } from "./schema.ts";
 
@@ -191,7 +192,12 @@ export class LeaseLocks {
 		};
 	}
 
-	/** acquire takes the lease on the lock called name, polling with backoff while another holder has it. */
+	/**
+	 * acquire takes the lease on the lock called name, polling with backoff while another
+	 * holder has it. An attempt that finds the database busy (another connection is
+	 * writing, which on an engine with no busy timeout fails at once) counts as finding the
+	 * lock held: it is retried after the same backoff.
+	 */
 	async #acquire(name: Uint8Array, signal: AbortSignal | undefined): Promise<heldLease> {
 		const locks = this.#t.locks;
 		let backoff = minPollIntervalMs;
@@ -199,17 +205,24 @@ export class LeaseLocks {
 			signal?.throwIfAborted();
 			const token = toHex(crypto.getRandomValues(new Uint8Array(16)));
 			const now = this.#now();
-			const results = await this.#db.batch([
-				{
-					sql: `DELETE FROM ${locks} WHERE name = ${textParam} AND expires <= ${now.sql}`,
-					params: [name, ...now.params],
-				},
-				{
-					sql: `INSERT OR IGNORE INTO ${locks} (name, holder, expires) VALUES (${textParam}, ?, ${now.sql} + ?)`,
-					params: [name, token, ...now.params, this.#timings.ttlMs],
-				},
-				{ sql: `SELECT holder FROM ${locks} WHERE name = ${textParam}`, params: [name] },
-			]);
+			let results: SqlRow[][] = [];
+			try {
+				results = await this.#db.batch([
+					{
+						sql: `DELETE FROM ${locks} WHERE name = ${textParam} AND expires <= ${now.sql}`,
+						params: [name, ...now.params],
+					},
+					{
+						sql: `INSERT OR IGNORE INTO ${locks} (name, holder, expires) VALUES (${textParam}, ?, ${now.sql} + ?)`,
+						params: [name, token, ...now.params, this.#timings.ttlMs],
+					},
+					{ sql: `SELECT holder FROM ${locks} WHERE name = ${textParam}`, params: [name] },
+				]);
+			} catch (err) {
+				if (!isBusy(err)) {
+					throw err;
+				}
+			}
 			if (results[2]?.[0]?.holder === token) {
 				const lease: heldLease = { name, token, lost: false, inflight: 0, drained: undefined };
 				if (signal?.aborted) {
@@ -219,7 +232,7 @@ export class LeaseLocks {
 				}
 				return lease;
 			}
-			// Full jitter keeps contenders that collided from retrying in lockstep.
+			// Half-to-full jitter keeps contenders that collided from retrying in lockstep.
 			await sleep(backoff * (0.5 + Math.random() / 2), signal);
 			backoff = Math.min(backoff * 2, this.#timings.maxPollIntervalMs);
 		}
@@ -228,14 +241,17 @@ export class LeaseLocks {
 	/**
 	 * renewWhileHeld extends lease every renewIntervalMs until the returned function is
 	 * called. A renewal that finds the lease taken over marks it lost and stops; one that
-	 * fails to reach the database is retried at the next interval, since the lease may
-	 * well still be valid, and fencing catches the case where it is not.
+	 * finds the database busy is retried after the same jittered backoff as acquire, and
+	 * one that fails to reach the database is retried at the next interval, since the
+	 * lease may well still be valid, and fencing catches the case where it is not.
 	 */
 	#renewWhileHeld(lease: heldLease): () => void {
 		const locks = this.#t.locks;
 		let stopped = false;
 		let timer: ReturnType<typeof setTimeout> | undefined;
+		let backoff = minPollIntervalMs;
 		const renew = async (): Promise<void> => {
+			let delay = this.#timings.renewIntervalMs;
 			try {
 				const now = this.#now();
 				const results = await this.#db.batch([
@@ -249,11 +265,17 @@ export class LeaseLocks {
 					lease.lost = true;
 					return;
 				}
-			} catch {
-				// The database could not be reached; try again at the next interval.
+				backoff = minPollIntervalMs;
+			} catch (err) {
+				if (isBusy(err)) {
+					// Another connection is writing; the lease is still ours, so try again soon.
+					delay = Math.min(delay, backoff * (0.5 + Math.random() / 2));
+					backoff = Math.min(backoff * 2, this.#timings.maxPollIntervalMs);
+				}
+				// Otherwise the database could not be reached; try again at the next interval.
 			}
 			if (!stopped) {
-				timer = setTimeout(renew, this.#timings.renewIntervalMs);
+				timer = setTimeout(renew, delay);
 			}
 		};
 		timer = setTimeout(renew, this.#timings.renewIntervalMs);

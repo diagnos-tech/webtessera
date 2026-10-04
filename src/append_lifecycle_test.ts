@@ -35,7 +35,16 @@ import { ErrNotExist } from "./internal/gostd/errors.ts";
 import { sleep } from "./internal/gostd/sync.ts";
 import type { Follower, LogReader } from "./lifecycle.ts";
 import { newSignerForCosignatureV1, newVerifierForCosignatureV1 } from "./vendor/formats/note/note_cosigv1.ts";
-import { generateKey, newSigner, newVerifier, open, type Signer, sign, verifierList } from "./vendor/note/note.ts";
+import {
+	generateKey,
+	newSigner,
+	newVerifier,
+	open,
+	type Signer,
+	sign,
+	type Verifier,
+	verifierList,
+} from "./vendor/note/note.ts";
 import { newWitness, newWitnessGroup, WitnessGroup } from "./witness.ts";
 
 function messageOf(err: unknown): string {
@@ -481,6 +490,23 @@ describe("AppendOptions.checkpointPublisher (port additions)", () => {
 			.withWitnesses(explodingPolicy(), new WitnessOptions({ failOpen: false }));
 
 		await expect(o.checkpointPublisher(reader(), cosigningFetch)(5n, root)).rejects.toThrow("policy evaluation failed");
+	});
+
+	// Go builds the witness gateway, which reads Endpoints, before the error handling that
+	// fails open, and Endpoints cannot fail there. The port keeps that structure, so a
+	// component whose endpoints throws rejects the publication even when failing open.
+	it("rejects when a policy component's endpoints throws, even when failing open", async () => {
+		const component = {
+			satisfied: (): boolean => false,
+			endpoints: (): Map<string, Verifier> => {
+				throw new Error("endpoints failed");
+			},
+		};
+		const o = newAppendOptions()
+			.withCheckpointSigner(mustCreateSigner(testSignerKey))
+			.withWitnesses(new WitnessGroup([component], 1), new WitnessOptions({ failOpen: true }));
+
+		await expect(o.checkpointPublisher(reader(), cosigningFetch)(5n, root)).rejects.toThrow("endpoints failed");
 	});
 });
 

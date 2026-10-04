@@ -142,3 +142,10 @@ verified in the Review below.)*
     sizes up to 65534 and the fixtures stop at 5000 (every pair only to 40). Same kind of gap, one more sentence.
   - Challenge on the alternatives. "Port them as seeded property tests ... looks like fuzzing and is not" is a fair reason, and the rejection of
     hand-decoding the Go corpus into `fixtures/data/` follows AGENTS.md section 5. I did not find a reason to overrule the omission.
+
+## Update (2026-10-04)
+
+Upstream's fuzzing is ClusterFuzzLite, not OSS-Fuzz. `.clusterfuzzlite/` holds `project.yaml` and `build.sh`, and
+`cflite_pr.yml` runs the targets as pull-request fuzzing, for 600 s in `code-change` mode. No continuous batch run
+is in the repository. So "OSS-Fuzz integration runs continuously" in the Context and Consequences overstates what
+is lost by not porting the targets.

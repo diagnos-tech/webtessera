@@ -78,6 +78,25 @@ describe("unmarshalTreeState: inputs Go accepts", () => {
 		{ name: "root as an array of bytes", in: '{"size":1,"root":[1,2,255]}', size: 1n, root: [1, 2, 255] },
 		{ name: "root as an empty array", in: '{"size":1,"root":[]}', size: 1n, root: [] },
 		{ name: "a null element of a root array", in: '{"size":1,"root":[null,7]}', size: 1n, root: [0, 7] },
+		// A skipped member is skipped whatever it holds, repeated keys included, at any depth
+		// (Go 1.24.7 and 1.25.5).
+		{
+			name: "repeated keys inside a skipped member",
+			in: '{"size":1,"root":"AAAA","x":{"a":1,"a":2}}',
+			size: 1n,
+			root: [0, 0, 0],
+		},
+		{
+			name: "repeated keys inside an array in a skipped member",
+			in: '{"size":1,"root":"AAAA","x":[{"a":1,"a":2}]}',
+			size: 1n,
+			root: [0, 0, 0],
+		},
+		{ name: "a skipped key repeated", in: '{"size":1,"root":"AAAA","x":1,"x":2}', size: 1n, root: [0, 0, 0] },
+		// A key sets the field it names exactly, else the one it names case-insensitively, as
+		// encoding/json's foldName folds: U+017F (ſ) folds with s, the dotless ı with nothing.
+		{ name: "keys that differ only in case", in: '{"SIZE":5,"ROOT":"AQ=="}', size: 5n, root: [1] },
+		{ name: "a key with U+017F for s", in: '{"\u017fize":5,"root":"AQ=="}', size: 5n, root: [1] },
 	];
 	for (const test of tests) {
 		it(test.name, () => {
@@ -139,6 +158,12 @@ describe("unmarshalTreeState: inputs Go rejects", () => {
 			in: `{"size":1,"root":[0,${e}]}`,
 			wantErr: `json: cannot unmarshal ${what} into Go struct field treeState.root of type uint8`,
 		})),
+		// Go's errors come before the port's own refusal of a field set twice.
+		{ in: '{"size":5,"size":6,"root":"cm9vdCk"}', wantErr: "illegal base64 data at input byte 4" },
+		{
+			in: '{"size":5,"Size":-1,"root":"AAAA"}',
+			wantErr: "json: cannot unmarshal number -1 into Go struct field treeState.size of type uint64",
+		},
 		// Go keeps decoding after a type error and reports the earliest, in document order.
 		{
 			in: '{"root":5,"size":-1}',
@@ -162,19 +187,29 @@ describe("unmarshalTreeState: inputs Go rejects", () => {
 });
 
 describe("unmarshalTreeState: inputs only this decoder rejects", () => {
-	// Go accepts each of these: it treats `null` as "leave the struct zero", matches keys
-	// case-insensitively, lets the last of two duplicate keys win, and leaves a missing field
+	// Go accepts each of these: it treats `null` as "leave the struct zero", lets the last of
+	// two members that set one field win (size 2, 3 and 1 below), and leaves a missing field
 	// at its zero value. Each one means the state file was not written by either driver.
 	const tests: { name: string; in: string; wantErr: string }[] = [
 		{ name: "null", in: "null", wantErr: "json: cannot unmarshal null into Go value of type treeState" },
 		{ name: "missing size", in: '{"root":"AQ=="}', wantErr: "json: missing field treeState.size" },
 		{ name: "missing root", in: '{"size":1}', wantErr: "json: missing field treeState.root" },
 		{
-			name: "key differs only in case",
-			in: '{"SIZE":1,"root":"AQ=="}',
+			name: "a key with the dotless i, which does not fold with i",
+			in: '{"s\u0131ze":5,"root":"AQ=="}',
 			wantErr: "json: missing field treeState.size",
 		},
 		{ name: "duplicate key", in: '{"size":1,"size":2,"root":"AQ=="}', wantErr: 'json: duplicate field "size"' },
+		{
+			name: "a case variant of a key already present",
+			in: '{"size":1,"root":"AAAA","Size":3}',
+			wantErr: 'json: duplicate field "Size"',
+		},
+		{
+			name: "a key already present as a case variant",
+			in: '{"Size":3,"size":1,"root":"AAAA"}',
+			wantErr: 'json: duplicate field "size"',
+		},
 		{
 			name: "null size",
 			in: '{"size":null,"root":"AQ=="}',
@@ -207,5 +242,13 @@ describe("unmarshalGCState", () => {
 
 	it("requires fromSize", () => {
 		expect(() => unmarshalGCState(toUTF8("{}"))).toThrow("json: missing field gcState.fromSize");
+	});
+
+	it("matches keys and skips members as Go does", () => {
+		expect(unmarshalGCState(toUTF8('{"FROMSIZE":7}'))).toEqual({ fromSize: 7n });
+		expect(unmarshalGCState(toUTF8('{"from\u017fize":7}'))).toEqual({ fromSize: 7n });
+		expect(unmarshalGCState(toUTF8('{"fromSize":1,"x":{"a":1,"a":2}}'))).toEqual({ fromSize: 1n });
+		// Go gives 8, the last; the port refuses a field set twice.
+		expect(() => unmarshalGCState(toUTF8('{"fromsize":7,"fromSize":8}'))).toThrow('json: duplicate field "fromSize"');
 	});
 });

@@ -102,3 +102,9 @@ timeout, fail at once with `SQLITE_BUSY` while another process writes the file. 
 several processes against one file found this.
 
 *Review of this update: approved, ADR review agent (independent), 2026-10-04. The read-after-lease table is candid about what is not established (remote libSQL with read replicas, D1 Sessions, replicas and caches) and matches `fromLibsql`'s and `fromRqlite`'s documentation; the busy-timeout reordering is in `syncengine.ts`, and `sqlite_test.ts`'s three-process test exercises it (it passes with the default; a scratch equivalent of `testing/append_process.ts` with `locking: "local"` forced gave 200 distinct indices out of 300). The same table's libSQL `file:` row (`busy_timeout` 0) is the root of the change request I make on ADR-0210.*
+
+## Update (2026-10-04)
+
+The rqlite row of the durability table says the adapter sets "nothing; reads are linearizable by default". rqlite's
+own default read level is `weak`. `fromRqlite` is what sends `level=linearizable` (or `strong`, the only other level
+it accepts) on every request, as this ADR's update table and ADR-0213 state.

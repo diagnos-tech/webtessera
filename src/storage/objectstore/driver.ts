@@ -635,11 +635,32 @@ export class appender {
 	 * started only if no checkpoint is published. Recovery is the operator's decision (restore
 	 * `.state/treeState`, or start a new log elsewhere); see
 	 * docs/decisions/0205-checkpoint-publication-fails-closed.md.
+	 *
+	 * Port note: the refusal is decided before ensureVersion, from reads alone, so that a
+	 * refused store is left exactly as it was: ensureVersion would otherwise create
+	 * .state/version first, as Go's does. A version file that already exists is still checked
+	 * before refusing (ensureVersion only reads it then), so its errors come first, as in Go.
+	 * Everything else runs in Go's order.
 	 */
 	async initialise(signal?: AbortSignal): Promise<void> {
 		await this.s.lockFile(
 			treeStateLock,
 			async () => {
+				const exists = async (key: string): Promise<boolean> => {
+					try {
+						return (await this.s.stat(key)) !== undefined;
+					} catch (err) {
+						throw new Error(`stat(${key}): ${errText(err)}`);
+					}
+				};
+				if (!(await exists(`${stateDir}/${treeStateFile}`)) && (await exists(CheckpointPath))) {
+					if (await exists(`${stateDir}/version`)) {
+						await this.s.ensureVersion(compatibilityVersion);
+					}
+					throw new Error(
+						`refusing to initialise a new tree: ${stateDir}/${treeStateFile} does not exist but a checkpoint is already published at ${quote(CheckpointPath)}; starting over would fork the published log (restore ${stateDir}/${treeStateFile}, or start the new log in an empty store)`,
+					);
+				}
 				await this.s.ensureVersion(compatibilityVersion);
 				let curSize: bigint;
 				try {
@@ -647,17 +668,6 @@ export class appender {
 				} catch (err) {
 					if (!errorIs(err, ErrNotExist)) {
 						throw new Error(`failed to load checkpoint for log: ${errText(err)}`);
-					}
-					let published: ObjectInfo | undefined;
-					try {
-						published = await this.s.stat(CheckpointPath);
-					} catch (err) {
-						throw new Error(`stat(${CheckpointPath}): ${errText(err)}`);
-					}
-					if (published !== undefined) {
-						throw new Error(
-							`refusing to initialise a new tree: ${stateDir}/${treeStateFile} does not exist but a checkpoint is already published at ${quote(CheckpointPath)}; starting over would fork the published log (restore ${stateDir}/${treeStateFile}, or start the new log in an empty store)`,
-						);
 					}
 					// Create the directory structure and write out an empty checkpoint
 					try {

@@ -139,3 +139,60 @@ shared across connections to one file and not across namespaces or databases.
   - What I verified holds. The default is lease unless the adapter shows privacy: `fromSqliteSync` asks `PRAGMA database_list` for `main`'s file name (empty means in-memory or temporary); I checked it against node:sqlite's `location()` (five kinds of database, in `sync_test.ts`), real better-sqlite3 (`memory`), and bun:sqlite on Bun 1.3.14 (`:memory:` and `""` give local, a path gives lease, as the ADR says); `fromLibsql` asks for `file:` clients (an in-memory client gives local, a file client lease, and `createClient({url: ":memory:", syncUrl})` is refused as the ADR says, so an embedded replica is always a file); D1, rqlite, wasm and Durable Object rows are unchanged; an adapter without `defaultLocking` gets leases; a function-valued default is called once at open; an explicit `locking` wins. Local locks are keyed by `instance_id` (mutating that back to the `SqlDatabase` object fails the shared-lock test). Reproduced the problem the ADR fixes: three processes appending 100 entries each to one node:sqlite file give 300 distinct indices under the default and 200 distinct (duplicates) with `locking: "local"` forced. The benchmark table reproduces on this machine (file, batch 256: 21,009 local vs 15,819 lease entries/s, ratio 0.75 against the ADR's 0.69; batch 16: ratio 0.52 against 0.52).
   - Change requested: the ADR's claim that the default "keeps every existing call site working and correct, and only slower" (Alternatives) and its silence in Consequences are wrong for libSQL `file:` clients used by more than one process. The client's connection has `busy_timeout = 0` (ADR-0153 says so; I confirmed it on @libsql/client 0.18.0), and lease acquisition does not retry `SQLITE_BUSY`, so with the new default contending processes fail instead of waiting. Reproduced: a scratch copy of `testing/append_process.ts` using `fromLibsql(createClient({url: "file:..."}))` with default options, three processes appending 100 entries each to one file, failed in 3 of 3 runs with `SQLITE_BUSY: database is locked` (for example `failed to init appender lifecycle: lockFile(treeState.lock): SQLITE_BUSY: database is locked`). It fails closed (no fork), so the integrity goal of the ADR is met, but it is not "only slower", and no test covers it: the three-process test in `sqlite_test.ts` is node:sqlite only. What must change, either of: (a) the ADR records, in its Decision table and Consequences, that for libSQL `file:` the lease default makes multi-process use fail with `SQLITE_BUSY` (and say what a user must do: another engine, a single process, or `locking: "local"` as a single-writer declaration), and the wrong sentence in Alternatives is corrected (`README.md` and `docs/guides/choosing-storage.md` need the same sentence); or (b) the code makes lease acquisition and renewal wait on `SQLITE_BUSY` (retry with the existing backoff) and a multi-process libSQL test is added, after which the ADR says so. Either way the multi-process claim in the Tests paragraph should name the engines it covers.
   - Minor, no change required: the PoC figures (160 of 400 duplicated) are the author's; my three-process reproduction is the same effect. Alternatives (keep local and document, refuse to open without a choice, key by canonical path, key the lease queue by identity, OS file locks) hold. Status stays proposed until the change above is made.
+
+## Update (2026-10-04): libSQL `file:` clients shared by several processes
+
+This answers the Review above. The decision stands.
+
+- **The failure, reproduced.** Three processes appended 100 entries each to one libSQL file through
+  `fromLibsql(createClient({ url: "file:…" }))` with default options. It failed in 3 of 3 runs with
+  `SQLITE_BUSY: database is locked`, and no index was assigned twice. Two things cause it. libSQL's connections have
+  `busy_timeout = 0`, so a write that meets another connection's lock fails at once. And lease acquisition treated
+  that error as fatal.
+- **The adapter cannot give libSQL's connections a busy timeout.** The Review asked for one, "if the client
+  allows `PRAGMA busy_timeout`". It does not, in a way that reaches every connection. `@libsql/client` 0.18.0
+  keeps a pool of connections, and a pragma reaches only the connection that runs it. In a probe, a busy timeout
+  set through `execute` was 4321 on that connection and 0 on the three that concurrent calls opened. Only the
+  client's own `timeout` option, given to `createClient`, reaches every connection (2500 on all four). Two
+  stand-ins were tried and rejected, because each was worse than failing at once:
+  - A pragma at the head of every write batch. It runs after `BEGIN IMMEDIATE`, so a connection that has not yet
+    run one still takes the lock with no timeout. The mix of waiting and non-waiting connections stalled three
+    processes for more than 100 s.
+  - Re-running, in the adapter, a statement or batch that fails with `SQLITE_BUSY`. A connection with no busy
+    timeout gives up its pending lock on every attempt, so in rollback-journal mode readers kept writers from
+    committing. One run took 42 s and still failed.
+- **What changed.**
+  - `LeaseLocks` (`src/storage/sqlite/lease.ts`) treats a busy database like a held lock. An acquisition attempt
+    that fails with `SQLITE_BUSY` or `SQLITE_LOCKED` is retried after the existing jittered backoff, and an aborted
+    signal still stops it. A renewal that fails that way is retried after the same backoff, not a full interval
+    later. Any other error is handled as before. This covers every engine, including a custom `SqlDatabase` with no
+    busy timeout.
+  - `isBusy` (`src/storage/sqlite/busy.ts`) recognises the two codes in each engine's form: libSQL, better-sqlite3
+    and bun:sqlite's `code`; node:sqlite's `errcode`; libSQL's `rawCode`; sqlite-wasm's `resultCode`; and SQLite's
+    message.
+  - When a local libSQL client with no busy timeout reports `SQLITE_BUSY`, `fromLibsql` now names the fix in the
+    error: `… (this libSQL client has no busy timeout, … create it with one, as createClient({ url, timeout: 5000 }))`.
+    The original error is its cause. `fromLibsql`'s documentation says the same.
+- **Measured.** Three processes, 100 entries each, ran with clients created with `timeout: 5000`. They passed 3 of
+  3 runs, with 300 distinct indices, in 1.0–1.2 s; the node:sqlite test takes 1.1 s. With the timeout but without
+  the lease change they also passed. Without the timeout, they fail closed with the error above.
+- **Corrections.**
+  - In Alternatives, "keeps every existing call site working and correct, and only slower" holds for node:sqlite,
+    bun:sqlite and better-sqlite3, whose adapter sets a busy timeout. It also holds for the networked engines,
+    which arbitrate writes themselves. On libSQL, a `file:` database that several processes or clients open
+    also needs a client created with a busy timeout. Without one, contending writers fail with `SQLITE_BUSY`, and
+    the log is not forked.
+  - The Decision table's `fromLibsql` row and Consequences carry that condition from here on. The behaviour is
+    engine-specific, so `docs/guides/choosing-storage.md` now says so, and `README.md` needs the same sentence.
+- **Tests, with their engines.** The three-process append test is now shared (`testing/processes.ts`, with
+  `append_process.ts` taking an engine argument). It covers node:sqlite (`sqlite_test.ts`) and libSQL with a busy
+  timeout (`libsql_test.ts`). The two-witness race and the two-connection driver conformance run on node:sqlite.
+  libSQL's conformance runs a second store on a second client in one process. D1, rqlite, Durable Objects and
+  sqlite-wasm have no multi-process test. Their lease tests stand two `SqlDatabase`s over one database in for two
+  processes. New tests:
+  - `lease_test.ts`: busy acquisition retried, abort while busy, a non-busy error still fatal, busy renewal
+    retried early.
+  - `busy_test.ts`: real node:sqlite and libSQL busy errors, the other engines' forms, and look-alikes it must
+    reject.
+  - `libsql_test.ts`: the actionable error.
+- `pnpm interop` in Consequences is `bun run interop` since ADR-0240.

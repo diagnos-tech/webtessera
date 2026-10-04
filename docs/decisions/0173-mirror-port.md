@@ -104,3 +104,9 @@ mirror's per-run state is ADR-0176's update.
 - `jobString` now carries the `@internal` tag this ADR said it had.
 
 *Review of this update: approved, ADR review agent (independent), 2026-10-04. Reviewed in full, including divergence 7 and the widened Context added in 9849188. The widened zero-stride Context is correct (verified above on 6 explicit cases and 3,000 differential cases). The "2,895 cases" figure is not reproducible from the repository (I used my own 3,000), but the claim it supports holds on mine. Divergence 7 is correct as verified above, and `jobString` carries `@internal` in the code. `mirror_test.ts` adds the three unaligned cases (250 to 260 with 30 workers, 255 to 256 and 256 to 257 with 2), which all finish and pass fsck.*
+
+## Update (2026-10-04)
+
+`webtessera/mirror` is a port of Tessera's experimental mirror, a copy tool. It is unrelated to C2SP tlog-mirror, in
+which a mirror cosigns the checkpoints it serves. Neither `newMirror` nor `newVerifiedMirror` cosigns anything or
+implements that protocol.

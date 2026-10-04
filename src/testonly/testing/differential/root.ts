@@ -38,7 +38,14 @@ import {
 
 type Tree = readonly ["group", number, readonly Tree[]] | readonly ["witness", string, number, string];
 
-type PolicyRow = readonly [policy: string, err: string, tree?: Tree | "notUTF8", endpoints?: readonly string[]];
+/**
+ * PolicyRow is one recorded policy: Go's error text ("" for none), and then the group tree
+ * and endpoints Go built, or, for a policy Go rejects, the line its error comes from (the
+ * generator's policyErrLine: counted from 1, 0 when every line is accepted).
+ */
+type PolicyRow =
+	| readonly [policy: string, err: "", tree: Tree | "notUTF8", endpoints?: readonly string[]]
+	| readonly [policy: string, err: string, errLine: number];
 
 interface PolicyCorpus {
 	readonly cases: readonly PolicyRow[];
@@ -102,12 +109,74 @@ function policyHardening(message: string): DivergenceName | undefined {
 }
 
 /**
+ * portErrLine returns the line, counted from 1, whose processing gives the port's error
+ * message for policy p, found as the generator's policyErrLine finds Go's: by running the
+ * port on each prefix of whole lines followed by a valid "quorum none" line. It returns 0
+ * if no prefix fails with message.
+ */
+function portErrLine(p: Uint8Array, message: string): number {
+	const quorumNone = textToBytes("\nquorum none\n");
+	for (let line = 1, start = 0; start < p.length; line++) {
+		const nl = p.indexOf(0x0a, start);
+		const end = nl < 0 ? p.length : nl + 1;
+		const prefix = new Uint8Array(end + quorumNone.length);
+		prefix.set(p.subarray(0, end));
+		prefix.set(quorumNone, end);
+		const got = attempt(() => newWitnessGroupFromPolicy(prefix));
+		if (!got.ok && messageOf(got.error) === message) {
+			return line;
+		}
+		start = end;
+	}
+	return 0;
+}
+
+// laterInGroupLine matches the errors Go reports on a group line after the checks the port
+// adds there (its threshold of 0, and a child repeated before the one Go fails on).
+const laterInGroupLine = /^(invalid component name ".*"|unknown component ".*" in group definition)$/;
+
+/**
+ * goAgrees reports whether Go's verdict on a policy is the one the rule of the divergence
+ * the port applied permits: the port refuses line portLine, and Go processed every line
+ * before it as the port did (goLine is 0, or after them). For the URL entries, and for a
+ * verifier key repeated on a witness line, Go also accepts line portLine itself: its error,
+ * if any, comes later in the policy. For a threshold of 0 or a repeated child on a group
+ * line, Go may instead fail later on that same line, on a child the port never reaches. For
+ * witness-policy-utf8, Go's verdict on the invalid line itself is not constrained.
+ */
+function goAgrees(
+	hardening: DivergenceName,
+	message: string,
+	portLine: number,
+	goLine: number,
+	goErr: string,
+): boolean {
+	if (portLine === 0) {
+		return false;
+	}
+	if (goLine === 0 || goLine > portLine) {
+		return true;
+	}
+	if (goLine < portLine) {
+		return false;
+	}
+	switch (hardening) {
+		case "witness-policy-utf8":
+			return true;
+		case "witness-quorum-hardening":
+			return !message.startsWith("witness ") && laterInGroupLine.test(goErr);
+		default:
+			return false;
+	}
+}
+
+/**
  * checkPolicy compares the port's verdict on one policy with Go's: the same error text, or
  * the same group tree and endpoints, unless the port's rejection is one a documented
- * divergence permits.
+ * divergence permits and Go's verdict is the one that divergence's rule allows.
  */
 function checkPolicy(rep: DifferentialReport, rid: string, p: Uint8Array, row: PolicyRow): void {
-	const [, err, tree, endpoints] = row;
+	const err = row[1];
 	const got = attempt(() => newWitnessGroupFromPolicy(p));
 	if (!got.ok) {
 		const ts = messageOf(got.error);
@@ -115,26 +184,35 @@ function checkPolicy(rep: DifferentialReport, rid: string, p: Uint8Array, row: P
 			return;
 		}
 		const hardening = policyHardening(ts);
+		if (hardening === undefined) {
+			rep.fail(
+				rid,
+				err === "" ? `go accepted, ts rejected: ${ts}` : `err: go=${JSON.stringify(err)} ts=${JSON.stringify(ts)}`,
+			);
+			return;
+		}
 		if (hardening === "witness-policy-utf8" && validUTF8(p)) {
 			rep.fail(rid, "witness-policy-utf8 applied to a policy that is valid UTF-8");
 			return;
 		}
-		if (hardening !== undefined) {
-			rep.diverge(hardening);
+		const portLine = portErrLine(p, ts);
+		const goLine = err === "" ? 0 : (row[2] as number);
+		if (!goAgrees(hardening, ts, portLine, goLine, err)) {
+			rep.fail(
+				rid,
+				`${hardening} applied on line ${portLine}, but go ${err === "" ? "accepted" : `rejected on line ${goLine}: ${JSON.stringify(err)}`}`,
+			);
 			return;
 		}
-		rep.fail(
-			rid,
-			err === "" ? `go accepted, ts rejected: ${ts}` : `err: go=${JSON.stringify(err)} ts=${JSON.stringify(ts)}`,
-		);
+		rep.diverge(hardening);
 		return;
 	}
 	if (err !== "") {
 		rep.fail(rid, `go rejected (${err}), ts accepted`);
 		return;
 	}
-	rep.equal(rid, "tree", tree, treeOf(got.value));
-	rep.equal(rid, "endpoints", endpoints, [...got.value.endpoints().keys()].sort());
+	rep.equal(rid, "tree", row[2], treeOf(got.value));
+	rep.equal(rid, "endpoints", row[3], [...got.value.endpoints().keys()].sort());
 }
 
 function hashes(f: (b: Uint8Array) => Uint8Array[], b: Uint8Array): Hashes {

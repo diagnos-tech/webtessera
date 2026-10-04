@@ -91,3 +91,8 @@ faithfully in `append_lifecycle.ts`, and is noted where the tests depend on it.
     signal fails exactly "stops every background task once shut down and aborted"; bypassing the tree-state lock fails
     exactly "never assigns an index twice when two drivers share a store". `describeDriverConformance` has the ten cases.
   - Not blocking: "a restarted Durable Object" in the `reopen` description refers to the backend superseded by ADR-0150.
+
+## Update (2026-10-04)
+
+"A restarted Durable Object", in the `reopen` description, refers to the backend that ADR-0150 replaced. The SQLite
+backend's suites, including Durable Object storage in workerd, use the same `reopen` hook (ADR-0155).

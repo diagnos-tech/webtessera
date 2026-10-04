@@ -456,15 +456,65 @@ it("port addition: entryData matches the fixture corpus' entry scheme", () => {
 });
 
 describe("port addition: numWorkers below 1", () => {
-	// Go's EntryBundles blocks forever when numWorkers is 0, since its token bucket never
-	// holds a token; the port refuses such values up front (docs/decisions/0192).
-	for (const numWorkers of [0, -1, 1.5, Number.NaN]) {
+	// Go's numWorkers is a uint: a value it cannot hold is refused when entryBundles is
+	// called (docs/decisions/0192).
+	for (const numWorkers of [-1, 1.5, Number.NaN]) {
 		it(`throws a RangeError for numWorkers=${numWorkers}`, () => {
 			const size: TreeSizeFunc = async (): Promise<bigint> => 600n;
 			const getBundle: EntryBundleFetcherFunc = async (): Promise<Uint8Array> => new Uint8Array(0);
 			expect(() => entryBundles(numWorkers, size, getBundle, 0n, 600n)).toThrow(
 				new RangeError(`numWorkers must be an integer of at least 1, got ${numWorkers}`),
 			);
+		});
+	}
+
+	// With numWorkers == 0, Go's EntryBundles blocks forever once there is a bundle to fetch,
+	// since its token bucket never holds a token; otherwise it terminates normally. Each case
+	// was run against client.EntryBundles at the pinned commit (Go 1.24.7 and 1.25.5) with a
+	// 2s limit: the four empty ranges returned after no yields, the failing getSize yielded
+	// its error and returned, and the two non-empty ranges hung. No case called getBundle.
+	const zeroWorkers: { name: string; size: bigint | Error; from: bigint; n: bigint; want: string }[] = [
+		{ name: "empty tree", size: 0n, from: 0n, n: 600n, want: "done" },
+		{ name: "N=0", size: 600n, from: 0n, n: 0n, want: "done" },
+		{ name: "from at size", size: 600n, from: 600n, n: 10n, want: "done" },
+		{ name: "from beyond size", size: 600n, from: 700n, n: 10n, want: "done" },
+		{ name: "getSize fails", size: new Error("size boom"), from: 0n, n: 600n, want: "size boom" },
+		{ name: "non-empty", size: 600n, from: 0n, n: 600n, want: "numWorkers must be an integer of at least 1, got 0" },
+		{
+			name: "non-empty one entry",
+			size: 1n,
+			from: 0n,
+			n: 1n,
+			want: "numWorkers must be an integer of at least 1, got 0",
+		},
+	];
+	for (const tc of zeroWorkers) {
+		it(`numWorkers=0, ${tc.name}`, async () => {
+			const size: TreeSizeFunc = async (): Promise<bigint> => {
+				if (tc.size instanceof Error) {
+					throw tc.size;
+				}
+				return tc.size;
+			};
+			let fetches = 0;
+			const getBundle: EntryBundleFetcherFunc = async (): Promise<Uint8Array> => {
+				fetches++;
+				return new Uint8Array(0);
+			};
+			const g = entryBundles(0, size, getBundle, tc.from, tc.n);
+			let got = "done";
+			try {
+				for await (const _ of g) {
+					got = "yielded a bundle";
+				}
+			} catch (err) {
+				got = (err as Error).message;
+				if (tc.want.startsWith("numWorkers")) {
+					expect(err).toBeInstanceOf(RangeError);
+				}
+			}
+			expect(got).toBe(tc.want);
+			expect(fetches).toBe(0);
 		});
 	}
 });

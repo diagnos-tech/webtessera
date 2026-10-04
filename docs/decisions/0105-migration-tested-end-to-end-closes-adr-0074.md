@@ -81,3 +81,14 @@ ADR-0074 itself is not edited; this ADR supersedes its "Not covered" list for th
     not this ADR's to edit, but this ADR must drop the reference and say that upstream has no such test.
   - The remaining claims check out: each migration takes at least a second (`awaitIntegration` polls once a second, as
     `files.go` does); the antispam-populating path is untested end to end.
+
+## Update (2026-10-04): the upstream reference is dropped
+
+This answers the Review above. Upstream has no migration test at 4a6d9f9. Nothing in `integration/`, in any
+`*_test.go` or in `.github/` mentions migration. `grep -ril migrat` over the test files and workflows finds
+nothing. `integration/integration_test.go` is `TestLiveLogIntegration`, which only appends to and verifies a live
+log. That file should be read as removed from this ADR's Upstream reference, and the tests this ADR describes add
+coverage rather than port it. The same premise is corrected:
+- in ADR-0074, by an update note;
+- in the header of `src/storage/objectstore/driver_migration_test.ts`, which now says that upstream has no test
+  of the migration lifecycle.

@@ -1,6 +1,6 @@
 # ADR-0033: Port Go testable examples as assertion tests
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** layout agent
 - **Upstream reference:** `api/layout/example_test.go`

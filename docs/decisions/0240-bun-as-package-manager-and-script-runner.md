@@ -217,3 +217,39 @@ Biome prints for existing files (`biome check .` is clean on the same files befo
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
+
+## Update (2026-10-04): what Bun does with a workspace-root dependency; figures
+
+This answers the two requests and the smaller points of the Review above. The conclusion stands: the root is
+linked by `scripts/prepare.mjs`. The evidence for it was wrong, and is corrected here.
+
+- **The workspace-root evidence, re-run.** The section "The workspace root cannot be a workspace dependency" quotes
+  errors that do not reproduce on Bun 1.3.14. The reviewer tried a minimal workspace and a copy of this repository's
+  manifests, and this update repeated the minimal case. A root package and one example depended on it with each
+  form in turn:
+  - `workspace:*` fails (`failed to resolve`, or `Workspace dependency … not found`), and listing `"."` among the
+    `workspaces` changes nothing, as the section says. `link:../..` names `bun link`'s global registry, not a path,
+    as the section says.
+  - `workspace:.` does not fail. It installs `examples/<x>/node_modules/<root> -> ..`, a link to the example itself,
+    not to the root.
+  - `workspace:../..` and `file:../..` do not fail either. They install a copy of the root under
+    `node_modules/.bun/<root>@root/`, linked from the example. Its files are hard links to the files the root had at
+    install time, so a file added later, such as a rebuilt `dist/`, does not appear in it.
+
+  So none of the forms gives the example a live link to the root. That is the reason for the script-made
+  `node_modules/webtessera -> ..` link, which follows `exports` into the current `dist/` as a consumer's install
+  would. The quoted "No matching version" and `Could not find package.json` errors should be read as withdrawn.
+- **esbuild now resolves from the root.** "In the isolated layout the workspace root cannot resolve `vite`,
+  `esbuild` or `shiki`" was true when written. `esbuild` became a root devDependency in cfb1824 (`server_test.ts`
+  bundles with it), and `require.resolve("esbuild")` from the root now succeeds. `vite` and `shiki` still do not
+  resolve from the root.
+- **Figures that have moved.** These were measured at the review:
+  - the unit suite on Node: 122 files and 3,439 tests (the ADR says 98 files and 2,985 tests), and 123 files and
+    3,480 tests after the other 2026-10-04 fixes;
+  - the packed tarball: 527 files (the ADR says 443);
+  - the workspace: six examples plus `site` (the ADR says "three manifests"). Each declares `webtessera` as an
+    optional peer dependency.
+- **A global `bunfig.toml`.** The Review could not make a global `~/.bunfig.toml` with `[run] bun = true` take
+  effect for `bun run`, though a project-level one does. `bunfig.toml`'s `bun = false`, kept against the global
+  case, is harmless if that case cannot arise. Its comment's claim that a personal setting "would silently move every
+  such script onto Bun's runtime" is unverified on Bun 1.3.14.

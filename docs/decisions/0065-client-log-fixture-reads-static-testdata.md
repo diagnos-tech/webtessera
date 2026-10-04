@@ -1,6 +1,6 @@
 # ADR-0065: `client_log` fixture reads back upstream's static `testdata/log`, and exposes its signing key
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** client agent
 - **Upstream reference:** `client/client_test.go`, `testdata/build_log.sh`, `testdata/log/**`

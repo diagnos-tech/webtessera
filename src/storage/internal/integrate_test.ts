@@ -25,7 +25,7 @@ import { bytesEqual, toHex } from "../../internal/gostd/bytes.ts";
 import type { NodeID } from "../../vendor/merkle/compact/index.ts";
 import { newNodeID, RangeFactory } from "../../vendor/merkle/compact/index.ts";
 import { DefaultHasher } from "../../vendor/merkle/rfc6962/rfc6962.ts";
-import { integrate, newTileWriteCache, newTreeBuilder, type populatedTile } from "./integrate.ts";
+import { integrate, minImpliedTreeSize, newTileWriteCache, newTreeBuilder, type populatedTile } from "./integrate.ts";
 import { TileID, tileIDKey } from "./tileid.ts";
 
 describe("storage/internal/integrate", () => {
@@ -290,6 +290,30 @@ describe("storage/internal/integrate", () => {
 				cause: expect.objectContaining({ message: "Prewarm: boom" }),
 			});
 		});
+	});
+
+	// minImpliedTreeSize is `(id.Index * layout.TileWidth) << (id.Level * 8)` on uint64s:
+	// the product wraps, the shift count wraps, and a count of 64 or more yields 0
+	// (docs/decisions/0014-uint64-wrapping-made-explicit.md). The expected values were
+	// printed by storage/internal's minImpliedTreeSize at the pinned commit under Go 1.25.5.
+	describe("port additions: minImpliedTreeSize wraps as Go's uint64 does", () => {
+		const tests = [
+			{ level: 0n, index: 1n, want: 256n },
+			{ level: 1n, index: 1n, want: 65536n },
+			{ level: 7n, index: 1n, want: 0n },
+			{ level: 8n, index: 1n, want: 0n },
+			{ level: 0n, index: 72057594037927936n, want: 0n },
+			{ level: 0n, index: 18446744073709551615n, want: 18446744073709551360n },
+			{ level: 2305843009213693952n, index: 3n, want: 768n },
+			{ level: 2305843009213693953n, index: 3n, want: 196608n },
+			{ level: 2305843009213693953n, index: 81985529216486895n, want: 5001117282205630464n },
+			{ level: 18446744073709551615n, index: 1n, want: 0n },
+		];
+		for (const tc of tests) {
+			it(`{${tc.level} ${tc.index}}`, () => {
+				expect(minImpliedTreeSize(new TileID(tc.level, tc.index))).toBe(tc.want);
+			});
+		}
 	});
 });
 

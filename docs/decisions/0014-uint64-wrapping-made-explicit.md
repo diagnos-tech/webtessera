@@ -205,3 +205,40 @@ correct: item 3 of the Review above.*
 the negative-shift correction is right (a negative signed count panics in Go, `x << uint(n)` saturates) and `bits.ts` and its tests now say so;
 the merkle differential harness passes today. Two things to correct: item 2 of the Review above ("every computed shift"), and
 the fact that the unreachability claim about `getMergePath` in Consequences, which this update leaves standing, is wrong (item 1).*
+
+## Update (2026-10-04): the reachable `getMergePath` wrap fails as Go does; two corrections
+
+This answers the three points of the Review above. The decision is unchanged.
+
+1. **The degenerate case is reachable, and the port now fails there as Go does.** The Consequences bullet that calls
+   it unreachable is wrong. `begin = mid = 0, end = MaxUint64` satisfies `begin <= mid <= end` and gives `high == 0`,
+   and it is the only input within the precondition that does: `high` from `begin` is 0 only when `mid < begin`, and
+   `high2` is 0 only when `end == mid - 1` modulo 2^64, which with `mid <= end` means `mid = 0, end = MaxUint64`.
+   `NewEmptyRange(0).AppendRange(r)` with `r = NewRange(0, MaxUint64, 64 hashes)` reaches it. Go (`merkle@v0.0.2`,
+   run under Go 1.24.7 and 1.25.5) does not clamp `uint(high-1) = MaxUint`, so the merge loop runs: it calls the
+   visitor 63 times, for nodes `(65, 0)` to `(127, 0)`, then panics with
+   `runtime error: index out of range [63] with length 63` and leaves the range unchanged. The port used to clamp
+   `high` to `low` and return normally. `Range.#appendImpl` (`src/vendor/merkle/compact/range.ts`) now reads
+   `getMergePath`'s `-1` as Go's `MaxUint` in the two comparisons, which are unsigned in Go: the clamp and the loop
+   bound. It keeps `-1` in the arithmetic, where it already yields Go's values: `shiftLeft64(1n, high - low)` saturates
+   to 0, so the mask is all ones, and `zeros` is negative, as Go's `int(high-low)` is. Go's bounds check on
+   `hashes[idx2]` is written out, and it throws Go's panic text, as ADR-0004 maps a panic. The visits, the last merged
+   hash and the unchanged range match Go. The test is `range_test.ts`, "panics as Go does when [0, MaxUint64) is
+   appended to an empty range". It replays the values the Go probe printed. `getMergePath`'s doc comment carries a
+   Port note on its `-1`. The last alternative still stands: matching Go here takes one flag, not `bigint` shift
+   counts.
+2. **One computed shift upstream is signed.** The second 2026-10-02 update says every computed shift upstream writes
+   the `uint(...)` conversion. It has one exception: `index>>inner` in `proof.nodes` (`proof.go:96`), where `inner` is
+   an `int`. A negative count would panic in Go ("negative shift amount"), but `shiftRight64` yields 0. The count
+   cannot be negative. `inner` is `Len64(index ^ (size>>level)) - 1`, which is -1 only when `index == size>>level`.
+   `Inclusion` rejects `index >= size` first. In `Consistency`, `index = (size1-1)>>level` is less than
+   `size1>>level <= size2>>level`. So that sentence should read "every computed shift except `index>>inner` in
+   `proof.nodes`, whose count is never negative".
+3. **`minImpliedTreeSize` now has the test the first 2026-10-02 update claimed.** It is exported as `@internal` (ADR-0010).
+   `integrate_test.ts`, "port additions: minImpliedTreeSize wraps as Go's uint64 does", checks ten tile IDs against
+   the values `storage/internal`'s `minImpliedTreeSize` printed at the pinned commit under Go 1.25.5. They include a
+   wrapped product (`index = 2^56` and `MaxUint64`), a shift count of 64 (`level = 8`), and a wrapped shift count
+   (`level = 2^61`, `2^61 + 1` and `MaxUint64`).
+
+The non-blocking note also holds: `bits.ts` has grown beyond the 110 lines that Consequences gives, and it now
+includes `assertUint64` (ADR-0207).
