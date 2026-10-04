@@ -1,5 +1,5 @@
 {
-  "description": "Upstream Go tests deliberately left without a TypeScript counterpart, read by scripts/test-parity.mjs (pnpm test:parity). A key is \"<Go import path>.<test name>\", where \"*\" matches any run of characters. Every entry cites the ADR that decided it; the script fails if an ADR is missing, if an entry no longer matches anything, or if a listed test has since been ported.",
+  "description": "Upstream Go tests deliberately left without a TypeScript counterpart, read by scripts/test-parity.mjs (bun run test:parity). A key is \"<Go import path>.<test name>\", where \"*\" matches any run of characters. Every entry cites the ADR that decided it; the script fails if an ADR is missing, if an entry no longer matches anything, or if a listed test has since been ported.",
   "entries": {
     "*.Benchmark*": {
       "adrs": ["0034"],
@@ -47,7 +47,7 @@
     },
     "github.com/transparency-dev/tessera/integration*": {
       "adrs": ["0141"],
-      "reason": "integration/ (the live-log suite and fault injection) is not ported as files; describeDriverConformance covers every backend end to end, and pnpm interop drives the real Go code."
+      "reason": "integration/ (the live-log suite and fault injection) is not ported as files; describeDriverConformance covers every backend end to end, and bun run interop drives the real Go code."
     },
     "github.com/transparency-dev/tessera/internal/hammer*": {
       "adrs": ["0141"],

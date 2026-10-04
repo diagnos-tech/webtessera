@@ -13,7 +13,6 @@
     "ci": "tsc --noEmit && vitest run"
   },
   "dependencies": {
-    "webtessera": "workspace:*",
     "webtessera-example-log-server": "workspace:*"
   },
   "devDependencies": {
@@ -22,5 +21,13 @@
     "typescript": "5.9.3",
     "vitest": "4.1.11",
     "wrangler": "4.124.0"
+  },
+  "peerDependencies": {
+    "webtessera": "*"
+  },
+  "peerDependenciesMeta": {
+    "webtessera": {
+      "optional": true
+    }
   }
 }

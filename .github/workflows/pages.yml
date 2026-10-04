@@ -46,7 +46,7 @@ jobs:
       - name: Build and smoke-test the site
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}
-        run: pnpm --filter webtessera-site run ci
+        run: bun run --filter webtessera-site ci
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

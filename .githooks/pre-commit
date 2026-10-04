@@ -1,0 +1,57 @@
+#!/bin/sh
+# Pre-commit hook: checks the formatting and lint of what is about to be committed, so that CI's
+# `bun run lint` and gofmt checks (.github/workflows/_quality.yml) do not fail on a commit
+# that could have said so in a second.
+#
+# `bun install` enables it (scripts/prepare.mjs sets core.hooksPath to .githooks). Skip it for
+# one commit with `git commit --no-verify`; CI still runs the same checks.
+#
+# It only checks. It never rewrites a file, because a hook that edits files behind the committer's
+# back commits something other than what they staged. The messages say how to repair. Both tools
+# read the working tree, so a file staged in part is checked as it is on disk, not as it is in
+# the index.
+#
+# Deliberately cheap: Biome on the staged files and gofmt on the staged Go files, no type check
+# and no tests. Those take longer than a commit should; `bun run check` runs them.
+
+set -eu
+
+# Run from the top of the working tree, whichever directory the commit was made from.
+cd "$(git rev-parse --show-toplevel)"
+
+failed=0
+
+# Biome: TypeScript, JavaScript, JSON, CSS and imports. --staged limits it to the index and
+# --no-errors-on-unmatched keeps a commit of only Markdown or Go from failing for lack of files.
+# --no-install: use the Biome that package.json pins and nothing else, and do not go online.
+if command -v bunx >/dev/null 2>&1; then
+	bunx --no-install biome check --staged --no-errors-on-unmatched || failed=1
+elif [ -x node_modules/.bin/biome ] && command -v node >/dev/null 2>&1; then
+	# A git client that does not see Bun on its PATH: Biome's launcher only needs Node.
+	node_modules/.bin/biome check --staged --no-errors-on-unmatched || failed=1
+else
+	echo "pre-commit: Biome is not installed (run 'bun install'), so formatting and lint were not checked" >&2
+fi
+if [ "$failed" -ne 0 ]; then
+	echo "pre-commit: Biome found problems in the staged files; 'bun run lint:fix' repairs most of them" >&2
+fi
+
+# gofmt: the Go in fixtures/gen and interop. Names are split on whitespace, which is safe
+# here: no Go file in this repository has a space in its name.
+go_files="$(git diff --cached --name-only --diff-filter=ACMR -- '*.go')"
+if [ -n "$go_files" ]; then
+	if command -v gofmt >/dev/null 2>&1; then
+		# shellcheck disable=SC2086 # splitting is intended, see above
+		unformatted="$(gofmt -l $go_files)"
+		if [ -n "$unformatted" ]; then
+			echo "pre-commit: these Go files are not gofmt-formatted:" >&2
+			echo "$unformatted" | sed 's/^/  /' >&2
+			echo "pre-commit: 'gofmt -w' on them repairs it" >&2
+			failed=1
+		fi
+	else
+		echo "pre-commit: gofmt is not installed, so the staged Go files were not checked" >&2
+	fi
+fi
+
+exit "$failed"

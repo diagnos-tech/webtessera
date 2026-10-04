@@ -3,7 +3,7 @@
 - **Status:** proposed | accepted | rejected | superseded by ADR-NNNN
 - **Date:** YYYY-MM-DD
 - **Author:** <name or GitHub handle>
-- **Upstream reference:** <path(s) in the upstream checkout (`.upstream/tessera`, from `pnpm upstream`), or "n/a">
+- **Upstream reference:** <path(s) in the upstream checkout (`.upstream/tessera`, from `bun run upstream`), or "n/a">
 
 ## Context
 

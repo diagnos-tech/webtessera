@@ -17,7 +17,7 @@
 // in Chromium by guard_browser_test.ts, and the workerd half by server_workers_test.ts.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -171,11 +171,9 @@ describe("webtessera/server", () => {
 		}
 
 		describe("with esbuild, the bundler under Vite, wrangler and Bun's", () => {
-			// esbuild is a dependency of vitest's Vite, so it is in pnpm's store but not
-			// importable by name from here.
-			const store = new URL("../../node_modules/.pnpm/", import.meta.url).pathname;
-			const dirName = readdirSync(store).find((d) => d.startsWith("esbuild@"));
-			const esbuild = createRequire(`${store}${dirName}/node_modules/esbuild/`)("esbuild") as {
+			// A root dev dependency, pinned to the version Vite and wrangler resolve, so that the
+			// guard is tested against the bundler that real toolchains run.
+			const esbuild = createRequire(import.meta.url)("esbuild") as {
 				build(o: Record<string, unknown>): Promise<{ outputFiles: { text: string }[] }>;
 			};
 

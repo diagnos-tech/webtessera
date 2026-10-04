@@ -12,14 +12,14 @@ only adds the copy buttons and the live demo; the page reads completely without 
 From the repository root:
 
 ```sh
-pnpm install
-pnpm --filter webtessera-site dev        # dev server; edits to the repository reload the page
-pnpm --filter webtessera-site build      # builds the library, then the page into site/dist
-pnpm --filter webtessera-site preview    # serves site/dist at http://localhost:4173/webtessera/
-pnpm --filter webtessera-site typecheck  # type-checks the generator, the demo and the scripts
-pnpm --filter webtessera-site smoke      # smoke-tests site/dist in Chromium (build first)
-pnpm --filter webtessera-site ci         # build + typecheck + smoke, as CI runs it
-pnpm --filter webtessera-site og         # regenerates public/og.png and the PNG icons
+bun install
+bun run --cwd site dev        # dev server; edits to the repository reload the page
+bun run --cwd site build      # builds the library, then the page into site/dist
+bun run --cwd site preview    # serves site/dist at http://localhost:4173/webtessera/
+bun run --cwd site typecheck  # type-checks the generator, the demo and the scripts
+bun run --cwd site smoke      # smoke-tests site/dist in Chromium (build first)
+bun run --cwd site ci         # build + typecheck + smoke, as CI runs it (it uses --filter webtessera-site)
+bun run --cwd site og         # regenerates public/og.png and the PNG icons
 ```
 
 The smoke test and `og` drive Chromium through Playwright, a development dependency of the workspace
@@ -40,7 +40,7 @@ site's `robots.txt` is not at the root of its host, where crawlers look for it.
 The public URL defaults to the repository's Pages URL, derived from `repository` in the root
 `package.json`. In CI it comes from `actions/configure-pages`, so a custom domain configured in the
 Pages settings is picked up automatically. To build for another address, set `SITE_URL`
-(`SITE_URL=https://example.org/ pnpm --filter webtessera-site build`): the base path, canonical URL,
+(`SITE_URL=https://example.org/ bun run --cwd site build`): the base path, canonical URL,
 Open Graph tags, JSON-LD, sitemap and `robots.txt` follow it.
 
 ## What is generated, and from where
@@ -82,6 +82,6 @@ footer's link list.
 - `src/styles/` are plain CSS files with light and dark tokens; system fonts only, no third-party
   requests.
 - `public/og.png`, `public/favicon.png` and `public/apple-touch-icon.png` are rendered by
-  `scripts/og.ts` and committed. Rerun `pnpm --filter webtessera-site og` after changing the design.
+  `scripts/og.ts` and committed. Rerun `bun run --cwd site og` after changing the design.
 - `types/node.d.ts` declares the handful of Node APIs the build-time code uses, since the site has
   no `@types/node` of its own.

@@ -7,7 +7,7 @@ anyone has started on it, so that an omission is visible as a row rather than as
 Regenerate the upstream list from the pinned checkout:
 
 ```sh
-pnpm upstream
+bun run upstream
 (cd .upstream/tessera && find . -name '*.go' -not -path './.git/*' | sort)
 ```
 
@@ -295,11 +295,11 @@ Tessera repository. Add tables here as they land.
   | — | `src/storage/memory/index.ts` | done | — | barrel for `webtessera/storage/memory` — ADR-0104 |
   | — | `src/storage/memory/memory_test.ts` | done | 26 / — | the 19 `ObjectStore` contract cases plus 7 memory-specific ones (key listing, copying a view, abandoned lock waiters, `newMemoryDriver`'s store and `fetch`) — ADR-0104, ADR-0142 |
   | — | `src/storage/memory/memory_driver_test.ts` | done | 10 / — | `describeDriverConformance("memory")` — ADR-0106 |
-  | — | `src/storage/memory/memory_golden_workers_test.ts` | done | 25 / — | the golden suite on the memory backend inside workerd (`pnpm test:workers`) — ADR-0160 |
+  | — | `src/storage/memory/memory_golden_workers_test.ts` | done | 25 / — | the golden suite on the memory backend inside workerd (`bun run test:workers`) — ADR-0160 |
 
 - **`src/storage/indexeddb/`** — browser persistence in an IndexedDB database, with cross-tab exclusion
-  through Web Locks. Tested under Node against `fake-indexeddb` (`pnpm test:unit`) and in real Chromium
-  (`pnpm test:browser`).
+  through Web Locks. Tested under Node against `fake-indexeddb` (`bun run test:unit`) and in real Chromium
+  (`bun run test:browser`).
 
   | Go path | TS path | status | tests (TS/Go) | notes |
   | --- | --- | --- | --- | --- |
@@ -314,8 +314,8 @@ Tessera repository. Add tables here as they land.
 - **`src/storage/sqlite/`** — the SQLite backend: one `ObjectStore` over any SQLite engine, through a small
   structurally typed adapter per engine. It replaces the Durable Object backend, which was one engine's
   worth of it (ADR-0120 to ADR-0123 are superseded). Tested on node:sqlite and libSQL in Node
-  (`pnpm test:unit`), sqlite-wasm in Chromium (`pnpm test:browser`), D1 and SQLite-backed Durable Objects in
-  workerd (`pnpm test:workers`), and a live rqlite (`pnpm test:services`); `scripts/smoke-sqlite.mjs` checks
+  (`bun run test:unit`), sqlite-wasm in Chromium (`bun run test:browser`), D1 and SQLite-backed Durable Objects in
+  workerd (`bun run test:workers`), and a live rqlite (`bun run test:services`); `scripts/smoke-sqlite.mjs` checks
   the built package on Node, Bun and Deno. ADR-0150 to ADR-0155.
 
   | Go path | TS path | status | tests (TS/Go) | notes |
@@ -334,7 +334,7 @@ Tessera repository. Add tables here as they land.
   | — | `src/storage/sqlite/adapters/wasm_browser_test.ts`, `wasm_golden_browser_test.ts` | done | 113 and 25 / — | sqlite-wasm in real Chromium (memory, lease locking, D1's limits), and the golden suite |
   | — | `src/storage/sqlite/adapters/d1_workers_test.ts`, `durableobject_workers_test.ts`, `sqlite_golden_workers_test.ts` | done | 85, 87 and 50 / — | workerd: D1 and a SQLite-backed Durable Object, plain and under production limits with 4 KiB chunks, concurrent drivers on one database, reset, resume and eviction of an object, and the golden suite on both |
   | — | `src/storage/sqlite/adapters/rqlite_workers_test.ts` | done | 1 / — | workerd accepts the rqlite adapter's fetch policy — ADR-0213. `testing/append_process.ts` is a test-only child process for the multi-process append test — ADR-0210 |
-  | — | `src/storage/sqlite/adapters/rqlite_services_test.ts` | done | 78 / — | a live rqlite (`pnpm test:services`, configured through `RQLITE_URL`; counted from the source, which `pnpm test:unit` does not run): both conformance suites, the behaviour suite, concurrent drivers on separate clients, and the golden suite — ADR-0155 |
+  | — | `src/storage/sqlite/adapters/rqlite_services_test.ts` | done | 78 / — | a live rqlite (`bun run test:services`, configured through `RQLITE_URL`; counted from the source, which `bun run test:unit` does not run): both conformance suites, the behaviour suite, concurrent drivers on separate clients, and the golden suite — ADR-0155 |
   | — | `src/storage/sqlite/testing/` | done | — | test-only: `behaviour.ts` (the 22 engine-neutral behaviour cases), `concurrent.ts`, `fake_rqlite.ts`, `prefix_cases.ts`, `stores.ts`, `strict.ts` (a `SqlDatabase` double enforcing D1's and Durable Objects' limits), `node.d.ts`, and `workers/` (the test Worker, its Durable Object class and Wrangler config). Excluded from the published build |
 
 - **`src/http/`** — serving a log over HTTP, as a handler of the Fetch API's `Request` and `Response`. Upstream
@@ -377,7 +377,7 @@ Tessera repository. Add tables here as they land.
   | — | `src/mirror/mirror_test.ts`, `sink_test.ts`, `s3_test.ts`, `verify_test.ts` | done | 12, 3, 14 and 16 / — | `jobs`, `Mirror` (including the zero-stride case, which hangs without the fix) and `retry`; sinks and targets; the S3 sink against the fake; the verifying source and mirror |
   | — | `src/mirror/sigv4_test.ts` | done | 38 / — | 27 cases from the AWS SigV4 test suite and one that lists the 11 it does not run, with a reason for each (they normalise paths, carry dot segments `fetch` cannot send, or leave the token unsigned), 6 S3 request shapes against `aws4fetch`, and 4 helper cases |
   | — | `src/mirror/s3_workers_test.ts` | done | 1 / — | workerd accepts the S3 sink's fetch policy (credentials omitted, redirects refused) — ADR-0213 |
-  | — | `src/mirror/s3_services_test.ts` | done | 3 / — | a live S3-compatible server (`pnpm test:services`, configured through the `S3_*` variables; counted from the source): storing and reading objects with the tlog-tiles metadata, and a verified mirror that resumes — ADR-0175 |
+  | — | `src/mirror/s3_services_test.ts` | done | 3 / — | a live S3-compatible server (`bun run test:services`, configured through the `S3_*` variables; counted from the source): storing and reading objects with the tlog-tiles metadata, and a verified mirror that resumes — ADR-0175 |
 
 - **`src/safe/`, `src/server/`, `src/browser/`** — the safe API: a small layer that composes ported functions
   into a log that cannot be misused, with no Go counterpart (ADR-0220 to ADR-0227). Published as

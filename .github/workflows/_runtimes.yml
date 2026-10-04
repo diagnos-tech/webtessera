@@ -5,7 +5,10 @@
 # Each matrix entry carries the command that starts a script on that runtime, so the
 # permissions Deno needs are data rather than branching in the steps. Bun is taken at its latest
 # release and Deno at the newest 2.x, which is the point of the job: it should notice when a
-# runtime release breaks the package.
+# runtime release breaks the package. (The package manager is a different matter: the setup
+# action installs the Bun version pinned in package.json for `bun install` and `bun run build`,
+# and the "Set up Bun" step below replaces it with the latest release only to run the smoke
+# tests.)
 #
 # Reusable workflow, called by ci.yml.
 name: Runtimes
@@ -39,7 +42,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: pnpm build
+      - run: bun run build
 
       - name: Set up Bun
         if: matrix.runtime == 'bun'

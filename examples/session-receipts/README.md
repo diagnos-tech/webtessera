@@ -39,7 +39,7 @@ Anyone holding the session log's vkey and the server's witness vkey can then aud
 
 ## Run it
 
-Build the library once at the repository root (`pnpm build` or `bun run build`). Then, in this
+Build the library once at the repository root (`bun run build`). Then, in this
 directory, generate the witness's key and start the server on any of the three runtimes:
 
 ```sh
@@ -63,7 +63,7 @@ S3_ACCESS_KEY_ID=minioadmin S3_SECRET_ACCESS_KEY=minioadmin node --env-file=.env
 Then serve the page, which proxies the server's routes so that both share one origin:
 
 ```sh
-npx vite          # or: bun x vite, pnpm vite — then open http://localhost:5173
+bun x vite        # or: npx vite — then open http://localhost:5173
 ```
 
 Save, load and delete notes. Each exchange appears with its receipt's verdict ("✓ in a tree of 2,

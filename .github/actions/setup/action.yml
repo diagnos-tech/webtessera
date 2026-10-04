@@ -1,13 +1,18 @@
-# Installs the toolchain every job needs: pnpm (the version pinned by "packageManager" in
+# Installs the toolchain every job needs: Bun (the version pinned by "packageManager" in
 # package.json), Node.js, and the workspace dependencies from the lockfile.
 #
-# Why it is a composite action: the steps must stay in this order (pnpm before setup-node,
-# whose `cache: pnpm` shells out to it) and every job needs the same ones, so one copy keeps
-# them from drifting. Third-party actions are pinned to a commit SHA, with the release in a
+# Why both runtimes: Bun is the package manager and script runner (`bun install`, `bun run`),
+# but the test suites run on Node (Vitest and its Chromium and workerd pools; Node 22 and 24
+# are supported targets) and the release publishes with npm, which ships with Node. Bun finds
+# Node on PATH and leaves it alone; without one it would silently alias `node` to itself, so
+# Node must be set up here for every job, including those that only need Bun's CLI.
+#
+# Why it is a composite action: every job needs the same steps, and keeping them in one place
+# stops them drifting. Third-party actions are pinned to a commit SHA, with the release in a
 # comment for Dependabot to maintain.
 name: Set up toolchain
 description: >-
-  Install pnpm and Node.js with the pnpm store cached, then install the workspace dependencies
+  Install Bun and Node.js, restore Bun's install cache, and install the workspace dependencies
   from the lockfile.
 
 inputs:
@@ -17,26 +22,52 @@ inputs:
     default: ""
   install:
     description: >-
-      Whether to run `pnpm install --frozen-lockfile`. Jobs that only need the pnpm CLI and Node
-      (a zero-dependency script) set this to "false" and skip the store cache as well.
+      Whether to restore Bun's cache and run `bun install --frozen-lockfile`. Jobs that only need
+      the Bun CLI and Node (a zero-dependency script) set this to "false" and skip both.
     required: false
     default: "true"
 
 runs:
   using: composite
   steps:
-    - name: Set up pnpm
-      uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+    # The version comes from package.json ("packageManager": "bun@x.y.z"), so the CI, the
+    # contributors' machines and the lockfile all agree on one Bun. The action caches the Bun
+    # executable itself; the packages Bun installs are cached below.
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      with:
+        bun-version-file: package.json
 
     # Exactly one of node-version and node-version-file is set: setup-node warns when both are.
+    # `package-manager-cache: false` because setup-node's own cache knows npm, Yarn and pnpm, not
+    # Bun; it would find nothing to cache at best.
     - name: Set up Node.js
       uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version: ${{ inputs.node-version }}
         node-version-file: ${{ inputs.node-version == '' && '.nvmrc' || '' }}
-        cache: ${{ inputs.install == 'true' && 'pnpm' || '' }}
+        package-manager-cache: false
 
+    # Bun's global install cache holds every package tarball it has extracted; `bun install`
+    # fills node_modules from it, by hardlink. The key is the lockfile, so a dependency change
+    # starts a fresh cache entry, seeded from the closest older one: only the packages that
+    # changed are downloaded. The OS and CPU are in the key because optional native packages
+    # (esbuild, workerd, Biome) are fetched per platform.
+    - name: Cache Bun's install cache
+      if: inputs.install == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.bun/install/cache
+        key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          bun-${{ runner.os }}-${{ runner.arch }}-
+
+    # `--frozen-lockfile` fails if bun.lock is out of step with the package.json files, so the
+    # dependencies are exactly the ones that were reviewed. This also runs the root `prepare`
+    # script (links the library into the workspace, see scripts/prepare.mjs) and the install
+    # scripts of the packages listed in "trustedDependencies" (esbuild, workerd); Bun runs no
+    # other package's scripts.
     - name: Install dependencies
       if: inputs.install == 'true'
       shell: bash
-      run: pnpm install --frozen-lockfile
+      run: bun install --frozen-lockfile

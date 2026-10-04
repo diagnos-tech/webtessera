@@ -1,6 +1,11 @@
 # The test suites, one job per runtime: Node (a version matrix), real Chromium, workerd, and
 # the suites that need external services.
 #
+# `bun run` only starts Vitest: it executes under the Node that ./.github/actions/setup installs
+# (the matrix version, for the unit job), never under Bun's runtime. Vitest's pools and the
+# Node 22 and 24 support are what these jobs exist to prove; docs/decisions/0240 has the
+# evidence for why Bun's runtime cannot stand in for Node here.
+#
 # Reusable workflow, called by ci.yml.
 name: Test
 
@@ -28,7 +33,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           node-version: ${{ matrix.node }}
-      - run: pnpm test:unit
+      - run: bun run test:unit
 
   # The IndexedDB driver against the browser's own IndexedDB and Web Locks.
   browser:
@@ -41,7 +46,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/setup-browsers
-      - run: pnpm test:browser
+      - run: bun run test:browser
       # Failure screenshots are the quickest way to see what a headless browser saw.
       - name: Upload browser test attachments
         if: failure()
@@ -63,7 +68,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: pnpm test:workers
+      - run: bun run test:workers
 
   # Suites that talk to real rqlite and S3-compatible servers (see actions/services).
   services:
@@ -76,7 +81,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/services
-      - run: pnpm test:services
+      - run: bun run test:services
       - name: Show the service logs
         if: failure()
         run: docker compose --file .github/actions/services/compose.yaml logs --no-color

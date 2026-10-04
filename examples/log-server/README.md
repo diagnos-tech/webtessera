@@ -29,7 +29,7 @@ What it serves is byte for byte a Tessera log: Tessera's own Go client verifies 
 
 ## Run it
 
-You need the library built once, from the repository root: `pnpm build` (or `bun run build`).
+You need the library built once, from the repository root: `bun run build`.
 Then, in this directory:
 
 ```sh
@@ -40,7 +40,7 @@ bun src/main.ts                                   # Bun (reads .env itself)
 deno run --env-file --allow-net --allow-read --allow-write --allow-env src/main.ts   # Deno 2
 ```
 
-`npm run start:node`, `start:bun` and `start:deno` (or `bun run …`, `pnpm …`) are the same
+`npm run start:node`, `start:bun` and `start:deno` (or `bun run …`) are the same
 commands. The server listens on `127.0.0.1:8080`; `PORT`, `HOST` and `LOG_DB` (default `log.db`)
 change that.
 

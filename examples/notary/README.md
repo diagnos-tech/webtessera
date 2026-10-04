@@ -30,7 +30,7 @@ can be monitored ([`../monitor`](../monitor)).
 
 ## Run it
 
-Build the library once at the repository root (`pnpm build` or `bun run build`), then:
+Build the library once at the repository root (`bun run build`), then:
 
 ```sh
 node scripts/keygen.ts notary.localhost/v1 > .env    # NOTARY_SKEY (secret), NOTARY_VKEY (publish)

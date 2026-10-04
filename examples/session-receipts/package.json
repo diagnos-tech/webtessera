@@ -24,14 +24,19 @@
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "ci": "tsc --noEmit && vitest run && vitest run --config vitest.browser.config.ts && vite build"
   },
-  "dependencies": {
-    "webtessera": "workspace:*"
-  },
   "devDependencies": {
     "@vitest/browser-playwright": "4.1.11",
     "playwright": "1.56.1",
     "typescript": "5.9.3",
     "vite": "8.3.2",
     "vitest": "4.1.11"
+  },
+  "peerDependencies": {
+    "webtessera": "*"
+  },
+  "peerDependenciesMeta": {
+    "webtessera": {
+      "optional": true
+    }
   }
 }

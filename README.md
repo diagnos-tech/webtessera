@@ -44,7 +44,7 @@ Go client, and the other way round.
 
 ```sh
 npm install webtessera
-# or: pnpm add webtessera / yarn add webtessera / bun add webtessera
+# or: bun add webtessera / pnpm add webtessera / yarn add webtessera
 ```
 
 ## The safe API

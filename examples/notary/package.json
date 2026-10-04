@@ -21,11 +21,16 @@
     "test": "vitest run",
     "ci": "tsc --noEmit && vitest run"
   },
-  "dependencies": {
-    "webtessera": "workspace:*"
-  },
   "devDependencies": {
     "typescript": "5.9.3",
     "vitest": "4.1.11"
+  },
+  "peerDependencies": {
+    "webtessera": "*"
+  },
+  "peerDependenciesMeta": {
+    "webtessera": {
+      "optional": true
+    }
   }
 }
