@@ -25,6 +25,7 @@ import { fromBase64, fromHex } from "../../../internal/gostd/bytes.ts";
 import { parseUint, quote } from "../../../internal/gostd/strconv.ts";
 import { fields, trimSpace } from "../../../internal/gostd/strings.ts";
 import { isSpace, validUTF8 } from "../../../internal/gostd/unicode.ts";
+import { parse as parseURL } from "../../../internal/gostd/url.ts";
 import { bytesToHex, hexToBytes, loadFixture, u64 } from "../../fixtures.ts";
 import { attempt, canonical, DifferentialReport, messageOf, sameModuloQuoteBound } from "../differential.ts";
 
@@ -41,6 +42,10 @@ interface GoStdCorpus {
 	readonly fields: readonly (readonly [input: string, fields: readonly string[], trimmed: string])[];
 	readonly bits: readonly (readonly [x: string, tz: number, len: number, ones: number])[];
 	readonly shifts: readonly (readonly [x: string, n: number, shl: string, shr: string])[];
+	readonly url: readonly (
+		| readonly [raw: string, err: string]
+		| readonly [raw: string, err: "", str: string, joined: string, hostHex: string, scheme: string]
+	)[];
 }
 
 interface UnicodeCorpus {
@@ -191,6 +196,28 @@ export function describeGoStdDifferential(): void {
 				rep.equal(`${x} by ${n}`, "<<,>>", [shl, shr], [shiftLeft64(v, n), shiftRight64(v, n)]);
 			}
 			rep.assertClean(5000);
+		});
+
+		it("url.parse, joinPath and string reach net/url's verdict, error text and output", async () => {
+			const f = await loadFixture<GoStdCorpus>("differential_gostd");
+			const rep = new DifferentialReport("url");
+			for (const row of f.url) {
+				rep.record();
+				const [raw, err] = row;
+				const got = attempt(() => {
+					const u = parseURL(raw);
+					const host = Array.from(u.host, (c) => c.charCodeAt(0));
+					return [u.string(), u.joinPath("/add-checkpoint").string(), bytesToHex(Uint8Array.from(host)), u.scheme];
+				});
+				const want = err === "" ? `ok:${JSON.stringify(row.slice(2))}` : `err:${err}`;
+				rep.equal(
+					JSON.stringify(raw),
+					"parse",
+					want,
+					got.ok ? `ok:${JSON.stringify(got.value)}` : `err:${messageOf(got.error)}`,
+				);
+			}
+			rep.assertClean(3000);
 		});
 	});
 }

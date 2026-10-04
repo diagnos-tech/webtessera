@@ -1,4 +1,12 @@
+// Copyright 2009 The Go Authors. All rights reserved.
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// This file has mixed provenance. The parseUint64Tests, parseUint64BaseTests and
+// parseUint32Tests tables (marked below) are taken from Go's standard library
+// `strconv/atoi_test.go`, so they are a derivative work of it and remain subject to the Go
+// project's BSD-style licence, which is reproduced further down and in
+// LICENSES/BSD-3-Clause-Go.txt. Everything else in this file is original to this project and
+// is licensed under the Apache License, Version 2.0:
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +19,38 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// The following terms apply to the portions of this file derived from Go:
+//
+// Copyright 2009 The Go Authors.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//    * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//    * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//    * Neither the name of Google LLC nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Test tables taken from strconv/atoi_test.go (Go standard library) @ Go 1.25.5
 
 import { describe, expect, it } from "vitest";
 import { errorIs } from "./errors.ts";
@@ -90,7 +130,7 @@ describe("gostd/strconv", () => {
 
 		// The tables below are Go's own, from strconv/atoi_test.go (parseUint64Tests,
 		// parseUint64BaseTests, parseUint32Tests), with nil/ErrSyntax/ErrRange as
-		// undefined/"syntax"/"range".
+		// undefined/"syntax"/"range". Derived from strconv (atoi_test.go); see the header.
 		type Want = bigint | "syntax" | "range";
 		const check = (s: string, base: number, bitSize: number, want: Want): void => {
 			if (typeof want === "bigint") {

@@ -53,7 +53,7 @@ Non-Go files (`deployment/`, `docs/`, `.github/`) are not register rows.
 | `storage/posix/antispam/`, `storage/{aws,gcp}/antispam/` | not ported | a persistent, best-effort duplicate index that survives restarts | `newInMemoryDedup` through `withAntispam`; the `Antispam` interface for an implementation supplied from outside |
 | `storage/aws/`, `storage/gcp/`, `storage/mysql/` | not ported | running a log on S3, GCS or MySQL, and horizontal scale-out coordinated by a database | any store through the `ObjectStore` contract and `newObjectStoreDriver` |
 | `internal/hammer/` | not ported | an upstream load-test harness shipped with the library | none in the library; upstream's own hammer where a personality matches its HTTP conventions (section 4) |
-| `cmd/conformance/*`, `cmd/examples/*` | not ported | runnable reference personalities and a one-shot CLI | `examples/cloudflare-durable-object`, `examples/browser`, the README snippets |
+| `cmd/conformance/*`, `cmd/examples/*` | not ported | runnable reference personalities and a one-shot CLI | `examples/log-server`, `examples/edge`, the README snippets |
 | `cmd/experimental/migrate/*` | not ported | four commands | the ported `migrate` library, tested end to end (ADR-0105) |
 | `cmd/experimental/mirror/*` | not ported (but see the Update: `internal/mirror.go` is now ported as `webtessera/mirror`) | verbatim mirroring of a log's static resources | partly `migrate`; otherwise a few lines of user code (section 5) |
 | `keygen/` | none: the row was a mistake | nothing | `generateKey` in `webtessera/note` |
@@ -157,15 +157,17 @@ What is lost is a load and latency harness shipped with the port. What replaces 
 hammer. Its read side needs only a tlog-tiles endpoint and the log's public key. Its write side expects
 `POST <write_log_url>/add` to answer with a body that starts with the decimal index (`httpWriter` calls
 `strconv.ParseUint` on the first line, and `integration_test.go` does the same). A personality that answers
-that way can be loaded with the unmodified hammer, and `examples/cloudflare-durable-object` answers exactly
-that way (the bare decimal index), so the hammer and `integration_test.go`'s client can drive it as it stands.
+that way can be loaded with the unmodified hammer, and `examples/log-server` (on Node, Bun or Deno) and
+`examples/edge` (the same server as a Worker on a SQLite-backed Durable Object) answer exactly that way (the bare
+decimal index, `newAddHandler`), so the hammer and `integration_test.go`'s client can drive them as they stand.
 
 ### 5. `cmd/`: not ported
 
 - **`cmd/conformance/*`** are HTTP personalities, one per driver, and each wires up a driver this port does
   not have as such (a directory, S3 and MySQL, GCS and Spanner, MySQL). Their role as the example personality is
-  played by `examples/cloudflare-durable-object` (a Worker with `POST /add` and the tlog-tiles read API) and
-  `examples/browser` (a log in a tab). Their role as the hammer's target is not replaced (section 4).
+  played by `examples/log-server` (`POST /add` and the tlog-tiles read API on any SQLite, under Node, Bun or Deno)
+  and `examples/edge` (the same server as a Worker on a SQLite-backed Durable Object); `examples/client-only`
+  shows a log in a browser tab. Both servers can be the hammer's target (section 4).
 - **`cmd/examples/posix-oneshot`** adds files from a glob to a POSIX log, with an optional witness policy, and
   exits once they are integrated. Its job is to show how to use the appender; the README snippets do that
   (`src/README_test.ts`, ADR-0140), and `withWitnesses` is ported.
@@ -190,7 +192,8 @@ tree has no `keygen/` directory and no file of that name. The 106 `.go` files co
 tests call `note.GenerateKey` and `.github/workflows/aws_integration_test.yml` fetches
 `generate_keys` from the `serverless-log` repository. The row was a mistake and this ADR proposes withdrawing
 it from the register when ADR-0001 is next revised. Nothing is lost. Key generation is `generateKey` in
-`webtessera/note` (a port of `note.GenerateKey`), which the Cloudflare example's `pnpm keygen` script calls.
+`webtessera/note` (a port of `note.GenerateKey`), which the examples' `keygen` scripts (`bun run keygen` in
+`examples/edge`, `examples/log-server`, `examples/notary` and `examples/session-receipts`) call.
 The `PORTING-MAP` row stays, as rows are never deleted, marked `not ported` with this explanation.
 
 ### 7. `integration/` and `integration/fault/`: not ported as files
@@ -223,7 +226,8 @@ What it does not cover:
   call for every *n*, with `fsck` afterwards, which would test the write ordering of section 1. It is not
   written, and is the largest gap this ADR leaves.
 - **HTTP.** A personality's `/add` handler, status codes and cache headers, and `HTTPFetcher` against a live
-  server. `fetcher_test.ts` covers the fetcher against stubs and the Cloudflare example has its own tests.
+  server. `fetcher_test.ts` covers the fetcher against stubs, and `examples/log-server` and `examples/edge` test
+  their own endpoints (`log_server_test.ts`, `worker_test.ts`).
 - **Other processes.** The upstream tests run the personality as a separate process. Here the shared-store
   cases run in one realm (and in two realms in Chromium), and a Durable Object is a single instance by
   construction (ADR-0121).
@@ -295,7 +299,8 @@ awaits review like this ADR:
   one upstream itself calls best-effort, and upstream runs its MySQL personality without the persistent index.
 - **Port the hammer as a Node command.** Rejected: it is a command whose only target is an HTTP URL, so a port
   adds nothing that the Go original does not already do for a conforming personality.
-- **Port `integration/` as a Vitest suite against the Cloudflare example.** Rejected here: it would test the
+- **Port `integration/` as a Vitest suite against an example server** (`examples/log-server`, `examples/edge`).
+  Rejected here: it would test the
   example's HTTP layer rather than the driver, and `describeDriverConformance` already tests the driver on every
   backend. A test of the example's endpoints belongs to the example.
 - **Leave the rows `pending`.** Rejected: ADR-0001 itself says a `pending` row must not be quietly reclassified,
@@ -307,3 +312,10 @@ awaits review like this ADR:
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:** pending
+
+**Update (2026-10-04).** The examples this ADR named as the replacements for `cmd/conformance/*` and
+`cmd/examples/*`, and as the hammer's target, no longer exist: `examples/cloudflare-durable-object` and
+`examples/browser` gave way to one tested application per use case (`client-only`, `session-receipts`, `notary`,
+`log-server`, `monitor`, `edge`). The register row and sections 4, 5, 6 and 7 now name `examples/log-server` and
+`examples/edge`, which serve `POST /add` with the bare decimal index the hammer expects, and `examples/client-only`
+for a log in a tab. The dispositions themselves are unchanged.

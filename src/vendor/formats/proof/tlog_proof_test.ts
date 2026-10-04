@@ -302,6 +302,42 @@ describe("formats/proof tlog_proof", () => {
 				"tlog proof extra data not canonically base64 encoded",
 			);
 		});
+
+		// The canonicality check never pre-empts an error of Go's: a later line Go rejects is
+		// reported with Go's text (Go's results for these inputs), and of two non-canonical
+		// lines the first is reported.
+		const goFirst: { name: string; in: string; want: string }[] = [
+			{
+				name: "a non-canonical hash followed by one Go rejects",
+				in: `${header}\nindex 1\nypeBEsobvcr6wjGzmiPcTaeG7/gUfE5yuYB3ha/u\rSLs=\n!!!\n\ncp\n`,
+				want: "tlog proof hash not base64 encoded: illegal base64 data at input byte 0",
+			},
+			{
+				name: "non-canonical extra data and no index",
+				in: `${header}\nextra AA\rAA\n`,
+				want: "tlog proof missing required index",
+			},
+			{
+				name: "non-canonical extra data and a hash of the wrong length",
+				in: `${header}\nextra YR==\nindex 0\nAAAA\n\ncp\n`,
+				want: "tlog proof hash length was 3, expected 32",
+			},
+			{
+				name: "non-canonical extra data and a line too long to scan",
+				in: `${header}\nextra YR==\nindex 0\n\n${"c".repeat(70000)}\n`,
+				want: "scanning tlog proof: bufio.Scanner: token too long",
+			},
+			{
+				name: "non-canonical extra data, then a non-canonical hash",
+				in: `${header}\nextra YR==\nindex 0\nypeBEsobvcr6wjGzmiPcTaeG7/gUfE5yuYB3ha/uSLt=\n\ncp\n`,
+				want: "tlog proof extra data not canonically base64 encoded",
+			},
+		];
+		for (const tt of goFirst) {
+			it(`reports Go's error first: ${tt.name}`, () => {
+				expect(unmarshalError(toUTF8(tt.in))).toBe(tt.want);
+			});
+		}
 	});
 
 	describe("port-specific guards", () => {

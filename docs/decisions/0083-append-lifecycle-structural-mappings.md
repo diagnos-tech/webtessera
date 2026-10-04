@@ -151,3 +151,22 @@ is gone with `integrationStats` (ADR-0181).
 empty `Uint8Array` internally, and a successful `await` only ever returns a checkpoint that a poll
 parsed. The poll loop is `pollLoop` (`@internal`), no longer `_pollLoop`, since nothing collides
 with its name.
+
+## Update (2026-10-04)
+
+Two statements of this ADR were inaccurate, and one behaviour of item 8 was not recorded:
+
+- **Item 8 says "`inMemoryDedup`'s two `sync.OnceValue`s".** There is one: the `OnceValue` that builds the deduplicated
+  entry's `IndexFuture` (`antispam.go`). The other one-shot is `memoizeFuture`'s `sync.OnceValues`
+  (`append_lifecycle.go`).
+- **`sync.OnceValue` re-panics.** If its function panics, every later call panics with the same value, and the function
+  is never called again. The captured-variable rendering in `inMemoryDedup` did not do that: a delegate that threw
+  synchronously (instead of returning a failing future) left nothing cached, so the duplicate's future called the
+  delegate a second time and could resolve where Go's re-panics. It now remembers the thrown value and rethrows it on
+  every later call, as `memoizeFuture` already did for `OnceValues`; the duplicate's future therefore rejects with that
+  value, and the delegate is called once, as in Go (the audit's probe: `add#1 recovered=delegate exploded; future#2
+  recovered=delegate exploded; delegateCalls=1` on both sides). Only an `AddFn` that throws can reach this; the
+  in-tree queue never does. `antispam_test.ts` pins it.
+- **Consequences listed `WitnessOptions` among exported names "with no direct Go counterpart".** It has one:
+  `append_lifecycle.go`'s exported `WitnessOptions` struct (`Timeout`, `FailOpen`), which the port's interface mirrors
+  with the fields camelCased. `AppendLifecycle`, `AppenderInit` and `NewAppenderResult` remain the additions.

@@ -605,3 +605,35 @@ describe("newBuilder", () => {
 		builderBytesEq(b, 1, 2, 3, 7, 8);
 	});
 });
+
+// Port addition: a value the Go parameter type cannot hold is refused, not truncated
+// (docs/decisions/0200-length-prefix-appenders-reject-out-of-range-values.md). AddUint24 and
+// AddUint48 still truncate their uint32 and uint64 inputs, as Go documents.
+describe("addUint methods refuse values outside their Go parameter type", () => {
+	const b = (): cryptobyte.Builder => cryptobyte.newBuilder(new Uint8Array(0));
+	it("accepts the boundaries and truncates where Go does", () => {
+		const x = b();
+		x.addUint8(255);
+		x.addUint16(0xffff);
+		x.addUint24(0xffffffff);
+		x.addUint32(0xffffffff);
+		x.addUint48(0xffff_ffff_ffff_ffffn);
+		x.addUint64(0xffff_ffff_ffff_ffffn);
+		expect(x.bytesOrPanic()).toEqual(new Uint8Array(1 + 2 + 3 + 4 + 6 + 8).fill(0xff));
+	});
+	const cases: [string, (x: cryptobyte.Builder) => void][] = [
+		["addUint8(256)", (x) => x.addUint8(256)],
+		["addUint8(-1)", (x) => x.addUint8(-1)],
+		["addUint16(65536)", (x) => x.addUint16(65536)],
+		["addUint16(1.5)", (x) => x.addUint16(1.5)],
+		["addUint24(2^32)", (x) => x.addUint24(2 ** 32)],
+		["addUint32(NaN)", (x) => x.addUint32(Number.NaN)],
+		["addUint48(-1n)", (x) => x.addUint48(-1n)],
+		["addUint64(2^64)", (x) => x.addUint64(1n << 64n)],
+	];
+	for (const [name, f] of cases) {
+		it(`throws a RangeError for ${name}`, () => {
+			expect(() => f(b())).toThrow(RangeError);
+		});
+	}
+});

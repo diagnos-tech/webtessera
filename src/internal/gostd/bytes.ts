@@ -253,7 +253,12 @@ function invalidByteError(b: number): Error {
  *
  * Port note: Go decodes the bytes of the string, so a non-ASCII character is reported
  * by its first UTF-8 byte; the string is therefore encoded to UTF-8 first. Like Go's
- * DecodeString, this returns no partial result on error.
+ * DecodeString, this returns no partial result on error. A JavaScript string cannot hold
+ * bytes that are not valid UTF-8: text decoded from such bytes holds U+FFFD in their place,
+ * so the byte reported is U+FFFD's first, U+00EF 'ï', where Go reports the original (for
+ * 0xFF, U+00FF 'ÿ'). The verdict is the same, and no caller passes such text: the library
+ * calls fromHex only with constants (docs/decisions/0216-differential-divergence-allow-list.md,
+ * `invalid-utf8-text`, is the general rule).
  */
 export function fromHex(s: string): Uint8Array {
 	const src = toUTF8(s);

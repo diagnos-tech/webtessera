@@ -50,3 +50,13 @@ string. The error is
 - **Reviewer:** _pending_
 - **Verdict:** _pending_
 - **Notes:**
+
+## Update (2026-10-04)
+
+[ADR-0241](0241-witness-policy-urls-parsed-as-go-parses-them.md) now parses witness URLs with a transcription of Go's
+`url.Parse`, so the endpoint this check sees is Go's. The scheme is read from Go's parse (`https`, or `http` with a
+loopback host as the platform parser reads it); the rule and its message are unchanged. A relative reference, which Go
+accepts and ADR-0078 used to reject with its own message, now gets this ADR's message, since its endpoint has no
+scheme. ADR-0241 adds two refusals beside this one, with their own messages: an endpoint with no host in Go's reading,
+and one the platform URL parser rejects. The previous fallback, `witness URL "<url>" is not a valid URL: <platform
+message>`, whose text differed between runtimes, is gone.

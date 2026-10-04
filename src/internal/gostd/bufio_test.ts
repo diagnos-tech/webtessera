@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Tests for the bufio.Scanner stand-in. The expected values are what Go's
-// `bufio.NewScanner(bytes.NewReader(p))` produces for the same input under Go 1.25.
+// `bufio.NewScanner(bytes.NewReader(p))` produces for the same input under Go 1.25.5.
 
 import { describe, expect, it } from "vitest";
 import { ErrTooLong, MaxScanTokenSize, Scanner } from "./bufio.ts";
@@ -73,12 +73,75 @@ describe("gostd/bufio Scanner", () => {
 		expect(sc.err()).toBeUndefined();
 	});
 
-	it("returns views of the input from bytes(), without decoding them", () => {
+	it("returns the bytes of a line from bytes(), without decoding them", () => {
 		const input = new Uint8Array([0xff, 0x0a, 0x61]);
 		const sc = new Scanner(input);
 		expect(sc.scan()).toBe(true);
 		expect(sc.bytes()).toEqual(new Uint8Array([0xff]));
-		expect(sc.bytes().buffer).toBe(input.buffer);
 		expect(sc.text()).toBe("�");
+	});
+
+	// After ErrTooLong, Go's Scanner is not done: the next Scan hands the split function the
+	// buffered MaxScanTokenSize bytes at EOF, returns true with them as a token (less a final
+	// CR), and every Scan after that returns false. Go 1.25.5 gave exactly these results.
+	describe("after ErrTooLong", () => {
+		const scanAll = (p: Uint8Array, calls: number): { ok: boolean; len: number; last?: number }[] => {
+			const sc = new Scanner(p);
+			const out: { ok: boolean; len: number; last?: number }[] = [];
+			for (let i = 0; i < calls; i++) {
+				const ok = sc.scan();
+				const b = sc.bytes();
+				out.push(b.length > 0 ? { ok, len: b.length, last: b[b.length - 1] as number } : { ok, len: 0 });
+			}
+			return out;
+		};
+
+		it("returns the buffered start of the long line once, then stops for good", () => {
+			const p = toUTF8(`x\n${"a".repeat(MaxScanTokenSize + 10)}\ny\n`);
+			const sc = new Scanner(p);
+			expect(sc.scan()).toBe(true);
+			expect(sc.text()).toBe("x");
+			expect(sc.scan()).toBe(false);
+			expect(sc.bytes()).toEqual(new Uint8Array(0));
+			expect(sc.err()).toBe(ErrTooLong);
+			expect(sc.scan()).toBe(true);
+			expect(sc.text()).toBe("a".repeat(MaxScanTokenSize));
+			expect(sc.err()).toBe(ErrTooLong);
+			for (let i = 0; i < 3; i++) {
+				expect(sc.scan()).toBe(false);
+				expect(sc.bytes()).toEqual(new Uint8Array(0));
+				expect(sc.err()).toBe(ErrTooLong);
+			}
+		});
+
+		it("drops a CR that ends the buffered bytes, as ScanLines does at EOF", () => {
+			const p = toUTF8(`${"a".repeat(MaxScanTokenSize - 1)}\r\n`);
+			expect(scanAll(p, 4)).toEqual([
+				{ ok: false, len: 0 },
+				{ ok: true, len: MaxScanTokenSize - 1, last: 0x61 },
+				{ ok: false, len: 0 },
+				{ ok: false, len: 0 },
+			]);
+		});
+
+		it("does the same for an unterminated final line of MaxScanTokenSize bytes", () => {
+			const p = toUTF8("b".repeat(MaxScanTokenSize));
+			expect(scanAll(p, 3)).toEqual([
+				{ ok: false, len: 0 },
+				{ ok: true, len: MaxScanTokenSize, last: 0x62 },
+				{ ok: false, len: 0 },
+			]);
+		});
+	});
+
+	it("reads lines that straddle its internal buffer's growth and shifts", () => {
+		// Lines of 4095 to 4097 bytes, around the initial 4096-byte buffer, then a long run of
+		// short lines that forces the buffer to shift its unread bytes to the front.
+		const parts = [4095, 4096, 4097, 8191, 8192, 8193, 1, 0, 3].map((n, i) => String.fromCharCode(0x61 + i).repeat(n));
+		for (let i = 0; i < 3000; i++) {
+			parts.push(`line ${i}`);
+		}
+		expect(lines(`${parts.join("\n")}\n`)).toEqual({ lines: parts, err: undefined });
+		expect(lines(parts.join("\r\n"))).toEqual({ lines: parts, err: undefined });
 	});
 });

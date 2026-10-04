@@ -61,10 +61,11 @@ function verifyMatch(calculated: Uint8Array, expected: Uint8Array): void {
  * Port note: this check has no upstream counterpart. Go's verifier accepts proof
  * hashes and roots of any length, and the hash chaining treats a node hash as opaque
  * bytes, so a mis-sized "hash" is not rejected for being mis-sized. The port requires
- * every proof hash and every root to be a node hash of the hasher's size. Each call
- * sits after all of upstream's own checks in its function, so every input upstream
- * rejects for another reason is rejected with upstream's error, and every input whose
- * hashes are all correctly sized behaves exactly as upstream.
+ * every proof hash and every root to be a node hash of the hasher's size. The checks run
+ * only where upstream's function would succeed, after all of its own checks, its final
+ * root comparisons included. So every input upstream rejects is rejected with upstream's
+ * error (a RootMismatchError stays one), and every input whose hashes are all correctly
+ * sized behaves exactly as upstream.
  * See docs/decisions/0202-merkle-proof-hash-sizes.md.
  */
 function checkHashSize(hasher: LogHasher, name: string, h: Uint8Array): void {
@@ -99,9 +100,10 @@ export function verifyInclusion(
 	proof: readonly Uint8Array[],
 	root: Uint8Array,
 ): void {
-	const calcRoot = rootFromInclusionProof(hasher, index, size, leafHash, proof);
-	checkHashSize(hasher, "root", root);
+	const calcRoot = rootFromInclusionProofUnchecked(hasher, index, size, leafHash, proof);
 	verifyMatch(calcRoot, root);
+	checkProofHashSizes(hasher, proof);
+	checkHashSize(hasher, "root", root);
 }
 
 /**
@@ -113,6 +115,22 @@ export function verifyInclusion(
  * hasher.size() bytes; see verifyInclusion.
  */
 export function rootFromInclusionProof(
+	hasher: LogHasher,
+	index: bigint,
+	size: bigint,
+	leafHash: Uint8Array,
+	proof: readonly Uint8Array[],
+): Uint8Array {
+	const res = rootFromInclusionProofUnchecked(hasher, index, size, leafHash, proof);
+	checkProofHashSizes(hasher, proof);
+	return res;
+}
+
+/**
+ * rootFromInclusionProofUnchecked is upstream's RootFromInclusionProof without the port's
+ * proof hash size check, which verifyInclusion makes only after its root comparison.
+ */
+function rootFromInclusionProofUnchecked(
 	hasher: LogHasher,
 	index: bigint,
 	size: bigint,
@@ -132,7 +150,6 @@ export function rootFromInclusionProof(
 	if (proof.length !== inner + border) {
 		throw new Error(`wrong proof size ${proof.length}, want ${inner + border}`);
 	}
-	checkProofHashSizes(hasher, proof);
 
 	let res = chainInner(hasher, leafHash, proof.slice(0, inner), index);
 	res = chainBorderRight(hasher, res, proof.slice(inner));
@@ -167,9 +184,9 @@ export function verifyConsistency(
 		if (proof.length > 0) {
 			throw new Error("size1=size2, but proof is not empty");
 		}
+		verifyMatch(root1, root2);
 		checkHashSize(hasher, "root1", root1);
 		checkHashSize(hasher, "root2", root2);
-		verifyMatch(root1, root2);
 		return;
 	}
 	if (size1 === 0n) {
@@ -200,9 +217,7 @@ export function verifyConsistency(
 	if (proof.length !== start + inner + border) {
 		throw new Error(`wrong proof size ${proof.length}, want ${start + inner + border}`);
 	}
-	checkHashSize(hasher, "root1", root1);
-	checkHashSize(hasher, "root2", root2);
-	checkProofHashSizes(hasher, proof);
+	const fullProof = proof;
 	proof = proof.slice(start);
 	// Now proof.length == inner+border, and proof is effectively a suffix of
 	// inclusion proof for entry |size1-1| in a tree of size |size2|.
@@ -217,6 +232,10 @@ export function verifyConsistency(
 	let hash2 = chainInner(hasher, seed, proof.slice(0, inner), mask);
 	hash2 = chainBorderRight(hasher, hash2, proof.slice(inner));
 	verifyMatch(hash2, root2);
+
+	checkHashSize(hasher, "root1", root1);
+	checkHashSize(hasher, "root2", root2);
+	checkProofHashSizes(hasher, fullProof);
 }
 
 /**

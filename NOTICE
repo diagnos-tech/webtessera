@@ -38,6 +38,14 @@ Ported at v0.0.0-20251017110053-404c0d5b696c.
 Translated into: src/vendor/formats/log/.
 The module ships no NOTICE file at that version.
 
+transparency-dev/formats (package note, note_verifier.go) - https://github.com/transparency-dev/formats
+Copyright 2021 Google LLC
+Licensed under the Apache License, Version 2.0.
+Ported at v0.0.0-20251017110053-404c0d5b696c.
+Translated into: src/vendor/formats/note/note_cosigv1.ts (the `verifier` type only;
+the rest of that file is the BSD-licensed note_cosigv1.go, listed below).
+The module ships no NOTICE file at that version.
+
 transparency-dev/formats (package proof) - https://github.com/transparency-dev/formats
 Copyright Google LLC
 Licensed under the Apache License, Version 2.0.
@@ -84,6 +92,22 @@ Copyright 2023 The Go Authors
   src/vendor/formats/note/note_cosigv1.ts
   src/vendor/formats/note/note_cosigv1_test.ts
 
+Go standard library 1.25.5, package bufio
+Copyright 2013 The Go Authors
+  src/internal/gostd/bufio.ts (Scanner with ScanLines, transcribed from bufio/scan.go)
+
+Go standard library 1.25.5, packages net/url, net/netip and path
+Copyright 2009 The Go Authors (net/url/url.go, path/path.go)
+Copyright 2020 The Go Authors (net/netip/netip.go)
+  src/internal/gostd/url.ts (url.Parse, URL.JoinPath and URL.String with their helpers,
+  the validation half of netip.ParseAddr, path.Join and path.Clean)
+
+Go standard library 1.25.5, package time
+Copyright 2009 The Go Authors
+  src/internal/gostd/time.ts (durationString, fmtFrac and fmtInt are derived from
+  Duration.String in time.go)
+  src/internal/gostd/time_test.ts (the durationTests table, taken from time_test.go)
+
 Go standard library 1.25.5, package container/list
 Copyright 2009 The Go Authors
   src/internal/gostd/list.ts
@@ -100,23 +124,26 @@ Copyright 2009 The Go Authors
   derived from Go's reverseHexTable, InvalidByteError and Decode)
 
 Go standard library 1.25.5, package strconv
-Copyright 2009 The Go Authors (atoi.go, quote.go)
+Copyright 2009 The Go Authors (atoi.go, quote.go, atoi_test.go)
 Copyright 2013 The Go Authors (isprint.go)
   src/internal/gostd/strconv.ts (parseUint, underscoreOK, lower, NumError, ErrSyntax
-  and ErrRange are derived from atoi.go; quote, isPrint, bsearch and the IS_PRINT and
-  IS_NOT_PRINT tables from quote.go and isprint.go)
+  and ErrRange are derived from atoi.go; quote, quoteBytes, escapedRune, isPrint, bsearch
+  and the IS_PRINT and IS_NOT_PRINT tables from quote.go and isprint.go)
+  src/internal/gostd/strconv_test.ts (the parseUint64Tests, parseUint64BaseTests and
+  parseUint32Tests tables, taken from atoi_test.go)
 
-Go standard library 1.24.7, package strings
+Go standard library 1.25.5, package strings
 Copyright 2009 The Go Authors
   src/internal/gostd/strings.ts (the doc comments of cut, trimSpace and fields, taken
   from strings/strings.go)
   src/internal/gostd/strings_test.ts (the cutTests, trimSpaceTests and fieldsTests
   tables, taken from strings/strings_test.go)
 
-Go standard library 1.25.5, package unicode
-Copyright 2011 The Go Authors
+Go standard library 1.25.5, packages unicode and unicode/utf8
+Copyright 2011 The Go Authors (graphic.go, tables.go)
+Copyright 2009 The Go Authors (utf8.go)
   src/internal/gostd/unicode.ts (isSpace is derived from unicode.IsSpace in graphic.go
-  and from the White_Space range table in tables.go)
+  and from the White_Space range table in tables.go; decodeRune from utf8.DecodeRune)
 
 Go standard library 1.25.5, package math/bits
 Copyright 2017 The Go Authors

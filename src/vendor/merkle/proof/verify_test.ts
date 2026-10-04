@@ -20,7 +20,7 @@ import { asUint64 } from "../../../internal/gostd/bits.ts";
 import { bytesEqual, fromHex, toHex, toUTF8 } from "../../../internal/gostd/bytes.ts";
 import type { LogHasher } from "../hasher.ts";
 import { DefaultHasher } from "../rfc6962/rfc6962.ts";
-import { rootFromInclusionProof, verifyConsistency, verifyInclusion } from "./verify.ts";
+import { RootMismatchError, rootFromInclusionProof, verifyConsistency, verifyInclusion } from "./verify.ts";
 
 interface inclusionProofTestVector {
 	leaf: bigint;
@@ -495,6 +495,9 @@ describe("hash sizes (port hardening)", () => {
 		verifyConsistency(hasher, consistency.size1, consistency.size2, consistency.proof, croot1, croot2);
 	});
 
+	// A mis-sized proof hash changes the root a proof chains to. Against the true root, Go's
+	// verdict is a RootMismatchError, and so is the port's. Against the root the mangled proof
+	// chains to, which Go accepts, the port's size check rejects it.
 	it("a proof hash of the wrong length is rejected by rootFromInclusionProof and verifyInclusion", () => {
 		for (let i = 0; i < inclusion.proof.length; i++) {
 			for (const mangle of [longer, shorter, () => new Uint8Array(0)]) {
@@ -505,22 +508,47 @@ describe("hash sizes (port hardening)", () => {
 					catchError(() => rootFromInclusionProof(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof))
 						?.message,
 				).toBe(want);
+				const mismatch = catchError(() =>
+					verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof, root),
+				);
+				expect(mismatch).toBeInstanceOf(RootMismatchError);
+				const forged = (mismatch as RootMismatchError).calculatedRoot;
 				expect(
-					catchError(() => verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof, root))
+					catchError(() => verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof, forged))
 						?.message,
 				).toBe(want);
 			}
 		}
 	});
 
-	it("an inclusion root of the wrong length is rejected", () => {
+	it("an inclusion root of the wrong length is a RootMismatchError, as in Go", () => {
 		for (const r of [longer(root), shorter(root), new Uint8Array(0)]) {
-			expect(
-				catchError(() => verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, inclusion.proof, r))
-					?.message,
-			).toBe(`root has unexpected size ${r.length}, want 32`);
+			const err = catchError(() =>
+				verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, inclusion.proof, r),
+			);
+			expect(err).toBeInstanceOf(RootMismatchError);
+			expect((err as RootMismatchError).expectedRoot).toBe(r);
+			expect((err as RootMismatchError).calculatedRoot).toEqual(root);
 		}
 	});
+
+	/** forgedRoots returns the roots a consistency proof chains to, read from Go's RootMismatchErrors. */
+	const forgedRoots = (proof: Uint8Array[]): [Uint8Array, Uint8Array] => {
+		let r1 = croot1;
+		let r2 = croot2;
+		for (let k = 0; k < 2; k++) {
+			const err = catchError(() => verifyConsistency(hasher, consistency.size1, consistency.size2, proof, r1, r2));
+			if (!(err instanceof RootMismatchError)) {
+				break;
+			}
+			if (err.expectedRoot === r1) {
+				r1 = err.calculatedRoot;
+			} else {
+				r2 = err.calculatedRoot;
+			}
+		}
+		return [r1, r2];
+	};
 
 	it("a consistency proof hash of the wrong length is rejected", () => {
 		for (let i = 0; i < consistency.proof.length; i++) {
@@ -528,21 +556,21 @@ describe("hash sizes (port hardening)", () => {
 				const proof = consistency.proof.slice();
 				proof[i] = mangle(proof[i] as Uint8Array);
 				expect(
-					catchError(() => verifyConsistency(hasher, consistency.size1, consistency.size2, proof, croot1, croot2))
-						?.message,
+					catchError(() => verifyConsistency(hasher, consistency.size1, consistency.size2, proof, croot1, croot2)),
+				).toBeInstanceOf(RootMismatchError);
+				const [r1, r2] = forgedRoots(proof);
+				expect(
+					catchError(() => verifyConsistency(hasher, consistency.size1, consistency.size2, proof, r1, r2))?.message,
 				).toBe(`proof[${i}] has unexpected size ${(proof[i] as Uint8Array).length}, want 32`);
 			}
 		}
 	});
 
-	it("consistency roots of the wrong length are rejected, whatever the sizes", () => {
+	it("consistency roots of the wrong length are rejected wherever Go accepts them", () => {
 		const bad = longer(croot1);
 		const cases: Array<[bigint, bigint, Uint8Array[], Uint8Array, Uint8Array, string]> = [
-			[consistency.size1, consistency.size2, consistency.proof, bad, croot2, "root1"],
-			[consistency.size1, consistency.size2, consistency.proof, croot1, bad, "root2"],
 			// size1 == size2: equal but mis-sized roots are not a valid tree head.
 			[5n, 5n, [], bad, bad, "root1"],
-			[5n, 5n, [], root, bad, "root2"],
 			// size1 == 0: the proof is trivially empty, the roots must still be hashes.
 			[0n, 5n, [], bad, root, "root1"],
 			[0n, 5n, [], sha256EmptyTreeHash, new Uint8Array(0), "root2"],
@@ -552,6 +580,20 @@ describe("hash sizes (port hardening)", () => {
 			expect(catchError(() => verifyConsistency(hasher, size1, size2, proof, r1, r2))?.message).toBe(
 				`${name} has unexpected size ${got.length}, want 32`,
 			);
+		}
+	});
+
+	it("a consistency root of the wrong length that does not match is a RootMismatchError, as in Go", () => {
+		const bad = longer(croot1);
+		const cases: Array<[bigint, bigint, Uint8Array[], Uint8Array, Uint8Array, Uint8Array]> = [
+			[consistency.size1, consistency.size2, consistency.proof, bad, croot2, bad],
+			[consistency.size1, consistency.size2, consistency.proof, croot1, bad, bad],
+			[5n, 5n, [], root, bad, bad],
+		];
+		for (const [size1, size2, proof, r1, r2, expected] of cases) {
+			const err = catchError(() => verifyConsistency(hasher, size1, size2, proof, r1, r2));
+			expect(err).toBeInstanceOf(RootMismatchError);
+			expect((err as RootMismatchError).expectedRoot).toBe(expected);
 		}
 	});
 

@@ -509,3 +509,25 @@ describe("Port addition: surplus entries and hashes are rejected", () => {
 		expect(await nc.getNode(newNodeID(0, 9n))).toEqual(new Uint8Array(32));
 	});
 });
+
+// Port addition: Go's checkpointRaw may be nil, which, like an empty slice, means "fetch the
+// log's current state" (newLogStateTracker's Port note).
+describe("newLogStateTracker without serialised state", () => {
+	for (const [name, raw] of [
+		["undefined", undefined],
+		["null", null],
+		["an empty array", new Uint8Array(0)],
+	] as const) {
+		it(`fetches the log's checkpoint when given ${name}`, async () => {
+			const shim = new FetchCheckpointShim([testRawCheckpoints[5] as Uint8Array]);
+			const lst = await newLogStateTracker(
+				testLogTileFetcher,
+				raw,
+				testLogVerifier,
+				testOrigin,
+				unilateralConsensus(shim.fetchCheckpoint),
+			);
+			expect(lst.latest().size).toBe(5n);
+		});
+	}
+});

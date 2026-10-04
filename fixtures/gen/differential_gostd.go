@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"math/bits"
+	"net/url"
 	"strconv"
 	"strings"
 	"unicode"
@@ -213,9 +214,11 @@ func genDiffGoStd() diffFile {
 		}
 	}
 
+	urlRows := genDiffURLRows()
+
 	return diffFile{
-		description: "Differential corpus for the Go standard library behaviour src/internal/gostd stands in for: base64.StdEncoding.DecodeString, hex.DecodeString, strconv.ParseUint (base 16 at 32/64 bits, base 10 at 64/8 bits), strconv.Quote (every escaped code point as ranges, exact output for a sample), strings.Fields and strings.TrimSpace around Unicode White_Space, and math/bits with uint64 shifts.",
-		upstream:    "Go standard library (encoding/base64, encoding/hex, strconv, strings, math/bits)",
+		description: "Differential corpus for the Go standard library behaviour src/internal/gostd stands in for: base64.StdEncoding.DecodeString, hex.DecodeString, strconv.ParseUint (base 16 at 32/64 bits, base 10 at 64/8 bits), strconv.Quote (every escaped code point as ranges, exact output for a sample), strings.Fields and strings.TrimSpace around Unicode White_Space, math/bits with uint64 shifts, and net/url's Parse, JoinPath and String.",
+		upstream:    "Go standard library (encoding/base64, encoding/hex, strconv, strings, math/bits, net/url)",
 		sections: []diffSection{
 			dValue("columns", map[string]any{
 				"base64":        []string{"input", "err", "decodedHex"},
@@ -228,6 +231,7 @@ func genDiffGoStd() diffFile {
 				"bits":          []string{"x", "TrailingZeros64", "Len64", "OnesCount64"},
 				"shifts":        []string{"x", "n", "x << n", "x >> n"},
 				"quoteEscapedN": "number of escaped scalar values",
+				"url":           []string{"rawURL", "err", "String()", "JoinPath(\"/add-checkpoint\").String()", "Host (hex)", "Scheme"},
 			}),
 			dRows("base64", b64Rows),
 			dRows("hex", hexRows),
@@ -239,8 +243,55 @@ func genDiffGoStd() diffFile {
 			dRows("fields", fieldRows),
 			dRows("bits", bitRows),
 			dRows("shifts", shiftRows),
+			dRows("url", urlRows),
 		},
 	}
+}
+
+// genDiffURLRows records url.Parse over generated URLs, with String() and
+// JoinPath("/add-checkpoint").String() of each one it accepts: what
+// tessera.NewWitnessGroupFromPolicy does with a witness URL. Every input is
+// valid UTF-8, as a witness policy must be for the port (ADR-0242).
+//
+// Bracketed hosts are limited to forms every supported Go release reads alike.
+// Since Go 1.24.8 and 1.25.2 (CVE-2025-47912), url.Parse accepts brackets only
+// around an IPv6 address and rejects "[1.2.3.4]", "[v1.x]" or "a[b]", which
+// earlier releases accept; generated URLs with '[' or ']' are skipped, so the
+// corpus does not depend on the toolchain's patch release.
+func genDiffURLRows() [][]any {
+	r := newDiffRand(0x60570e)
+	schemes := []string{"https://", "https://", "http://", "HTTPS://", "Https://", "x1:", "//", "", "https:", "https:///", "1a:", "a+b.c-d:", "://", "mailto:"}
+	users := []string{"", "", "", "u@", "u:p@", "@", ":@", "u%40x@", "u:p:q@", "ü@", "u%zz@", "a@b@", "u;x=y@", "u%3A@"}
+	hosts := []string{"example.com", "example.com", "EXAMPLE.com", "localhost", "127.0.0.1", "", "1.2.3.4", "0x7f.1", "127.1", "example.com.", "a_b.com", "a..b", "exa%mple.com", "ex%41mple.com", "%C3%A4.example", "%ff", "%25", "exämple.com", "例え.jp", "256.1.1.1", "999999999999", "a$b.com", "a!b.com", "a'b.com", "a(b).com", "a;b.com", "a=b.com", "a&b.com", "a*b.com", "a+b.com", "a<b>.com", "a\"b.com", "a{b}.com", "a b.com", "a^b.com", "a|b.com", "a`b.com", "a\\b.com", "a~b.com"}
+	ports := []string{"", "", "", ":", ":443", ":80", ":8080", ":99999", ":0", ":abc", ":-1", ":08080", ":65536", ":９", ":1:2"}
+	paths := []string{"", "", "/", "/x", "/x/", "//", "/a//b", "/a/./b", "/a/../b", "/../", "/%7Efoo", "/%zz", "/%z", "/%", "/%2F", "/%2f", "/a%20b", "/日本", "/a|b", "/;p", "/:", "/a:b", "/\\", "/*", "/'", "/.", "/..", "/a/..", "/x//", "/%41", "/%e6%97%a5", "/é", "/😀", "/{x}", "/@", "/!", "/<", "/\"", "/`", "/%00", "/x%2E%2E/y", "/%2e%2e/y", "/a%2Fb", "/~x", "x", "a:b", "./a:b", ".", ".."}
+	queries := []string{"", "", "", "?", "?a=b", "?a=b&c", "?%zz", "?日本", "?a+b", "??", "?|", "?\"", "?a=%41", "?#"}
+	frags := []string{"", "", "", "#", "#f", "#%zz", "#a b", "#日本", "#%41", "#!()*", "#'"}
+	var rows [][]any
+	add := func(u string) {
+		p, err := url.Parse(u)
+		if err != nil {
+			rows = append(rows, []any{u, err.Error()})
+			return
+		}
+		rows = append(rows, []any{u, "", p.String(), p.JoinPath("/add-checkpoint").String(), hex.EncodeToString([]byte(p.Host)), p.Scheme})
+	}
+	for _, u := range []string{
+		"https://[::1]:8080/x", "https://[2001:db8::1]/x", "https://[fe80::1%25eth0]/x", "https://[::ffff:1.2.3.4]/x",
+		"https://[::1/x", "https://[::1]x/", "https://[::1]:abc/x", "https://[::1]:99999/x", "https://[fe80::1%eth0]/x",
+		"*", "", "https://example.com/%zé", "https://example.com/a?b#c", "https://example.com/a?",
+	} {
+		add(u)
+	}
+	for i := 0; i < scaled(3000); {
+		u := schemes[r.Intn(len(schemes))] + users[r.Intn(len(users))] + hosts[r.Intn(len(hosts))] + ports[r.Intn(len(ports))] + paths[r.Intn(len(paths))] + queries[r.Intn(len(queries))] + frags[r.Intn(len(frags))]
+		if strings.ContainsAny(u, "[]") {
+			continue
+		}
+		add(u)
+		i++
+	}
+	return rows
 }
 
 func countRanges(rs [][2]int) int {

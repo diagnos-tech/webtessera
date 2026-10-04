@@ -1,6 +1,6 @@
 # ADR-0078: `witness.go`'s URL handling — a scoped `path.Join`/`Clean` stand-in for `url.URL.JoinPath`
 
-- **Status:** accepted
+- **Status:** accepted; superseded in part by [ADR-0241](0241-witness-policy-urls-parsed-as-go-parses-them.md) (2026-10-04)
 - **Date:** 2026-08-19
 - **Author:** witness/migrate contributor
 - **Upstream reference:** `witness.go`'s `NewWitness`, `NewWitnessGroupFromPolicy`'s `"witness"` case
@@ -110,3 +110,15 @@ The URL handling described above was changed, and one statement in it was wrong:
   acceptance.
 - `goPathJoin` now ignores empty elements, as `path.Join` does.
 - Witness URLs are additionally restricted to https, or http to a loopback host, by ADR-0185.
+
+## Update (2026-10-04): superseded in part by ADR-0241
+
+The final fidelity audit found that the 2026-10-02 update recorded only part of what the platform parser did to policy
+URLs: `URL.canParse` also rejected URLs Go accepts (ports above 65535, IPv6 zones, IPv4-like numeric hosts, empty
+hosts, `<` and `>` in hosts), its one message replaced `url.Parse`'s own errors, and URLs Go rejects (`%zz`,
+`https://ü@example.com/`) were accepted. [ADR-0241](0241-witness-policy-urls-parsed-as-go-parses-them.md) replaces the
+URL handling of this ADR: `src/internal/gostd/url.ts` transcribes Go's `url.Parse`, `JoinPath` and `String` (with
+`path.Join`/`path.Clean`), so a policy URL gets Go's verdict, error text and endpoint byte for byte, escaping included,
+and `urlJoinPath`, `goPathJoin`, `goPathClean` and the absolute-URL check are gone. What remains of this ADR is its
+context. The ADR-0216 entries `witness-url-absolute` and `witness-url-escaping`, which recorded the behaviour this ADR
+described, are retired; ADR-0241 records the URLs the port still refuses, and why.

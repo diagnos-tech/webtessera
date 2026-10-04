@@ -1,9 +1,26 @@
 // Copyright 2023 The Go Authors. All rights reserved.
+// Copyright 2021 Google LLC. All Rights Reserved. (note_verifier.go)
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
+// The `verifier` class (marked below) is ported from note_verifier.go of the same module,
+// which is not under that notice but under the Apache License, Version 2.0:
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 // Ported from github.com/transparency-dev/formats/note/note_cosigv1.go
+// (and the `verifier` type of note/note_verifier.go)
 // @ v0.0.0-20251017110053-404c0d5b696c
 //
 // Licence note: upstream carries the Go Authors' BSD-style notice above on this file even
@@ -46,8 +63,15 @@ import {
 	verifyEd25519,
 } from "../../note/note.ts";
 
+// Port note: algECDSAWithSHA256 and algRFC6962STH belong to note_verifier.go's and
+// note_rfc6962.go's verifiers, which are not ported (see the header comment); they are kept so
+// the block reads as upstream's.
 const algEd25519 = 1;
+// biome-ignore lint/correctness/noUnusedVariables: kept from upstream's const block; see the port note above.
+const algECDSAWithSHA256 = 2;
 const algEd25519CosignatureV1 = 4;
+// biome-ignore lint/correctness/noUnusedVariables: kept from upstream's const block; see the port note above.
+const algRFC6962STH = 5;
 
 const keyHashSize = 4;
 const timestampSize = 8;
@@ -67,10 +91,12 @@ export function newSignerForCosignatureV1(skey: string): Signer {
 	const [name, afterName] = cut(afterPriv2, "+");
 	const [hash16, key64] = cut(afterName, "+");
 	const key = tryFromBase64(key64);
+	// Port note: Go's `len(hash16)` counts bytes, so the field is measured in UTF-8 bytes here
+	// rather than in UTF-16 code units; the same applies in the two functions below.
 	if (
 		priv1 !== "PRIVATE" ||
 		priv2 !== "KEY" ||
-		hash16.length !== 8 ||
+		toUTF8(hash16).length !== 8 ||
 		key === undefined ||
 		!isValidName(name) ||
 		key.length === 0
@@ -123,7 +149,7 @@ export function newVerifierForCosignatureV1(vkey: string): NoteVerifier {
 	const [name, afterName] = cut(vkey, "+");
 	const [hash16, key64] = cut(afterName, "+");
 	const key = tryFromBase64(key64);
-	if (hash16.length !== 8 || key === undefined || !isValidName(name) || key.length === 0) {
+	if (toUTF8(hash16).length !== 8 || key === undefined || !isValidName(name) || key.length === 0) {
 		throw errVerifierID;
 	}
 
@@ -155,7 +181,7 @@ export function vKeyToCosignatureV1(vkey: string): string {
 	const [name, afterName] = cut(vkey, "+");
 	const [hash16, key64] = cut(afterName, "+");
 	const algKey = tryFromBase64(key64);
-	if (hash16.length !== 8 || algKey === undefined || !isValidName(name) || algKey.length === 0) {
+	if (toUTF8(hash16).length !== 8 || algKey === undefined || !isValidName(name) || algKey.length === 0) {
 		throw errVerifierID;
 	}
 
@@ -305,7 +331,13 @@ export class Signer implements NoteSigner {
 	}
 }
 
-/** verifier is a note-compatible verifier. */
+/**
+ * verifier is a note-compatible verifier.
+ *
+ * Ported from note_verifier.go (Apache-2.0, Google LLC; see the header). Port note: Go's
+ * fields `name` and `keyHash` are `n` and `h` here, because a class cannot have a field and
+ * a method of the same name.
+ */
 class verifier implements NoteVerifier {
 	private readonly n: string;
 	private readonly h: number;
@@ -317,12 +349,17 @@ class verifier implements NoteVerifier {
 		this.v = v;
 	}
 
+	/** name returns the name associated with the key this verifier is based on. */
 	name(): string {
 		return this.n;
 	}
+
+	/** keyHash returns a truncated hash of the key this verifier is based on. */
 	keyHash(): number {
 		return this.h;
 	}
+
+	/** verify checks that the provided sig is valid over msg for the key this verifier is based on. */
 	verify(msg: Uint8Array, sig: Uint8Array): boolean {
 		return this.v(msg, sig);
 	}

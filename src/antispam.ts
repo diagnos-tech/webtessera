@@ -77,13 +77,25 @@ class inMemoryDedup {
 		// `sync.OnceValue` critical section is synchronous (building the future does not
 		// await), so per docs/decisions/0004-errors-context-and-concurrency.md a plain
 		// captured variable suffices and no lock is taken — JavaScript's run-to-completion
-		// semantics guarantee the build cannot interleave with itself.
+		// semantics guarantee the build cannot interleave with itself. As with OnceValue, a
+		// delegate that throws (Go: panics) is not called again: every later call rethrows the
+		// same value, as memoizeFuture does for OnceValues (docs/decisions/0083).
 		let built: IndexFuture | undefined;
+		let thrown: { readonly value: unknown } | undefined;
 		let f: () => IndexFuture = (): IndexFuture => {
+			if (thrown !== undefined) {
+				throw thrown.value;
+			}
 			if (built === undefined) {
 				// However many calls with the same entry come in and are deduplicated, we should only call delegate
 				// once for each unique entry:
-				const df = this.delegate(e, signal);
+				let df: IndexFuture;
+				try {
+					df = this.delegate(e, signal);
+				} catch (err) {
+					thrown = { value: err };
+					throw err;
+				}
 
 				built = async (): Promise<Index> => {
 					try {

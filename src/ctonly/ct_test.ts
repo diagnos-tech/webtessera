@@ -243,3 +243,18 @@ describe("ctonly golden fixtures", () => {
 		}
 	});
 });
+
+// Port addition: Go's [][32]byte cannot hold a fingerprint of another length; the port refuses
+// one rather than write a bundle entry no parser can split (docs/decisions/0043).
+describe("Entry.leafData refuses a fingerprint that is not 32 bytes", () => {
+	for (const n of [0, 31, 33]) {
+		it(`${n} bytes`, () => {
+			const e = new Entry({ certificate: toUTF8("cert"), fingerprintsChain: [new Uint8Array(32), new Uint8Array(n)] });
+			expect(() => e.leafData(0n)).toThrow(`ctonly: fingerprintsChain[1] is ${n} bytes, want 32`);
+		});
+	}
+	it("accepts 32-byte fingerprints", () => {
+		const e = new Entry({ certificate: toUTF8("cert"), fingerprintsChain: [new Uint8Array(32).fill(7)] });
+		expect(e.leafData(0n).subarray(-34)).toEqual(Uint8Array.of(0, 32, ...new Uint8Array(32).fill(7)));
+	});
+});

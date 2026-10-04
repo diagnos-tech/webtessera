@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in LICENSES/BSD-3-Clause-Go.txt.
 //
-// Ported from container/list (Go standard library) @ Go 1.25.5
+// Ported from container/list/list.go (Go standard library) @ Go 1.25.5
 //
 // This file is not a port of a Tessera file -- Tessera itself imports
 // `container/list` for `fsck/status.go`'s rangeTracker, which has no TypeScript
@@ -57,7 +57,7 @@ export class Element<T> {
 	 * never otherwise observed.
 	 */
 	_next: Element<T>;
-	/** @internal */
+	/** @internal The previous pointer; Go declares next and prev together, see _next. */
 	_prev: Element<T>;
 
 	/** @internal The list to which this element belongs. */

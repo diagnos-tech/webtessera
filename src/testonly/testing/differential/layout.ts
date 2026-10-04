@@ -203,7 +203,7 @@ export function describeLayoutDifferential(): void {
 				}
 				rep.equal(rid, "items", items, ts);
 			}
-			rep.assertClean(700, ["uint-count-overflow"]);
+			rep.assertClean(700, ["uint-count-overflow"], ["uint-count-overflow"]);
 		});
 	});
 }

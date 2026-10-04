@@ -1,6 +1,6 @@
 # ADR-0131: `HTTPFetcher` accommodates how `fetch` differs from `net/http`
 
-- **Status:** proposed
+- **Status:** proposed; superseded in part by [ADR-0195](0195-response-size-caps.md) (reading the body)
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `client/fetcher.go` (`NewHTTPFetcher`, `HTTPFetcher.fetch`, `ReadCheckpoint`, `ReadTile`, `ReadEntryBundle`)
@@ -100,3 +100,22 @@ unmodified in browsers and edge runtimes.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
+
+## Update (2026-10-04)
+
+Three statements of the Context table needed correcting, found by the final fidelity audit against Go's `HTTPFetcher`
+on the same requests:
+
+- **`io.ReadAll(r.Body)` → `arrayBuffer()`** no longer holds: ADR-0195 replaced it with `readAllLimited`, which caps
+  the body. This ADR is superseded in that part.
+- **"`get(%q): %v` on a transport failure: same"** holds for the prefix only. `net/http` returns a `*url.Error`, whose
+  text adds the method and URL before the cause, and `fetch` rejects with the cause alone:
+  Go `get("http://logs.example/root/checkpoint"): Get "http://logs.example/root/checkpoint": net boom`, port
+  `get("http://logs.example/root/checkpoint"): net boom`. The witness gateway's POST differs the same way
+  (`... at "<url>": Post "<url>": ...` in Go). This is inherent to `fetch` and is not reproduced: the cause the port
+  prints is the runtime's own, and its wording differs between runtimes anyway.
+- **The root URL's path.** Go's `rootURL.Path += "/"` appends to the decoded path, and writing it back re-escapes it,
+  which loses an escaped slash: a root `http://h/a%2Fb` requests `/a/b/checkpoint`, while the port, which appends to the
+  URL as written, requests `/a%2Fb/checkpoint`. That is the one root form for which the two request different paths.
+  Two others are spelled differently but request the same resources: `%7Efoo` is normalised to `~foo` only by Go, and
+  `/./dot/../x` is resolved when the fetcher is built only by the port.

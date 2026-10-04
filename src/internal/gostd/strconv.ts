@@ -3,8 +3,8 @@
 // Copyright 2026 MedDeck LTDA. All Rights Reserved.
 //
 // This file has mixed provenance. parseUint, underscoreOK, lower, NumError, ErrSyntax and
-// ErrRange (from atoi.go), and quote, isPrint, bsearch and the IS_PRINT/IS_NOT_PRINT tables
-// (from quote.go and isprint.go), each marked below,
+// ErrRange (from atoi.go), and quote, quoteBytes, escapedRune, isPrint, bsearch and the
+// IS_PRINT/IS_NOT_PRINT tables (from quote.go and isprint.go), each marked below,
 // are a derivative work of Go's standard library package `strconv` and remain subject to
 // the Go project's BSD-style licence, which is reproduced further down and in
 // LICENSES/BSD-3-Clause-Go.txt. Everything else in this file is original to this project
@@ -64,6 +64,7 @@
 // let a malformed checkpoint size or a malformed verifier key hash through.
 
 import { SentinelError } from "./errors.ts";
+import { decodeRune, RuneError } from "./unicode.ts";
 
 /**
  * ErrRange indicates that a value is out of range for the target type.
@@ -144,51 +145,73 @@ function quoteBounded(s: string): string {
 export function quote(s: string): string {
 	let out = '"';
 	for (const ch of s) {
-		const r = ch.codePointAt(0) ?? 0;
-		if (ch === '"' || ch === "\\") {
-			out += `\\${ch}`;
-			continue;
-		}
-		if (isPrint(r)) {
-			out += ch;
-			continue;
-		}
-		switch (r) {
-			case 0x07:
-				out += "\\a";
-				continue;
-			case 0x08:
-				out += "\\b";
-				continue;
-			case 0x0c:
-				out += "\\f";
-				continue;
-			case 0x0a:
-				out += "\\n";
-				continue;
-			case 0x0d:
-				out += "\\r";
-				continue;
-			case 0x09:
-				out += "\\t";
-				continue;
-			case 0x0b:
-				out += "\\v";
-				continue;
-			default:
-				break;
-		}
-		if (r < 0x20 || r === 0x7f) {
-			out += `\\x${r.toString(16).padStart(2, "0")}`;
-		} else if (r >= 0xd800 && r <= 0xdfff) {
-			out += "\\ufffd";
-		} else if (r < 0x10000) {
-			out += `\\u${r.toString(16).padStart(4, "0")}`;
-		} else {
-			out += `\\U${r.toString(16).padStart(8, "0")}`;
-		}
+		out += escapedRune(ch.codePointAt(0) ?? 0, ch);
 	}
 	return `${out}"`;
+}
+
+/**
+ * quoteBytes returns a double-quoted Go string literal representing the bytes b, as
+ * `strconv.Quote(string(b))` does: like {@link quote}, but each byte that does not start a
+ * valid UTF-8 encoding is spelled \xNN, the escape Go uses for it. Derived from strconv
+ * (quote.go, appendQuotedWith).
+ *
+ * Port note: quote takes a JavaScript string, which cannot hold such bytes; this is for the
+ * messages that quote a slice of input bytes as Go does, possibly cut inside a character.
+ */
+export function quoteBytes(b: Uint8Array): string {
+	let out = '"';
+	for (let i = 0, width = 0; i < b.length; i += width) {
+		let r: number;
+		[r, width] = decodeRune(b, i);
+		if (width === 1 && r === RuneError) {
+			out += `\\x${(b[i] as number).toString(16).padStart(2, "0")}`;
+			continue;
+		}
+		out += escapedRune(r, String.fromCodePoint(r));
+	}
+	return `${out}"`;
+}
+
+/**
+ * escapedRune spells the rune r (whose string form is ch) inside a double-quoted Go string
+ * literal. Derived from strconv (quote.go, appendEscapedRune).
+ */
+function escapedRune(r: number, ch: string): string {
+	if (ch === '"' || ch === "\\") {
+		return `\\${ch}`;
+	}
+	if (isPrint(r)) {
+		return ch;
+	}
+	switch (r) {
+		case 0x07:
+			return "\\a";
+		case 0x08:
+			return "\\b";
+		case 0x0c:
+			return "\\f";
+		case 0x0a:
+			return "\\n";
+		case 0x0d:
+			return "\\r";
+		case 0x09:
+			return "\\t";
+		case 0x0b:
+			return "\\v";
+		default:
+			break;
+	}
+	if (r < 0x20 || r === 0x7f) {
+		return `\\x${r.toString(16).padStart(2, "0")}`;
+	}
+	if (r >= 0xd800 && r <= 0xdfff) {
+		return "\\ufffd";
+	}
+	if (r < 0x10000) {
+		return `\\u${r.toString(16).padStart(4, "0")}`;
+	}
+	return `\\U${r.toString(16).padStart(8, "0")}`;
 }
 
 /**

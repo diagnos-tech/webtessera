@@ -122,4 +122,23 @@ describe("note signAsync", () => {
 		await expect(signAsync(n, s)).rejects.toBe(errMalformedNote);
 		expect(() => sign(n, newSigner(peterNeumann))).toThrow(errMalformedNote);
 	});
+
+	// ADR-0203: a text with an unpaired surrogate cannot be encoded as UTF-8, so neither
+	// function signs it, and no signer is asked to.
+	it("rejects a text UTF-8 cannot encode, as sign does, before any signer sees it", async () => {
+		for (const t of ["a\ud800b\n", "\udfff\n", `${text}\ud83c\n`]) {
+			const s = asyncOf(newSigner(peterNeumann));
+			await expect(signAsync({ text: t }, s)).rejects.toBe(errMalformedNote);
+			expect(s.calls).toEqual([]);
+			expect(() => sign({ text: t }, newSigner(peterNeumann))).toThrow(errMalformedNote);
+		}
+		// A surrogate pair is a single, encodable code point.
+		const pair = "\ud83c\udf32\n";
+		expect(
+			bytesEqual(
+				await signAsync({ text: pair }, newSigner(peterNeumann)),
+				sign({ text: pair }, newSigner(peterNeumann)),
+			),
+		).toBe(true);
+	});
 });

@@ -26,6 +26,7 @@
 import { EntryBundleWidth, entriesPath } from "./api/layout/index.ts";
 import type { EntryBundleFetcherFunc } from "./client/index.ts";
 import { bytesEqual, toHex } from "./internal/gostd/bytes.ts";
+import { formatType } from "./internal/gostd/fmt.ts";
 import { ErrGroup, sleep } from "./internal/gostd/sync.ts";
 import type { MigrationWriter } from "./internal/migrate/migrate.ts";
 import { type Antispam, defaultIDHasher, defaultMerkleLeafHasher, type Follower, type LogReader } from "./lifecycle.ts";
@@ -103,6 +104,7 @@ export function newMigrationOptions(): MigrationOptions {
  * field access) -- see that file for the closing half of this port.
  */
 export class MigrationOptions {
+	/** @internal Go's unexported fields; see the comment above. */
 	internal: {
 		/** entriesPath knows how to format entry bundle paths. */
 		entriesPath: (n: bigint, p: number) => string;
@@ -280,18 +282,4 @@ export function awaitFollower(f: Follower, i: bigint, signal: AbortSignal): () =
 /** errText renders an error the way Go's `%v` verb does. */
 function errText(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
-}
-
-/** formatType renders a value's runtime type the way Go's `%T` verb does, as closely as JavaScript allows. */
-function formatType(d: unknown): string {
-	if (d === null) {
-		return "<nil>";
-	}
-	if (d === undefined) {
-		return "undefined";
-	}
-	if (typeof d === "object") {
-		return d.constructor.name;
-	}
-	return typeof d;
 }

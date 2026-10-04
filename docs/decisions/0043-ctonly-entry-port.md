@@ -134,3 +134,11 @@ chains of 0, 1, 2, 3 and 8 fingerprints.
   RFC 6962 / static-ct-api (0 mismatches), confirming the golden tests are non-vacuous and
   the fixture is byte-correct, not merely self-consistent with the code under test.
   52/52 tests in `ct_test.ts` pass.
+
+## Update (2026-10-04)
+
+The loss of safety recorded above (a fingerprint that is not 32 bytes reaches the encoder) is now closed at the point it
+matters: `Entry.leafData` throws `RangeError("ctonly: fingerprintsChain[<i>] is <n> bytes, want 32")` before encoding
+anything, instead of writing a bundle entry that no parser can split. The field's type is unchanged, and every entry
+Go can represent encodes exactly as before (the golden fixtures and the audit's 49 `LeafData`/`MerkleTreeLeaf` cases
+are unaffected). `ct_test.ts` pins it.

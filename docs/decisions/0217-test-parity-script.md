@@ -14,7 +14,7 @@ pin bump, or a ported test renamed or deleted later, would go unnoticed until th
 
 ## Decision
 
-`scripts/test-parity.mjs` (`pnpm test:parity`):
+`scripts/test-parity.mjs` (`pnpm test:parity`; `bun run test:parity` since ADR-0240):
 
 1. lists every Go `Test*`, `Example*`, `Fuzz*` and `Benchmark*` with `go test -list` (Tessera inside
    `.upstream/tessera`, the vendored modules from `fixtures/gen`, whose `go.mod` pins them), merged with a

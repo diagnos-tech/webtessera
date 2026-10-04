@@ -112,6 +112,21 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
 
 ### Behaviour and API details
 
+- Witness policy URLs are parsed with a transcription of Go's `net/url` (`url.Parse`, `JoinPath`,
+  `String`), so verdicts, error texts and endpoints, percent-escaping included, are Go's. A URL with no
+  host, or one the platform URL parser rejects, is refused with its own message (ADR-0241). A policy
+  line that is not valid UTF-8 before its `#` is rejected (ADR-0242).
+- Fidelity fixes from the final audit against Go: cosignature/v1 key constructors measure the key-hash
+  field in bytes; merkle verification reports Go's `RootMismatchError` wherever Go does, and tlog-proof
+  decoding reports Go's errors before its canonical-base64 check; fsck says `AppendBundle(...)`; the
+  driver formats durations as Go's `Duration` does (`500µs`); the `bufio.Scanner` stand-in follows Go
+  after `ErrTooLong`; `inMemoryDedup` does not call a delegate that threw again; `.state/treeState`
+  accepts a root written as a JSON byte array.
+- `note.sign`/`signAsync` reject a text with an unpaired surrogate, and `id` rejects such an origin,
+  instead of silently substituting U+FFFD (ADR-0203). `cryptobyte`'s `addUint*` and CT fingerprints
+  reject out-of-range values (ADR-0200, ADR-0043). `newLogStateTracker` accepts `undefined` or `null`
+  state, as Go accepts nil. Long `sleep`s wait their full duration.
+
 Details of the API that a caller would otherwise find out the hard way. Where the port differs from Go,
 an ADR says why.
 

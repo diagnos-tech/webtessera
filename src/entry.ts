@@ -38,6 +38,7 @@ export class Entry {
 	// accessor methods below. Nesting the fields under `internal`, rather than flattening them
 	// onto Entry, is what avoids the field/accessor name collision that ADR-0010 resolves with a
 	// `_` prefix in flatter cases (`internal.data` and `data()` live on different objects).
+	/** @internal Go's unexported `internal` struct; see the comment above. */
 	internal: {
 		data: Uint8Array;
 		identity: Uint8Array;
@@ -45,7 +46,10 @@ export class Entry {
 		index: bigint | undefined;
 	};
 
-	/** marshalForBundle knows how to convert this entry's Data into a marshalled bundle entry. */
+	/**
+	 * marshalForBundle knows how to convert this entry's Data into a marshalled bundle entry.
+	 * @internal Go: unexported; set by newEntry and ct_only.ts's convertCTEntry.
+	 */
 	marshalForBundle: (index: bigint) => Uint8Array;
 
 	/**
@@ -104,6 +108,11 @@ export class Entry {
 	}
 }
 
+// Port addition (docs/decisions/0182-newentry-rejects-entries-over-65535-bytes.md):
+// maxEntrySize is the largest entry the uint16 length prefix of a tlog-tiles entry bundle can
+// describe (https://c2sp.org/tlog-tiles).
+const maxEntrySize = 0xffff;
+
 /**
  * newEntry creates a new Entry object with leaf data.
  *
@@ -132,7 +141,3 @@ export function newEntry(data: Uint8Array): Entry {
 	};
 	return e;
 }
-
-// maxEntrySize is the largest entry the uint16 length prefix of a tlog-tiles entry bundle can
-// describe (https://c2sp.org/tlog-tiles).
-const maxEntrySize = 0xffff;

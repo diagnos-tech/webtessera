@@ -48,3 +48,12 @@ As hardening:
 - **Reviewer:** _pending_
 - **Verdict:** _pending_
 - **Notes:**
+
+## Update (2026-10-04): `fetchLeafHashes` with an absurd `N`
+
+`client.FetchLeafHashes` preallocates its result, `make([][]byte, 0, N)`, before fetching anything, so an `N` it cannot
+allocate aborts a Go process (`fatal error: runtime: out of memory` at `N = 2^40`, `panic: makeslice: cap out of
+range` above). `fetchLeafHashes` grows its array as hashes arrive, so the same call fetches node by node and fails at
+the first leaf the log does not have, `failed to fetch node {0 <i>}: require leaf nodes [<i>, <i+1>) but only got <i>
+leaves`, with Go's text for that error. Like the size limits above, it turns an input that would take a process down
+into an ordinary error; for every `N` Go can allocate the result is Go's.

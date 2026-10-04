@@ -373,15 +373,26 @@ function mustGenerateKeys(): [Signer, Verifier] {
 // The cases below have no counterpart in files_test.go.
 
 describe("ObjectStoreDriver", () => {
-	it("rejects a CheckpointInterval below the minimum, formatted as Go formats a Duration", async () => {
-		const [sk] = mustGenerateKeys();
-		const d = newMemoryDriver();
-		await expect(d.appender(newAppendOptions().withCheckpointSigner(sk).withCheckpointInterval(50))).rejects.toThrow(
-			"requested CheckpointInterval (50ms) is less than minimum permitted 100ms",
-		);
-		await expect(d.appender(newAppendOptions().withCheckpointSigner(sk).withCheckpointInterval(0))).rejects.toThrow(
-			"requested CheckpointInterval (0s) is less than minimum permitted 100ms",
-		);
+	// Go's text for each interval, from the POSIX driver's NewAppender with the same Duration.
+	describe("rejects a CheckpointInterval below the minimum, formatted as Go formats a Duration", () => {
+		for (const [ms, want] of [
+			[50, "50ms"],
+			[0, "0s"],
+			[0.5, "500µs"],
+			[0.001, "1µs"],
+			[0.000001, "1ns"],
+			[1.5, "1.5ms"],
+			[99.999999, "99.999999ms"],
+			[-5, "-5ms"],
+		] as const) {
+			it(`${ms} ms -> ${want}`, async () => {
+				const [sk] = mustGenerateKeys();
+				const d = newMemoryDriver();
+				await expect(
+					d.appender(newAppendOptions().withCheckpointSigner(sk).withCheckpointInterval(ms)),
+				).rejects.toThrow(`requested CheckpointInterval (${want}) is less than minimum permitted 100ms`);
+			});
+		}
 	});
 
 	it("initialises a new log: version file, empty tree state, and a signed empty checkpoint", async () => {

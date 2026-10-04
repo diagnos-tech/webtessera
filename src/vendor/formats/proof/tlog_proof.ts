@@ -109,15 +109,20 @@ export class TLogProof {
 	 * Port note: C2SP tlog-proof requires that "decoders MUST reject non-canonical
 	 * encodings" of base64. Go's base64.StdEncoding accepts non-zero padding bits and
 	 * skips `\r` and `\n`, so after each decode that Go accepts, this also checks that the
-	 * input is the canonical encoding of what it decoded to, and throws "tlog proof extra
-	 * data not canonically base64 encoded" or "tlog proof hash not canonically base64
-	 * encoded" if not. Everything Go rejects is rejected with Go's error, and everything
-	 * else Go accepts (an index with leading zeros, CRLF line endings, a checkpoint without
-	 * a final newline) is accepted as Go accepts it.
+	 * input is the canonical encoding of what it decoded to. The first such line is
+	 * remembered, the parse carries on as Go's does, and only once it has finished without
+	 * an error of Go's does this throw "tlog proof extra data not canonically base64
+	 * encoded" or "tlog proof hash not canonically base64 encoded" for that line. So
+	 * everything Go rejects is rejected with Go's error, and everything else Go accepts (an
+	 * index with leading zeros, CRLF line endings, a checkpoint without a final newline) is
+	 * accepted as Go accepts it.
 	 * See docs/decisions/0224-port-formats-proof-for-tlog-proof.md.
 	 */
 	unmarshal(data: Uint8Array): void {
 		const b = new Scanner(data);
+		// nonCanonical is the error for the first base64 line that Go accepts but C2SP
+		// does not, thrown only if Go's parse ends without an error (see above).
+		let nonCanonical: Error | undefined;
 
 		b.scan();
 		if (b.text() !== tlogProofHeaderV1) {
@@ -135,7 +140,7 @@ export class TLogProof {
 				throw wrapError("tlog proof extra data not base64 encoded", err);
 			}
 			if (toBase64(extra) !== e) {
-				throw new Error("tlog proof extra data not canonically base64 encoded");
+				nonCanonical ??= new Error("tlog proof extra data not canonically base64 encoded");
 			}
 			extra = extra.slice();
 			b.scan();
@@ -167,7 +172,7 @@ export class TLogProof {
 				throw new Error(`tlog proof hash length was ${hash.length}, expected ${sha256Size}`);
 			}
 			if (toBase64(hash) !== b.text()) {
-				throw new Error("tlog proof hash not canonically base64 encoded");
+				nonCanonical ??= new Error("tlog proof hash not canonically base64 encoded");
 			}
 			hashes.push(hash.slice());
 		}
@@ -175,12 +180,17 @@ export class TLogProof {
 		const newline = new Uint8Array([0x0a]);
 		const checkpoint: Uint8Array[] = [];
 		while (b.scan()) {
-			checkpoint.push(b.bytes(), newline);
+			// Port note: Bytes is a view of the scanner's buffer, which the next scan may
+			// overwrite; Go's checkpoint.Write copies it, and so does slice.
+			checkpoint.push(b.bytes().slice(), newline);
 		}
 
 		const err = b.err();
 		if (err !== undefined) {
 			throw wrapError("scanning tlog proof", err);
+		}
+		if (nonCanonical !== undefined) {
+			throw nonCanonical;
 		}
 
 		this.index = idx;

@@ -18,6 +18,7 @@
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { toHex, toUTF8 } from "../../../internal/gostd/bytes.ts";
+import { validUTF8String } from "../../../internal/gostd/unicode.ts";
 
 /**
  * id returns the identifier to use for a log given the Origin. This is the ID
@@ -25,8 +26,16 @@ import { toHex, toUTF8 } from "../../../internal/gostd/bytes.ts";
  * to feed checkpoints to witnesses.
  *
  * Port note: Go's `ID` is a func, so it is camelCased to `id` (PORTING.md §3.2).
+ *
+ * Port note: Go hashes the origin's bytes, whatever they are. An origin holding an unpaired
+ * UTF-16 surrogate, which UTF-8 cannot encode, throws "origin is not valid UTF-8" instead of
+ * being hashed as U+FFFD, which would give it the ID of a different origin. See
+ * docs/decisions/0203-checkpoint-origin-must-be-utf8.md.
  */
 export function id(origin: string): string {
+	if (!validUTF8String(origin)) {
+		throw new Error("origin is not valid UTF-8");
+	}
 	const s = sha256.create();
 	s.update(toUTF8("o:"));
 	s.update(toUTF8(origin));

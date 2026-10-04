@@ -183,6 +183,10 @@ export async function fetchLeafHashes(
 	signal?: AbortSignal,
 ): Promise<Uint8Array[]> {
 	const nc = newNodeCache(f, logSize);
+	// Port note: Go preallocates `make([][]byte, 0, N)`, which aborts the process for an N it
+	// cannot allocate (out of memory, or "makeslice: cap out of range"); the array grows as
+	// hashes arrive instead, so such an N fails at the first leaf the log does not have
+	// (docs/decisions/0194-tile-and-bundle-size-limits.md).
 	const hashes: Uint8Array[] = [];
 	// Port note: `first+N` wraps as Go's uint64 addition does, so a range whose end
 	// overflows fetches nothing, as in Go (docs/decisions/0014-uint64-wrapping-made-explicit.md).
@@ -499,17 +503,20 @@ function copyCheckpoint(c: Checkpoint): Checkpoint {
  * error. No caller in this port (client_test.go's TestCheckLogStateTracker) inspects that
  * partial value, and every other port in this codebase throws rather than returning a value alongside an error (PORTING.md §3.6), so
  * this throws and the partial tracker is discarded.
+ *
+ * Port note: checkpointRaw may be undefined or null, as Go's []byte may be nil; both mean
+ * no serialised state, like an empty array.
  */
 export async function newLogStateTracker(
 	tF: TileFetcherFunc,
-	checkpointRaw: Uint8Array,
+	checkpointRaw: Uint8Array | undefined | null,
 	nV: Verifier,
 	origin: string,
 	cc: ConsensusCheckpointFunc,
 	signal?: AbortSignal,
 ): Promise<LogStateTracker> {
 	const ret = new LogStateTracker(origin, cc, nV, tF);
-	if (checkpointRaw.length > 0) {
+	if (checkpointRaw !== undefined && checkpointRaw !== null && checkpointRaw.length > 0) {
 		ret._latestConsistentRaw = checkpointRaw;
 		const checkpoint = parseCheckpoint(checkpointRaw, origin, nV).checkpoint;
 		ret._latestConsistent = copyCheckpoint(checkpoint);

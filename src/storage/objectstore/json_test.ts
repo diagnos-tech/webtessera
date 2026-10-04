@@ -73,6 +73,11 @@ describe("unmarshalTreeState: inputs Go accepts", () => {
 			root: [1],
 		},
 		{ name: "MaxUint64", in: '{"root":"","size":18446744073709551615}', size: maxUint64, root: [] },
+		// encoding/json decodes a JSON array into a []byte element by element; a null element
+		// leaves its byte zero.
+		{ name: "root as an array of bytes", in: '{"size":1,"root":[1,2,255]}', size: 1n, root: [1, 2, 255] },
+		{ name: "root as an empty array", in: '{"size":1,"root":[]}', size: 1n, root: [] },
+		{ name: "a null element of a root array", in: '{"size":1,"root":[null,7]}', size: 1n, root: [0, 7] },
 	];
 	for (const test of tests) {
 		it(test.name, () => {
@@ -115,9 +120,39 @@ describe("unmarshalTreeState: inputs Go rejects", () => {
 		{ in: "[1]", wantErr: "json: cannot unmarshal array into Go value of type treeState" },
 		{ in: '{"size":1', wantErr: "unexpected end of JSON input" },
 		{ in: "", wantErr: "unexpected end of JSON input" },
+		// The port's syntax-error texts follow encoding/json's only loosely (docs/decisions/0102);
+		// Go says "invalid character '1' after object key:value pair" here.
 		{ in: '{"size":01,"root":""}', wantErr: "invalid character '1' in numeric literal" },
 		{ in: '{"size":1,"root":"a\nb"}', wantErr: "invalid character '\\n' in string literal" },
 		{ in: '{"size":1 "root":""}', wantErr: `invalid character '"' after object key:value pair` },
+		// A root array's elements must each fit a uint8 (Go 1.24.7 and 1.25.5 give these texts).
+		...[
+			["256", "number 256"],
+			["-1", "number -1"],
+			["1.5", "number 1.5"],
+			["1e2", "number 1e2"],
+			['"a"', "string"],
+			["[1]", "array"],
+			["true", "bool"],
+			["{}", "object"],
+		].map(([e, what]) => ({
+			in: `{"size":1,"root":[0,${e}]}`,
+			wantErr: `json: cannot unmarshal ${what} into Go struct field treeState.root of type uint8`,
+		})),
+		// Go keeps decoding after a type error and reports the earliest, in document order.
+		{
+			in: '{"root":5,"size":-1}',
+			wantErr: "json: cannot unmarshal number into Go struct field treeState.root of type []uint8",
+		},
+		{
+			in: '{"root":[300],"size":"x"}',
+			wantErr: "json: cannot unmarshal number 300 into Go struct field treeState.root of type uint8",
+		},
+		// Go's error comes before the port's own refusal of a null size.
+		{
+			in: '{"size":null,"root":true}',
+			wantErr: "json: cannot unmarshal bool into Go struct field treeState.root of type []uint8",
+		},
 	];
 	for (const test of tests) {
 		it(JSON.stringify(test.in), () => {

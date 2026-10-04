@@ -315,8 +315,18 @@ export class Once<T> {
 }
 
 /**
+ * maxTimerDelay is the longest delay a JavaScript timer honours: 2^31-1 milliseconds, about
+ * 24.8 days. setTimeout treats a longer one as zero and fires at once.
+ */
+const maxTimerDelay = 2 ** 31 - 1;
+
+/**
  * sleep resolves after ms milliseconds, rejecting instead if the signal aborts first.
  * It is the equivalent of a `select` on `time.After` and `ctx.Done()`.
+ *
+ * Port note: a delay longer than a timer can hold (maxTimerDelay) is waited out in
+ * successive timers of at most that length, so it lasts as long as Go's time.After does
+ * instead of resolving at once.
  */
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 	return new Promise((resolve, reject) => {
@@ -324,14 +334,25 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 			reject(signal.reason);
 			return;
 		}
-		const timer = setTimeout(() => {
-			signal?.removeEventListener("abort", onAbort);
-			resolve();
-		}, ms);
+		let remaining = ms;
+		let timer: ReturnType<typeof setTimeout>;
 		const onAbort = () => {
 			clearTimeout(timer);
 			reject(signal?.reason);
 		};
+		const wait = (): void => {
+			const step = Math.min(remaining, maxTimerDelay);
+			timer = setTimeout(() => {
+				remaining -= step;
+				if (remaining > 0) {
+					wait();
+					return;
+				}
+				signal?.removeEventListener("abort", onAbort);
+				resolve();
+			}, step);
+		};
+		wait();
 		signal?.addEventListener("abort", onAbort, { once: true });
 	});
 }

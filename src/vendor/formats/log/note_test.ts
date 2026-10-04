@@ -31,6 +31,9 @@ const known1SK = "PRIVATE+KEY+Known+451c786d+AQPRoE2+Z+Ed1HaHBA9F/FfracvcZ2rDU39
 const known2VK = "KnownAgain+4893b26c+AQ+LR7BFF/F/dkpIBjBpSvT0crkteizuUkavAoGeaYMj";
 const known2SK = "PRIVATE+KEY+KnownAgain+4893b26c+ARhZda/l25zjGZswYLDZsLNRzNpmv5wYTN9IoTr1OJ2+";
 
+// Port note: unused, as upstream marks it with `_ = unknownVK`; kept so the keys read as upstream's.
+// biome-ignore lint/correctness/noUnusedVariables: kept from upstream's var block; see the port note above.
+const unknownVK = "Unknown+fdbb2e08+AWgRIYZ+8x1Vl+1Q+sR8zciNHiYI1SdlBjNw+RV0rots";
 const unknownSK = "PRIVATE+KEY+Unknown+fdbb2e08+Aav2knTC6orbhXX8pMWuNiWgO+Wwk2DB+h1eU2Q1W1nU";
 
 describe("formats/log note", () => {

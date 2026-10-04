@@ -69,4 +69,14 @@ describe("formats/log identifier", () => {
 		// The literal output of `log.ID` under Go 1.25.5 for the same origin.
 		expect(id("árvore/exames")).toBe("1450a531ff803743add12971d32e7a3c6397fbe98b85252d8cec9daa1935e081");
 	});
+
+	// Beyond upstream (ADR-0203): an origin UTF-8 cannot encode is refused, rather than
+	// hashed as U+FFFD and given the ID of the origin that really holds U+FFFD.
+	it("refuses an origin with an unpaired surrogate", () => {
+		for (const origin of ["\ud800", "log\udfff", "a\ud800b"]) {
+			expect(() => id(origin)).toThrow("origin is not valid UTF-8");
+		}
+		expect(id("\ufffd")).toMatch(/^[0-9a-f]{64}$/);
+		expect(id("\u{1f332}")).toBe(id("\ud83c\udf32"));
+	});
 });

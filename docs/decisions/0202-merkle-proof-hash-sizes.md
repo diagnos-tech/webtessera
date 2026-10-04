@@ -92,3 +92,28 @@ tlog-checkpoint, which `parseCheckpoint` is the entry point for.
 - **Reviewer:** _pending_
 - **Verdict:** _pending_
 - **Notes:**
+
+## Update (2026-10-04)
+
+The Decision says each check runs after all of upstream's own checks. In `verifyInclusion` and
+`verifyConsistency` they ran before upstream's final root comparisons (`verifyMatch`), which are upstream
+checks too: a root or proof hash of the wrong length that also failed the comparison was reported as
+`<name> has unexpected size …` where Go returns a `RootMismatchError` (for example, a 32-byte `root1` that
+does not match together with a 31-byte `root2`). The verdict was a rejection either way, but the error's
+identity and text were not Go's.
+
+The code now does what the Decision says:
+
+- `verifyInclusion` computes the root as upstream does, compares it with `root`, and only then checks the
+  proof hashes and `root`. `rootFromInclusionProof` checks the proof hashes on its own success path.
+- `verifyConsistency` checks `root1`, `root2` and the proof hashes after both root comparisons on the
+  general path, and after `verifyMatch(root1, root2)` on the `size1 == size2` path. The `size1 == 0` path,
+  where upstream compares nothing, is unchanged.
+
+So the size errors are thrown only for inputs upstream accepts, and every input upstream rejects gets
+upstream's error, a `RootMismatchError` with upstream's calculated root included. Without a SHA-256
+collision, a proof with a mis-sized hash verifies only against the root it chains to, so the hardening
+still rejects every such proof; `verify_test.ts` pins both halves (Go's `RootMismatchError` against the true
+root, the size error against the forged one). The differential corpora include wrong-size hashes, and the
+merkle harness now applies the `merkle-hash-size` divergence only where Go verified the proof, as ADR-0216
+states, instead of wherever Go returned a `RootMismatchError`.

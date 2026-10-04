@@ -129,6 +129,21 @@ func dKeyVariants(key string, hashField int) []string {
 	return out
 }
 
+// dHashByteSpellings are key-hash fields whose length in bytes and in UTF-16
+// code units differ: 8 bytes in 4, 6 or 7 code units, and 8 code units in 9, 16
+// or 24 bytes.
+var dHashByteSpellings = []string{
+	"éééé", "😀😀", "éabcdef", "\ufeffabcde", "\u0085abcdef",
+	"éééééééé", "1234567é", "abcdéf12", "１２３４５６７８",
+}
+
+// dWithField returns key with its "+"-separated field i replaced by v.
+func dWithField(key string, i int, v string) string {
+	p := strings.Split(key, "+")
+	p[i] = v
+	return strings.Join(p, "+")
+}
+
 // dNameResult renders a constructor result: [err] on failure, ["", name, hash]
 // on success.
 func dNameResult(name string, hash uint32, err error) []any {
@@ -197,6 +212,19 @@ func genDiffNoteKeys() diffFile {
 			vkeys = append(vkeys, b[i:])
 		} else {
 			vkeys = append(vkeys, b[:i])
+		}
+	}
+
+	// Hash fields that are 8 bytes without being 8 UTF-16 code units, or the
+	// reverse: Go's len counts bytes, which a JavaScript port must not confuse
+	// with a string's length. They draw from their own seed and are appended
+	// last, so the records above and below keep their values.
+	rh := newDiffRand(0x4e07e6)
+	for _, n := range []string{"log", "Señor-0"} {
+		skey, vkey := dSeedKeys(n, randBytes(rh, 32))
+		for _, h := range dHashByteSpellings {
+			vkeys = append(vkeys, dWithField(vkey, 1, h))
+			skeys = append(skeys, dWithField(skey, 3, h))
 		}
 	}
 
