@@ -128,4 +128,11 @@ a second error is wrapped like any other. The behaviour is noted at the top of `
 
 `tileWriteCache.err()` is unaffected: `integrate.ts` passes it plain errors.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* Compared `errors.Join` in Go 1.24.7 (`/usr/local/go1.24.7`) and 1.25.5
+(`/root/sdk/go1.25.5`): 1.24 always builds a `joinError`; 1.25 returns the only non-nil argument unchanged when it implements `Unwrap() []error`, and otherwise wraps.
+`joinErrors` in `errors.ts` does exactly that for a sole `JoinError`, and wraps a sole error of any other kind and a `JoinError` joined with another error; `errors_test.ts`
+pins `joinErrors([j]) === j`, `joinErrors([undefined, j, null]) === j` and the wrapped case (lines 243 and 249). The port recognises only `JoinError` as a multi-error,
+where Go 1.25 would also return, say, a `fmt.Errorf` with two `%w`; the update says so ("only `JoinError` carries the multi-error shape in this port"), and the port has no
+other such type. `errorIs` and `errorAs` walk `JoinError.errors` as Go's `is` walks `Unwrap() []error`: the error itself, then `Is`, then the members depth-first in order,
+with a cycle guard shared across the traversal (checked in ADR-0004's review; 31 cases of `errors_test.ts` pass). The ADR-0004 gap that this ADR's Decision and Review
+call "accepted" is therefore closed, as the update says. `tileWriteCache.err()` still passes plain errors to `joinErrors`.

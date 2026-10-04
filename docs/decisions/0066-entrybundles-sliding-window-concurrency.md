@@ -1,6 +1,6 @@
 # ADR-0066: `entryBundles`' bounded read-ahead is a sliding window of promises, not a channel/goroutine translation
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** client contributor
 - **Upstream reference:** `client/stream.go` (`EntryBundles`)
@@ -196,4 +196,12 @@ and `stream_test.ts` pins it ("nothing is fetched before the first next()").
 `entryBundles` is now a plain function that validates `numWorkers` (ADR-0192) and returns the
 generator; the window logic is unchanged.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* Go's `EntryBundles` starts its producer goroutine inside the call, before the
+returned iterator is ranged over (`client/stream.go`: `go func() { ... getSize ... }()` precedes `return func(yield ...)`). I reproduced the observation: a Go program
+that calls `client.EntryBundles(ctx, 2, getSize, getBundle, 0, 10000)` and never iterates has made one `getSize` call and two `getBundle` calls 200 ms later, which is the
+update's "three calls". `streamEntryBundles` is an `async function*`, so nothing runs until the first `next()`; `entryBundles` is now a plain function that checks
+`numWorkers` (ADR-0192) and returns it, and the window logic is as the Decision describes. The Port note on `entryBundles` says so, and `stream_test.ts` "nothing is fetched before the
+first next()" (line 472) asserts `started === 0` before and 4 after (`getSize`, two fetches, and the refill once the first settles); all 18 cases of `stream_test.ts` pass. I
+re-read the original Decision against `stream.go` while here: the bound (tokens, `numWorkers` in flight plus fetched-not-yet-retrieved) is the same as the window's length, the
+token is returned in `f()` before the yield as `fillWindow()` runs before `yield bundle`, and an error from `getSize` surfaces at the first `next()` as Go yields it first. With the signed
+original review and this one, I have moved the status to `accepted`.

@@ -1,6 +1,6 @@
 # ADR-0020: Add `strconv`, `unicode`, `strings` and `io` stand-ins to `gostd`, and decode base64 the way Go does
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** note contributor
 - **Upstream reference:** `golang.org/x/mod/sumdb/note/note.go`, `github.com/transparency-dev/formats/log/checkpoint.go`
@@ -180,7 +180,14 @@ Deliberate limits, so that no untested parser branch ships:
   derived declaration named, the Apache-2.0 notice for the remainder, and the pointer to
   `LICENSES/BSD-3-Clause-Go.txt`. `NOTICE` lists it with the other Go-derived files.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* `io.ReadFull` is `ReadAtLeast`, whose loop is
+`for n < min && err == nil { nn, err = r.Read(buf[n:]); n += nn }`, so Go does retry a `(0, nil)` read and a reader that keeps
+returning it spins; `readFull` ends the input on a read of 0 or fewer bytes (`EOF` if nothing was read, `ErrUnexpectedEOF`
+otherwise), with the port note the update describes, and `io_test.ts` pins both cases (lines 91 and 102; 8 cases pass). Go's
+`ReadAtLeast` can also return `n >= min` together with an error and report success; a thrown error cannot carry bytes, which the
+`Reader` port note already states. `unicode.ts` opens with both Go copyright lines, the derived declarations named, the Apache-2.0
+notice for the rest and the pointer to `LICENSES/BSD-3-Clause-Go.txt`, and `NOTICE` lists it (and `strings.ts`, `time.ts`,
+`strconv.ts`, `bits.ts`).
 
 ## Update (2026-10-04)
 
@@ -210,4 +217,21 @@ Stand-ins added since this ADR's table, none of them previously recorded in an A
 - **`url.ts`** (`net/url`'s `Parse`, `JoinPath` and `String`) is recorded in ADR-0241, and the transcription of
   `bufio.Scanner`'s state machine in ADR-0224's update of the same date.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* Checked against Go 1.25.5 (`/root/sdk/go1.25.5`).
+`trimSpace` and `fields` are built on `isSpace` and walk UTF-16 code units; Go's `TrimSpace` and `Fields` take an ASCII fast path with
+`asciiSpace` (the same six bytes as `unicode.IsSpace` has below U+0080) and `unicode.IsSpace` otherwise, so the two agree. The claim
+about 1.24.7 versus 1.25.5 is exact: `Fields`' doc comment gains the two sentences and nothing in `Fields`/`TrimSpace` changed, and the
+`fieldstests` and `trimSpaceTests` tables are byte-identical in the two releases. The ported tables in `strings_test.ts` are Go's, with
+the Unicode spaces intact (I checked the code points: U+2000, U+2001, U+2002, U+3000) and the cases that put invalid UTF-8 bytes in a
+Go string left out, as the file says; the differential section `fields` has 1,500 rows and is replayed by `gostd_differential_test.ts`
+(passes). `time.ts`: `durationString` is `Duration.format` step for step (Go's 11-row `durationTests`, including the `MinInt64` and `MaxInt64`
+rows, is carried unchanged; the micro sign is U+00B5 as in Go), `fmtDuration` in `driver.ts` and `goDuration` in `append_lifecycle.ts`
+are the `%v` and `%d` renderings the update names, at the Go sites `posix/files.go:134` and `append_lifecycle.go:589`. `quoteBytes`
+spells a width-1 `RuneError` as `\xNN` as `appendQuotedWith` does, and `decodeRune` has Go's first-byte classes and second-byte
+ranges. `formatType` renders `<nil>` for null and undefined and the constructor name or `typeof` otherwise (`fmt_test.ts`), and is the
+only source of `%T` in `newAppender`/`newMigrationTarget` (`append_lifecycle.ts:195`, `migrate_lifecycle.ts:70`, Go `%T` at
+`append_lifecycle.go:257` and `migrate_lifecycle.go:39`). The cross-references hold: ADR-0241 records `url.ts`, ADR-0224's update of the
+same date records the `bufio.Scanner` state machine, ADR-0242 the UTF-8 refusal. Two things I could not confirm, neither a reason to
+withhold approval: that the two earlier private `%T` helpers disagreed on `undefined` and one crashed on a null-prototype object (they
+are gone, so there is nothing to run), and that `decodeRune` and `quoteBytes` are tested only through `url_test.ts` and the Go-printed
+`url` differential section (for instance `%z\xc3`), not by cases of their own. The update claims no more than that. With the signed original review and the review of both updates, I have moved the status to `accepted`.

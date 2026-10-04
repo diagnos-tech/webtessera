@@ -130,3 +130,11 @@ above; no new review was made. Three things have changed since:
   returns works on a copy of the options taken when it is called. The port now takes the same
   snapshot of `newCP`, the witness group and a copy of the witness options, so later `with*` calls
   no longer reach an existing publisher.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. (The update carried no review line, and its status change was made without a new
+review, as it says; I checked its three points.)* (1) `checkpointPublisher` in `append_lifecycle.ts` publishes `err.checkpoint` for a `PolicyNotSatisfiedError` and otherwise the log-signed
+checkpoint it already holds (`signed`), where Go's `Witness` returns `nil` for an early failure; the divergence is stated here and argued in ADR-0183, which is still `proposed`, as the status line says. (2) The
+timeout is an `AbortController` plus `setTimeout`, cleared and aborted in the `finally` after witnessing, matching Go's `context.WithTimeout` with `defer cancel()` at `append_lifecycle.go:645`
+(checked in my review of ADR-0004). (3) Go declares `func (o AppendOptions) CheckpointPublisher(...)` with a value receiver (line 614), so the closure sees a copy taken at the call;
+the port captures `newCP`, the witness group and a fresh `WitnessOptions` when `checkpointPublisher` is called, and the test "keeps using the options it was created with when they are changed later" pins it (the 21 cases of
+`append_lifecycle_test.ts` pass). The group is captured by reference where Go copies the struct, which shares its component slice in the same way.

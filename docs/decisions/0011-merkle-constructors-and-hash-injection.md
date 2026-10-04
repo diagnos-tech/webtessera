@@ -94,6 +94,9 @@ into a `HashFn`/`VisitFn` parameter is written that way.
 >   pattern as `New`: it is built with `new RangeFactory(h)`, its exported field is the `readonly` property
 >   `hash`, and factories compare by identity as Go's pointers do. `range.ts` documents this in a port note.
 
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. (The update carried no review line.)
+Each of its three corrections is checked in the Review below.*
+
 ## Alternatives considered
 
 - **Export `newHasher` / `newTree` alongside the constructors.** Rejected: two ways to build one
@@ -110,6 +113,42 @@ into a `HashFn`/`VisitFn` parameter is written that way.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** changes requested
 - **Notes:**
+  - Checked against `merkle@v0.0.2`. `rfc6962.New(h crypto.Hash) *Hasher { return &Hasher{Hash: h} }`,
+    `DefaultHasher = New(crypto.SHA256)`, the blank import `_ "crypto/sha256" // SHA256 is the default algorithm.`,
+    `EmptyRoot` as `t.New().Sum(nil)` and `Size()` inherited from the embedded `crypto.Hash` are as described;
+    `testonly.New(hasher merkle.LogHasher) *Tree` likewise; `rfc6962` imports only `crypto`, so there is no upstream
+    `LogHasher` assertion, and the TODO quoted in the last alternative is at `rfc6962_test.go:72`. In
+    `src/vendor/merkle/rfc6962/rfc6962.ts`, `Hasher` is `readonly hash: CHash` with a constructor, `emptyRoot`
+    is `hash.create().digest()`, `size()` is `outputLen`, `hashLeaf`/`hashChildren` build `0x00||leaf` and
+    `0x01||l||r`, the class `implements LogHasher` (type-only import; `hasher.ts` imports nothing), and
+    `DefaultHasher = new Hasher(sha256)` is the last declaration with a port note saying why. `new Tree(hasher)`
+    has the same shape. `rfc6962`, `testonly` and the rest of `src/vendor/merkle/{rfc6962,testonly}`: 4 files,
+    94 tests pass.
+  - The 2026-10-02 Update's three corrections are accurate: `DefaultHasher` is the only declaration-order change in
+    `rfc6962.ts`; the file carries Go's `New` doc comment on the constructor and the blank-import comment as a port
+    note; both `rfc6962.ts` and `testonly/tree.ts` now link `0011-merkle-constructors-and-hash-injection.md`;
+    `RangeFactory` is `new RangeFactory(h)` with a `readonly hash`, and `range.ts` compares factories with `!==`
+    where Go compares the pointers (`other.f != r.f` in `AppendRange`, `r.f != other.f` in `Equal`).
+  - The argument that `new` cannot be a function name and that a second spelling would give a donated API two
+    constructors is sound, and "inject the hash function, do not re-create `crypto.Hash`'s registry" is the right
+    reading of `Hasher`'s only parameter. I have no objection to the decision.
+  - Change requested (one item; wording, no code change). **The ADR states a call-site convention the code does not
+    follow.** The Decision says "every place upstream passes a bare method value into a `HashFn`/`VisitFn` parameter
+    is written" as `DefaultHasher.hashChildren.bind(DefaultHasher)`, and the Consequences speak of "`.bind(...)` at
+    call sites". The ported tests do follow it (`compact/range_test.ts:32`), but in `src/` outside tests
+    `.bind(DefaultHasher)` occurs once, in the differential harness (`testonly/testing/differential/merkle.ts:173`). Every library site wraps the method in an arrow function instead:
+    `new RangeFactory((l, r) => DefaultHasher.hashChildren(l, r))` in `storage/internal/integrate.ts` (lines 259, 680),
+    `client/client.ts` (629), `fsck/fsck.ts` (521) and `mirror/verify.ts` (135, 429), and
+    `nodes.rehash(hashes, (l, r) => hasher.hashChildren(l, r))` in `client/client.ts:308` and `testonly/tree.ts`. The two
+    forms are equivalent and the arrow form keeps `this` just as well, so nothing is wrong with the code; the record
+    is. Add an Update saying that a method value is bound either with `.bind` or with an arrow wrapper, and that the
+    arrow wrapper is the usual form; the `range.ts` port note ("must be bound first (ADR-0011)") is correct as it stands.
+  - Not blocking, for the record. The last Consequences bullet says an arrow-function property on `Hasher` "would
+    break `expect(a).toEqual(b)` on `Tree` values". That is true when two trees hold different `Hasher` instances
+    (functions compare by reference), but the ported `TestTreeAppend` and `TestTreeAppendAssociativity` build both trees
+    on the shared `DefaultHasher`, where it would not. The reasoning is a caution about a design that was not
+    adopted, not a claim about the tests, so I leave it.
+  - Status stays `proposed` until the Update is added.

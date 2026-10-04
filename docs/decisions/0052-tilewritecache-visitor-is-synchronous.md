@@ -240,4 +240,14 @@ extends it, and storage saw a different `getTiles` sequence. `peek` is removed; 
 replacement, which makes Go's reads in Go's order. The status line above is left for the lead to
 update to "superseded by ADR-0190".
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* The ADR stays `superseded`; I reviewed only whether the
+supersession note is accurate, and it is. I reproduced Go's `getTiles` log by running upstream's `storage/internal.Integrate` (from a copy of
+`.upstream/tessera` in the scratchpad, with a map-backed store) for 0 to 255 to 256 to 257 to 557. It makes `getTiles([] @0)`, `getTiles([{0 0}] @0)`;
+`[{0 0}] @255`, `[{1 0}] @255`; `[{1 0}] @256`, `[{0 1}] @256`; `[{1 0} {0 1}] @257`, so the second call of each of the first three steps (`{0 0}@0`,
+`{1 0}@255`, `{0 1}@256`) is the visitor's, exactly the three the update names and the log ADR-0190 prints. The crash case is the one upstream's
+comment names at `integrate.go:288` ("e.g. due to an earlier crash during integration"). `peek` no longer exists in `src/storage/internal/integrate.ts`,
+and `integrate_test.ts` ("makes the same getTiles calls as Go for 0 -> 255 -> 256 -> 257 -> 557", line 160) asserts that log; `src/storage/internal`
+passes (4 files, 42 tests). Two small points. (1) The update's last sentence, "The status line above is left for the lead to update to
+'superseded by ADR-0190'", is stale: the status line already says so. It is history and I leave it. (2) The superseding ADR-0190 is itself still
+`proposed`, so the pair is only as settled as that ADR's review: until ADR-0190 is signed, this ADR is the only signed record of the visitor's design, and the code no
+longer follows it.

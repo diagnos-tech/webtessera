@@ -129,4 +129,11 @@ only the error, so a value set together with an error is not observable through 
 Tessera reads the value when the error is non-nil (`queue.go`'s callers check `err` first), so nothing
 depends on it; `get()`'s doc comment says so.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* In `src/internal/future/future.ts` the setter now rejects only when
+`err !== undefined && err !== null`, so `set(t, null)` resolves, as the update says; Go's `Get` returns `f.val, f.err` and the port's `get()` returns the stored
+promise, so a value set together with an error is unobservable, which `get()`'s port note states and which holds for the one consumer
+(`storage/internal/queue.ts`, whose `notify` reads `err` first). `future_test.ts` has a case for each claim, including "treats a null error as success"
+(line 77); all 8 pass. One thing the code does that no ADR records: `newFutureErr` calls `promise.catch(() => undefined)` so that a rejected future nobody reads
+is not reported as an unhandled rejection (port note in the file; test at line 86). It is a deliberate fidelity measure (a Go future set with an error that nobody
+reads is garbage) and it changes nothing a caller can observe through `get()`, but it is a behavioural choice of this ADR's file and belongs in a line of this ADR's
+next Update. Not blocking.

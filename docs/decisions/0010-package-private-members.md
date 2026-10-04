@@ -122,6 +122,10 @@ Go's `compact_test` and `compact` packages respectively and share nothing.
 >   Tests import the modules directly, as before. `NodeID`'s fields are exported in Go, so its class stays a
 >   value export. See ADR-0208.
 
+*Review of this update: the three corrections are accurate (the missing `Nodes` row, the type-only barrel exports, the
+`.ts` extension in the recipe); the replacement recipe is not sufficient, see item 2 of the Review below. ADR reviewer
+(independent), 2026-10-04.*
+
 ## Consequences
 
 - **The encapsulation is weaker than Go's.** Nothing stops application code from writing
@@ -163,6 +167,50 @@ Go's `compact_test` and `compact` packages respectively and share nothing.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** changes requested
 - **Notes:**
+  - What I checked and found right. Against `merkle@v0.0.2`: `Range{f, begin, end, hashes}` with `Begin()`,
+    `End()`, `Hashes()`; `proof.Nodes{IDs, begin, end, ephem}` with `Ephem()` and `skipFirst()`; `testonly.Tree{hasher,
+    size, hashes}` with `Size()`. The in-package tests do touch what the ADR says: `range_internal_test.go`
+    writes `rng.begin`/`rng.end` and builds `&Range{f, begin, end, hashes}` in `TestEqual` (six cases, six in
+    `range_internal_test.ts`), calls `getMergePath`; `proof_test.go` sets `proof.ephem` and compares with
+    `cmp.AllowUnexported(Nodes{})`; `tree_test.go` reads `mt.hasher` and compares trees with
+    `cmp.AllowUnexported(Tree{})`. The TypeScript has the table's members (`Range._f/_begin/_end/_hashes`,
+    `Nodes._begin/_end/_ephem`, `Tree._hasher/_size/_hashes`), each `@internal`; `getMergePath` and `skipFirst` are
+    exported/public and marked `@internal`; `Range.#appendImpl`, `Tree.#appendImpl`/`#getNodes` are `#private`; the
+    six `verify.ts` helpers are module-local. The ported tests use the `_` members (`proof._ephem = ...`,
+    `rng._begin = ...`, `mt._hasher`). No file outside `src/vendor/merkle` and the tests mentions `_begin`, `_end`,
+    `_ephem`, `_hashes`, `_f`, `_hasher`, `_size`, `getMergePath` or `skipFirst`.
+  - The two arguments that carry the decision are true, and I ran both. (1) `#private` makes `toEqual` blind: a probe
+    with two instances that differ only in a `#field` passes `expect(a).toEqual(b)`, so `TestTreeAppend` and
+    `TestTreeAppendAssociativity` (which use `toEqual` on whole trees, lines 161 and 176 of `tree_test.ts`) could not
+    fail. (2) Importing one `*_test.ts` from another registers its suites twice: a probe shows `A > a1` reported
+    under both files. The `reference.ts` / `reference_test.ts` split (three `describe`s, the 12 cases of
+    PORTING-MAP) is therefore justified. `bunx vitest run src/vendor/merkle` passes (12 files, 770 tests).
+  - The 2026-10-02 Update's other claims hold: `Nodes` is built with `new Nodes(ids, begin, end, ephem)` at
+    `proof.ts:120, 155, 232`; the barrels export `Range` and `Nodes` as types only and `NodeID` as a value;
+    nothing outside the two modules constructs a `Range` or a `Nodes` (the `new Range(` in `fsck/status.ts` is
+    fsck's own class); ADR-0208 exists.
+  - Changes requested. (1) **The Decision contradicts itself, and PORTING.md, on the scope of the `_` prefix.**
+    The first sentence says an unexported "struct field *or function*" that upstream's tests touch "becomes a public
+    member prefixed with `_`". The table directly under it prefixes no function (`getMergePath` and `skipFirst`
+    keep their names). Later the ADR says the prefix "exists only to break the collision with the exported
+    accessor; it is not a general renaming rule and does not apply to fields that have no same-named method".
+    The table prefixes five such fields (`Range._f`, `Nodes._begin`, `Nodes._end`, `Tree._hasher`, `Tree._hashes`:
+    Go has no `F()`, `Begin()`/`End()` on `Nodes`, `Hasher()` or `Hashes()` on `Tree`), and so does the code.
+    PORTING.md section 3.8, which cites this ADR, states the broad rule: "A Go identifier that is unexported but used
+    across files or by the ported tests becomes a `_`-prefixed member marked `@internal` (ADR-0010)". A contributor
+    who reads the ADR is told the opposite of what the code and PORTING.md do. Add an Update (do not rewrite the
+    history) that states the rule actually applied: unexported struct *fields* that the in-package tests read or
+    write become `_`-prefixed public members marked `@internal`, whether or not an accessor of the same name
+    exists (the collision is one reason, `toEqual` visibility is the other); unexported *functions and methods*
+    keep their camelCase name and are exported or made public with `@internal`. (2) **The grep recipe in the
+    Update still cannot do what the Decision promises** ("a reviewer can grep for in one command" who reaches
+    `_begin`). `(\.\./)+(compact|proof)/...` only matches sibling-directory imports, and its four hits are all inside
+    `src/vendor/merkle`; an import such as `../vendor/merkle/compact/range.ts` from `client/`, `fsck/` or `safe/` does
+    not match, and several exist (`client/client.ts` imports `proof/proof.ts` and `proof/verify.ts` directly; they
+    only take exported names, but the recipe cannot tell). Replace it with one that finds the thing itself, for
+    example `grep -rnE '\._(begin|end|ephem|hashes|f|hasher|size)\b|getMergePath|skipFirst' src --include='*.ts' |
+    grep -v -e _test.ts -e '^src/vendor/merkle'`, which I ran and which prints nothing today.
+  - Status stays `proposed` until those two corrections are recorded; nothing in the code needs to change.

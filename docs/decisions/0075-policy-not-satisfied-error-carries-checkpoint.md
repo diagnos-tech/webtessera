@@ -106,7 +106,10 @@ update changes no code; whether to switch to `joinErrors`, which would also let 
 witness's own error, is for the owner of `internal/witness/witness.ts`, whose comment on
 `PolicyNotSatisfiedError` still describes the old gap.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* The claim is that the gap the ADR worked around is closed: `errorIs`/`errorAs`
+walk `JoinError.errors` depth-first (checked against Go's `errors.is` in 1.25.5 and by running `errors_test.ts`, 31 cases, in my review of ADR-0004 and ADR-0057), so
+building the error with `joinErrors` would now satisfy `errorIs`, and the reason given in the Decision for not using it no longer holds. The update changes no code and says
+so; the Decision's observable results (`errorIs(e, ErrPolicyNotSatisfied)` true, message text) are unchanged, as the second update confirms.
 
 ## Update (2026-10-02): `PolicyNotSatisfiedError` is now a `JoinError`
 
@@ -119,4 +122,13 @@ for any one witness's error now succeeds too, as `errors.Is` does in Go. The mes
 `internal/witness/witness.ts` describes this. Test: "a policy failure is ErrPolicyNotSatisfied and each
 witness error, as errors.Join makes it" in `witness_test.ts`.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* Go's `Witness` ends `return sigBlock.Bytes(), errors.Join(ErrPolicyNotSatisfied, err)`
+where `err` is the accumulation `err = errors.Join(err, r.err)` over failed witnesses and over responses that do not end in a newline
+(`invalid signature from witness: %q`). `PolicyNotSatisfiedError` in `src/internal/witness/witness.ts` extends `JoinError` with
+`[ErrPolicyNotSatisfied]` or `[ErrPolicyNotSatisfied, joinErrors(witnessErrors)]`, no longer sets `cause`, and keeps `checkpoint` and `witnessErrors`; the loop in
+`WitnessGateway.witness` pushes both kinds of failure (including the `invalid signature` one, text via `quote`) into `witnessErrors`, so the joined set is Go's. The top
+level has Go's shape. Below it Go's accumulation nests (`Join(Join(nil, e1), e2)` is a join of a join and `e2`) where the port joins `witnessErrors` flat; `Is`, `As` and the
+message (newline-joined lines) cannot tell the two apart, only the `errors` array's shape can, and nothing reads that. The test "a policy failure is ErrPolicyNotSatisfied and
+each witness error, as errors.Join makes it" (`internal/witness/witness_test.ts:602`) asserts `errorIs(err, ErrPolicyNotSatisfied)`, the two-line message and `checkpoint`; it does not assert
+`errorIs` for the witness's own error, which the update also claims. That follows from the depth-first traversal tested in `errors_test.ts` ("finds a target joined at any depth"), so I
+accept it, but a one-line assertion would pin it. 30 cases of `internal/witness/witness_test.ts` pass. Not blocking.

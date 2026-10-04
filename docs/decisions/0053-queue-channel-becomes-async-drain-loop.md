@@ -183,4 +183,13 @@ remaining future in the batch with the same logic error and then rethrows it, so
 (as an unhandled rejection of the drain loop). `notify`'s nil test treats `null` like `undefined`, as
 `newFutureErr` does (ADR-0056).
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* Go's `queueItem.notify` panics with the quoted text when
+`e.entry.Index() == nil && err == nil` (`queue.go`, `notify`), and `doFlush` calls it in a loop with no `recover`, so one forgotten
+`MarshalBundleData` ends the process and every waiting `Add`. In `queue.ts`, `#doFlush` catches the throw from entry `i`, settles `entries.slice(i)` (the
+failing entry and every later one, none of which has been notified) with that error through `set`, and rethrows; entries before `i` have already been
+notified normally. The rethrow rejects `#drain`, whose result is discarded with `void`, so it surfaces as an unhandled rejection, which on Node ends the
+process as Go's panic does; `#drain`'s `finally` clears `#draining`, so a later `add` starts a new loop. `notify` tests `err === undefined || err === null`,
+the same test as `newFutureErr`'s setter. The test "settles every pending future with the logic error, then rethrows it" (queue_test.ts:219) builds
+a batch of three whose flush forgets the index and asserts that all three futures reject with the exact message and that exactly one unhandled
+rejection with that message is observed; the 13 cases of `queue_test.ts` pass. The test covers a failure at the first entry; the later-entry path
+(`i > 0`) is the same loop and is not exercised separately. Not blocking.

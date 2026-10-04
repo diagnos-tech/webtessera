@@ -349,4 +349,13 @@ which changes nothing observable except how much of the log is read before the e
 **§7.** `newFsck` keeps the zero-value rule and now throws a `RangeError` for a negative,
 fractional or NaN `n`, which a Go `uint` cannot hold; see ADR-0192.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* I reproduced the Go side. A Go program that loads `fixtures/data/log_5000.json`
+into an in-memory `fsck.Fetcher`, flips the first byte of `tile/0/000` and calls `fsck.New(..., fsck.Opts{N: n}).Check(ctx)` returns
+`failed: tile/0/000: log has:\nbf766b2033429026...` for N=2 and N=3 and returns nothing within 5 s for N=1, exactly as the update says (Go's `Check` at `fsck.go:150` is `fmt.Errorf("failed: %v", err)`
+from `eg.Wait()`). The port gives that message for N=1, 2 and 3: the producer loop in `fsck.ts` (`check`) breaks on `groupFailed()` (the group's signal aborted while the caller's did not),
+at the loop head, in the bundle stream and in `waitUntilBelow`, skips `flushPartialTiles`, closes the queue and throws `failed: <err>` from `eg.wait()`; an abort by the caller's own signal is rethrown as its reason
+(`signal.reason`). `fsck_test.ts` pins N=1..3 ("check() reports a worker failure in a multi-tile log as Go does") and the abort case; the 41 cases in `src/fsck` pass. The N=1 divergence is the right call (a
+documented hang would be worse than a reported error) and is recorded as a deliberate divergence. For N >= 2 the update is right that the only observable change is how much of the log is read first (and so what
+`status()` counts). §7: `newFsck` maps an omitted or zero `n` to 1 as `New` does, and throws `RangeError("Opts.n must be an integer of at least 1, got ...")` for a negative, fractional or NaN value; the tests
+pin both. I also checked the "Correction (2026-10-04)" inside the original Review notes (section 9): Go's text is `failure calling AppendBundle(%v): %v` (`fsck.go:136`), the port now writes `AppendBundle(`
+(`fsck.ts:207`), and "check() reports a failing bundle hasher with Go's message" pins it.

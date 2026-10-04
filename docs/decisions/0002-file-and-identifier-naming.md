@@ -75,6 +75,39 @@ into standalone packages later without moving code.
 
 ## Review
 
-- **Reviewer:** _pending — foundational ADR, to be challenged by the first reviewer agent_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - The Decision is a set of checkable claims, so I checked them mechanically against the pinned tree
+    rather than reading a sample.
+  - Paths. For each of the 106 `.go` files of `.upstream/tessera` (`4a6d9f9`), I derived the mirrored
+    `src/` path (`x.go` to `x.ts`, `x_test.go` to `x_test.ts`) and tested for it. Every file outside the
+    deliberately unported trees (`cmd/`, `integration/`, `internal/hammer/`, `storage/{aws,gcp,mysql,posix}/`)
+    exists, except the five `otel.go` / `cast.go` files that ADR-0051, ADR-0061, ADR-0070, ADR-0080 and
+    ADR-0134 record as not ported. `storage/posix/files.go` has a counterpart at a different path by
+    ADR-0100.
+  - Identifiers. For every non-test Go file that has a TypeScript twin, I extracted each top-level
+    `func`, each method and each `type`, and looked for the camelCase name (types: the exact name) in the
+    twin. The only name not found is the method `sample` of `append_lifecycle.go`, which fed the metrics
+    ADR-0181 deletes. So the mapping table holds across `api`, `client`, `fsck`, `ctonly`,
+    `internal/*`, `storage/internal`, `testonly` and the root package.
+  - Declaration order. For the same pairs I took the top-level `func` and `type` declarations in Go
+    order and located their definitions in the TypeScript file. No file has two of them in a different
+    relative order. This is the claim that costs the most to keep and I expected a violation; there is none.
+  - Test naming. `vitest.config.ts` includes `src/**/*_test.ts` and its comment gives the same reason as
+    this ADR; the browser, workers and services suffixes are layered on top without changing the
+    pattern.
+  - Vendoring. `src/vendor/merkle/{rfc6962,compact,proof,testonly}`, `src/vendor/note/note.ts` and
+    `src/vendor/formats/log` have the file names of `merkle@v0.0.2`, `golang.org/x/mod@v0.31.0/sumdb/note`
+    and `formats@v0.0.0-20251017110053-404c0d5b696c/log` in the Go module cache. The one place where a file
+    does not mirror is `merkle/testonly/reference.ts` + `reference_test.ts` for Go's single
+    `reference_test.go`, and that split is argued in ADR-0010.
+  - Challenge. (1) "This is the one deliberate break from identical names" is true of the mapping rule,
+    but the repository has since recorded other, narrower renames (`keyName` in ADR-0021, the `_` prefix
+    in ADR-0010, `New` becoming `newList` in ADR-0090 and a class constructor in ADR-0011). They each carry their own ADR, so the rule is not
+    contradicted, but a reader who takes this sentence literally will think there are none. Not blocking.
+    (2) The vendoring paragraph names `merkle`, `sumdb/note` and `formats/log`; `src/vendor/formats/note`
+    and `src/vendor/formats/proof` have since joined them (PORTING.md lists them, ADR-0071 and ADR-0224
+    argue them). The principle stated here covers them. (3) The decision to reject "exact Go spelling for
+    functions" is described as arguable and cheap to reverse; I agree with both, and with taking the
+    camelCase side on the grounds the ADR gives, which is also what PORTING.md section 3.2 enforces.

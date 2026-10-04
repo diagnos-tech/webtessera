@@ -1,6 +1,6 @@
 # ADR-0063: `LogStateTracker`'s `sync.RWMutex` becomes a `Mutex` for `update`, and no lock at all for `latest`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** client contributor
 - **Upstream reference:** `client/client.go` (`LogStateTracker`, `Update`, `Latest`)
@@ -132,4 +132,10 @@ consensus function's checkpoint in, and `Latest()` returns a copy out. The port 
 the same object, so a caller mutating either one changed the tracker's state. Both directions now
 copy (`copyCheckpoint`; the `hash` bytes stay shared, as Go's slice header copy shares them).
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04.* Against `client/client.go`: `Update` takes `lst.mu.Lock()` before the
+`if lst.latestConsistent.Size > 0` block and holds it across `builder.ConsistencyProof`, and `Latest()` takes `RLock`, which blocks while a writer holds the lock, so
+the update is right that Go's `Latest()` during an in-flight `Update` returns the state after it, where the port's lock-free `latest()` returns the state before it.
+Both are untorn, and the only Go callers of `Latest()` in the pinned tree are the hammer (`internal/hammer/...`, polling `.Size`), which is not ported, so nothing depends
+on the difference. Value semantics: Go assigns `lst.latestConsistent = *c` and returns the field by value; `client.ts` copies in (`copyCheckpoint(c)` in `update` and in
+`newLogStateTracker`) and out (`latest()`), sharing `hash` as the copy of a slice header does. `client_test.ts` "LogStateTracker copies checkpoints in and out"
+(line 441) pins it; 23 cases pass. Having checked both parts with the original's signed review, I have moved the status to `accepted`.
