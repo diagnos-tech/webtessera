@@ -1,6 +1,6 @@
 # ADR-0227: Keep browser device keys in IndexedDB as non-extractable CryptoKeys
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails agent
 - **Upstream reference:** n/a
@@ -61,6 +61,9 @@ keeping it non-extractable; no other browser storage can.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `src/browser/device_key.ts` against each bullet: database `webtessera-keys`, store `keys`, record `{ version: 1, origin, privateKey: CryptoKey, publicKey }`; `openDeviceKey` loads or creates (no fallback, error names `generateLogKey(origin, { fallback: "noble" })`) and writes with `add`, with a `ConstraintError` meaning another tab won and its key is loaded and returned, so no tab signs with a key another replaces; `loadDeviceKey` checks record shape and origin and, through `restoreCryptoKey`, signs and verifies a probe so a swapped record is refused; `saveDeviceKey` refuses a noble key and never overwrites; `deleteDeviceKey` reports whether there was a key; every transaction is `durability: "strict"` on its own connection that closes on `versionchange`; loaded or saved keys are marked durable, which `openBrowserLog` requires.
+  - Ran the tests the Consequences cite: Chromium (`log_browser_test.ts`) shows the stored record's private key is a non-extractable `CryptoKey` and `exportKey` rejects for both `pkcs8` and `jwk`, a reopened key's vkey verifies what the original signs, a module worker gets the same key, and five simultaneous opens return one key; `browser_test.ts` (fake-indexeddb) covers races, ids, swapped halves and refusals. 8 files / 265 tests in Chromium and the unit suite pass.
+  - Not verified: persistence and eviction behaviour (`navigator.storage.persist()`) and structured clone of `CryptoKey` in Firefox and Safari; only the Playwright Chromium and fake-indexeddb over Node's WebCrypto ran. The Consequences' warning that clearing site data deletes the key is a statement about browsers, not code.

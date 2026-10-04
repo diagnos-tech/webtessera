@@ -1,6 +1,6 @@
 # ADR-0223: Add asynchronous signers to note signing and checkpoint publication, additively
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails agent
 - **Upstream reference:** golang.org/x/mod `sumdb/note/note.go` (`Signer`, `Sign`); tessera
@@ -76,6 +76,9 @@ carries the MedDeck line.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `signAsync` (`src/vendor/note/note.ts`) against `sign`: same final-newline check, then the UTF-8 check added by ADR-0203's update, then for each signer in order the `isValidName` check before `await s.sign`, then `sign(n, ...stubs)`. So the error order is `sign`'s: malformed note before any signer is asked, invalid name before that signer is asked, a malformed existing signature after signing, a signer's rejection unchanged. `withCheckpointAsyncSigner` has the body of `withCheckpointSigner` (origin, additional-signer name check and message, empty root for size 0, `wrapError("note.Sign", ...)`), and `checkpointPublisher` awaits only a non-`Uint8Array` result, so the synchronous path runs as before.
+  - `describeWebCryptoGolden` (`src/safe/testing/golden.ts`) does what the ADR claims: imports every `note.json` key into a non-extractable WebCrypto key, replays every `sign` case through `signAsync` (errors included, by message), compares each success with the synchronous noble signer, and publishes `log_1`, `log_256` and `log_5000` through `withCheckpointAsyncSigner` against the checkpoints the Go POSIX driver wrote. It passes in Node, Chromium (8 files / 265 tests) and workerd (8 files / 300 tests). `append_lifecycle_async_test.ts` covers sizes 0, 1, 255, 256 and MaxUint64; `note_async_test.ts` covers ordering and the UTF-8 refusal.
+  - "These are the only changes to ported files the safe API makes" is overtaken by ADR-0224's first Update (`src/witness.ts` now uses the shared `Scanner`); non-blocking, the change is recorded in that ADR.

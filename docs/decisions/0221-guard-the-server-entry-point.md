@@ -1,6 +1,6 @@
 # ADR-0221: Keep `webtessera/server` out of browsers, at build time with an export condition and at run time with runtime detection
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails agent
 - **Upstream reference:** n/a
@@ -114,6 +114,10 @@ guard module throws, that the real entry point refuses to load in a window and i
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - `package.json` `exports["./server"]` and `sideEffects` are exactly the JSON and list in the ADR. `server_test.ts` resolves a copy of the real `exports` map with Node's resolver under each toolchain's condition set (the table's rows) and bundles it with esbuild 0.28.1; both pass.
+  - Reproduced two claims the tests do not pin. (1) With `sideEffects: false`, esbuild drops a bare `import "webtessera/server"` from a browser bundle (empty output); with the two-module list it keeps the guard's `throw`. (2) A TypeScript project with `customConditions: ["browser"]` (`moduleResolution: bundler`) importing `openServerLog` from `webtessera/server` fails with TS2305 (no exported member), and the same project without the condition type-checks.
+  - `detectRuntime` checks in the order the ADR lists (Deno, Bun, workerd by `navigator.userAgent` or `WebSocketPair`, `EdgeRuntime`, Node by `process.versions.node` with `release.name`, React Native, window and document, worker scope with `importScripts`, unknown), and `assertServerRuntime` runs at the top of `src/server/index.ts`, in `openServerLog` and in `importLogKey`. Ran `detectRuntime` for real on Node 22.22 (`node`) and Bun 1.3.14 (`bun`); `scripts/smoke-runtimes.mjs` passes on both against `dist/`. `guard_browser_test.ts` and the Chromium run pass (the guard throws in a window and a module worker; direct imports of `importLogKey` and `openServerLog` refuse); workerd detects `workerd`.
+  - Not verified: Vite, webpack, Parcel, Metro (React Native) and Next.js themselves. The tests prove the resolution algorithm under each tool's documented condition names, and the esbuild behaviour, not those tools; the `react-native` row in particular rests on Metro applying that condition. Deno is not installed here. The Consequences already say that an unlisted server toolchain must add a condition.

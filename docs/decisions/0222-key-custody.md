@@ -1,6 +1,6 @@
 # ADR-0222: Hold log keys in WebCrypto as non-extractable Ed25519 keys, with an explicit @noble/curves fallback
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails agent
 - **Upstream reference:** golang.org/x/mod `sumdb/note/note.go` (`NewSigner`, `GenerateKey`,
@@ -81,6 +81,10 @@ this library included; in a browser it can be stored in IndexedDB as the CryptoK
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `src/safe/keys.ts` against each bullet. The probe's seed and signature are RFC 8032 section 7.1 TEST 1, the PKCS #8 prefix is the 16-byte Ed25519 header, the verdict is cached per `SubtleCrypto` and an absent `crypto.subtle` means no. `importSignerKey` validates with the ported `newSigner`, decodes the seed, imports PKCS #8 as non-extractable and zero-fills the seed and the DER buffer in `finally`; `fallback: "error"` throws; the noble fallback reports `backend: "noble"`, `extractable: true`. Ran it on Node 22.22 and Bun 1.3.14: `webcrypto`, non-extractable; WebCrypto Ed25519 also passes in the Playwright Chromium and workerd through the browser and workers suites.
+  - Probed "no secret in any output": own property names are exactly `origin`, `vkey`, `backend`, `extractable`; `String(key)`, `JSON.stringify`, `util.inspect` with `showHidden` and the property list contain no part of the seed or the key string; six malformed key strings (truncated, wrong prefix, trailing junk, bad key field, space in name) each give the fixed text "malformed verifier id" with none of the input in the message. The `WeakSet` refuses a look-alike object, `Object.create(key)` and `Object.assign({}, key)`.
+  - Challenge, answered by the ADR's own Consequences: a seed copy lives in `newSigner`'s closure (not wiped) for the duration of the call, and `importSignerKey` decodes the seed a second time itself (`seedOf`); only the second copy is wiped. "Decoded once" is true of this module, and the best-effort wording covers the rest.
+  - Not verified: Deno (not installed); Chrome and Edge 137, Firefox 129 and Safari 17 support for Ed25519 (only the Playwright Chromium ran); the effect of the zero-fills on an engine that copies buffers.

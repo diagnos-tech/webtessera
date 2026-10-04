@@ -1,6 +1,6 @@
 # ADR-0242: A witness policy line must be valid UTF-8 where it is parsed
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-04
 - **Author:** Gustavo Simões
 - **Upstream reference:** `witness.go` (`NewWitnessGroupFromPolicy`)
@@ -72,6 +72,10 @@ anything else is done with it.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `newWitnessGroupFromPolicy` against `witness.go`: the check sits at the top of each scanned line, on `scanner.bytes()` up to the first `#` (byte 0x23), before `trimSpace`, as the Decision says; the scanner error is still raised after the loop. The reasoning that Go's trimmed, comment-stripped line is valid UTF-8 if and only if those bytes are holds (`TrimSpace` removes only whole valid space runes, and `#` cannot occur inside a multi-byte sequence).
+  - Replayed the Context table through the real Go `NewWitnessGroupFromPolicy` (Go 1.25.5) and the port. Go: witnesses `w\xff` and `w\xfe` in a group are accepted (two endpoints); witness `\xff` with `quorum \xfe` gives `quorum component "\xfe" not found`; a key named `\xff`, `\xc0\x80` or `\xed\xa0\x80` gives `... malformed verifier id`; a URL ending in `\xff` gives endpoint `https://a.example/%FF/add-checkpoint`. The port gives `witness policy line is not valid UTF-8` for each. Also as written: invalid bytes after `#` are accepted by both with the same endpoints, an error on an earlier line is Go's, and an error on a later line is not reached.
+  - `differential_witness_policy.json` has 151 `binary` policies (hex); `root.ts` applies `witness-policy-utf8` only to a policy that is not valid UTF-8 (`validUTF8(p)`), and the pinned unit tests are in `witness_policy_test.ts`. The Alternatives are sound; rejecting the whole policy up front would reject comments Go ignores.
+  - See ADR-0216 Request 1: that suite applies the entry from the port's message and the UTF-8 test, not from an examination of Go's verdict.

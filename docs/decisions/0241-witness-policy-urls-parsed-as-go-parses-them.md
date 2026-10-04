@@ -1,6 +1,6 @@
 # ADR-0241: Parse witness URLs as Go's `net/url` does, and refuse only what fetch cannot use
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-04
 - **Author:** Gustavo Simões
 - **Upstream reference:** `witness.go` (`NewWitnessGroupFromPolicy`'s `"witness"` case, `NewWitness`); Go 1.25.5
@@ -120,6 +120,11 @@ escaping rules. Matching Go means transcribing `url.Parse`.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `src/internal/gostd/url.ts` against Go 1.25.5 `net/url/url.go`, `net/netip/netip.go` (`ParseAddr`, `parseIPv4Fields`, `parseIPv6`) and `path/path.go` (`Join`, `Clean`), function by function: `shouldEscape`, `unescape`, `escape`, `getScheme`, `Parse`, `parse`, `parseAuthority`, `parseHost` (the 1.25 version, `[` handled with `netip.ParseAddr`), `validOptionalPort`, `validUserinfo`, `setPath`, `EscapedPath`, `validEncoded`, `setFragment`, `EscapedFragment`, `String`, `JoinPath`. The transcription is faithful; the byte-string handling (Go's byte indexing and `%q` of bytes) is done as the header describes.
+  - Differential, with a generator of my own (not the repo's corpus): 150,000 fresh URLs (schemes, userinfo, hosts with brackets, zones, IPv4 forms, ports, escapes, non-ASCII, control bytes, mutations) through Go 1.25.5's `url.Parse`, `String` and `JoinPath("/add-checkpoint")` and through the port: error text, `String()`, endpoint and scheme identical on every one (about 65,000 accepted, 85,000 rejected). The same URLs through Go 1.24.7 differ from 1.25.5 on 1,375 of 60,000 (bracketed hosts), which confirms Decision 2: the port follows 1.25.5. The committed corpora regenerate byte-identically under both Go versions, so the "no bracketed host whose verdict the fix changed" statement holds.
+  - Policy level: 90,000 policies built from those URLs, through Go's `NewWitnessGroupFromPolicy` and the port. Identical accepts (endpoints) and identical rejects; every other difference is a refusal of the kinds Decision 4 names (https/scheme, no host, platform parser), never a case where Go rejects and the port accepts. `newWitness(vkey, new URL(href))` against Go's `NewWitness(url.Parse(href))` on 55,603 hrefs produced by the platform parser: no mismatch. Decision 4 and 5 facts: `URL.canParse` refuses port 65536, a zone, `256.1.1.1`, `999999999999`, `<` in a host and an empty host name; the platform reads `https:///x/add-checkpoint` as host `x` and `https:example.com` as `https://example.com/`; Go's transport source has "http: no Host in request URL"; Node's `fetch` rejects userinfo URLs with the quoted TypeError; `127.1`, `0x7f.1` and `2130706433` normalise to `127.0.0.1`.
+  - `differential_gostd.json` has a `url` section of 3,014 rows replayed in Node, Chromium and workerd (all pass); `url_test.ts` pins the bracketed-host verdicts (`[1.2.3.4]`, `[v1.x]`, `a[b]`), which agree with what my Go 1.25.5 harness prints.
+  - Not verified: the audit's headline counts (14,667 accepted, 10,425 rejected, ... on its 30,000 URLs) were produced by inputs I do not have, so my numbers differ though the classes are the same; the CVE-2025-47912 attribution and the releases it names (only the 1.24.7/1.25.5 behaviour difference is shown); that Chromium and workerd also refuse userinfo URLs (Node was tested).
