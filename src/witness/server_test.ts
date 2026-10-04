@@ -560,6 +560,37 @@ describe("WitnessServer.handle", () => {
 		expect(mon?.headers.get("Access-Control-Allow-Origin")).toBe("*");
 	});
 
+	it("never reads request.signal, whose first read prints a warning on Deno 2", async () => {
+		const unread = (url: string, init?: RequestInit): Request => {
+			const r = new Request(url, init);
+			Object.defineProperty(r, "signal", {
+				get: () => {
+					throw new Error("the handler read request.signal");
+				},
+			});
+			return r;
+		};
+		const add = (oldSize: bigint, checkpoint: Uint8Array): Request =>
+			unread("https://witness.example/add-checkpoint", {
+				method: "POST",
+				body: marshalAddCheckpointRequest({ oldSize, proof: [], checkpoint }) as BodyInit,
+			});
+		const w = newTestWitness();
+		expect((await w.handle(add(0n, cp5)))?.status).toBe(200);
+		expect((await w.handle(add(0n, cp15)))?.status).toBe(409);
+		expect(
+			(await w.handle(unread("https://witness.example/add-checkpoint", { method: "POST", body: "x" })))?.status,
+		).toBe(400);
+		expect((await w.handle(unread(`https://witness.example/${originHash(origin)}/checkpoint`)))?.status).toBe(200);
+
+		// A failure of the witness itself is reported whether or not the client is still there.
+		const onError = vi.fn();
+		const broken = new MemoryObjectStore();
+		broken.put = () => Promise.reject(new Error("disk full"));
+		expect((await newTestWitness({ store: broken, onError }).handle(add(0n, cp5)))?.status).toBe(500);
+		expect(onError).toHaveBeenCalledTimes(1);
+	});
+
 	it("leaves other paths to other handlers", async () => {
 		const w = newTestWitness({ prefix: "/w", monitoringPrefix: "/monitor" });
 		for (const p of [

@@ -16,7 +16,7 @@
 // verification done by hand with the ported API underneath, to show what verifyReceipt checks.
 
 import { type BrowserLog, type Receipt, verifyReceipt } from "webtessera/browser";
-import { getEntryBundle, newProofBuilder } from "webtessera/client";
+import { newProofBuilder } from "webtessera/client";
 import { parseCheckpoint } from "webtessera/formats/log";
 import { verifyInclusion } from "webtessera/merkle/proof";
 import { DefaultHasher } from "webtessera/merkle/rfc6962";
@@ -32,21 +32,11 @@ export interface LoggedEvent {
 /** readHistory returns the log's newest events, each with a receipt that has been verified. */
 export async function readHistory(log: BrowserLog, newest = 20n): Promise<LoggedEvent[]> {
 	const { size } = await log.latestCheckpoint();
-	const first = size > newest ? size - newest : 0n;
 	const out: LoggedEvent[] = [];
-	// The safe API has no call that reads entries back, so this reads entry bundles through
-	// log.reader with webtessera/client, the ported API underneath.
-	for (let b = first / 256n; b * 256n < size; b++) {
-		const bundle = await getEntryBundle((i, p, s) => log.reader.readEntryBundle(i, p, s), b, size);
-		for (const [j, entry] of bundle.entries.entries()) {
-			const index = b * 256n + BigInt(j);
-			if (index >= first) {
-				const event = decodeEvent(entry);
-				const receipt = await log.prove(index);
-				verifyReceipt(receipt, { vkey: log.vkey, data: entry });
-				out.push({ index, event, receipt });
-			}
-		}
+	for await (const { index, data } of log.entries(size > newest ? size - newest : 0n, size)) {
+		const receipt = await log.prove(index);
+		verifyReceipt(receipt, { vkey: log.vkey, data });
+		out.push({ index, event: decodeEvent(data), receipt });
 	}
 	return out.reverse();
 }

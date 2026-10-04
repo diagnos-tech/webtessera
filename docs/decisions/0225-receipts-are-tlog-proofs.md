@@ -87,3 +87,38 @@ Every step is already ported and tested against Go.
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:** pending
+
+## Update (2026-10-04): extra data a verifier can rely on
+
+The notary example had to rebuild each receipt with `TLogProof` to put its record on the `extra` line, and
+its verifier had to parse the proof, take `extraData` and pass it back as `data`. Both are now the API:
+
+- **Writing.** `append(data, { extraData })` and `prove(index, { extraData })` (ADR-0226's update) put
+  `extraData` on the receipt's `extra` line. It is at most `MaxExtraDataBytes` (49,146) bytes: the most
+  that, as `extra ` and base64, makes a line shorter than the 64 KiB `bufio.Scanner` limit under which this
+  port's `TLogProof.unmarshal` and transparency-dev/formats' `Unmarshal` read a proof, so every receipt the
+  log hands out can be read back. More is refused before the entry is appended.
+- **Verifying.** `VerifyReceiptOptions.dataInExtra: true` says the extra line carries the entry. Alone, it
+  takes the entry from the extra line; with `data` or `leafHash`, it checks that the extra line holds that
+  entry (exactly one of the two may be given). Either way the leaf hash is the extra data's, so step 4 binds
+  the extra data to the signed checkpoint, and `VerifiedReceipt.data` returns it; `data` is undefined
+  without `dataInExtra`, and `extraData` is still returned unauthenticated. A TypeScript overload types
+  `data` as present when `dataInExtra: true` is passed.
+
+This follows the spec rather than relaxing it. "Applications MUST NOT implicitly trust the extra data" is
+kept: trust is explicit (the verifier opts in) and earned (the inclusion proof checks the bytes, as for any
+`data`); and the spec names this use: "additional data necessary to reconstruct the record hash", with the
+verifier computing the leaf hash in step 1 "based on application-specific data provided out-of-band, and the
+`extra` line". The spec text is unchanged since this ADR was written (same sha256).
+
+**A fifth `ReceiptError` reason, `extra`**: the extra line is missing, or does not hold the entry or leaf
+hash it was checked against. It is the one reason that is not a step of the spec's procedure; the others
+keep their meaning (extra data altered in transit fails `inclusion`, as an altered entry does). Not added: a
+check of the extra line against expected bytes that are *not* the entry. Such a check verifies nothing,
+since anyone can rewrite an unauthenticated line, and an option for it would read as a guarantee;
+applications that use the line for context compare `extraData` themselves.
+
+Tests: `receipt_test.ts` (taking the entry from the extra line, as text, bytes and `TLogProof`; checking it
+against `data` and `leafHash`; a missing extra line, another entry's, one bit changed, a forged checkpoint,
+and invalid options); `server_test.ts` (receipts from `append` and `prove` with extra data, the encoding of
+empty extra data, the largest extra data read back, and the refusals).

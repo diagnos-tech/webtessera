@@ -15,7 +15,7 @@
 // key, and nothing else. No network, no notary, no log. It imports webtessera/browser, which
 // holds no secrets, so the same function verifies receipts in a browser too.
 
-import { parseReceipt, ReceiptError, verifyReceipt } from "webtessera/browser";
+import { ReceiptError, verifyReceipt } from "webtessera/browser";
 import { equalBytes, sha256, toBase64 } from "./encoding.ts";
 import { decodeRecord, signedStatement } from "./record.ts";
 import { verifyEd25519 } from "./submission.ts";
@@ -68,18 +68,15 @@ export async function verifyNotarization(input: VerifyNotarizationInput): Promis
 	let logSize: bigint;
 	let recordBytes: Uint8Array;
 	try {
-		const proof = parseReceipt(input.receipt);
-		if (proof.extraData === undefined) {
-			throw new ReceiptError("malformed", "the receipt carries no notary record in its extra data");
-		}
-		recordBytes = proof.extraData;
-		// The one check that makes the extra data trustworthy: the log's signed checkpoint
-		// commits to exactly these bytes as entry `index`. Change one bit of the record, the
-		// proof, the index or the checkpoint, and this throws.
+		// The one check that makes the extra data trustworthy: dataInExtra takes the record from
+		// the receipt's extra line and proves that the log's signed checkpoint commits to exactly
+		// these bytes as entry `index`. Remove the record, or change one bit of it, the proof,
+		// the index or the checkpoint, and this throws.
 		({
 			index,
 			checkpoint: { size: logSize },
-		} = verifyReceipt(proof, { vkey: input.vkey, data: recordBytes }));
+			data: recordBytes,
+		} = verifyReceipt(input.receipt, { vkey: input.vkey, dataInExtra: true }));
 	} catch (err) {
 		if (err instanceof ReceiptError) {
 			throw new NotarizationError("receipt", `${err.reason}: ${err.message}`, { cause: err });

@@ -223,6 +223,20 @@ async function safeServerLog(): Promise<void> {
 		expect(index).toBe(0n);
 		expect(checkpoint.size).toBe(1n);
 		expect((await log.handler(new Request("https://log.example/checkpoint")))?.status).toBe(200);
+
+		const read: Uint8Array[] = [];
+		// #region safe_entries_example
+		// A receipt can carry its own entry, which a verifier then takes from it, proven.
+		const carrying = await log.append(entry, { extraData: entry });
+		const { data } = verifyReceipt(carrying.text, { vkey: log.vkey, dataInExtra: true });
+
+		// The log reads its entries back, in order, each checked against its tiles.
+		for await (const e of log.entries()) {
+			read.push(e.data);
+		}
+		// #endregion
+		expect(data).toEqual(entry);
+		expect(read).toEqual([entry, entry]);
 	} finally {
 		await log.close();
 		rmSync(dir, { recursive: true, force: true });

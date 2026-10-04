@@ -22,13 +22,18 @@ verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });   // anyone, offli
   purpose (the example uses `<host>/device/<random>`), and remember it: it is public.
 - **Several tabs** write the same log through Web Locks (`log.lockScope === "origin"`). Without Web
   Locks (outside a secure context), `openBrowserLog` refuses to open rather than let two tabs fork
-  the log; pass `storage: { indexedDB: name, singleWriter: true }` only when one tab is certainly the
-  only writer.
+  the log, and its error names the way out: `storage: { indexedDB: name, singleWriter: true }`, to
+  pass only when one tab is certainly the only writer.
 - **Persistence.** Ask for `navigator.storage.persist()`: a log the browser evicts can no longer
   prove what it signed (receipts already handed out still verify).
-- **Reading entries back** is not part of the safe API: read entry bundles through `log.reader` with
-  `getEntryBundle` from `webtessera/client`, as the example's `history.ts` does, and prove each with
-  `log.prove(index)`.
+- **Reading entries back**: `log.entries(from?, to?)` streams them in order, each checked against
+  the leaf hash the log's tiles hold for it, and `log.entry(index)` reads one. The example's
+  `history.ts` lists the newest twenty, proving each with `log.prove(index)`:
+
+  ```ts
+  const { size } = await log.latestCheckpoint();
+  for await (const { index, data } of log.entries(size > 20n ? size - 20n : 0n)) { … }
+  ```
 
 ## What it guarantees, and what it does not
 

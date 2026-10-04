@@ -15,12 +15,11 @@
 
 import { env } from "node:process";
 import type { SqliteLocking } from "webtessera/storage/sqlite";
-import { newSignerForCosignatureV1, newVerifierForCosignatureV1 } from "webtessera/witness";
 
 /** ServerConfig is everything the server needs to start, besides the commit sink (sink.ts). */
 export interface ServerConfig {
+	/** witnessKey is the witness's private note key, from your secret store; its vkey is derived from it. */
 	readonly witnessKey: string;
-	readonly witnessVkey: string;
 	/** database is the SQLite file the server keeps its state in. */
 	readonly database: string;
 	/** locking: "lease" for a file several processes may open, "local" to declare a single writer. */
@@ -31,14 +30,12 @@ export interface ServerConfig {
 
 export function readConfig(): ServerConfig {
 	const witnessKey = env.WITNESS_SKEY ?? "";
-	const witnessVkey = env.WITNESS_VKEY ?? "";
-	if (witnessKey === "" || witnessVkey === "") {
+	if (witnessKey === "") {
 		throw new Error(
-			"WITNESS_SKEY and WITNESS_VKEY are not set. Generate the witness's key once with " +
+			"WITNESS_SKEY is not set. Generate the witness's key once with " +
 				"`node scripts/keygen.ts <name> > .env` (e.g. witness.example.com), then start the server again.",
 		);
 	}
-	checkKeyPair(witnessKey, witnessVkey);
 	const locking = env.SERVER_LOCKING ?? "lease";
 	if (locking !== "lease" && locking !== "local") {
 		throw new Error(`SERVER_LOCKING must be "lease" or "local", got ${JSON.stringify(locking)}`);
@@ -49,19 +46,9 @@ export function readConfig(): ServerConfig {
 	}
 	return {
 		witnessKey,
-		witnessVkey,
 		database: env.SERVER_DB ?? "session-receipts.db",
 		locking: locking satisfies SqliteLocking,
 		port,
 		hostname: env.HOST ?? "127.0.0.1",
 	};
-}
-
-/** checkKeyPair refuses a WITNESS_VKEY that is not WITNESS_SKEY's: browsers would pin the wrong key. */
-export function checkKeyPair(skey: string, vkey: string): void {
-	const signer = newSignerForCosignatureV1(skey);
-	const verifier = newVerifierForCosignatureV1(vkey);
-	if (signer.name() !== verifier.name() || signer.keyHash() !== verifier.keyHash()) {
-		throw new Error("WITNESS_VKEY is not the verifier key of WITNESS_SKEY");
-	}
 }

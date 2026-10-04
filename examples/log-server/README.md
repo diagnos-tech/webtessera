@@ -19,7 +19,7 @@ What it serves is byte for byte a Tessera log: Tessera's own Go client verifies 
             ◀── index ─────  (answers once a signed checkpoint covers it)│
                                                                          ▼
                              openServerLog (webtessera/server)       SQLite file
-                               storage: { sqlite, locking: "lease" } ◀── leases fence every
+                               storage: { sqlite }    (file: leases) ◀── leases fence every
                                                                          write, so N processes
  GET /checkpoint, /tile/…  ◀── log.handler (webtessera/http) ◀───────────  share one log
                                        │
@@ -43,6 +43,13 @@ deno run --env-file --allow-net --allow-read --allow-write --allow-env src/main.
 `npm run start:node`, `start:bun` and `start:deno` (or `bun run …`) are the same
 commands. The server listens on `127.0.0.1:8080`; `PORT`, `HOST` and `LOG_DB` (default `log.db`)
 change that.
+
+**On Deno**, nothing here reads a request's `signal`, neither these routes nor `webtessera/http`'s
+handler. Deno 2 still aborts `request.signal` once every response has been sent, and the first read
+of it prints a one-time warning saying so ("request.signal aborts on successful responses (legacy
+behavior)"); so if you add a route that reads it, expect that line on the first request. It is
+harmless for a route that has finished its work when it responds, and `--unstable-no-legacy-abort`
+opts in to Deno's newer behaviour.
 
 **Several processes, one log.** Start one server per runtime on the same file, and append to all
 three:
@@ -71,8 +78,9 @@ localhost/my-log
 
 Each process holds the log's lock as a lease row in the database while it writes, and every write
 is fenced on that lease in the same transaction, so a process that stalls past its lease can never
-overwrite what the next holder wrote. `LOG_LOCKING=local` drops the leases, and is only correct
-when one process is certainly the file's only writer.
+overwrite what the next holder wrote. Leases are what the SQLite adapter chooses for a file, so the
+server asks for nothing; `LOG_LOCKING=local` drops them, and is only correct when one process is
+certainly the file's only writer.
 
 **Verify it** as a client, trusting only the log's verifier key (`LOG_VKEY` in `.env`):
 
@@ -140,7 +148,7 @@ npm run ci        # tsc --noEmit && vitest run
 ```
 
 [`src/log_server_test.ts`](src/log_server_test.ts) runs on Node against temporary SQLite files:
-two "processes" (two connections, two logs) appending to one file under lease locking make one
+two "processes" (two connections, two logs) appending to one file under its default leases make one
 log with no index handed out twice; the read API's headers and errors; a client that notices a
 log that rewrote its history; and a database that refuses a key that did not create its log.
 `scripts/smoke.ts` starts the real server on whichever runtime runs it:
@@ -149,6 +157,6 @@ log that rewrote its history; and a database that refuses a key that did not cre
 ## Files to read first
 
 1. [`src/log_server.ts`](src/log_server.ts): the routes, `POST /add` and the read API.
-2. [`src/server.ts`](src/server.ts): opening the log with the safe API, with explicit locking.
+2. [`src/server.ts`](src/server.ts): opening the log with the safe API, on the adapter's locking.
 3. [`src/runtime/`](src/runtime): the only runtime-specific code, one small file per runtime.
 4. [`src/client.ts`](src/client.ts): what a client verifies, with `webtessera/client`.

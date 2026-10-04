@@ -109,7 +109,12 @@ async function addCheckpoint(
 		return textResponse(413, `request body exceeds ${maxBodyBytes} bytes`);
 	}
 	try {
-		const signatures = await w.addCheckpoint(parseAddCheckpointRequest(body), request.signal);
+		// Not request.signal, which the handler never reads: what it means differs by runtime
+		// (it never aborts behind toNodeListener; on Deno 2 it aborts once every response is
+		// sent, and the first read of it prints a warning), and cancelling is not needed for
+		// correctness: a checkpoint cosigned for a client that left is one the log learns of
+		// from the next 409, as tlog-witness intends.
+		const signatures = await w.addCheckpoint(parseAddCheckpointRequest(body));
 		return new Response(signatures as BodyInit, {
 			status: 200,
 			headers: { "Content-Type": "text/plain; charset=utf-8" },
@@ -167,9 +172,6 @@ async function latestCheckpoint(
 }
 
 function failure(err: unknown, request: Request, onError: WitnessServerOptions["onError"]): Response {
-	// A request the client abandoned is not a witness failure worth reporting.
-	if (!request.signal.aborted) {
-		onError?.(err, request);
-	}
+	onError?.(err, request);
 	return textResponse(500, "internal server error");
 }

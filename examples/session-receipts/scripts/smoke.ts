@@ -42,7 +42,6 @@ const server = await startServer(
 	runtime,
 	{
 		witnessKey: witness.skey,
-		witnessVkey: witness.vkey,
 		database: join(dir, "server.db"),
 		locking: "lease",
 		port: 0,

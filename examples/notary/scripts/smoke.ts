@@ -34,7 +34,6 @@ const { skey, vkey } = generateKey(undefined, "localhost/notary-smoke");
 const notary = await startNotary(runtime, {
 	notaryKey: skey,
 	database: join(dir, "notary.db"),
-	locking: "lease",
 	port: 0,
 	hostname: "127.0.0.1",
 });

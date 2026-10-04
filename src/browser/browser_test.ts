@@ -29,8 +29,14 @@ import {
 	saveDeviceKey,
 	verifyReceipt,
 } from "webtessera/browser";
+import { openIndexedDBObjectStore } from "../storage/indexeddb/indexeddb.ts";
 import { newInProcessLockManager } from "../storage/indexeddb/testing/locks.ts";
+import { MemoryObjectStore } from "../storage/memory/memory.ts";
+import { newSignerForCosignatureV1 } from "../vendor/formats/note/note_cosigv1.ts";
 import { generateKey } from "../vendor/note/note.ts";
+import { cosignerVkey } from "../witness/keys.ts";
+import { newWitnessServer } from "../witness/server.ts";
+import { newWitness, newWitnessGroup } from "../witness.ts";
 
 const enc = new TextEncoder();
 let n = 0;
@@ -233,15 +239,85 @@ describe("openBrowserLog", () => {
 		).rejects.toThrow(/was not created with this key/);
 	});
 
-	it("needs Web Locks for a shared log, unless it is promised a single writer", async () => {
+	it("needs Web Locks for a shared log, unless it is promised a single writer, and says so in its own terms", async () => {
 		vi.stubGlobal("navigator", {});
 		const key = await openDeviceKey(`device.example/${fresh("d")}`, { database: fresh("keys") });
-		await expect(openBrowserLog({ key, storage: { indexedDB: fresh("log") } })).rejects.toThrow(
-			/Web Locks API \(navigator\.locks\) is not available/,
+		const name = fresh("log");
+		const named = (await openBrowserLog({ key, storage: { indexedDB: name } }).catch((e: unknown) => e)) as Error;
+		expect(named.message).toMatch(/^openBrowserLog: the Web Locks API \(navigator\.locks\) is not available/);
+		expect(named.message).toContain(`pass storage: { indexedDB: "${name}", singleWriter: true }`);
+		// Not the IndexedDB store's own options, which openBrowserLog does not take.
+		expect(named.message).not.toContain("opts.locks");
+		// The default database is named after the log's origin, and the message names it too.
+		await expect(openBrowserLog({ key })).rejects.toThrow(
+			`storage: { indexedDB: "webtessera-log:${key.origin}", singleWriter: true }`,
 		);
+		vi.stubGlobal("navigator", { locks: null });
+		await expect(openBrowserLog({ key, storage: { indexedDB: name } })).rejects.toThrow(/singleWriter: true \}/);
+
 		const single = await openBrowserLog({ key, storage: { indexedDB: fresh("log"), singleWriter: true } });
 		expect(single.lockScope).toBe("realm");
 		await single.close();
+		// Memory storage needs no locks across tabs.
+		const memory = await openBrowserLog({ key, storage: { memory: true } });
+		expect(memory.lockScope).toBe("realm");
+		await memory.close();
+	});
+
+	it("keeps the IndexedDB store's own message, in its own terms, for its direct callers", async () => {
+		await expect(openIndexedDBObjectStore({ name: fresh("log"), locks: null })).rejects.toThrow(
+			/pass opts\.locks, or pass singleWriter: true/,
+		);
+	});
+
+	it("reads its entries back", async () => {
+		const key = await openDeviceKey(`device.example/${fresh("d")}`, { database: fresh("keys") });
+		const log = await openBrowserLog({ key, storage: { indexedDB: fresh("log") } });
+		try {
+			for (const t of ["one", "two", "three"]) {
+				await log.append(enc.encode(t));
+			}
+			const read: string[] = [];
+			for await (const { data } of log.entries(1)) {
+				read.push(new TextDecoder().decode(data));
+			}
+			expect(read).toEqual(["two", "three"]);
+			expect((await log.entry(0)).data).toEqual(enc.encode("one"));
+		} finally {
+			await log.close();
+		}
+	});
+
+	it("says that storage holds an older log than its witness cosigned, not that the witness is unreachable", async () => {
+		const key = await openDeviceKey(`device.example/${fresh("d")}`, { database: fresh("keys") });
+		const w = generateKey(undefined, "witness.example");
+		const witness = newWitnessServer({
+			signer: newSignerForCosignatureV1(w.skey),
+			store: new MemoryObjectStore(),
+			lookupLog: (o) => (o === key.origin ? { verifierKeys: [key.vkey] } : undefined),
+		});
+		const options = {
+			key,
+			witnesses: newWitnessGroup(1, newWitness(cosignerVkey(w.skey), new URL("https://witness.example/"))),
+			fetch: async (input: RequestInfo | URL, init?: RequestInit) =>
+				(await witness.handle(new Request(input, init))) ?? new Response("not found", { status: 404 }),
+		};
+		const name = fresh("log");
+		const first = await openBrowserLog({ ...options, storage: { indexedDB: name } });
+		await first.append(enc.encode("cosigned"));
+		await first.close();
+
+		// The device key survived, the log's database did not: what clearing one store does.
+		await new Promise<void>((resolve, reject) => {
+			const req = indexedDB.deleteDatabase(name);
+			req.onsuccess = () => resolve();
+			req.onerror = () => reject(req.error);
+		});
+		const err = (await openBrowserLog({ ...options, storage: { indexedDB: name } }).catch((e: unknown) => e)) as Error;
+		expect(err.message).toMatch(
+			/^openBrowserLog: this storage holds an older or different log than its witnesses cosigned: the witness at "https:\/\/witness\.example\/add-checkpoint" has cosigned this log at size 1, and the storage holds no entries/,
+		);
+		expect(err.message).not.toContain("witnesses must be reachable");
 	});
 
 	it("refuses malformed storage", async () => {

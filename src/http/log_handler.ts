@@ -129,7 +129,8 @@ export function newLogHandler(options: LogHandlerOptions): Handler {
 
 		let data: Uint8Array;
 		try {
-			data = trimToWidth(r, await read(reader, r, request.signal));
+			// Not request.signal: see the note on read.
+			data = trimToWidth(r, await read(reader, r));
 		} catch (err) {
 			if (errorIs(err, ErrNotExist)) {
 				return textResponse(404, "not found", cors?.simple);
@@ -160,15 +161,24 @@ export function newLogHandler(options: LogHandlerOptions): Handler {
 	};
 }
 
-/** read reads r from the log, throwing an error caused by ErrNotExist if it does not exist. */
-function read(reader: LogResourceReader, r: LogResource, signal: AbortSignal): Promise<Uint8Array> {
+/**
+ * read reads r from the log, throwing an error caused by ErrNotExist if it does not exist.
+ *
+ * It is not given the request's signal, and the handler never reads `request.signal`: what
+ * that signal means differs by runtime (behind toNodeListener it never aborts; on Deno 2 it
+ * aborts once every response is sent, and the first read of it prints a warning about that
+ * legacy behaviour; on Bun and workerd it aborts when the client goes away), and one read
+ * of one resource is too little work to be worth cancelling. A client that leaves costs at
+ * most the read in flight.
+ */
+function read(reader: LogResourceReader, r: LogResource): Promise<Uint8Array> {
 	switch (r.kind) {
 		case "checkpoint":
-			return reader.readCheckpoint(signal);
+			return reader.readCheckpoint();
 		case "tile":
-			return reader.readTile(r.level, r.index, r.width, signal);
+			return reader.readTile(r.level, r.index, r.width);
 		case "entries":
-			return reader.readEntryBundle(r.index, r.width, signal);
+			return reader.readEntryBundle(r.index, r.width);
 	}
 }
 

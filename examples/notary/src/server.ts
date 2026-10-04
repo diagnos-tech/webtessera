@@ -27,8 +27,12 @@ export interface NotaryConfig {
 	readonly notaryKey: string;
 	/** database is the SQLite file the log lives in. */
 	readonly database: string;
-	/** locking: "lease" for a file several processes may open, "local" to declare a single writer. */
-	readonly locking: SqliteLocking;
+	/**
+	 * locking overrides the SQLite adapter's default, which is "lease" for a file (correct
+	 * however many processes open it) and "local" only for a private in-memory database.
+	 * "local" on a file declares that this process is its only writer.
+	 */
+	readonly locking?: SqliteLocking | undefined;
 	readonly port: number;
 	readonly hostname: string;
 }
@@ -47,7 +51,7 @@ export async function openNotaryLog(
 ): Promise<ServerLog> {
 	return openServerLog({
 		key: await importLogKey(config.notaryKey),
-		storage: { sqlite: database, locking: config.locking },
+		storage: config.locking === undefined ? { sqlite: database } : { sqlite: database, locking: config.locking },
 		// Anyone may audit the notary: its log is readable from any origin.
 		http: { cors: true },
 	});

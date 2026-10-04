@@ -33,18 +33,19 @@
  *
  * ```ts
  * import { generateKey } from "webtessera/note";
- * import { newSignerForCosignatureV1, newWitnessServer, vKeyToCosignatureV1 } from "webtessera/witness";
+ * import { cosignerVkey, newSignerForCosignatureV1, newWitnessServer } from "webtessera/witness";
  *
- * // Once: the witness's key. Keep skey secret; publish the cosignature/v1 vkey, which is
- * // what log operators put in their witness policies.
- * const { skey, vkey } = generateKey(undefined, "witness.example/w1");
- * const publicKey = vKeyToCosignatureV1(vkey);
+ * // Once: the witness's key. Keep skey secret, in your secret store.
+ * const { skey } = generateKey(undefined, "witness.example/w1");
  *
  * const witness = newWitnessServer({
- *   signer: newSignerForCosignatureV1(skey),
+ *   signer: newSignerForCosignatureV1(env.WITNESS_SKEY),
  *   store,                                     // any ObjectStore: memory, IndexedDB, SQLite...
  *   logs: [{ origin: "example.com/log", verifierKeys: [logVkey] }],
  * });
+ * // Publish the witness's cosignature/v1 vkey, which is what log operators put in their
+ * // witness policies. It is derived from the signer key, so the key is the only setting.
+ * const vkey = cosignerVkey(env.WITNESS_SKEY);
  * ```
  *
  * `witness.handle` is a `webtessera/http` Handler serving `POST <prefix>/add-checkpoint` and
@@ -77,7 +78,8 @@
  *
  * The cosignature/v1 key functions are re-exported here from the port of
  * `github.com/transparency-dev/formats/note`, because a witness cannot be set up without
- * them.
+ * them. {@link cosignerVkey}, which has no upstream counterpart, derives the vkey a witness
+ * publishes from its signer key.
  *
  * @module
  */
@@ -97,6 +99,7 @@ export {
 	ErrUnknownLog,
 	OldSizeMismatchError,
 } from "./errors.ts";
+export { cosignerVkey } from "./keys.ts";
 export {
 	type AddCheckpointRequest,
 	MaxConsistencyProofLines,

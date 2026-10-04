@@ -49,6 +49,15 @@
  * createServer(toNodeListener(serve)).listen(8080);    // Node, with node:http's createServer
  * ```
  *
+ * The handlers here, and webtessera/witness's, never read `request.signal`. What it means
+ * differs by runtime: behind toNodeListener it never aborts; Deno 2 aborts it once every
+ * response has been sent, and prints a one-time warning about that legacy behaviour on its
+ * first read; Bun and workerd abort it when the client goes away. A handler serves one
+ * bounded read, so a client that leaves costs at most that read. Routes of your own that
+ * read the signal on Deno will print the warning; it is harmless for a route that has
+ * finished its work when it responds, and `--unstable-no-legacy-abort` opts in to Deno's
+ * newer behaviour.
+ *
  * In a service worker, which must answer every request it intercepts, fall back to the
  * network:
  *

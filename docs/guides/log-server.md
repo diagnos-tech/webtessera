@@ -9,7 +9,7 @@ a plain `(Request) => Promise<Response>`, so one source serves on Node, Bun, Den
 ```ts
 const log = await openServerLog({
   key: await importLogKey(env.LOG_SKEY),
-  storage: { sqlite: fromSqliteSync(db), locking: "lease" },   // several processes may share the file
+  storage: { sqlite: fromSqliteSync(db) },                      // a file: lease locking, shareable
   http: { cors: true },                                         // a public log, readable from any origin
 });
 
@@ -31,11 +31,18 @@ handler is served) in one small file per runtime, chosen by `detectRuntime()`.
 
 ## Locking
 
-`locking: "lease"` lets any number of processes, on any mix of runtimes, append to one SQLite file:
-each lock is a row in the database, renewed while held, and every write is fenced on it in the same
-transaction. The example's README shows Node, Bun and Deno appending to one file at once. Pass
-`"local"` only to declare that this process is the file's only writer. [Choosing
-storage](choosing-storage.md) covers every engine.
+For a SQLite file, the adapter's locking is `"lease"`, which lets any number of processes, on any mix
+of runtimes, append to it: each lock is a row in the database, renewed while held, and every write is
+fenced on it in the same transaction. The example's README shows Node, Bun and Deno appending to one
+file at once. Pass `locking: "local"` only to declare that this process is the file's only writer.
+[Choosing storage](choosing-storage.md) covers every engine.
+
+## On Deno
+
+Neither `log.handler` nor the witness handler reads `request.signal`. Deno 2 still aborts a request's
+signal once its response has been sent, and the first read of it prints a one-time warning to say so
+("request.signal aborts on successful responses (legacy behavior)"); a route of your own that reads it
+will print that line, harmlessly if the route has finished its work by the time it responds.
 
 ## Verifying it
 

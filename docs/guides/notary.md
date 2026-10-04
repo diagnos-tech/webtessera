@@ -25,26 +25,33 @@ be able to make it.
 ## The receipt
 
 `log.append(record)` from `webtessera/server` resolves to a verified receipt, a C2SP tlog-proof. The
-example puts the record in the proof's `extra` line, so one `.tlog-proof` file carries everything a
-verifier needs besides the document. The format does not authenticate extra data, so the verifier
-proves it first:
+example puts the record in the proof's `extra` line too, so one `.tlog-proof` file carries everything
+a verifier needs besides the document:
 
 ```ts
-const proof = parseReceipt(receiptText);
-verifyReceipt(proof, { vkey: notaryVkey, data: proof.extraData });  // exactly these bytes are in the log
-const record = decodeRecord(proof.extraData);                          // only now read its fields
+const receipt = await log.append(record, { extraData: record });
+```
+
+The format does not authenticate extra data, so the verifier proves it first. `dataInExtra` takes the
+entry from the extra line, checks the receipt against it, and returns it only once the inclusion proof
+has bound it to the signed checkpoint:
+
+```ts
+const { data } = verifyReceipt(receiptText, { vkey: notaryVkey, dataInExtra: true }); // exactly these bytes are in the log
+const record = decodeRecord(data);                                                     // only now read its fields
 // then: record.digest === sha256(document), and the signature verifies with record.publicKey
 ```
 
-The safe API's receipts carry no extra data, so the example re-encodes the receipt with `TLogProof`
-from `webtessera/formats/proof`. A verifier that keeps the record elsewhere can pass `data` (or the
-leaf hash, `leafHash`) as usual.
+A receipt without the extra line fails with reason `extra`. A verifier that keeps the record
+elsewhere passes `data` (or the leaf hash, `leafHash`) as usual, and may add `dataInExtra: true` to
+check that the receipt's extra line holds that same record.
 
 ## What fails, and how
 
 The example's CLI (`scripts/verify.ts`) and tests show each failure with its reason: another
 document (`document`), an altered record, proof, index or checkpoint (`receipt: inclusion`), a
-receipt from a notary with another key (`receipt: signature`), and an unexpected signer (`signer`).
+receipt from a notary with another key (`receipt: signature`), a receipt without its record
+(`receipt: extra`), and an unexpected signer (`signer`).
 
 ## Trust
 

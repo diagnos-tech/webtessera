@@ -34,11 +34,17 @@ const witness = newWitnessServer({
   },
   prefix: "/witness/",
 });
+const serverWitnessVkey = cosignerVkey(env.WITNESS_SKEY);  // what browsers pin: derived, not configured
 ```
 
+The witness's key is the server's only key setting: `cosignerVkey` derives the vkey it publishes (the
+cosignature/v1 form that witness policies name), which the example hands each browser when its session
+registers.
+
 A browser that wipes its log, or rewrites an entry it already got cosigned, can never be cosigned
-again: the example's tests show both, one refused as the log opens ("replied with x.tlog.size 2,
-larger than log size 0"), the other with 422 and kept as evidence (`onInconsistency`).
+again: the example's tests show both, one refused as the log opens ("this storage holds an older or
+different log than its witnesses cosigned: the witness … has cosigned this log at size 2, and the
+storage holds no entries"), the other with 422 and kept as evidence (`onInconsistency`).
 
 **3. The server as committer.** The browser uploads its log's tiles and bundles with
 `webtessera/mirror`'s `Mirror` (reading through `log.reader`) into a sink whose writes are HTTP

@@ -34,9 +34,12 @@ import { openSqliteObjectStore, type SqliteLeaseOptions } from "../storage/sqlit
  *
  *   - `{ sqlite }`: any SQLite database, through an adapter from webtessera/storage/sqlite
  *     (`fromSqliteSync`, `fromLibsql`, `fromD1`, `fromDurableObjectStorage`, ...). Locking
- *     defaults to `"lease"`, which is correct however many processes share the database;
- *     pass `locking: "local"` only when this process is certainly its only writer (a
- *     Durable Object, say), to save the lease's writes.
+ *     defaults to the adapter's, which fails closed: `"lease"`, correct however many
+ *     processes share the database, for anything another process or connection could
+ *     reach (a file, D1, rqlite, a remote libSQL), and `"local"` only where the adapter can
+ *     show the database is private (in memory, a Durable Object). Pass `locking: "local"`
+ *     to declare that this process is certainly a shared database's only writer, saving
+ *     the lease's writes.
  *   - `{ objectStore }`: any durable ObjectStore of your own.
  *   - `{ memory: true }`: nothing survives the process, for tests and demos.
  *
@@ -49,6 +52,7 @@ export type ServerStorage =
 			readonly sqlite: SqlDatabase;
 			/** namespace keeps the log in tables of its own; see SqliteObjectStoreOptions. */
 			readonly namespace?: string;
+			/** locking overrides the adapter's default; see SqliteObjectStoreOptions.locking. */
 			readonly locking?: SqliteLocking;
 			readonly lease?: SqliteLeaseOptions;
 	  }
@@ -141,11 +145,14 @@ async function openStorage(
 		throw new TypeError(`${where}: ${choose}`);
 	}
 	if ("sqlite" in storage) {
+		// Lease locking excludes every process that reaches the database; local locking
+		// excludes only this realm, and two processes appending under it fork the log. The
+		// adapter's default is lease unless it can show that nothing outside this realm can
+		// reach the database (docs/decisions/0210-sqlite-locking-fails-closed.md), so it is
+		// left to choose unless the caller does.
 		const store = await openSqliteObjectStore({
 			database: storage.sqlite,
-			// Lease locking excludes every process that reaches the database; local locking
-			// excludes only this one, and two processes appending under it fork the log.
-			locking: storage.locking ?? "lease",
+			...(storage.locking === undefined ? {} : { locking: storage.locking }),
 			...(storage.namespace === undefined ? {} : { namespace: storage.namespace }),
 			...(storage.lease === undefined ? {} : { lease: storage.lease }),
 		});

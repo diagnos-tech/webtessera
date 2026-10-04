@@ -90,3 +90,19 @@ Three changes from the security review, recorded in
   the error's text as upstream's personalities do. The handler's documentation now warns that over an
   `HTTPFetcher` it re-serves a remote log unverified, with immutable caching, and points to
   `newVerifiedMirror`.
+
+## Update (2026-10-04): the handler never reads `request.signal`
+
+`newLogHandler` used to pass `request.signal` to the reader. It no longer reads it at all. Deno 2 prints a
+one-time warning on the first read of `request.signal` inside `Deno.serve` ("request.signal aborts on
+successful responses (legacy behavior) … --unstable-no-legacy-abort"), checked on Deno 2.9.7: any access
+to the getter triggers it, including `.aborted`. What the signal means differs by runtime anyway: behind
+`toNodeListener` it never aborts (the adapter builds the `Request` without one), on Deno it aborts after
+every response, and only on Bun and workerd does it abort when the client goes away. A tile, bundle or
+checkpoint read is one bounded read; a client that leaves now costs at most the read in flight. Deferring
+the read was considered and rejected: there is no way to pass a cancellable signal to the reader without
+reading the request's at call time, and a timer-based "read it if the read is slow" adds machinery for
+nothing correctness needs. The module documentation and the log-server example's README say so, for
+applications whose own routes read the signal. Test: `log_handler_test.ts` serves every resource kind,
+404, 400 and a preflight from requests whose `signal` getter throws, and checks that the reader is given
+no signal.

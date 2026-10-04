@@ -25,18 +25,58 @@ import { execPath } from "node:process";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, describe, expect, it } from "vitest";
 import { newWitness, newWitnessGroup } from "webtessera";
-import { importLogKey, openServerLog, parseReceipt, type ServerLog, verifyReceipt } from "webtessera/server";
+import {
+	importLogKey,
+	MaxExtraDataBytes,
+	openServerLog,
+	parseReceipt,
+	type ServerLog,
+	verifyReceipt,
+} from "webtessera/server";
 import { fromSqliteSync, type SqlDatabase } from "webtessera/storage/sqlite";
 import { newSignerForCosignatureV1, newWitnessServer, vKeyToCosignatureV1 } from "webtessera/witness";
 import type { FetchFn } from "../client/fetcher.ts";
+import { newEntry } from "../entry.ts";
 import { newVerifiedMirror } from "../mirror/verify.ts";
 import { generateLogKey } from "../safe/keys.ts";
 import { ServerOnlyMessage } from "../safe/runtime.ts";
 import { MemoryObjectStore } from "../storage/memory/memory.ts";
+import type { ObjectInfo, ObjectStore } from "../storage/objectstore/objectstore.ts";
 import { generateKey, newSigner } from "../vendor/note/note.ts";
 
 const enc = new TextEncoder();
 const dirs: string[] = [];
+
+/**
+ * RecordingStore is an ObjectStore over memory that openServerLog accepts as durable (it
+ * refuses a MemoryObjectStore as objectStore), and that records which entry bundles are read.
+ */
+class RecordingStore implements ObjectStore {
+	readonly bundleReads: string[] = [];
+	readonly #store = new MemoryObjectStore();
+
+	get(key: string): Promise<Uint8Array | undefined> {
+		if (key.startsWith("tile/entries/")) {
+			this.bundleReads.push(key);
+		}
+		return this.#store.get(key);
+	}
+	stat(key: string): Promise<ObjectInfo | undefined> {
+		return this.#store.stat(key);
+	}
+	put(key: string, data: Uint8Array): Promise<void> {
+		return this.#store.put(key, data);
+	}
+	create(key: string, data: Uint8Array): Promise<boolean> {
+		return this.#store.create(key, data);
+	}
+	deletePrefix(prefix: string): Promise<void> {
+		return this.#store.deletePrefix(prefix);
+	}
+	lock<T>(name: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		return this.#store.lock(name, fn, signal);
+	}
+}
 
 afterAll(() => {
 	for (const d of dirs) {
@@ -77,6 +117,7 @@ describe("webtessera/server", () => {
 			[
 				"DefaultCheckpointIntervalMs",
 				"DefaultPublishTimeoutMs",
+				"MaxExtraDataBytes",
 				"ReceiptError",
 				"detectRuntime",
 				"generateLogKey",
@@ -298,21 +339,27 @@ describe("openServerLog", () => {
 		).rejects.toThrow(/was not created with this key/);
 	});
 
-	it("locks SQLite with leases unless told the process is the only writer", async () => {
-		const lease = recording(fromSqliteSync(new DatabaseSync(":memory:")));
-		const a = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { sqlite: lease.db } });
-		await a.append(enc.encode("x"));
-		await a.close();
-		expect(lease.sql.some((s) => s.includes("INTO webtessera_locks"))).toBe(true);
-
-		const local = recording(fromSqliteSync(new DatabaseSync(":memory:")));
-		const b = await openServerLog({
-			key: await generateLogKey("example.com/log"),
-			storage: { sqlite: local.db, locking: "local" },
-		});
-		await b.append(enc.encode("x"));
-		await b.close();
-		expect(local.sql.some((s) => s.includes("INTO webtessera_locks"))).toBe(false);
+	it("locks SQLite as its adapter does, leases for a file and local for a private database, unless told", async () => {
+		const leases = async (db: SqlDatabase, locking?: "lease" | "local"): Promise<boolean> => {
+			const rec = recording(db);
+			const log = await openServerLog({
+				key: await generateLogKey("example.com/log"),
+				storage: locking === undefined ? { sqlite: rec.db } : { sqlite: rec.db, locking },
+			});
+			await log.append(enc.encode("x"));
+			await log.close();
+			return rec.sql.some((s) => s.includes("INTO webtessera_locks"));
+		};
+		// A file another process could open: fromSqliteSync, and so the log, takes leases.
+		expect(await leases(fromSqliteSync(new DatabaseSync(join(tempDir(), "log.db"))))).toBe(true);
+		// An in-memory database nothing outside this process can reach: local locks.
+		expect(await leases(fromSqliteSync(new DatabaseSync(":memory:")))).toBe(false);
+		// An adapter that does not say gets leases (ADR-0210).
+		const memory = fromSqliteSync(new DatabaseSync(":memory:"));
+		expect(await leases({ query: (st) => memory.query(st), batch: (sts) => memory.batch(sts) })).toBe(true);
+		// The caller's choice wins, either way.
+		expect(await leases(fromSqliteSync(new DatabaseSync(join(tempDir(), "log.db"))), "local")).toBe(false);
+		expect(await leases(fromSqliteSync(new DatabaseSync(":memory:")), "lease")).toBe(true);
 	});
 
 	it("keeps a log in memory only when asked to by name", async () => {
@@ -355,6 +402,166 @@ describe("openServerLog", () => {
 		} finally {
 			await log.close();
 		}
+	});
+
+	describe("reading entries back", () => {
+		async function filled(n: number): Promise<{ log: ServerLog; store: RecordingStore; data: Uint8Array[] }> {
+			const store = new RecordingStore();
+			const log = await openServerLog({
+				key: await generateLogKey("example.com/log"),
+				storage: { objectStore: store },
+				appendOptions: (o) => o.withBatching(1024, 10),
+			});
+			const data = Array.from({ length: n }, (_, i) => enc.encode(`entry ${i}`));
+			// Indices are assigned in the order entries are added, so the receipt for the last
+			// entry means that a published checkpoint covers them all.
+			for (const d of data.slice(0, -1)) {
+				log.appender.add(newEntry(d));
+			}
+			await log.append(data.at(-1) as Uint8Array);
+			return { log, store, data };
+		}
+
+		async function collect(it: AsyncIterable<{ index: bigint; data: Uint8Array }>): Promise<bigint[]> {
+			const out: bigint[] = [];
+			for await (const e of it) {
+				out.push(e.index);
+			}
+			return out;
+		}
+
+		it("streams every entry, in order, across full and partial bundles", async () => {
+			const { log, data } = await filled(600);
+			try {
+				let i = 0n;
+				for await (const e of log.entries()) {
+					expect(e.index).toBe(i);
+					expect(e.data).toEqual(data[Number(i)]);
+					i++;
+				}
+				expect(i).toBe(600n);
+				expect((await log.entry(511)).data).toEqual(data[511]);
+				expect((await log.entry(599n)).data).toEqual(data[599]);
+			} finally {
+				await log.close();
+			}
+		});
+
+		it("reads a range, clamped to the latest checkpoint, and refuses what it does not cover", async () => {
+			const { log } = await filled(300);
+			try {
+				expect(await collect(log.entries(250, 260))).toEqual(Array.from({ length: 10 }, (_, i) => BigInt(250 + i)));
+				expect(await collect(log.entries(255n, 257n))).toEqual([255n, 256n]);
+				expect(await collect(log.entries(290, 1_000))).toHaveLength(10);
+				expect(await collect(log.entries(300))).toEqual([]);
+				expect(await collect(log.entries(7, 7))).toEqual([]);
+				await expect(collect(log.entries(301))).rejects.toThrow(
+					/entries: the latest checkpoint covers entries 0 to 299, not 301/,
+				);
+				expect(() => log.entries(5, 4)).toThrow("entries: from must not be greater than to, got from 5 and to 4");
+				expect(() => log.entries(-1)).toThrow("entries: the from must be a non-negative integer, got -1");
+				expect(() => log.entries(0, 1.5)).toThrow("entries: the to must be a non-negative integer, got 1.5");
+				await expect(log.entry(300)).rejects.toThrow(/entry: the latest checkpoint covers entries 0 to 299, not 300/);
+				await expect(log.entry(-1)).rejects.toThrow(/entry: the index must be a non-negative integer/);
+			} finally {
+				await log.close();
+			}
+			const empty = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { memory: true } });
+			try {
+				expect(await collect(empty.entries())).toEqual([]);
+				await expect(empty.entry(0)).rejects.toThrow(/entry: the latest checkpoint covers no entries, not 0/);
+			} finally {
+				await empty.close();
+			}
+		});
+
+		it("reads only the bundles it yields from, and stops reading when the loop does", async () => {
+			const { log, store } = await filled(2_600);
+			try {
+				store.bundleReads.length = 0;
+				expect(await collect(log.entries(260, 270))).toHaveLength(10);
+				expect(store.bundleReads).toEqual(["tile/entries/001"]);
+
+				store.bundleReads.length = 0;
+				for await (const e of log.entries()) {
+					if (e.index === 3n) {
+						break;
+					}
+				}
+				// The first bundle, and the read-ahead window topped up once it arrived: five of
+				// the log's eleven bundles, whatever its size.
+				expect(store.bundleReads.length).toBeLessThanOrEqual(5);
+				expect((await log.entry(2_599)).index).toBe(2_599n);
+			} finally {
+				await log.close();
+			}
+		});
+
+		it("refuses an entry its tiles do not commit to, rather than yield it", async () => {
+			const { log, store, data } = await filled(10);
+			try {
+				// Flip a bit of the last entry's bytes in its bundle, and nothing else.
+				const bundle = (await store.get("tile/entries/000.p/10")) as Uint8Array;
+				bundle.set([(bundle.at(-1) as number) ^ 1], bundle.length - 1);
+				await store.put("tile/entries/000.p/10", bundle);
+				expect((await log.entry(8)).data).toEqual(data[8]);
+				await expect(log.entry(9)).rejects.toThrow(
+					/entry: entry 9 in the log's storage is not the entry its tiles commit to; .*check it with fsck/,
+				);
+				await expect(collect(log.entries())).rejects.toThrow(/entries: entry 9 in the log's storage/);
+			} finally {
+				await log.close();
+			}
+		});
+
+		it("refuses to read once the log is closed", async () => {
+			const { log } = await filled(3);
+			await log.close();
+			expect(() => log.entries()).toThrow("entries: this log is closed");
+			await expect(log.entry(0)).rejects.toThrow("entry: this log is closed");
+		});
+	});
+
+	describe("receipts with extra data", () => {
+		it("carries extraData in the extra line, from append and from prove", async () => {
+			const log = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { memory: true } });
+			try {
+				const data = enc.encode("a record");
+				const r = await log.append(data, { extraData: data });
+				expect(r.proof.extraData).toEqual(data);
+				expect(r.text).toContain(`\nextra ${btoa("a record")}\n`);
+				const v = verifyReceipt(r.text, { vkey: log.vkey, dataInExtra: true });
+				expect([v.index, v.data]).toEqual([r.index, data]);
+
+				const context = enc.encode("session 7");
+				const proved = await log.prove(r.index, { extraData: context });
+				expect(verifyReceipt(proved, { vkey: log.vkey, data }).extraData).toEqual(context);
+				expect((await log.prove(r.index, AbortSignal.timeout(5_000))).proof.extraData).toBeUndefined();
+				expect((await log.append(enc.encode("none"))).text).not.toContain("\nextra ");
+				expect((await log.append(enc.encode("empty"), { extraData: new Uint8Array(0) })).text).toContain("\nextra \n");
+			} finally {
+				await log.close();
+			}
+		});
+
+		it("refuses extra data a receipt could not carry, before it appends anything", async () => {
+			const log = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { memory: true } });
+			try {
+				const most = new Uint8Array(MaxExtraDataBytes).fill(0x61);
+				const r = await log.append(enc.encode("x"), { extraData: most });
+				// The longest extra line that the format's decoders read back.
+				expect(parseReceipt(r.text).extraData).toEqual(most);
+				await expect(log.append(enc.encode("y"), { extraData: new Uint8Array(MaxExtraDataBytes + 1) })).rejects.toThrow(
+					`append: a receipt carries at most ${MaxExtraDataBytes} bytes of extra data, and this is 49147`,
+				);
+				await expect(log.prove(0, { extraData: "text" as never })).rejects.toThrow(
+					"prove: extraData must be a Uint8Array",
+				);
+				expect((await log.latestCheckpoint()).size).toBe(1n);
+			} finally {
+				await log.close();
+			}
+		});
 	});
 
 	it("installs its own key over one set by appendOptions", async () => {
@@ -434,7 +641,7 @@ describe("openServerLog", () => {
 			cutOff();
 			try {
 				await expect(log.append(enc.encode("x"), { timeoutMs: 1_500 })).rejects.toThrow(
-					/durably sequenced at index 0, but no checkpoint covering it was published within 1500 ms\. If the log has witnesses, check that they are reachable; call prove\(0n\)/,
+					/durably sequenced at index 0, but no checkpoint covering it was published within 1500 ms\. If the log has witnesses, check that they are reachable, and that none has cosigned a larger or different tree than this storage holds; call prove\(0n\)/,
 				);
 				const ac = new AbortController();
 				const pending = log.append(enc.encode("y"), { signal: ac.signal });
@@ -443,6 +650,37 @@ describe("openServerLog", () => {
 			} finally {
 				await log.close(AbortSignal.timeout(300)).catch(() => {});
 			}
+		});
+
+		it("says that storage holds an older log than its witness cosigned, when the witness has seen more", async () => {
+			const key = await generateLogKey("session.example/user-4");
+			const witness = newWitnessServer({
+				signer: newSignerForCosignatureV1(witnessKey.skey),
+				store: new MemoryObjectStore(),
+				lookupLog: (o) => (o === key.origin ? { verifierKeys: [key.vkey] } : undefined),
+			});
+			const options = {
+				key,
+				witnesses: newWitnessGroup(
+					1,
+					newWitness(vKeyToCosignatureV1(witnessKey.vkey), new URL("https://witness.example/")),
+				),
+				witnessTimeoutMs: 1_000,
+				fetch: (async (input, init) =>
+					(await witness.handle(new Request(input, init))) ?? new Response("not found", { status: 404 })) as FetchFn,
+			};
+			const first = await openServerLog({ ...options, storage: { memory: true } });
+			await Promise.all([first.append(enc.encode("a")), first.append(enc.encode("b"))]);
+			await first.close();
+
+			// The same log, opened on storage that lost what the witness saw.
+			const err = (await openServerLog({ ...options, storage: { memory: true } }).catch((e: unknown) => e)) as Error;
+			expect(err.message).toMatch(
+				/^openServerLog: this storage holds an older or different log than its witnesses cosigned: the witness at "https:\/\/witness\.example\/add-checkpoint" has cosigned this log at size 2, and the storage holds no entries \(it is empty, or was wiped\)\. /,
+			);
+			expect(err.message).toContain("Open the storage that holds the log the witnesses saw");
+			expect(err.message).toContain("replied with x.tlog.size 2, larger than log size 0");
+			expect(err.message).not.toContain("must be reachable");
 		});
 
 		it("cannot create a log while its witnesses are unreachable, and says why", async () => {

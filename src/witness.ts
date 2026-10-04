@@ -17,11 +17,12 @@
 //
 // Port note: `net/http`'s `*http.Client` has no meaning here; witness.go itself never
 // uses one (that is internal/witness/witness.go's job, see src/internal/witness/witness.ts).
-// `bufio.Scanner`/`bytes.Buffer` become the scanLines generator below, which keeps the
-// scanner's line splitting and its 64 KiB line limit. `url.Parse` and `(*url.URL).JoinPath`
-// have no JavaScript/DOM equivalent that keeps a URL as written (the platform `URL` type
-// normalises it), so small scoped helpers at the end of this file reproduce what this file
-// needs of them -- see their own comments and
+// `bufio.NewScanner(bytes.NewBuffer(p))` becomes `Scanner` from src/internal/gostd/bufio.ts,
+// the shared stand-in, which keeps the scanner's line splitting and its 64 KiB line limit
+// (docs/decisions/0224-port-formats-proof-for-tlog-proof.md). `url.Parse` and
+// `(*url.URL).JoinPath` have no JavaScript/DOM equivalent that keeps a URL as written (the
+// platform `URL` type normalises it), so small scoped helpers at the end of this file
+// reproduce what this file needs of them -- see their own comments and
 // docs/decisions/0078-witness-url-joinpath-reimplemented.md.
 //
 // Port note: three deliberate hardening divergences from Go live in this file:
@@ -31,8 +32,9 @@
 // only https witness URLs, or http to a loopback host
 // (docs/decisions/0185-witness-urls-require-https.md).
 
-import { fromBase64, fromUTF8, toHex } from "./internal/gostd/bytes.ts";
-import { SentinelError, wrapError } from "./internal/gostd/errors.ts";
+import { Scanner } from "./internal/gostd/bufio.ts";
+import { fromBase64, toHex } from "./internal/gostd/bytes.ts";
+import { wrapError } from "./internal/gostd/errors.ts";
 import { parseUint, quote } from "./internal/gostd/strconv.ts";
 import { cut, fields as splitFields, trimSpace } from "./internal/gostd/strings.ts";
 import { newVerifierForCosignatureV1 } from "./vendor/formats/note/note_cosigv1.ts";
@@ -68,16 +70,15 @@ interface policyComponent {
  * by C2SP [signed-note](https://github.com/C2SP/C2SP/blob/main/signed-note.md#verifier-keys).
  */
 export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
+	const scanner = new Scanner(p);
 	const components = new Map<string, policyComponent>();
 	// witnessKeys maps each witness's public key to the witness name it was first given, for
 	// the duplicate-key check (ADR-0184).
 	const witnessKeys = new Map<string, string>();
 
 	let quorumName = "";
-	// Port note: a line longer than bufio.Scanner's 64 KiB limit ends the loop with Go's
-	// `scanner.Err()`, bufio.ErrTooLong, which scanLines throws when the loop reaches it.
-	for (const text of scanLines(p)) {
-		let line = trimSpace(text);
+	while (scanner.scan()) {
+		let line = trimSpace(scanner.text());
 		const i = line.indexOf("#");
 		if (i >= 0) {
 			line = line.slice(0, i);
@@ -206,6 +207,10 @@ export function newWitnessGroupFromPolicy(p: Uint8Array): WitnessGroup {
 			default:
 				throw new Error(`unknown keyword: ${quote(keyword)}`);
 		}
+	}
+	const scanErr = scanner.err();
+	if (scanErr !== undefined) {
+		throw scanErr;
 	}
 
 	switch (quorumName) {
@@ -390,34 +395,6 @@ export class WitnessGroup implements policyComponent {
 		return endpoints;
 	}
 }
-
-/**
- * scanLines yields the lines of p the way `bufio.NewScanner(bytes.NewBuffer(p))` with its
- * default `ScanLines` split function scans them: one line per `\n`, with the `\n` and a `\r`
- * immediately before it removed, and no empty final line for data that ends with a newline.
- * Like the scanner, it gives up with bufio.ErrTooLong when it reaches a line of
- * bufio.MaxScanTokenSize (64 KiB) bytes or more, counting a `\r` before the newline but not
- * the newline itself, after yielding every line before it.
- */
-function* scanLines(p: Uint8Array): Generator<string> {
-	let start = 0;
-	while (start < p.length) {
-		const nl = p.indexOf(0x0a, start);
-		const end = nl < 0 ? p.length : nl;
-		if (end - start >= maxScanTokenSize) {
-			throw errTooLong;
-		}
-		const lineEnd = end > start && p[end - 1] === 0x0d ? end - 1 : end;
-		yield fromUTF8(p.subarray(start, lineEnd));
-		start = end + 1;
-	}
-}
-
-/** maxScanTokenSize is bufio.MaxScanTokenSize, the longest line a default bufio.Scanner accepts. */
-const maxScanTokenSize = 64 * 1024;
-
-/** errTooLong stands in for bufio.ErrTooLong, which newWitnessGroupFromPolicy returns unwrapped. */
-const errTooLong = new SentinelError("bufio.Scanner: token too long");
 
 /**
  * verifierKeyID identifies the Ed25519 public key in an already-validated cosignature/v1

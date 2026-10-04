@@ -18,14 +18,16 @@
 //     deno run -A server/main.ts     (Deno, node:sqlite)
 
 import process, { env } from "node:process";
+import { cosignerVkey } from "webtessera/witness";
 import { readConfig } from "./config.ts";
 import { loadRuntime } from "./runtime/runtime.ts";
 import { startServer } from "./server.ts";
 
 const runtime = await loadRuntime();
-const server = await startServer(runtime, readConfig(), env, (err) => report("commit failed:", err));
+const config = readConfig();
+const server = await startServer(runtime, config, env, (err) => report("commit failed:", err));
 report(`session server on ${runtime.name}, serving ${server.url}`);
-report(`witness key (browsers pin it): ${env.WITNESS_VKEY}`);
+report(`witness key (browsers pin it): ${cosignerVkey(config.witnessKey)}`);
 report(`commits to: ${server.commitsTo}`);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

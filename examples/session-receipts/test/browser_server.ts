@@ -45,7 +45,6 @@ async function start(): Promise<() => Promise<void>> {
 		await loadRuntime(),
 		{
 			witnessKey: witness.skey,
-			witnessVkey: witness.vkey,
 			database: join(dir, "server.db"),
 			locking: "lease",
 			port: Number(env.TEST_SERVER_PORT),

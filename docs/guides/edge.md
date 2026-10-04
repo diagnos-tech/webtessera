@@ -13,7 +13,7 @@ export class LogObject extends DurableObject<Env> {
     this.#log = ctx.blockConcurrencyWhile(async () =>
       openServerLog({
         key: await importLogKey(env.LOG_SKEY),
-        storage: { sqlite: fromDurableObjectStorage(ctx.storage), locking: "local" },
+        storage: { sqlite: fromDurableObjectStorage(ctx.storage) }, // local locks: one instance at a time
         http: { cors: true },
       }),
     );
@@ -25,10 +25,12 @@ export class LogObject extends DurableObject<Env> {
 
 | Platform | Storage | Locking | Notes |
 | --- | --- | --- | --- |
-| Cloudflare Durable Object | `fromDurableObjectStorage(ctx.storage)` | `"local"` | One instance at a time: the object is the only writer. Pass `"local"` explicitly: the safe API defaults to `"lease"`. Timers keep the instance in memory while the log is open. |
+| Cloudflare Durable Object | `fromDurableObjectStorage(ctx.storage)` | `"local"` | One instance at a time: the object is the only writer, which the adapter knows, so its default is local. Timers keep the instance in memory while the log is open. |
 | Cloudflare D1 | `fromD1(env.DB)` | `"lease"` | Any number of Worker instances can share the database, but a stateless Worker keeps no timers between requests, so each request opens the log afresh. |
 | Containers, VMs, serverless functions with a disk | `fromSqliteSync` over node:sqlite or bun:sqlite | `"lease"` | See [the log server](log-server.md). |
 | Turso, rqlite | `fromLibsql`, `fromRqlite` | `"lease"` | A database several regions or instances reach over the network. |
+
+The locking column is each adapter's default, which `openServerLog` keeps unless it is given `locking`.
 
 Whatever the platform, the log's key is a secret of the platform's (`wrangler secret put LOG_SKEY`),
 imported as a non-extractable WebCrypto key, and clients verify the log exactly as they would any

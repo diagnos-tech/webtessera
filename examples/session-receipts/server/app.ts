@@ -18,7 +18,7 @@
 import { combineHandlers } from "webtessera/http";
 import type { Sink } from "webtessera/mirror";
 import type { ObjectStore } from "webtessera/storage/objectstore";
-import type { InconsistencyEvidence, WitnessServer } from "webtessera/witness";
+import { cosignerVkey, type InconsistencyEvidence, type WitnessServer } from "webtessera/witness";
 import { type Committer, newCommitter } from "./committer.ts";
 import { newNotesHandler } from "./notes.ts";
 import { newRegistrationHandler, Sessions } from "./sessions.ts";
@@ -34,9 +34,11 @@ export interface SessionServerStores {
 
 /** SessionServerOptions configures newSessionServer. */
 export interface SessionServerOptions {
-	/** witnessKey is the witness's private note key; witnessVkey its public half, for browsers. */
+	/**
+	 * witnessKey is the witness's private note key. Its public half, which browsers pin, is
+	 * derived from it with cosignerVkey, so the two cannot disagree.
+	 */
 	readonly witnessKey: string;
-	readonly witnessVkey: string;
 	readonly stores: SessionServerStores;
 	/** sink is where witnessed logs are committed: an S3 bucket, or an ObjectStore (sink.ts). */
 	readonly sink: Sink;
@@ -62,7 +64,7 @@ export function newSessionServer(options: SessionServerOptions): SessionServer {
 	});
 	const committer = newCommitter({ witness, staging: options.stores.staging, sink: options.sink });
 	const fetch = combineHandlers(
-		newRegistrationHandler(sessions, options.witnessVkey),
+		newRegistrationHandler(sessions, cosignerVkey(options.witnessKey)),
 		witness.handle,
 		newUploadHandler({
 			sessions,

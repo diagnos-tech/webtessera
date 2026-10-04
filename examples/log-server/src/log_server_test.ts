@@ -13,16 +13,15 @@
 // limitations under the License.
 // Drives the log server through its fetch handler, as HTTP clients would, on temporary SQLite
 // files opened with node:sqlite, and checks what it serves with the same client code a user
-// runs (client.ts). The guardrails covered: several writers on one file under lease locking
-// make one log, a client notices a log that rewrote its history, and a database refuses a key
-// that did not create its log.
+// runs (client.ts). The guardrails covered: several writers on one file, under the lease locking
+// a file gets by default, make one log; a client notices a log that rewrote its history; and a
+// database refuses a key that did not create its log.
 
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { generateKey } from "webtessera/note";
-import type { SqliteLocking } from "webtessera/storage/sqlite";
 import { verifyLog } from "./client.ts";
 import { newLogServer } from "./log_server.ts";
 import { node } from "./runtime/node.ts";
@@ -47,9 +46,10 @@ interface server {
 	close(): Promise<void>;
 }
 
-async function open(file: string, key = skey, locking: SqliteLocking = "lease"): Promise<server> {
+/** open opens the log in file, with the adapter's default locking: leases, for a file. */
+async function open(file: string, key = skey): Promise<server> {
 	const db = node.openSqlite(join(dir, file));
-	const log = await openPublicLog(db.database, { logKey: key, locking });
+	const log = await openPublicLog(db.database, { logKey: key });
 	const serve = newLogServer(log);
 	return {
 		serve,
@@ -70,7 +70,7 @@ async function add(s: server, entry: string): Promise<bigint> {
 }
 
 describe("log server", () => {
-	it("makes one log of two processes appending to one SQLite file under lease locking", async () => {
+	it("makes one log of two processes appending to one SQLite file, under the leases a file gets by default", async () => {
 		const a = await open("shared.db");
 		const b = await open("shared.db");
 		try {

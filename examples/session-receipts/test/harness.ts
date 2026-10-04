@@ -21,7 +21,7 @@ import type { FetchFn } from "webtessera/client";
 import type { Sink } from "webtessera/mirror";
 import { generateKey } from "webtessera/note";
 import { MemoryObjectStore } from "webtessera/storage/memory";
-import type { InconsistencyEvidence } from "webtessera/witness";
+import { cosignerVkey, type InconsistencyEvidence } from "webtessera/witness";
 import { openSession, registerSession, type Session } from "../client/src/session.ts";
 import { newSessionServer, type SessionServer, type SessionServerStores } from "../server/app.ts";
 import { newSessionOrigin } from "../shared/protocol.ts";
@@ -47,7 +47,9 @@ export interface TestSession extends Session {
 }
 
 export function newHarness(sink: Sink = new MemoryObjectStore()): Harness {
-	const { skey, vkey } = generateKey(undefined, "witness.test/w1");
+	const { skey } = generateKey(undefined, "witness.test/w1");
+	// The witness's vkey, as the server derives it from its key and hands it to browsers.
+	const vkey = cosignerVkey(skey);
 	const stores = {
 		registry: new MemoryObjectStore(),
 		witness: new MemoryObjectStore(),
@@ -56,7 +58,6 @@ export function newHarness(sink: Sink = new MemoryObjectStore()): Harness {
 	const evidence: InconsistencyEvidence[] = [];
 	const server = newSessionServer({
 		witnessKey: skey,
-		witnessVkey: vkey,
 		stores,
 		sink,
 		onInconsistency: (e) => evidence.push(e),

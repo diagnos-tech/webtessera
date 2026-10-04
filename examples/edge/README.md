@@ -13,15 +13,14 @@ which runtime serves it.
  client ──▶ Worker fetch ──▶ env.LOG.getByName("log") ──▶ LogObject (Durable Object)
                                                            openServerLog({
                                                              key: importLogKey(env.LOG_SKEY),
-                                                             storage: { sqlite: fromDurableObjectStorage(ctx.storage),
-                                                                        locking: "local" } })
+                                                             storage: { sqlite: fromDurableObjectStorage(ctx.storage) } })
                                                            newLogServer(log)   ← ../log-server
  other Workers ──▶ RPC: env.LOG.getByName("log").add(data) → receipt
 ```
 
 - **One object per log.** The runtime runs one instance of a Durable Object at a time, so the object
-  is its database's only writer, and `locking: "local"` says so, sparing the lease's writes. Run
-  more logs by addressing more objects.
+  is its database's only writer: `fromDurableObjectStorage` knows it, and its locks are local, with
+  none of the lease's writes. Run more logs by addressing more objects.
 - **Opened once per instance**, under `blockConcurrencyWhile`; the appender's timers then batch and
   publish while the instance lives, and the next instance resumes from storage. Pending timers keep
   the instance in memory (and billed for duration) while the log is open.
