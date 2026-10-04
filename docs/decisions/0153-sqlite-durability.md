@@ -1,6 +1,6 @@
 # ADR-0153: State what "durable" means on each SQLite engine, and make the in-process engines durable by default
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/file_ops.go` (`overwrite`, `createEx`: fsync of the file and its
@@ -64,9 +64,13 @@ the adapter still throws on any error result. This is worth reporting upstream t
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Each row of the durability table checked. Sync engines: `newSyncDatabase` sets `busy_timeout` to 5000 only if it is 0 and raises `synchronous` to FULL only if below it, and leaves the journal mode alone (`sync_test.ts`). With real better-sqlite3: a reopened WAL database starts at `synchronous = 1` (NORMAL), the adapter raises it to 2 and `journal_mode` stays `wal`; better-sqlite3's own `docs/compilation.md` lists `SQLITE_DEFAULT_WAL_SYNCHRONOUS=1`, so the ADR's claim about its build defaults is right. libSQL 0.18.0 `file:`: `synchronous` 2, `journal_mode` delete, `busy_timeout` 0, as stated. D1: Cloudflare's read-replication page confirms that queries without the Sessions API all go to the primary. rqlite caveat reproduced on a live 9.4.5 node: in a `transaction` request a statement that fails to compile (`no such table`) comes back as an error result and the statements around it are committed (rows 1 and 3 present), while a statement that fails while executing (NOT NULL) rolls the transaction back; the adapter throws on any error result.
+  - One wording fix worth making if the ADR is ever touched, not blocking: the rqlite row says the adapter sets "nothing; reads are linearizable by default". rqlite's own default level is `weak` (rqlite docs); the adapter is what sends `level=linearizable` on every request. The update's table states it correctly ("the only levels `fromRqlite` accepts").
+  - Not verified: the Durable Object output-gate guarantee (taken from ADR-0122 and Cloudflare's documentation), libSQL remote and Turso durability, sqlite-wasm on OPFS.
+  - Alternatives hold (leave settings to the caller, WAL, `EXTRA`, `storage.sync()`). Status: proposed becomes accepted.
 
 ## Update (2026-10-03): the read-after-lease assumption, and the busy timeout
 
@@ -96,3 +100,5 @@ client writing through an embedded replica is unaffected, since its own writes a
 `PRAGMA synchronous` (and `PRAGMA database_list`, ADR-0210), because those load the schema and, without a
 timeout, fail at once with `SQLITE_BUSY` while another process writes the file. The new test that runs
 several processes against one file found this.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. The read-after-lease table is candid about what is not established (remote libSQL with read replicas, D1 Sessions, replicas and caches) and matches `fromLibsql`'s and `fromRqlite`'s documentation; the busy-timeout reordering is in `syncengine.ts`, and `sqlite_test.ts`'s three-process test exercises it (it passes with the default; a scratch equivalent of `testing/append_process.ts` with `locking: "local"` forced gave 200 distinct indices out of 300). The same table's libSQL `file:` row (`busy_timeout` 0) is the root of the change request I make on ADR-0210.*

@@ -1,6 +1,6 @@
 # ADR-0161: Record the POSIX driver's `.state/` files in the log fixtures
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`ensureVersion`, `writeTreeState`, `lockFile`)
@@ -44,6 +44,9 @@ bytes, and preloads them, as Go wrote them, when it resumes a Go log.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `fixtures/gen/log.go` (`dumpState`): every regular file in `.state/` except `*.lock`, recorded as `{path, raw}` sorted by name, a non-regular file is an error. The fixtures contain `.state/treeState` and `.state/version` for all eight sizes; I decoded them (`{"size":N,"root":...}` and `1`). Regenerating with the generator into a scratch directory gives output identical to `fixtures/data` (41 files). `git show 670e4c8` shows the only change to `log_<N>.json` is the added `state` array, and that `fixtures/README.md` was updated, so the port was not bent to match a changed fixture. The golden suite asserts the `.state/` keys and bytes (`expectGoState`) and preloads them (`stateFiles`) for the Go-written-state cases, as the ADR says.
+  - The three claims about what the fixtures do not cover are accurate: `gcState` is not recorded (GC off), the lock files are not recorded, and `json_test.ts` is the only evidence for `gcState`.
+  - Alternatives hold (synthesising `treeState`, recording lock files, separate state fixture). Status: proposed becomes accepted.

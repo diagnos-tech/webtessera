@@ -1,6 +1,6 @@
 # ADR-0172: Keep witness state as one object per log on the ObjectStore contract
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** http/witness/mirror agent
 - **Upstream reference:** n/a (cf. `transparency-dev/witness`'s `LogStatePersistence.Update`)
@@ -43,9 +43,13 @@ or two racing requests can roll a log back. The witness must run on every backen
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Checked `state.ts` and `server.ts`: the witness needs `Pick<ObjectStore, "get" | "put" | "lock">`; one object per log at `<keyPrefix><sha256(origin) hex>/checkpoint`, which is the monitoring endpoint's path; size and root come from `checkpointUnsafe` of the stored object; each request reads, checks, signs and puts inside `store.lock("witness:<key>")`. Against tlog-witness: "persist the new checkpoint before responding" and the atomicity requirement with its six-step rollback race are both what the lock and the durable `put` provide.
+  - Verified the race claim by running it. A scratch script builds the `server_test.ts` race (a store whose `get` and `put` yield to the event loop; two requests from old size 0, for sizes 15 and 5): with the real `lock`, one request succeeds and one is rejected, stored size 15; with `lock` replaced by `(n, fn) => fn()`, both succeed and the stored size is 5, a rollback. So the test in `server_test.ts` guards what the ADR says.
+  - Consequences and alternatives hold: no new ObjectStore operation; a JSON state object beside the checkpoint cannot be updated atomically with it under the contract; `create` alone is not a compare-and-swap for later checkpoints. The soundness of this design depends on `lock` excluding every writer, which is exactly what the update below is about.
+  - Status: proposed becomes accepted.
 
 ## Update (2026-10-03)
 
@@ -55,3 +59,5 @@ file both cosigned from old size 0 and left the log rolled back to the smaller s
 default to lease locking for every database that is not provably private
 ([ADR-0210](0210-sqlite-locking-fails-closed.md)), and `sqlite_test.ts` races two witnesses on two
 connections to one file: exactly one succeeds, and the stored size is the winner's.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. `sqlite_test.ts` `lets exactly one of two witnesses on separate connections to one file cosign from a size` runs four origins with two witness servers on two connections to one file under default options, asserts exactly one success and that the stored size is the winner's; it passes. Under the lease default the two connections have different `SqlDatabase` objects, so only the lease in the database excludes them, which is the point. Applies to libSQL files only to the extent of the SQLITE_BUSY limitation in my review of ADR-0210.*

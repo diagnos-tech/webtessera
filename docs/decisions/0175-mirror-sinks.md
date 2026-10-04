@@ -1,6 +1,6 @@
 # ADR-0175: Mirror into any `put`-able store, and into S3-compatible buckets with our own SigV4
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** http/witness/mirror agent
 - **Upstream reference:** `cmd/experimental/mirror/posix/main.go` (`posixTarget`); `storage/aws/aws.go`, `storage/gcp/gcp.go` (SDK-based object storage)
@@ -57,9 +57,13 @@ into the object storage they already have, vendor-neutrally.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Compared with `cmd/experimental/mirror/posix/main.go` (`posixTarget` writes each resource at `layout.TilePath`, `EntriesPath` and `CheckpointPath`, which `SinkTarget` does through the same layout functions; `readCheckpoint` returns `ErrNotExist` when there is none) and read `sink.ts`, `s3.ts`, `sigv4.ts`, `fetch.ts`. Every bullet of the Decision matches: `Sink` satisfied by every ObjectStore and a Workers R2 binding (compile-time check in `sink_test.ts`); without `get`, a run copies everything again; S3 options as listed; path-style default; synchronous SigV4 on `@noble/hashes` (single path encoding, sorted canonical query, all sent headers signed, payload hash signed and sent, one clock reading per request, no secret in any return value or error); `redirect: "manual"` with 3xx refused; metadata from `resourceHeaders`; `If-None-Match: *` on everything but the checkpoint, with opt-out; retries on network errors, 429, 409 and 5xx; errors carry status and `<Code>` only; `.`/`..` key segments refused; GET bodies capped.
+  - Tests re-counted: `sigv4_suite.ts` has 38 cases, 11 listed as not applicable with reasons, leaving 27 as the ADR says; I spot-checked three signatures against aws-c-auth at the cited commit c4bc791 (`get-header-key-duplicate`, `post-vanilla-query`, `get-utf8`), which match; NOTICE attributes the suite (Apache-2.0, test material only). `aws4fetch` is an oracle in `sigv4_test.ts` and a devDependency, not a shipped dependency; the stated reasons for not using it at runtime are true (`content-type` is in its default unsignable set; it uses `crypto.subtle`, which is asynchronous).
+  - Could not verify: the MinIO run ("3/3 passing, MinIO answered 412"). MinIO's server binary is no longer distributed (`dl.min.io` answers 410) and the services test needs an S3 endpoint, so `s3_services_test.ts` failed in my run for want of one, as designed. In its place the in-repo `FakeS3` validates every request with `aws4fetch` and the SigV4 suite passes; `s3_workers_test.ts` shows workerd accepts the requests. The real-service claim stays the author's.
+  - Alternatives (use aws4fetch at runtime, R2-specific metadata in the interface) are real. Status: proposed becomes accepted.
 
 ## Update (2026-10-03)
 
@@ -86,3 +90,5 @@ into the object storage they already have, vendor-neutrally.
   ([ADR-0213](0213-rqlite-and-s3-requests-omit-credentials-and-refuse-redirects.md)), and `attempts` and
   `maxObjectBytes` must be positive safe integers
   ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. `put` on a 412 now reads the object back with a cap of the written size, accepts identical bytes, and otherwise throws an `unrecoverable` error naming the key (`S3 PUT b/tile/...: a different object is already stored there`), and an object deleted in between fails the attempt recoverably (`s3.ts` `#checkStored`; `s3_test.ts` and `verify_test.ts` `resumes an interrupted S3 mirror over the objects it left only if they are the same`, which also asserts no checkpoint and under five seconds). `Sink.put`'s documentation states the replace-or-verify requirement; `newSinkTarget` hands an `S3Sink` its prefix through `_withPrefix` so metadata and conditional writes survive a prefix (`s3_test.ts`); `credentials: "omit"` and positive-integer `attempts` and `maxObjectBytes` are in code.*

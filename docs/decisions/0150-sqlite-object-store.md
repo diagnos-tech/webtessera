@@ -1,6 +1,6 @@
 # ADR-0150: Keep logs in any SQLite through one engine-neutral ObjectStore, replacing the Durable Object KV backend
 
-- **Status:** proposed; its default locking is superseded by ADR-0210
+- **Status:** accepted; its default locking is superseded by ADR-0210
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go`, `storage/posix/file_ops.go` (the model the ObjectStore
@@ -85,9 +85,15 @@ public API ADR-0154; the tests ADR-0155.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Checked the Decision against `src/storage/sqlite/{database,sqlite,index}.ts` and the six adapters. `SqlDatabase` has exactly `query`, `batch`, `defaultLocking` and `leaseClock`; statements use anonymous `?` only and never transaction control (`StrictSqlDatabase` rejects both, and every engine suite runs through it); the adapter table matches the code, its Default-locking column as amended by ADR-0210; `src/storage/durableobject/` and its export are gone, `./storage/sqlite` is exported, the edge example runs on `fromDurableObjectStorage`, and ADR-0120 to 0123 are marked superseded by 0150 to 0153. There is no Go file to compare with; `storage/posix/files.go` is the model for the driver, not for this layer, and `storage/mysql` is correctly rejected as a model (different engine and schema).
+  - Ran, not taken from the author: `vitest` over `src/storage/sqlite src/http src/witness src/mirror` (22 files, 989 tests pass), `src/storage/objectstore src/storage/indexeddb src/storage/memory` (9 files, 286 pass), the workerd config (8 files, 300 pass) and the Chromium config (8 files, 265 pass).
+  - Probes beyond the repo's suites (scratch directory, nothing added to the repo): real better-sqlite3 (installed from npm into a scratch directory) through `fromSqliteSync` passes the object-store conformance, driver conformance, SQLite behaviour and golden suites (0, 1, 256 and 1000 entries), which the ADR-0155 stand-in could not show; `scripts/smoke-sqlite.mjs` passes on Node (node:sqlite) and on Bun (bun:sqlite); better-sqlite3 does treat `?1` as a named parameter ("Too many parameter values were provided"), as the ADR says.
+  - Alternatives are real (KV backend kept, sync interface, ORM, per-engine SQL) and their rejections hold. Consequences are honest about what is not checked: minimum engine versions (SQLite 3.35, rqlite 8.32) are documented but not tested against old engines.
+  - Could not verify: Deno (not installed), Turso or a remote sqld, and a SQLite older than 3.35.
+  - Status: proposed becomes accepted; the existing note that its default locking is superseded by ADR-0210 stays (it is accurate). The default-locking caveat in my notes on ADR-0210 applies to the libSQL row.
 
 ## Update (2026-10-03)
 
@@ -99,3 +105,5 @@ local only for an in-memory or temporary database (by `PRAGMA database_list`) an
 leaves `defaultLocking` undefined now means lease. `defaultLocking` may be a function returning a promise,
 for an adapter that has to ask the database. The review found the old default let two connections to one
 file assign one index twice.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. Matches the code of ADR-0210: `fromSqliteSync` and `fromLibsql` ask `PRAGMA database_list`, `defaultLocking` may be a function, and an adapter that leaves it undefined means lease (`sqlite.ts` `defaultLockingOf`; tested in `sqlite_test.ts`, `sync_test.ts`, `libsql_test.ts`). See my change request on ADR-0210 for the libSQL `file:` case.*

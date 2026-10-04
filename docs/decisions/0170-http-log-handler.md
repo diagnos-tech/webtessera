@@ -1,6 +1,6 @@
 # ADR-0170: Serve the tlog-tiles read API from any LogReader as a fetch-style handler
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** http/witness/mirror agent
 - **Upstream reference:** `cmd/conformance/mysql/main.go` (`configureTilesReadAPI`), `cmd/conformance/{posix,gcp,aws}/main.go` (`POST /add`), `storage/gcp/gcp.go` and `storage/aws/aws.go` (`logCacheControl`, `ckptCacheControl`)
@@ -71,9 +71,14 @@ New module `webtessera/http` (`src/http/`), with no upstream counterpart:
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - No Go original; compared with `cmd/conformance/mysql/main.go` (`configureTilesReadAPI`, whose comment the ADR quotes, answering parse failures with 400 "Malformed URL: ..."), the POSIX/GCP/AWS `POST /add` handlers (bare decimal index; `ErrPushback` gives 503 and `Retry-After: 1`; other errors 500 with the error text), and C2SP tlog-tiles (the editor's copy and what I fetched of it): checkpoint `text/plain; charset=utf-8` and short caching, tiles `application/octet-stream` and long-lived caching, canonical paths (`<L>` 0 to 63 and `<W>` 1 to 255 without extra leading zeroes, `<N>` as `x`-prefixed three-digit elements), no redirects.
+  - Verified in code and tests: upstream's `ParseTileIndexPartial` really accepts `x000/001` (index 1) and `.p/08` (width 8), which `parseLogPath` rejects by re-formatting; the 96-character cap (the longest legal path is the 52-character entries path, so the cap is safe); storage is reached only with parsed numbers; 404 for `ErrNotExist`, 500 with no detail reported to `onError`, 405 with `Allow`, ETag as the first 16 bytes of SHA-256, weak `If-None-Match`, CORS opt-in, `trimToWidth` serving exactly W hashes or entries for a substituted full resource (`internal/fetcher/fallback.go` does substitute). `addResponse`, `addErrorResponse` and `readEntryBody` match the personalities' behaviour except for the 500 text, which ADR-0212 changes. A real log served through the handler and read back through the client and fsck passes in `log_handler_test.ts` and in Chromium.
+  - Two inaccuracies in a code comment and an ADR header, neither a defect in the decision: (1) the Upstream reference cites `logCacheControl` from `storage/gcp` and `storage/aws`, whose value is `max-age=604800,immutable`; the handler's full-tile policy is `public, max-age=31536000, immutable` (the POSIX conformance server's value), and the ADR never says why a year rather than a week, nor that upstream's own drivers differ. It is a free choice allowed by the spec ("SHOULD be long-lived") and `DefaultCacheControl`'s comment "upstream's servers use" is only true of the POSIX one. (2) `resources.ts` says the longest resource path is the 47-character level-63 tile path and `resources_test.ts` asserts that as "the longest"; the entries path at the same index is 52. Neither affects behaviour.
+  - Alternatives hold (a documented snippet, 404 for non-log paths, a framework dependency). Not verified: Deno behaviour (not installed), and gzip, which the ADR leaves to the runtime or CDN although tlog-tiles says entry bundles SHOULD be compressed at the HTTP layer; the ADR states that omission.
+  - Status: proposed becomes accepted.
 
 ## Update (2026-10-03)
 
@@ -91,6 +96,8 @@ Three changes from the security review, recorded in
   `HTTPFetcher` it re-serves a remote log unverified, with immutable caching, and points to
   `newVerifiedMirror`.
 
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. Verified against ADR-0212's code: `toNodeListener` takes origin-form targets as path and query (`//x/checkpoint` stays `//x/checkpoint`), answers 400 for other forms and for a `Host` that is not a bare authority, 204 for `OPTIONS *`; `positiveInteger` guards `maxBytes`, `maxBodyBytes` and CORS `maxAgeSeconds` (non-negative); `addErrorResponse` is generic unless `{ detail: true }`; the documentation warns about proxying a remote log. `node_test.ts` asserts each.*
+
 ## Update (2026-10-04): the handler never reads `request.signal`
 
 `newLogHandler` used to pass `request.signal` to the reader. It no longer reads it at all. Deno 2 prints a
@@ -106,3 +113,5 @@ nothing correctness needs. The module documentation and the log-server example's
 applications whose own routes read the signal. Test: `log_handler_test.ts` serves every resource kind,
 404, 400 and a preflight from requests whose `signal` getter throws, and checks that the reader is given
 no signal.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. The code never reads `request.signal` (`log_handler.ts`; the reader receives no signal; behind `toNodeListener` the `Request` is built without one). `log_handler_test.ts` serves every resource kind, a 404, a 400 and a preflight from requests whose `signal` getter throws and asserts the reader got `undefined` four times. I could not check the Deno 2.9.7 warning (Deno not installed); the reasoning about per-runtime semantics is plausible and the decision does not depend on it.*

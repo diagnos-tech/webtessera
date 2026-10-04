@@ -1,6 +1,6 @@
 # ADR-0155: Test the SQLite backend on every engine it claims, under production limits, with a live rqlite
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files_test.go` (ported, for the driver, in
@@ -78,9 +78,15 @@ Beyond the shared suites:
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Checked the test table against the files. Node: eight node:sqlite variants in `sqlite_test.ts` (memory, file, file + namespace, lease from another process, lease on a second connection, default options on a second connection, 4 KiB chunks under D1 limits, lease under D1 limits), four libSQL variants, rqlite against `testing/fake_rqlite.ts`; Chromium: three sqlite-wasm variants; workerd: D1 (two variants) and Durable Object (two); services: rqlite, failing rather than skipping without `RQLITE_URL`. Every engine runs conformance, driver conformance, behaviour and (in the `*golden*` files) the golden suite. `StrictSqlDatabase` does what the ADR lists and its limits match Cloudflare's D1 and Durable Object limits pages. `lease_test.ts`, `keys_test.ts`, `schema_test.ts`, `concurrent.ts` and the Durable Object driver tests exist as described (the four DO tests: resume after reset, publish after reset, publish between requests, no timers after shutdown).
+  - Ran, not taken from the author: `vitest` over `src/storage/sqlite src/http src/witness src/mirror` (22 files, 989 tests pass), `src/storage/objectstore src/storage/indexeddb src/storage/memory` (9 files, 286 pass), the workerd config (8 files, 300 pass) and the Chromium config (8 files, 265 pass). The live rqlite suite passes against a real rqlite 9.4.5 node I started for the purpose (79 tests); the mutation checks the ADR says were done (fence disabled, in-flight deferral disabled) fail the tests as stated.
+  - The ADR is honest that better-sqlite3 is exercised only through a stand-in; I additionally ran the suites against the real better-sqlite3 (see ADR-0150's notes) and they pass.
+  - Non-blocking: the ADR names `pnpm test:services` and `pnpm interop`; the scripts are now `bun run test:services` and `bun run interop` (ADR-0240). That is history, not an error, but `docs/` text that quotes these should use the Bun forms.
+  - Not verified: the browser tests on a real multi-tab OPFS database (not tested by the suite either); Deno.
+  - Alternatives hold (fakes, skipping the services suite). Status: proposed becomes accepted.
 
 ## Update (2026-10-03)
 
@@ -107,3 +113,5 @@ Tests added with the security-review fixes (ADR-0210 to ADR-0213):
   `src/mirror/s3_workers_test.ts` that workerd accepts the requests the rqlite adapter and the S3 sink make.
 - The live rqlite suite (`pnpm test:services` against rqlite 9.4.5) found that the first form of the
   encoding check read back BLOB expressions, which rqlite returns as text; the check now compares in SQL.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. Verified by running: the three-process test (`sqlite_test.ts`) appends 100 entries each to one file with default options and checks distinct indices, checkpoint size and fsck, and passes; with a scratch copy of its child script forced to `locking: "local"` I got 200 distinct indices out of 300, so the setup does distinguish the modes. `sync_test.ts` checks five kinds of database against `location()`, `libsql_test.ts` an in-memory client, a file client, an embedded-replica stand-in and a remote one, `schema_test.ts` the version 1 to 2 migration and both UTF-16 encodings, `rqlite_workers_test.ts` and `src/mirror/s3_workers_test.ts` workerd's acceptance of the requests (mutating the adapter to `redirect: "error"` makes the workerd test fail with workerd's `Invalid redirect value` message). Gap that the new tests leave: the multi-process test covers node:sqlite only; a libSQL `file:` multi-process test would have found the SQLITE_BUSY failure described in my review of ADR-0210.*

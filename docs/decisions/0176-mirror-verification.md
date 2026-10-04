@@ -1,6 +1,6 @@
 # ADR-0176: Verify what a mirror copies before writing it, outside the faithful port
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** http/witness/mirror agent
 - **Upstream reference:** `cmd/experimental/mirror/internal/mirror.go` ("Note that this function _only copies the data_; no self-consistency or correctness checking of the copied tiles/entries/checkpoint is undertaken."), `client/client.go` (`FetchRangeNodes`, `ProofBuilder`), `internal/fetcher/fallback.go`
@@ -53,9 +53,13 @@ The port stays faithful (ADR-0173). Verification is a separate `Source` decorato
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `verify.ts` and `fetch.ts` against the Decision and against upstream's "_only copies the data_" comment and `client.FetchRangeNodes`/`ProofBuilder`. `readCheckpoint`: 64 KiB cap, `parseCheckpoint` for signature and origin, a 32-byte root, the compact range from the source's partial tiles must hash to the root (which does bind every hash of every partial tile, since the compact range covers all of them), with a target the mirrored checkpoint must verify, be no larger, and be consistent (proof built from source tiles, checked against both roots). `readTile` and `readEntryBundle`: only implied resources (`checkImplied`), full tiles verified by recomputing the root and finding it in the verified tile above, recursively up to a partial tile, with tiles above level 0 cached; a full tile for a partial request is trimmed, a shorter one refused; bundles must hash to the verified level-0 tile with the exact count; failures are `unrecoverable`. `newSourceFetch`: manual redirects, cap defaulting to 256 x 65,537 bytes. `newVerifiedMirror` wires them.
+  - Tests: the hostile table covers a tampered full tile, a tampered bundle, a tampered partial tile, a short bundle and a checkpoint signed by another key, each leaving only bytes identical to an honest run and no checkpoint, with no retry delay; fork, rollback and redirect are separate tests, and an oversized body. I added one check the suite lacks, because every test uses a tree of at most 768 entries: with a log of 66,000 entries (a full level-1 tile under a level-2 partial) an honest run is accepted, and tampering with the full level-1 tile, with a full level-0 tile inside it, with one beyond it, and with the level-2 partial tile each refuses the run with no checkpoint written. The recursion the ADR describes therefore works across more than one level.
+  - Memory claim (verified tiles above level 0, 1/256 of level-0 tiles, are kept per run) matches `t.tiles`. Alternatives (verify inside `Mirror.run`, verify after copying) are real; "conditional writes make bad bytes permanent" is the right reason to verify first.
+  - Challenge, see ADR-0173: the ADR does not say that none of this makes the mirror a C2SP tlog-mirror (no cosignature, no pruning); a sentence would help. Status: proposed becomes accepted.
 
 ## Update (2026-10-03)
 
@@ -75,3 +79,5 @@ The port stays faithful (ADR-0173). Verification is a separate `Source` decorato
   was given can alter verified bytes.
 - `numWorkers` must be a positive safe integer, checked by `newVerifiedMirror`
   ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. The verified mirror's S3 behaviour with a 412 is as ADR-0175's update (above) and `verify_test.ts` covers a resumed run over the same history (succeeds, fsck passes) and over another (fails naming the key, no checkpoint). `verifiedMirror` gives each run a fresh `VerifyingSource` and throws `already running` for an overlapping run (`runs once at a time, verifying afresh on each run`); `VerifyingSource` fails a read overtaken by a later `readCheckpoint` (`#stillCurrent`; `fails a read that a later readCheckpoint overtook`); copies are taken before verifying and on return (`keeps what it verified out of reach of the source and of its callers`); `numWorkers` goes through `positiveInteger`.*

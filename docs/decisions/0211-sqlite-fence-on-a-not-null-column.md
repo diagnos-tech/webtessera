@@ -1,6 +1,6 @@
 # ADR-0211: Fence lease-mode writes on a NOT NULL column, at schema version 2
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** Gustavo Simões (security-review fixes)
 - **Upstream reference:** n/a (no upstream counterpart: upstream's POSIX driver holds `flock`s, which need
@@ -73,6 +73,10 @@ and D1 and Durable Objects in workerd).
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Verified in a scratch SQLite session and in the code. With `PRAGMA ignore_check_constraints = ON` the version 1 fence (`INSERT INTO fence (lost) SELECT 1` against `CHECK (lost IS NULL)`) is accepted and leaves a row; after `ALTER TABLE ... ADD COLUMN webtessera_lease_lost INTEGER NOT NULL DEFAULT 0`, `INSERT INTO fence (webtessera_lease_lost) SELECT NULL` fails with `NOT NULL constraint failed: f.webtessera_lease_lost` under the same pragma, a version 1 store's `INSERT ... (lost) SELECT 1` still fails with `CHECK constraint failed: webtessera_lease_lost` once the pragma is off, and a second `ALTER TABLE` fails with `duplicate column name`, which is the path `ensureSchema` uses to let concurrent openers race (`schema_test.ts` runs three at once). `isLeaseLost` matches on the shared name, so recognition is unchanged on every engine (`describeSqliteBehaviour`'s fenced-write case passes on node:sqlite, libSQL, rqlite fake and live 9.4.5, sqlite-wasm, D1 and Durable Objects in my runs). The migration is one batch with the conditional version bump; a new database is created at version 1 and migrated at once; `SchemaVersion` is 2.
+  - Consequences are accurate: earlier releases refuse version 2 tables with the message naming both versions (`schema_test.ts`), and the old column and constraint remain. Alternatives (check the pragma at open, a RAISE trigger, a datatype-mismatch insert, a new fence table) each have a real reason given; the trigger one (can be disabled per connection through `SQLITE_DBCONFIG_ENABLE_TRIGGER`) is correct.
+  - Not verified: D1 and Durable Objects restricting which pragmas run at all (taken from the ADR; the tests only show the NOT NULL fence works there).
+  - Status: proposed becomes accepted.
