@@ -110,9 +110,53 @@ reference implementations over a dense range.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** changes requested
 - **Notes:**
+  - Checked and right. Every Go excerpt in the Context is at the cited place in `merkle@v0.0.2` (`range.go` `getMergePath`, `Decompose`
+    with `uint64(1)<<uint(d) - 1`, `nodes.go` `Coverage`). The fixture `compact_range.json` does pin node `(63, 2^63-1)` with
+    `coverageEnd: "0"`. `src/internal/gostd/bits.ts` implements the six helpers as listed, with Go's zero conventions
+    (`trailingZeros64(0) == 64`, `len64(0) == 0`); `bits_test.ts` has the cases the Decision lists (26 tests pass), and
+    `gostd_differential_test.ts` ("bits and uint64 shifts match math/bits and Go's << and >>") replays Go-printed values,
+    so the intrinsics are checked against Go and not only against the port's own reference. Each site in the Decision's list uses
+    the helpers: `coverage()`, `getMergePath` (`len64(asUint64(mid - 1n) ^ end)`), `decompose` (`asUint64(shiftLeft64(1n, d) - 1n)`,
+    `asUint64(~xbegin) & mask`), `getRootHash` (`size &= size - 1n` is the same as Go's wrap, for size 0 too),
+    `#appendImpl`, `proof.nodes`/`consistency`, and the five shifts of `verify.ts`. Where a site subtracts without `asUint64`
+    (`innerProofSize`'s `size - 1n`, `index & (shiftLeft64(1n, high - low) - 1n)`) the next operation (`len64`, `&` with a
+    non-negative `index`) normalises the value, so the result is Go's. I read the TypeScript against `proof.go`, `verify.go`,
+    `range.go` and `nodes.go`.
+  - **Changes requested, 1 (substantive): the "degenerate case" in Consequences is not unreachable, and the port does not match
+    Go there.** The ADR says `getMergePath` returns `high == 0` only "which requires `mid < begin` or `end == mid - 1`, both outside the
+    documented precondition `begin <= mid <= end`", and that "no caller can observe the difference". But `mid = 0`, `end = MaxUint64`
+    satisfies `begin <= mid <= end` (with `begin = 0`) and also `end == mid - 1` modulo 2^64. It is reachable through the exported API: a
+    range `[0, 2^64-1)` is valid (`NewRange(0, MaxUint64, 64 hashes)`), and `NewEmptyRange(0).AppendRange(thatRange)` passes both
+    checks of `AppendRange` and calls `getMergePath(0, 0, MaxUint64)`, which returns `(64, MaxUint64)` in Go (`uint(high-1)` with
+    `high == 0`) and `[64, -1]` here. I ran both. Go (`merkle@v0.0.2`) panics with `runtime error: index out of range [63] with
+    length 63` (the loop `for h := low; h < high` runs past the 63 right-hand hashes). The port returns normally: `appendImpl` clamps
+    `high` to `low`, runs no merge step and yields a range with `end() == 2^64-1` and 64 hashes. So an input within the documented
+    precondition behaves differently, which is exactly the class of boundary this ADR exists to get right. `Append` cannot reach it
+    (`(mid-1)^(mid+1)` is never 0); only this one `AppendRange` input can. The differential corpus does not cover it (its merge
+    spans are at most 48 leaves; sequential `Append` is not affected). What must change: replace "unreachable ... no caller can observe
+    the difference" with the real statement (reachable at begin = mid = 0, end = MaxUint64; Go panics, the port succeeds), and then
+    either record that as an accepted divergence with a test that pins the port's behaviour, or change `appendImpl` to refuse it as Go does
+    (a thrown `Error`, since a Go panic is a thrown error under ADR-0004), with a test. I take no position on which; the fidelity
+    rule (AGENTS.md section 1) favours the second, but the input is a log of 2^64-1 entries.
+  - **Changes requested, 2 (the Update of 2026-10-02, second one): "Every computed shift upstream writes that conversion explicitly" is
+    wrong for one site.** `proof.go:96` is `fork := compact.NewNodeID(level+uint(inner), index>>inner)` with `inner` an `int` (the result
+    of `bits.Len64(...) - 1`), shifted with no `uint(...)`. There a negative `inner` would panic in Go ("negative shift amount"), and
+    `shiftRight64(index, inner)` here yields 0. It cannot happen (`inner >= 0` because `index != size>>level` for every input
+    `inclusion` and `consistency` accept), so nothing is wrong in practice, but the sentence is the justification for modelling
+    all computed shifts as `x >> uint(n)`, and it should say "all but `index>>inner` in `proof.nodes`, which is unreachable".
+  - **Changes requested, 3 (the Update of 2026-10-02, first one): "each with a Port note and a test whose expected values were printed by
+    the Go code" is not true of `minImpliedTreeSize`.** It has the Port note (`integrate.ts:600`) but no test refers to it, directly or by a
+    case that makes `level * 8` wrap. The other five sites have tests with Go values: `Range(5, MaxUint64-2, 10)` is
+    `N:18446744073709551613` in Go (I ran `layout.Range`) and a `RangeError` in `paths_test.ts:523`; `PartialTileSize(1<<61, 60, 12345)` is 57
+    in Go and in `tile_test.ts`; and the `stream`, `fsck` and `client` cases are in `stream_test.ts`, `fsck_test.ts:347` and `client_test.ts:468`.
+    Either add a test (the function is module-private, so it needs an `@internal` export or a case through `tileWriteCache`) or say that
+    this site has none.
+  - Not blocking. "`bits.ts` is 110 lines": the file is 184 lines, about 60 of them licence text, and now includes `assertUint64`
+    (ADR-0207). The Decision's signature list does not mention `assertUint64`; ADR-0207 does.
+  - Status stays `proposed`. Everything else in the ADR, including the choice of named helpers over inline `BigInt.asUintN`, is sound.
 
 ## Update (2026-10-02): further sites outside the Merkle port
 
@@ -132,7 +176,10 @@ whose expected values were printed by the Go code at the pinned commit:
 - `fsck/fsck.ts` `appendBundle`: `impliedSeq = index * 256 + first`.
 - `client/client.ts` `fetchLeafHashes`: `end = first + N`.
 
-*Review of this update: pending.*
+*Review of this update: changes requested, ADR review agent (independent), 2026-10-04. Checked the six sites against Go: the
+`layout.Range` and `PartialTileSize` values quoted are what the pinned Go prints (`N:18446744073709551613`, 57) and the port gives
+a `RangeError` and 57; the other four sites carry the helpers and (except `minImpliedTreeSize`) a test with Go's values. One claim to
+correct: item 3 of the Review above.*
 
 ## Update (2026-10-02): the remaining Merkle sites, and the negative-shift row
 
@@ -153,4 +200,8 @@ whose expected values were printed by the Go code at the pinned commit:
 - Values outside the uint64 domain (negative, or ≥ 2^64) can no longer reach these sites from the exported
   entry points at all: see ADR-0207.
 
-*Review of this update: pending.*
+*Review of this update: changes requested, ADR review agent (independent), 2026-10-04. Checked: `Range.append` passes
+`asUint64(this._end + 1n)`; `proof.nodes`, `proof.consistency` and `compact.rangeNodes` spell their shift counts `shiftRight64`;
+the negative-shift correction is right (a negative signed count panics in Go, `x << uint(n)` saturates) and `bits.ts` and its tests now say so;
+the merkle differential harness passes today. Two things to correct: item 2 of the Review above ("every computed shift"), and
+the fact that the unreachability claim about `getMergePath` in Consequences, which this update leaves standing, is wrong (item 1).*

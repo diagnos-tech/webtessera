@@ -154,4 +154,10 @@ Three mechanical decisions came up while porting it, none covered by an existing
 - `list_test.ts` again carries the four comments upstream puts above `TestZeroList`,
   `TestInsertBeforeUnknownMark`, `TestInsertAfterUnknownMark` and `TestMoveUnknownMark`.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR review agent (independent), 2026-10-04.* `list.ts` opens with the Go Authors' line (2009), ours and the pointer to
+`LICENSES/BSD-3-Clause-Go.txt`, and `NOTICE` lists `src/internal/gostd/list.ts` under "Go standard library 1.25.5, package container/list". Go's `New` (`list.go:62`) sits between `Init` and
+`Len`; `newList` is declared directly above the `List` class, with a port note saying why. The four comments upstream puts above `TestZeroList`, `TestInsertBeforeUnknownMark`,
+`TestInsertAfterUnknownMark` and `TestMoveUnknownMark` (`list_test.go:288, 307, 317, 327`) are present in `list_test.ts` (lines 277, 298, 311, 321), and its 10 cases pass.
+One cross-reference to watch, not a defect of this update: the Alternatives rely on ADR-0010's sentence that the `_` prefix "is not a general renaming rule", and keep `len` as
+`#len`. In my review of ADR-0010 I have asked for that sentence to be corrected, because the table there prefixes fields with no colliding accessor (and AGENTS.md section 3.8 states
+the broader rule). `List.len` is read by nothing but `List`'s own methods, so `#len` is right under either reading and nothing here needs to change.

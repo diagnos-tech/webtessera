@@ -166,4 +166,9 @@ non-nil, which is the only form `ct_only.ts` uses, so no caller changes. This wa
 nil slice. TypeScript has no nil `Uint8Array`; the two are indistinguishable to every caller
 (`len(result) == 0`). Noted on `bytes()`.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR review agent (independent), 2026-10-04.* I ran the cases against Go (`x/crypto@v0.46.0`) and the port.
+Both agree: on a nil `String`, `Skip(0)` is false and `ReadBytes(0)` fails (`false` in Go, `undefined` here); on `String([]byte{})`, on the String left after the
+last byte is read, and on a zero-length length-prefixed value, `Skip(0)` is true. `new String()` carries a `nil` marker that never changes, which is
+the one-bit rendering of a nil slice; `new String(new Uint8Array(0))` is non-nil, and `ct_only.ts` only ever passes a `Uint8Array`. An empty
+`Builder().bytes()` is a zero-length `Uint8Array` where Go returns nil (`r == nil` is true in Go); the update is right that no caller can tell,
+and the port note on `bytes()` says so. The behaviour is pinned in `cryptobyte_test.ts` (`String reads`, passes).

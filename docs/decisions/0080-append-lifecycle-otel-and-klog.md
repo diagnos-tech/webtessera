@@ -138,3 +138,11 @@ always-on loops read the storage several times a second (on this port's `ObjectS
 each `integratedSize`/`nextIndex` call reads and parses `.state/treeState`) for values nobody
 reads. The rest of this ADR stands: OTel and klog are dropped, `terminator.largestIssued` and
 `CheckpointPublisher`'s work are kept, and `WithCheckpointSigner`'s `klog.Exitf` is a throw.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. (The update carried no review line, and its status change was made without a new
+review, as it says; I checked what it states.)* `idxAt`, `integrationStats`, `statsDecorator`, `updateStats` and `followerStats` no longer exist in `src/` (the only
+mentions are the two comments in `append_lifecycle.ts` that say they were removed, lines 23 and 215). `terminator`'s `#largestIssued` is kept, and
+`WithCheckpointSigner`'s `klog.Exitf` guard is a thrown `Error` with the quoted message (lines 671 and 716), as the update lists. The cost it gives as the reason is real:
+the object-store driver's `integratedSize`/`nextIndex` are `readTreeState()` calls (`driver.ts:842, 847`), so the removed 100 ms and 200 ms loops each read
+the state file several times a second for nothing, which is the reviewer's recorded reservation. The status line's "(proposed, review pending)" for ADR-0181 is accurate:
+that ADR is `proposed`. The ADR's own Decision table still lists those structures as "kept as logic", but the update and the title say that part is superseded, which is the right way to record it.

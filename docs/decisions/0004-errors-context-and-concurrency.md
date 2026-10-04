@@ -166,7 +166,21 @@ outlasts its period is now followed immediately by the next one rather than afte
 guard shared across the whole traversal, as Go's `errors.Is` and `errors.As` walk `Unwrap() []error`.
 This closes the gap named in the Review above and in ADR-0057. See ADR-0057 for `errors.Join` itself.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR review agent (independent), 2026-10-04.* Checked each bullet against
+`golang.org/x/sync@v0.19.0/errgroup/errgroup.go`, Go 1.25.5's `sync.Once`/`time.Ticker`/`errors` and
+`src/internal/gostd/{sync,errors}.ts`. `ErrGroup`: `signal` is aborted by the first error and by `wait()`
+(`g.cancel(g.err)`), a parent's reason survives because aborting an aborted controller is a no-op; `go()` queues;
+`setLimit` has Go's semantics for negative and zero limits and Go's exact panic text, counted on running
+operations. `Once.do` memoises a synchronous throw (Go: a panicking `f` counts as done). `ticker` keeps a fixed
+schedule, holds one overdue tick and drops the rest (traced by hand for a 120 ms body on a 50 ms period: ticks
+due at 50, 100, 200, matching Go's one-slot channel) and throws Go's `non-positive interval for NewTicker`.
+`errorIs`/`errorAs` follow `is`: self, then `Is`, then `Unwrap() []error` depth-first in order. Ran
+`sync_test.ts` and `errors_test.ts` (75 pass; 44 and 31 cases, so "42" has since become 44). To check that the
+limit regression test is not vacuous I reinstated the old hand-off (permit counted by the woken task, not by the
+releaser) in a scratch copy: "never runs more operations than the limit while a permit changes hands" then fails.
+One imprecision, not blocking: "`fsck` threads it only into workers that `wait()` joins" is loose, since
+`fsck.ts` also passes `eg.signal` to the `entryBundles` stream and to `waitUntilBelow` in the producer loop. All of
+that runs before `wait()`, nothing reads the signal afterwards, so the conclusion holds.
 
 ## Update (2026-10-02)
 
@@ -193,6 +207,17 @@ Two statements above no longer describe the code, and are corrected here rather 
   `append_lifecycle.ts` among `ticker`'s callers. ADR-0181 deletes both, so the garbage collection
   job in `storage/objectstore/driver.ts` is the only caller left.
 
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. (The update carried no review line;
+I reviewed it with the one above.)* `grep` of the pinned tree finds no `errgroup.WithContext` at all and a bare
+`errgroup.Group{}` at every site the update names (`migrate.go:73`, `migrate_lifecycle.go:156`, `fsck/fsck.go:109`,
+the `gcp`/`aws` drivers, `cmd/experimental/mirror/internal/mirror.go:111`), so the correction of "Tessera uses
+`WithContext` at the sites that matter" is right. `context.WithTimeout` appears once in non-test library code,
+`append_lifecycle.go:645`, with `defer cancel()`; `src/append_lifecycle.ts` implements it as an `AbortController`
+plus `setTimeout`, cleared and aborted in a `finally`, with the port note the update describes. `fsck.ts` passes
+`new ErrGroup(signal)` and explains why; `migrate.ts` and `migrate_lifecycle.ts` pass the caller's signal. The
+`ticker` bullet is true: `driver.ts`'s `garbageCollectorJob` is the only caller left and it is started only
+when the interval is positive.
+
 ## Update (2026-10-04): a panic whose text cannot be reproduced
 
 A Go panic becomes a thrown `Error` with the panic's text, like a returned error. One upstream panic formats a value
@@ -202,3 +227,12 @@ each child's fields, including the address of its verifier's state
 (`[{%!s(*note.verifier=&{Wit1 2604643029 0x6ec920}) https://w.example/add-checkpoint}]`). `newWitnessGroup`
 (`src/witness.ts`) throws `threshold of <n> outside bounds for children <count>` instead, with the number of
 children where Go prints them; its Port note says so. The condition and the prefix are Go's.
+
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. (The update carried no review line.)*
+`witness.go:236` is the panic quoted; `src/witness.ts` `newWitnessGroup` throws
+`threshold of <n> outside bounds for children <count>` under the same condition (`n < 0 || n > len(children)`),
+and a probe confirms it for `-1` and `1` with no children, while `0` is accepted. The `%s` of a slice of structs
+holding a `*note.verifier` does print a pointer, so the text cannot be reproduced; printing the count is a
+reasonable stand-in, and the Port note says so. Neither upstream's tests nor this port's pin the message (no
+test calls `newWitnessGroup` out of range), which is consistent with the update citing none, but means the
+divergence is documented and not asserted. Not blocking.

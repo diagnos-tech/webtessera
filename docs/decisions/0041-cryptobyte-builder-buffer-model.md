@@ -169,4 +169,10 @@ ADR-0040's omission of that test is amended in its own update.
 The second behaviour listed above, the child's bytes surviving physically after a length-prefix
 overflow, is unchanged.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR review agent (independent), 2026-10-04.* I ran the correction's own example against both
+implementations. With Go (`golang.org/x/crypto@v0.46.0`): `buf := make([]byte, 5); b := NewBuilder(buf); b.Unwrite(len(buf)); b.AddUint8(9)` leaves
+`buf[0] == 9`. With the port: `newBuilder(buf); b.unwrite(buf.length); b.addUint8(9)` leaves `buf[0] === 9`. The mechanism is as stated: `unwrite`
+only does `this.len -= n`, and `grow` reallocates only when `len + n > buf.length`. `newBuilder(buffer)` starts with `len = buffer.length`, so
+without the `unwrite` the first append copies, which is what Go does when `len == cap`. The port note on `newBuilder` now says this,
+and `TestPreallocatedBuffer` in `cryptobyte_test.ts` is the Go test with `buf[0:0]` rendered as `unwrite(buf.length)`; it passes. The original
+claim ("`NewBuilder(buffer)` never writes into `buffer`") was indeed wrong and the correction is the right size: it changes no code and no test.

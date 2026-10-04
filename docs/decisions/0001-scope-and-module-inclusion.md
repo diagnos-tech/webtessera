@@ -104,6 +104,46 @@ otherwise as written. Like ADR-0141, the new ADRs are proposed until their revie
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Scope of this review: the framework (the four rules and the register) and the two Updates. The
+    exclusions themselves are argued, and reviewed, in the ADRs the register points at; this ADR only
+    claims they exist.
+  - Register against the pinned tree (`.upstream/tessera` at `4a6d9f9`, which `git log -1` confirms).
+    All 106 `.go` files are accounted for: every file outside `cmd/`, `integration/`,
+    `internal/hammer/`, `storage/{aws,gcp,mysql,posix}/` has a TypeScript file at the mirrored path,
+    except the five `otel.go`/`cast.go` files, which are the ones ADR-0051, ADR-0061, ADR-0070, ADR-0080
+    and ADR-0134 record as not ported. That is exactly what the Update of 2026-10-02 says about the
+    `otel.go` and `internal/otel` rows ("read `port`, later recorded as not ported"), and it is true:
+    there is no `src/internal/otel/`. The root-package row lists the right files (`entry.go`,
+    `log.go`, `lifecycle.go`, `append_lifecycle.go`, `await.go`, `antispam.go`, `witness.go`,
+    `migrate.go`, `migrate_lifecycle.go`, `ct_only.go`, `otel.go`), and the six `internal/*` packages
+    named exist upstream. `keygen/` does not exist at the pin (`ls` and `git ls-tree` agree), so
+    ADR-0141's finding quoted in the 2026-10-02 Update is right.
+  - 2026-10-02 Update, claim by claim. The State column does read `proposed — ADR-0141` and not
+    `accepted`; ADR-0141 is still `proposed`; `docs/PORTING-MAP.md` keeps the affected `cmd/`,
+    `internal/hammer/`, `storage/posix/antispam/` rows at `pending ADR` with the proposal in `notes`;
+    the four `storage/posix/` files that ADR-0100 covers (`files.go`, `files_test.go`, `file_ops.go`,
+    `otel.go`) carry the status ADR-0100 gives them. The Update is accurate and its handling of rule 3 is
+    the careful reading: it does not let a proposed ADR move a row.
+  - 2026-10-03 Update, claim by claim. `src/storage/durableobject/` does not exist; `src/storage/sqlite/`
+    does; ADR-0120 to ADR-0123 all read `superseded by ADR-0150` to `ADR-0154` as stated;
+    `src/http/`, `src/witness/` and `src/mirror/` exist and are exported by `package.json`
+    (`./http`, `./witness`, `./mirror`); ADR-0170 to ADR-0176 exist and are `proposed`, which is what
+    "proposed until their reviews are signed" says. `cmd/experimental/mirror/internal/mirror.go` is
+    ported as `src/mirror/mirror.ts` (PORTING-MAP: done), which is the one-file exception to ADR-0141's
+    row that the Update describes.
+  - Rule 4 ("state what capability is lost and what replaces it") is not satisfied by this ADR on its
+    own, and does not claim to be; ADR-0141's Decision table has a Lost and a Replaced-by column for
+    every excluded row, which is what rule 4 asks for. I checked that every non-ported row of the
+    register is covered by a row of that table or by ADR-0093.
+  - Challenge. (1) Only one alternative is recorded. A second one that deserves a line is "port the
+    cloud drivers behind the `ObjectStore` contract rather than leave them out", which is what ADR-0141
+    ends up arguing against per driver; recorded there, so not blocking. (2) The Status line and the
+    Consequences bullet still speak of rows "marked *pending*", but no row of the register's State
+    column reads `pending` any more (the Updates replaced them with `proposed — ADR-...`). That is
+    history read against later updates, not an error; the 2026-10-02 Update says as much. (3) The
+    Status `accepted (framework)` was set before this review. It is consistent with AGENTS.md section 6
+    only now that the framework part is signed; the per-module rows remain exactly as undecided as the
+    ADRs behind them.

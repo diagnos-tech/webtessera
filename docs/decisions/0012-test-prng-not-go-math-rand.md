@@ -1,6 +1,6 @@
 # ADR-0012: Randomised tests use a seeded splitmix64, not a port of Go's `math/rand`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** merkle agent
 - **Upstream reference:** `merkle/compact/range_test.go` (`TestMergeRandomly`), `merkle/testonly/tree_test.go` (`TestTreeConsistencyProofFuzz`)
@@ -91,6 +91,35 @@ anything in Tessera, and no production code imports it.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Upstream, in `merkle@v0.0.2`. `TestMergeRandomly` (`compact/range_test.go:274`) loops `seed` over 1..99,
+    builds `rnd := rand.New(rand.NewSource(seed))`, and takes `numNodes := rand.Uint64() % 500` from the *global* source,
+    exactly as the Context says; the merge points come from `rnd.Int63n`. `TestTreeConsistencyProofFuzz`
+    (`testonly/tree_test.go:140`) draws `size2` and `size1` from the global `rand.Int63n`, 8 times per size 1..256. The
+    only assertions are agreement with `verifyRange`/`verifyAllVisited` and with `refConsistencyProof`, so neither test
+    asserts on a random value. Those are the only uses of `math/rand` in `merkle`'s tests; Tessera's own tests use
+    `crypto/rand` only (`api/state_test.go`, `README_test.go`), which needs no stand-in. Since Go 1.20 the global source
+    is auto-seeded, so the reproducibility argument holds.
+  - The stand-in. `src/internal/gostd/rand.ts` is splitmix64. I computed the first three outputs for seed 0 from the
+    class and from an independent Python implementation of the published algorithm, and they agree
+    (`e220a8397b1dcdaf`, `6e789e6aa1b965f4`, `06c45d188009454f`); `rand_test.ts` pins reference outputs and passes (4 cases).
+    `int63n` throws for `n <= 0` as Go panics. The ports keep the structure: `range_test.ts` loops seeds 1n..99n with
+    `numNodes = rnd.uint64() % 500n` and the same `mergeAll` recursion; `tree_test.ts` uses `newRand(1n)` and the same two
+    draws. Only `src/vendor/merkle/**` and `src/storage/sqlite/keys_test.ts` (all tests) import it; no library code does,
+    as claimed.
+  - Is the weaker sample a problem? I computed what the seeds give: 99 `numNodes` values, 84 distinct, from 0 to 498 with a
+    median of 263, so the merge test sees empty, small and large trees. The Consequences' list of what carries the real
+    coverage is right: `TestGenRangeNodes` runs `begin <= end <= 512`, `TestDecompose` `i <= j <= 100`, the consistency
+    proof test sizes 0..8, and the merkle golden fixtures exist (`*_fixtures_test.ts`). All 12 files of `src/vendor/merkle`
+    pass.
+  - Three statements in the body are imprecise; none affects the decision, so I approve, but a later Update could
+    tidy them. (1) "It is 70 lines and imports nothing": the file is 70 lines, but it imports `asUint64` from
+    `./bits.ts`, a sibling shim. (2) "the bias is on the order of 2^-64" (repeated in the code comment): `int63n` reduces a
+    63-bit value modulo `n`, so the bias is about `n / 2^63`, roughly 2^-54 for `n` near 500. Negligible, but not 2^-64.
+    (3) "~600 lines of opaque constants": `rngCooked` has 607 entries, and Go 1.24.7's whole `math/rand/rng.go` is 252
+    lines. The point (a large table of magic numbers for no assertion) stands.
+  - Challenge on the alternatives: "replace the randomised tests with exhaustive ones" is rejected correctly, since
+    deleting an upstream test is what AGENTS.md section 4 forbids. I would not accept `Math.random()` either, for the
+    reason given.

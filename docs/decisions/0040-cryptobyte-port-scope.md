@@ -120,6 +120,9 @@ The third-party licence inventory this ADR called for now exists: `NOTICE` lists
 `golang.org/x/crypto/cryptobyte` among the Go-derived sources and `LICENSES/BSD-3-Clause-Go.txt`
 carries the licence text. None of the decisions above changed.
 
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. (No review line was present.)* `NOTICE` lists
+`golang.org/x/crypto v0.46.0, package cryptobyte` with the three source files, and `LICENSES/BSD-3-Clause-Go.txt` exists.
+
 ## Update (2026-10-02)
 
 A fidelity audit found three statements above that no longer hold, or never did:
@@ -144,4 +147,10 @@ Declaration order in `cryptobyte.ts` now follows `builder.go`: `Builder`, `NewBu
 declarations Go places between a type's methods, so `newBuilder` sits directly above the class and
 `BuilderContinuation` and `BuildError` directly below it, in Go's order.
 
-*Review of this update: pending.*
+*Review of this update: approved, ADR review agent (independent), 2026-10-04.* Counted against `golang.org/x/crypto@v0.46.0/cryptobyte`:
+`cryptobyte_test.go` has 23 tests and `cryptobyte_test.ts` has a `describe` for 19 of them, in Go's order; the four missing are exactly the
+four the update lists (`TestFixedBuilderLengthPrefixed`, `TestFixedBuilderPanicReallocate`, `TestASN1Int64`, `TestASN1Uint64`). `example_test.go`
+has six examples, `cryptobyte_example_test.ts` carries the four non-ASN.1 ones under their Go names, and the two ASN.1 ones are rightly absent.
+`TestPreallocatedBuffer` is ported with the unwrite device the update (and ADR-0041's) describes, and asserts the same `[1,2,3,4,0]` and `[1..6]`.
+The header of `cryptobyte.ts` has the Go Authors' line, ours and the pointer to `LICENSES/BSD-3-Clause-Go.txt`; `NOTICE` lists the three files.
+The declaration order is `newBuilder`, `Builder`, `BuilderContinuation`, `BuildError`, `String`, as the update says. Both test files pass (60 tests).

@@ -59,6 +59,36 @@ The Merkle layer stays synchronous, exactly as upstream.
 
 ## Review
 
-- **Reviewer:** _pending — foundational ADR, to be challenged by the first reviewer agent_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - The load-bearing claim is that the hasher is a plain synchronous function called in tight loops. Against
+    `merkle@v0.0.2/rfc6962/rfc6962.go`: `HashChildren(l, r []byte) []byte` returns a value, no error, no context.
+    Upstream hands it around as a function value: `compact.RangeFactory{Hash: rfc6962.DefaultHasher.HashChildren}`
+    in `storage/internal/integrate.go` (lines 68 and 339) and `fsck/fsck.go:100`, and
+    `nodes.Rehash(hashes, hasher.HashChildren)` and `RangeFactory` in `client/client.go` (lines 243 and 422).
+    A `Promise`-returning hash would change all of those signatures, which is the argument made. I agree with it.
+  - The TypeScript honours the decision. `src/vendor/merkle/rfc6962/rfc6962.ts` imports `sha256` from
+    `@noble/hashes/sha2.js`, `DefaultHasher = new Hasher(sha256)`, `hashChildren` is synchronous, and no file of
+    `src/vendor/merkle/{rfc6962,compact,proof}` or `hasher.ts` contains `async` or `Promise`. In
+    `storage/internal/integrate.ts` the `async` functions are the tile reads and writes (Go's `context` I/O); the
+    hashing inside them is synchronous. `package.json` lists exactly `@noble/curves` and `@noble/hashes` under
+    `dependencies`, as AGENTS.md section 7 says. `src/vendor/note/note.ts` signs and verifies with
+    `@noble/curves/ed25519.js` and `@noble/hashes/sha2.js`.
+  - Two statements of fact are slightly off, neither affects the decision, so I do not request changes.
+    (1) "have zero dependencies of their own" is true of `@noble/hashes`, but `@noble/curves@2.3.0` declares one
+    dependency, `@noble/hashes` itself (`node_modules/@noble/curves/package.json`). The transitive set is still
+    exactly the two packages the ADR counts, so "two dependencies to vet" stands. (2) "Audited" is true but dated:
+    both READMEs list independent Cure53 audits of 1.x releases (hashes 1.0.0, Jan 2022; curves 1.6.0, Sep 2024,
+    whose scope names ed25519) and, for 2.2.0, a self-audit; the pinned range is `^2.3.0`. The ADR's reliance on
+    "constant-time properties ... audited" therefore rests on the 1.x audits plus the maintainers' own review of
+    2.x. Worth knowing, not a reason to reverse.
+  - Challenge on the Alternatives. "WebCrypto for Ed25519, noble for SHA-256: rejected, signing is not hot" is the
+    right argument for verification, which stays on noble. It is no longer the whole story for signing: ADR-0223
+    and ADR-0227 add WebCrypto-backed asynchronous signers so that non-extractable keys can be used, which is the
+    "optional async path ... a new ADR" this ADR's Consequences anticipated, and they keep the Merkle layer and
+    verification synchronous as required. ADR-0223 and ADR-0227 do not refer back to this one (ADR-0222 does, in
+    passing). I suggest a one-line pointer in an Update here when they are reviewed; it is not needed for this ADR
+    to be in force.
+  - Browser claims (`crypto.subtle` only in secure contexts; uneven Ed25519 support) are platform facts I did not
+    re-test and did not need to.

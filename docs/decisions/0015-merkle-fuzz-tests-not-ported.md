@@ -1,6 +1,6 @@
 # ADR-0015: Do not port the merkle fuzz tests
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** merkle agent
 - **Upstream reference:** `merkle/compact/node_fuzz_test.go`, `merkle/testonly/tree_fuzz_test.go`, `merkle/.clusterfuzzlite/`, `merkle/testdata/FuzzRangeNodes/`
@@ -109,8 +109,36 @@ did not exist.
 >   changing, so it is not done here. For the record, the 19 corpus inputs were replayed against the port's
 >   `rangeNodes` with `FuzzRangeNodes`' contiguity property during the 2026-10-02 merkle audit, and all 19 pass.
 
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. (The update carried no review line; every correction in it is
+verified in the Review below.)*
+
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Upstream, in `merkle@v0.0.2`. The fuzz files are `compact/node_fuzz_test.go` (`FuzzRangeNodes`) and `testonly/tree_fuzz_test.go`
+    (five targets, so six in all and not the three the Context names; the Update says so, correctly). `FuzzRangeNodes` asserts that `RangeNodes(begin, end)`
+    has contiguous coverage ending at `end`; its seeds are `f.Add(end, end)`, as the Update says. The `*AndVerify` targets build a tree of
+    size < 65535, produce a proof with `testonly.Tree` and check it with `proof.VerifyInclusion`/`VerifyConsistency`; the three
+    `*AgainstReferenceImplementation` targets compare `Tree` with `refRootHash`/`refInclusionProof`/`refConsistencyProof`. The corpus is
+    `compact/testdata/fuzz/FuzzRangeNodes/`, 19 files, as the Update corrects (the ADR's "20" and "`testdata/` at the root" were wrong).
+  - Is the substitute coverage real? I checked the figures. `TestGenRangeNodes` is exhaustive for `0 <= begin <= end <= 512` against a recursive
+    reference (131,841 pairs) and passes in `nodes_test.ts`. `compact_range.json` contains `(MaxUint64-1, MaxUint64)` and `(0, MaxUint64)` in
+    its `rangeNodes` table and does not contain `(1, 767)`, which is exactly what the Update withdraws. `proof_consistency.json` has 861 cases
+    (every `0 <= size1 <= size2 <= 40`, since 41*42/2 = 861) plus 94 larger ones, and `proof_inclusion.json` has 820 proofs for sizes 1..40
+    (every leaf of every tree, 1+2+...+40) plus 9 larger trees up to 5000, so "every pair up to 40" and "every leaf of every tree 1..40" are right.
+    `TestTreeInclusionProof` runs on one generated 256-leaf tree and the golden trees of sizes 0..7, which is the Update's wording
+    ("not every leaf of every tree up to 256"); `TestTreeHashAt` and `TestTreeConsistencyProof` (`[0,8]^2`) are as described.
+  - I repeated the Update's corpus claim. I parsed the 19 files in the Go module cache and ran `FuzzRangeNodes`' property against the port's
+    `rangeNodes`/`coverage()`: 18 satisfy it and one has `begin > end`, which the target skips with `return`. So none fails, consistent with
+    "all 19 pass".
+  - The decision is sound: the properties the targets assert are covered by exhaustive or fixture-backed ported tests, and the ADR is honest that
+    the engine-driven discovery is lost. Two imprecisions that do not change it. (1) The Context says the targets are "wired into OSS-Fuzz via
+    `.clusterfuzzlite/`" and the Consequences that upstream's "OSS-Fuzz integration runs continuously". The directory is ClusterFuzzLite's
+    (`project.yaml`, `build.sh`), and upstream's workflows run it as PR fuzzing for 600 s in `code-change` mode (`cflite_pr.yml`) and a build on
+    push; there is no continuous batch run in the repository. What is lost is therefore somewhat less than the Consequences say. (2) The
+    Consequences name only `rangeNodes` above 512 as uncovered, but the `*AndVerify` and `*AgainstReferenceImplementation` targets accept
+    sizes up to 65534 and the fixtures stop at 5000 (every pair only to 40). Same kind of gap, one more sentence.
+  - Challenge on the alternatives. "Port them as seeded property tests ... looks like fuzzing and is not" is a fair reason, and the rejection of
+    hand-decoding the Go corpus into `fixtures/data/` follows AGENTS.md section 5. I did not find a reason to overrule the omission.

@@ -1,6 +1,6 @@
 # ADR-0013: Go slice aliasing in the merkle port becomes copies and explicit offsets
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** merkle agent
 - **Upstream reference:** `merkle/compact/nodes.go` (`RangeNodes`), `merkle/proof/proof.go` (`nodes`, `reverse`, `Rehash`, `skipFirst`), `merkle/compact/range.go` (`appendImpl`, `GetRootHash`)
@@ -77,6 +77,9 @@ allocates.
 > on it. The same holds for `newRange` (the port stores the caller's array, as Go stores the slice, but never
 > writes into it).
 
+*Review of this update: approved, ADR review agent (independent), 2026-10-04. (The update carried no review line; see the
+Review below for what was checked.)*
+
 ## Consequences
 
 - The nil-vs-empty distinction is lost, so a handful of upstream table cases that differ only in
@@ -112,6 +115,39 @@ allocates.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR review agent (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Every Go excerpt in the Context matches `merkle@v0.0.2` (`RangeNodes` appends to `ids`; `reverse(nodes[len(nodes)-right:])` and
+    `reverse(nodes[len(nodes)-left:])` in `proof.nodes`; `Rehash` writes `h[cursor]` and returns `h[:cursor]`; `skipFirst` has a
+    value receiver; `appendImpl` ends with `append(append(r.hashes[:idx1], seed), hashes[idx2:]...)`). I read the TypeScript
+    next to each.
+  - `rangeNodes` (`compact/nodes.ts`) starts from `[...ids]`, so it never touches its argument. `TestRangeNodesAppend` in
+    `nodes_test.ts` carries the port-only assertions the Decision relies on, and the vacuity argument is right: if the function
+    pushed onto `prefix`, `prefix.length` would grow with it and `nodes.slice(0, prefix.length)` would be compared with
+    the array it was copied from. `reverse(ids, from)` reverses `ids[from:]` in place and is called as
+    `reverse(ids, ids.length - right)` / `(ids, ids.length - left)`, as Go's two calls. `skipFirst` returns a new `Nodes`
+    (`slice(1)`, same begin/end fix-up). `rehash` ports the loop line for line, writes into the caller's array, keeps Go's
+    "Warning" comment and returns `h.slice(0, cursor)`; its only library callers (`client/client.ts:308`,
+    `testonly/tree.ts:118,127`) use the result as a proof and do not write through it. The ported `TestRehash` copies its
+    input first (`[...tc.hashes]`), as Go's `append([][]byte{}, tc.hashes...)` does, which is the reason that line exists
+    upstream. `appendImpl` ends with the spread the Decision quotes.
+  - The Update is accurate. Go's nested `append` writes into `r.hashes`' backing array when it has capacity, and that
+    array can be the one a caller passed to `NewRange` or got from `Hashes()`; the port's `newRange` stores the caller's
+    array (as Go stores the slice) and `#appendImpl` replaces `_hashes` with a fresh one, so the caller's array is never
+    written. The range is the same, the aliasing side effect is not reproduced, and nothing in `compact`, `proof`,
+    `storage/internal`, `client` or `fsck` reads a range's hashes after a later append expecting them to have changed.
+  - nil versus empty. Go's `TestInclusion`/`TestConsistency` write `Nodes{IDs: []compact.NodeID{}}` for the empty proofs and
+    `consistency` here returns `new Nodes([], 0, 0, newNodeID(0, 0n))`, the zero `Nodes` with a zero `ephem`. `RangeNodes`
+    tests expect `nil` where TypeScript expects `[]`. `GetRootHash` is the one place where emptiness is observable and it
+    returns `null`, asserted twice: `TestGoldenRanges` (`size === 0` expects `toBeNull()`) and the fixture check
+    `emptyRangeRootIsNil` in `range_fixtures_test.ts`, which reads the Go-generated `compact_range.json`. The `shorten`
+    helper in `range_test.ts` uses `subarray`, as `hash[:4]` aliases.
+  - `bunx vitest run src/vendor/merkle` passes (12 files, 770 tests).
+  - Notes, not blocking. (1) "TestGenRangeNodes calls it 131k times and runs in ~12s": 513*514/2 = 131,841 calls is right, but
+    the test runs in about 2.6 s here, with the machine shared with other reviewers. The sentence is a performance anecdote
+    and the conclusion (allocation is not on a hot path) is unaffected. (2) The in-place half of `Rehash`'s contract and the
+    "caller's array is never modified" property of `newRange`/`append` are stated in the ADR and the code, but no test pins
+    them (upstream has none either; the ported tests only protect against the opposite mistake, in `rangeNodes`). If someone
+    "improves" `rehash` to be pure, `testonly/tree.ts` would keep working and the ADR's "ported verbatim warning" would become
+    false without any test noticing. A one-line test would close it; I do not make it a condition.
