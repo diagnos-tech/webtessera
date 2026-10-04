@@ -1,6 +1,6 @@
 # ADR-0152: Lock SQLite stores in memory or with fenced leases in the database, per store
 
-- **Status:** proposed; its default locking and its keying of local locks are superseded by ADR-0210
+- **Status:** accepted; its default locking and its keying of local locks are superseded by ADR-0210
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`lockFile`, `treeStateLock`, `publishLock`, `gcStateLock`,
@@ -110,9 +110,15 @@ itself. Choosing `locking: "local"` explicitly remains possible and is the calle
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `lease.ts`, `sqlite.ts` and the adapters bullet by bullet. Taking a lock is one batch (delete if expired, `INSERT OR IGNORE`, read back); renewal is one batch that updates where the token is ours and reads it back; release deletes where still ours; every write batch begins with the fence statement and a held lease is not released while a batch fenced on it is in flight; an attempt that wins while the signal aborts releases what it won; clocks are as the ADR describes (`databaseNow` for adapters that set `leaseClock: "database"`, the store clock for rqlite, a `clock` option overriding both).
+  - Mutation checks in a scratch copy of `src/`: disabling the fence makes 7 tests fail (4 in `lease_test.ts`, the CHECK-ignoring test, and the fenced-write case of `describeSqliteBehaviour` on two suites); disabling the in-flight deferral makes exactly `defers releasing a lease until the writes fenced on it have settled` fail. So the ADR's statement that the fencing and in-flight tests were checked to fail without the mechanism is true. The rqlite history behind the in-flight race I could not reproduce, but `lease_test.ts` pins it deterministically.
+  - Ran, not taken from the author: `vitest` over `src/storage/sqlite src/http src/witness src/mirror` (22 files, 989 tests pass), `src/storage/objectstore src/storage/indexeddb src/storage/memory` (9 files, 286 pass), the workerd config (8 files, 300 pass) and the Chromium config (8 files, 265 pass). Live rqlite 9.4.5 suite: 79 tests pass (`RQLITE_URL=http://127.0.0.1:4001`; the S3 services file fails by design without S3 variables).
+  - Nit, no action required: the ADR (and the comment in `lease.ts`) call the polling backoff "full jitter"; the code sleeps `backoff * (0.5 + random / 2)`, which is half-to-full jitter. No behavioural consequence.
+  - Limitation to carry in the record: lease acquisition and renewal do not retry `SQLITE_BUSY` (a failed acquisition batch throws out of `lock`). On engines whose adapter sets a busy timeout that is invisible; on libSQL `file:` clients, whose busy timeout is 0 (ADR-0153), contending processes fail instead of waiting. I reproduced it (see my change request on ADR-0210); it does not change my verdict on this ADR, whose decision (leases, fenced by tokens) is sound.
+  - Alternatives are real and their rejections hold (leases checked only at acquisition, expiry-based fencing, database clock everywhere, Web Locks for wasm, per-store tokens). Status: proposed becomes accepted; the superseded note for default locking and local-lock keying (ADR-0210) stays.
 
 ## Update (2026-10-03)
 
@@ -132,3 +138,5 @@ itself. Choosing `locking: "local"` explicitly remains possible and is the calle
   `renewIntervalMs` defaults to `floor(ttlMs / 3)` ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).
 - Lease mode's correctness also rests on reads made after a lease is taken seeing every write made before
   it, which some engines do not give; see ADR-0153's update.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. Verified: the default is lease unless the adapter shows privacy; local locks are keyed by `instance_id` (mutating `openSqliteObjectStore` to key them by `SqlDatabase` again fails `shares local locks between the stores of a realm over one database, and only those`); fencing inserts NULL into a NOT NULL column and recognises the failure by the column's name; timings are positive safe integers with `renewIntervalMs` defaulting to `floor(ttlMs / 3)` (and must be below `ttlMs`, which the update does not say); the read-after-lease assumption is stated in ADR-0153's update.*

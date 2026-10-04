@@ -1,6 +1,6 @@
 # ADR-0151: Store objects as TEXT-keyed rows chunked below the row limit, in versioned, namespaced tables
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/file_ops.go` (`overwrite`, `createEx`: atomic replace and
@@ -117,9 +117,14 @@ engine is handed a view of a larger buffer.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Reproduced every engine probe the Context states. node:sqlite 3.50.4: a zero-length `Uint8Array` whose buffer was never allocated (`new TextEncoder().encode("")`) binds as NULL, `new Uint8Array(0)` binds as a BLOB, and `COALESCE(?, X'')` fixes both; `CAST(COALESCE(?, X'') AS TEXT)` keeps NUL (key `61 00 62` stored as one 3-byte key) and `EXPLAIN QUERY PLAN` shows `SEARCH ... USING INDEX (key=?)` and `(key>? AND key<?)`, with a successor bound that is not valid UTF-8 returning exactly the right rows. Live rqlite 9.4.5: a string parameter `X'00'` is bound as a BLOB (`typeof` says blob); the store's `INSERT ... ON CONFLICT DO NOTHING RETURNING` works. Probe 4's claim (rqlite rewrites statements with RETURNING) is thereby consistent, though the rewriting itself is rqlite internals I did not inspect.
+  - Schema, versioning, keys, chunking and the five operations read against `schema.ts`, `keys.ts`, `params.ts`, `sqlite.ts`: they match, including `put` as one batch (delete chunks, `INSERT OR REPLACE`, insert chunks), `create` deciding on the primary key through `RETURNING`, `get` as one compound query, and every input copied with `slice` before the first `await`. Two wording nits, no action needed: the ADR's shorthand `chunks (key TEXT, seq INTEGER, data BLOB, ...)` omits the NOT NULL the code declares on all three columns, and `keys_test.ts` draws 20,000 random strings of which 12,485 are well-formed and checked (I measured; the test asserts more than 5,000), not all 20,000. The 13 boundary cases do run on every engine (`testing/behaviour.ts`).
+  - The surrogate-prefix range (1024 code points from `0x10000 + ((unit - 0xD800) << 10)`) and the lone-surrogate refusal are correct and covered by `prefix_cases.ts` and the property test. Alternatives (BLOB keys, TEXT parameters, `LIKE`, `changes()`, per-version chunk names, caller-fixed table) are genuine, and the rejections cite checkable facts.
+  - Not verified: a `get` of a 16 MiB bundle on every engine's response limit (the ADR itself flags the limit); D1 and Durable Object row limits are checked only through `StrictSqlDatabase`, whose numbers I confirmed against Cloudflare's current D1 and Durable Object limits pages (2,000,000 bytes per string, BLOB or row; 100 KB of SQL; 100 bound parameters).
+  - Status: proposed becomes accepted.
 
 ## Update (2026-10-03): text encoding, and schema version 2
 
@@ -140,3 +145,5 @@ which passes.
 fence table gains a NOT NULL column, and `meta` gains an `instance_id` row, the database's identity, which
 local locking keys on ([ADR-0210](0210-sqlite-locking-fails-closed.md)). The versioning mechanism above runs
 it unchanged, for new databases right after version 1 is created.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. Reproduced the UTF-16 collision on node:sqlite (`PRAGMA encoding = 'UTF-16le'` and `'UTF-16be'`: `tile/0/x001/234` and `.../235` become one row and reading the first returns the second's value); `checkTextEncoding` in `params.ts` compares in SQL and `schema_test.ts` asserts both encodings are refused with no table created. Schema version 2 matches `schemaMigrations` (the migration, the `instance_id` row, concurrent openers via the duplicate-column path, both fences holding); verified in a scratch SQLite session (see ADR-0211).*

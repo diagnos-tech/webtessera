@@ -1,6 +1,6 @@
 # ADR-0160: Hold every storage backend to Tessera's bytes with one shared golden suite
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go`, `fixtures/gen/log.go` (which drives it)
@@ -66,6 +66,11 @@ fixture size: the largest takes under two seconds in Chromium.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `golden.ts`, `golden_fixtures.ts`, `golden_log.ts` and the wiring files against the Decision. The four case groups exist as described (one batch per fixture size; batches of 37 above 256; restarts at and around boundaries; eight Go-written-state crossings), the key set comes from `listKeys` or `KeyRecorder` (every key written through the wrapper read back from the backend), superseded partials are compared by content (`supersededPartial` derives the prefix from the final tree's resources), and expectations are derived from the fixtures and layout rules, not from the driver. Wiring: `driver_fixtures_test.ts`, `memory_golden_workers_test.ts`, `indexeddb_golden_test.ts`, `indexeddb_golden_browser_test.ts` (keys via `indexeddb/testing/keys.ts`), and the SQLite files; all pass in Node, Chromium and workerd in my runs.
+  - The one claim that rested on reading rather than recorded Go output, "after garbage collection, exactly what POSIX's GC leaves", I checked against the real POSIX driver. Scratch Go program on the pinned checkout (driver run from outside the log directory, batches of 37, GC enabled, `gcState` reached the last full bundle): the files left for 1,000 entries (66 before GC, 26 after) and 5,000 entries (330 and 68) are identical, key for key, to `expectedPublicKeys(fixture, batchEndsOf(0, n, 37), afterGC)`. So the suite's model of POSIX's GC is right; it is not in the repository as recorded evidence (the fixtures and the interop harness both run with GC off, and `gcState` is not compared; the ADR says so for gcState). Recording a GC-on fixture would turn this from reading into evidence; suggestion only.
+  - Check of the fixtures the suite leans on: `bun run fixtures`'s generator, run into a scratch directory, reproduces `fixtures/data` byte for byte (`diff -rq` empty over 41 files); commit 670e4c8 added only a `state` key to the eight `log_<N>.json` files (every other key equal).
+  - Non-blocking staleness: Consequences say `memory_golden_workers_test.ts` runs only once `vitest.workers.config.ts` includes `*_workers_test.ts`; it now does (it ran in my workerd run). Accurate when written, not now.
+  - Alternatives (`list(prefix)` on the contract, Node-only large sizes, comparing partials by name only) are real, and the rejection of name-only comparison is justified: the suite does catch a truncated partial. Status: proposed becomes accepted.

@@ -1,6 +1,6 @@
 # ADR-0154: `webtessera/storage/sqlite` exports `newSqliteDriver`, the store, and one adapter per engine
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`New`, `Config`); no upstream counterpart for SQLite engines
@@ -62,9 +62,12 @@ three bindings share rather than one of them.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Compared the Decision with `src/storage/sqlite/index.ts` and `package.json`: `./storage/sqlite` is in the exports map; `newSqliteDriver(cfg, signal?)` returns `newObjectStoreDriver(...)` and `signal` bounds only the opening (`sqlite_test.ts`); `openSqliteObjectStore`, `SqliteObjectStore` (adds `locking` and `namespace`), the option names, every adapter and its structural types, `SqlDatabase`/`SqlStatement`/`SqlRow`/`SqlValue`/`SqliteLocking`, `ErrLeaseLost`, `DefaultMaxChunkBytes` and `SchemaVersion` are exported as listed. Only `SqliteLeaseOptions` is exported and not named in the ADR's list (it is covered by the option `lease`). `newMemoryDriver(cfg)` and `newIndexedDBDriver(cfg, signal)`, the precedents named in the Context, exist with those shapes. The barrel exports nothing Go-unexported because the package has no Go counterpart; internals stay reachable only by file import, as stated.
+  - The Consequences are right that structural types are public API. The alternatives (duck-typed constructor, one entry point per adapter, synchronous lazy constructor) are real; `sideEffects: false` is the stated reason for not splitting entry points.
+  - Status: proposed becomes accepted.
 
 ## Update (2026-10-03)
 
@@ -78,3 +81,5 @@ API changes from the security review:
 - `SchemaVersion` is 2 ([ADR-0211](0211-sqlite-fence-on-a-not-null-column.md)).
 - `openSqliteObjectStore` rejects a database that does not store text as UTF-8 (ADR-0151's update), and
   lease timings that are not positive whole milliseconds.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. `defaultLocking` in `database.ts` is `SqliteLocking | (() => Promise<SqliteLocking>) | undefined`; `RqliteOptions.followRedirects` exists and `fromRqlite` throws `RangeError` for a level other than `linearizable` or `strong`; `SchemaVersion` is 2 (asserted in `schema_test.ts`); `openSqliteObjectStore` rejects non-UTF-8 databases and non-positive-integer lease timings.*

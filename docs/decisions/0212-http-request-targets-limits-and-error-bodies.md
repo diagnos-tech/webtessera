@@ -1,6 +1,6 @@
 # ADR-0212: Take only origin-form request-targets, validate every numeric limit, and keep 500 bodies generic
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** Gustavo Simões (security-review fixes)
 - **Upstream reference:** `cmd/conformance/{posix,gcp,aws}/main.go` (`POST /add`: `http.Error(w, err.Error(),
@@ -80,6 +80,10 @@ with `newVerifiedMirror` and serve the copy.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `node.ts`, `handler.ts`, `add.ts`, `cors.ts` against the three decisions. Request-targets: `requestURL` accepts only targets starting with `/`, sets the URL's pathname and search rather than resolving, rejects a non-bare-authority origin or `Host` (path, query, fragment, user information), 400 for other forms, `OPTIONS *` gives 204; `node_test.ts` asserts `//x/checkpoint` and `//admin/witness/add-checkpoint?a=b` reach the handler as those paths, and that `log.example/admin`, `user@log.example`, `log.example?x` and `log example` as `Host` get 400. Numeric limits: every option in the ADR's table goes through `positiveInteger` or its own `RangeError` (checked by grep: `readEntryBody`, `toNodeListener`, witness `maxBodyBytes` twice, `newS3Sink` `attempts` and `maxObjectBytes`, `newSourceFetch`, `newVerifiedMirror`, `retry`, SQLite `maxChunkBytes` and lease timings, CORS `maxAgeSeconds` non-negative). 500 bodies: `addErrorResponse` is generic unless `{ detail: true }`; the 503 is unchanged. Upstream's personalities do write `err.Error()` (verified in `posix/main.go`), so the divergence is real and recorded.
+  - The reasoning for each fix is sound (a request-target is not a URL reference; `n > NaN` is false so a NaN cap caps nothing; error text names files and tables). Alternatives hold; the rejection of "accept absolute-form" is conceded as a conformance cost in the Consequences, which is the honest place for it. Small detail not in the ADR: the lease options also require `renewIntervalMs` below `ttlMs`, so `ttlMs` of 1 or 2 fails with a message about `renewIntervalMs`; harmless.
+  - Ran, not taken from the author: `vitest` over `src/storage/sqlite src/http src/witness src/mirror` (22 files, 989 tests pass), `src/storage/objectstore src/storage/indexeddb src/storage/memory` (9 files, 286 pass), the workerd config (8 files, 300 pass) and the Chromium config (8 files, 265 pass).
+  - Status: proposed becomes accepted.

@@ -1,6 +1,6 @@
 # ADR-0213: rqlite and S3 requests omit credentials and refuse redirects; rqlite reads only at linearizable or strong
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** Gustavo Simões (security-review fixes)
 - **Upstream reference:** n/a (neither adapter has an upstream counterpart); extends ADR-0197 to the
@@ -59,6 +59,9 @@ checked to catch.
 
 ## Review
 
-- **Reviewer:** _pending_
-- **Verdict:** _pending_
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `adapters/rqlite.ts` and `mirror/s3.ts`: `fromRqlite` sends `credentials: "omit"` and `redirect: "manual"` (or `"follow"` with `followRedirects: true`, still without credentials), fails on a 3xx or an `opaqueredirect` with `rqlite: <url> replied with a redirect, which is not followed: <status>`, throws `RangeError` at construction unless `level` is `linearizable` or `strong`, and URL-encodes it; `newS3Sink` adds `credentials: "omit"` to requests that already used `redirect: "manual"`. `rqlite_test.ts` tests each (including the level strings `weak`, `none`, `auto`, empty, `linearizable&level=none` and `Strong`), and the redirect-refused and redirect-followed paths.
+  - Verified the workerd claims by running them: `rqlite_workers_test.ts` and `s3_workers_test.ts` pass in workerd (compatibility date 2026-08-01, from `testing/workers/wrangler.jsonc`); changing the adapter to `redirect: "error"` in a scratch copy makes the workerd test fail with workerd's own text, `Invalid redirect value, must be one of "follow" or "manual" ("error" won't be implemented since it does not make sense at the edge; ...)`, which is exactly what the ADR says the test was checked to catch. rqlite's server default read level is `weak` (rqlite docs), so refusing weaker levels at the client is meaningful, and `linearizable` is documented as returning at least the latest committed write.
+  - Alternatives hold (follow by default as `HTTPFetcher` does, strip `Authorization` on redirect which Fetch has no hook for, accept any level and document). This extends ADR-0197, which is itself not yet signed; my approval does not depend on it beyond its reasoning for `"manual"` rather than `"error"`, which I re-verified. Status: proposed becomes accepted.

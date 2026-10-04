@@ -1,6 +1,6 @@
 # ADR-0171: Add a C2SP tlog-witness server, `webtessera/witness`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** http/witness/mirror contributor
 - **Upstream reference:** `internal/witness/witness.go` (the client side), n/a for the server; behaviour cross-checked against `github.com/transparency-dev/witness` (`witness/witness.go`, `witness/http.go`) at `v0.0.0-20260925114237-b4c9458d9b14`
@@ -76,9 +76,14 @@ API changes.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Compared with C2SP tlog-witness v1.0.0 (tag `tlog-witness/v1.0.0`) and the editor's copy, diffing the two. The Context's list of draft changes is right: 409 becomes 422 for a same-size root mismatch, the empty-tree root rule, canonical base64, the monitoring endpoint, `sign-subtree`, ML-DSA-44. The same-size 409 is also what Tessera's pinned client expects (`internal/witness/witness.go` branches on `Content-Type: text/x.tlog.size` and otherwise reports "old root hash did not match"), and the Go witness at the cited version maps `ErrRootMismatch` to 422, as the ADR says. `ErrCheckpointStale` gives 409 with `text/x.tlog.size` there too, and its 16 KiB body limit with the comment "16 should be more than enough, even in a PQ world" is the source of `DefaultMaxBodyBytes`.
+  - Walked `WitnessServer.addCheckpoint` against the spec text in order: grammar (`old N`, at most 63 proof lines, canonical 32-byte base64), origin read before the note, 404 unknown origin, 403 for no trusted signature or a trusted key that fails, malformed note 400, old size above size 400, lock, old size not the latest 409 with the size body, size-zero empty root 422, same-size root mismatch 409, empty proof when old size is 0 or sizes are equal, consistency proof 422, cosign once, timestamps checked, `put` before the response. `onInconsistency` receives evidence only for the two proof failures the spec says may be logged. One imprecision: the ADR lists 403-on-a-failing-trusted-signature under "Status codes follow v1.0.0", whereas v1.0.0 literally says 403 only when no signature verifies; the behaviour is justified (signed-note v1.0.0 says clients SHOULD reject a note whose known-key signature fails, and the editor's draft makes it a MUST), but it belongs in the list of draft behaviours adopted.
+  - Ran: `src/witness` tests pass (part of the 989), including `interop_test.ts` (a Tessera appender with a witness policy, 2-of-2, 409 recovery) and the Chromium test. I wrote a scratch check of the ADR-0172 race claim (see ADR-0172). `parseCheckpointBody` is strict where `formats/log` is lenient, as the ADR says. The key-separation check probes log verifiers with each witness signer's signature (and its underlying Ed25519 form); cosignature timestamps are positive and never decrease for a (name, key hash) per log; refusal bodies echo at most 96 characters per field.
+  - Not implemented, as stated and accurately: `sign-subtree` and ML-DSA-44. tlog-cosignature's requirement that a timestamp not exceed 2^63-1 is enforced through the int64 reading. The origin line is not checked against tlog-checkpoint's 255-byte limit; the witness only needs it to name a configured log, so I do not ask for it.
+  - Alternatives hold (follow the draft throughout, port transparency-dev/witness, string-compared keys). Status: proposed becomes accepted.
 
 ## Update (2026-10-03)
 
@@ -99,6 +104,8 @@ API changes.
   signature is checked; its documentation now says bounding that cost is the caller's job and recommends a
   bounded, short-lived cache of answers, unknown origins included.
 - `maxBodyBytes` must be a positive safe integer ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. `keycheck.ts` (`checkCosigner`) signs a probe at construction and requires a 72-byte signature with a positive timestamp and, where the signer has `verifier()`, a verifier with the signer's name and hash that accepts it; a plain Ed25519 note signer is refused (`server_test.ts` `insists that every signer makes cosignature/v1 signatures`). The looked-up-key cache is bounded (4,096, least recently used out) with a weak per-`Verifier` verdict, as written; `maxBodyBytes` goes through `positiveInteger`. The narrowing of "any note.Signer can be passed" is stated honestly.*
 
 ## Update (2026-10-04)
 
@@ -123,3 +130,5 @@ API changes.
   failure path). Not cancelling is safe for the protocol: a checkpoint cosigned for a client that left is
   one the log learns of from the witness's next 409. Test: `server_test.ts` answers 200, 409, 400, the
   monitoring endpoint and a 500 from requests whose `signal` getter throws.
+
+*Review of this update: approved, ADR reviewer (independent), 2026-10-04. `cosignerVkey` (`keys.ts`) validates with `newSignerForCosignatureV1`, derives the public key from the decoded seed with `@noble/curves`, wipes the decoded bytes and composes `newEd25519VerifierKey` with `vKeyToCosignatureV1`; `keys_test.ts` checks it against the vkey of the pair, verifies cosignatures with it, uses it in a policy, and checks that errors do not quote the key. The reasoning for not exposing a vkey on `WitnessServer` (a `note.Signer` has no public key, and adding one would change the BSD-licensed ported file) is right. The handler no longer reads `request.signal` (`server_test.ts` asserts through a throwing getter, including the 500 path); the session-receipts example derives the vkey from the signer key only.*

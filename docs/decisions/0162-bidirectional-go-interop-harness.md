@@ -1,6 +1,6 @@
 # ADR-0162: Prove interoperability with Tessera in Go, both ways, with a differential harness
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`writeTile`), `fsck/fsck.go`, `client/client.go`,
@@ -91,6 +91,10 @@ This is worth reporting upstream; ADR-0101's description of what POSIX does on d
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Ran `node scripts/interop.mjs` end to end (it rebuilt `dist/`, ran against the pinned checkout): the reference Go runs verify (65,000 and 70,000 entries, 61 and 67 batches), and all four Node backends (memory, IndexedDB on fake-indexeddb, node:sqlite, libSQL) pass both directions: webtessera's log is byte-identical to Go's (every file and all signed checkpoints), Go carries it to 70,000 and the result is byte-identical again; Go's log is loaded (`.state/` included), verified by webtessera's client and fsck, carried on by webtessera, then verified by Go with consistency from Go's checkpoints and byte-identical. Read `interop/verify/checks.go`: signature, `fsck`, every entry against the corpus with each bundle holding exactly the implied entries, inclusion proofs for boundary and seeded entries plus first and last of every historical tree, and consistency proofs from every recorded checkpoint, as the ADR states. `interop/go.mod` carries the same dependency versions as `fixtures/gen/go.mod`; the CI job `interop` in `_compat.yml` runs `bun run interop`.
+  - The upstream finding is correct and I reproduced it. `writeTile` globs `tPath` (log-root-relative) without joining the log path and symlinks to `tPath`. Built `interop/produce` and ran `-ends 1,255,256,300`: from outside the log directory `tile/0/000.p/1` and `.p/255` stay regular files; from inside it they become symlinks to `tile/0/000`, a target relative to their own directory, hence dangling. So "Tessera keeps superseded partial tiles as files in the normal deployment" holds, and so does the ADR's note that ADR-0101's picture of what POSIX does on disk needs this caveat.
+  - Non-blocking: `pnpm interop` in the text is `bun run interop` now; the 90-second figure I could not separate from the build and Go compile (the whole run took about 2.5 minutes here). Batch boundaries on the Go side depend on adding a batch inside the 100 ms age, as the Consequences admit; a split batch would show up as a file-set difference.
+  - Alternatives (verify without byte comparison, fixtures only, shipping entries instead of a corpus, tolerating symlinked partials) are real. Status: proposed becomes accepted.
