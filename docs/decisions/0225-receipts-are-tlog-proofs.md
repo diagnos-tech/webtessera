@@ -1,6 +1,6 @@
 # ADR-0225: Make receipts C2SP tlog-proofs, verified offline by composing the ported checks
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails contributor
 - **Upstream reference:** C2SP `tlog-proof.md` @ C2SP/C2SP `625d8db` ("main", rendered at
@@ -84,9 +84,13 @@ Every step is already ported and tested against Go.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Spec: fetched https://c2sp.org/tlog-proof (rendered "main (2026-10-01)", "versions: main" only) and the main-branch markdown, whose SHA-256 is 847b9026c740da56ec261b61dbf71fb4aeec35ea1136109364cbc38aa5febf42, the value the ADR records, so the text is unchanged. The four verification steps are quoted verbatim, including the spec's own "the the". The `.tlog-proof` SHOULD, the "MUST NOT implicitly trust the extra data" warning and the use of timestamps paragraph are as the ADR describes. The "unversioned" Consequence is accurate.
+  - Read `src/safe/receipt.ts` against the Decision and the four steps. Step 1: `hashLeaf` of the data or a 32-byte `leafHash`, exactly one. Steps 2 and 3: `parseCheckpoint(checkpoint, origin, logVerifier, ...witnessVerifiers)`, which throws "no log signature found on note" when the log's signature is absent and fails on any known cosignature that does not verify, then `policy.satisfied(...)`. Step 4: `verifyInclusion(DefaultHasher, ...)`. `cosignedBy`, the `WitnessPolicy` shape (witnesses built with an empty URL), the `ReceiptError` reasons and the self-verification before a log returns a receipt are as described (ADR-0226 `#receipt`).
+  - `receipt_test.ts` has one group per step with a passing receipt and the failing ones (wrong key with the same name, other origin, altered text, forged cosignature by a policy witness, wrong data, wrong index, tampered proof), and runs in the unit suite (3439 pass).
+  - Interop claim: proofs marshalled by the port (the extra-data sizes of the Update, the max-uint64 index vector) are read by Go's `TLogProof.Unmarshal` v0.1.1, and Go's `Marshal` and the port's `marshal` agree byte for byte on all 13,362 proofs of my 36,000-proof run that both accept.
 
 ## Update (2026-10-04): extra data a verifier can rely on
 
@@ -122,3 +126,5 @@ Tests: `receipt_test.ts` (taking the entry from the extra line, as text, bytes a
 against `data` and `leafHash`; a missing extra line, another entry's, one bit changed, a forged checkpoint,
 and invalid options); `server_test.ts` (receipts from `append` and `prove` with extra data, the encoding of
 empty extra data, the largest extra data read back, and the refusals).
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `MaxExtraDataBytes` is `floor((65536 - 1 - 6) / 4) * 3` = 49,146, and that is exactly the limit of Go v0.1.1's reader: with the port's `marshal`, extra data of 49,145 and 49,146 bytes is read by Go's `Unmarshal` and by the port, 49,147 to 49,150 bytes fail in both. `dataInExtra` behaves as written (entry from the extra line alone; checked against `data` or `leafHash`, at most one; the leaf hash is the extra data's, so step 4 binds it; `data` is undefined without it; `extra` as a fifth reason; the TypeScript overload). The spec sentence the update quotes ("additional data necessary to reconstruct the record hash" and the extra line as input to step 1) is in the current text. Tests named in the update exist in `receipt_test.ts` and `server_test.ts` and pass.

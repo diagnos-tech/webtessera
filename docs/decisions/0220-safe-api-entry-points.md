@@ -1,6 +1,6 @@
 # ADR-0220: Add an environment-explicit safe API, `webtessera/server` and `webtessera/browser`, over the port
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails contributor
 - **Upstream reference:** n/a (no upstream counterpart). It is built on `append_lifecycle.go`, `await.go`,
@@ -95,6 +95,10 @@ stand-in in `src/internal/gostd/bufio.ts` (ADR-0224). Every golden, fixture and 
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Checked the entry-point table against the tree: `package.json` `exports` has `./server`, `./browser` and `./formats/proof`; `tsconfig.json` `paths` has the same three; `src/server/index.ts` and `src/browser/index.ts` export exactly the contents the table lists; `src/safe/` has no entry point of its own, and `importSignerKey` is imported only by `src/server/keys.ts` (and the golden test helper), so there is no environment-neutral path to it. No file outside `src/safe`, `src/server`, `src/browser` and test tooling imports the layer, and `src/index.ts` does not export it. PORTING.md now carries the paragraph the Consequences asked the maintainers for.
+  - Read the additions to ported files (see ADR-0223 and ADR-0224): additive. "The additions ... are purely additive" was overtaken by ADR-0224's first Update, which switches `src/witness.ts` to the shared `Scanner`; that is recorded there, and I verified it behaviour-identical (ADR-0224 notes). Non-blocking.
+  - Challenged the alternatives. A run-time switch cannot keep the server half out of a browser bundle (I demonstrated the bundler mechanism for ADR-0221), and putting guardrails into the ported functions would make the golden and differential suites special-case them: both rejections stand. The choice of names is judgement, not a Go-fidelity question.
+  - Every other ADR of the layer (0221 to 0227) was reviewed in the same pass, and the layer's tests pass: unit 3439, Chromium 265, workerd 300; `bun run lint` (521 files) and both `tsc --noEmit` projects exit 0.

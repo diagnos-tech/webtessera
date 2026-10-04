@@ -1,6 +1,6 @@
 # ADR-0226: Give each environment one log factory with safe defaults: `openServerLog` and `openBrowserLog`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails contributor
 - **Upstream reference:** tessera `append_lifecycle.go` (`NewAppender`, `AppendOptions`), `await.go`
@@ -93,9 +93,13 @@ with it**: one from `openDeviceKey`/`loadDeviceKey`/`saveDeviceKey`, or a Crypto
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `src/safe/log.ts`, `src/server/log.ts` and `src/browser/log.ts` against the Decision and checked its upstream citations: `await.go` does set `a.err = err` from `ctx.Err()` (so racing the caller's signal outside the awaiter is the right design); `storage/posix/files.go` `initialise` publishes the size-0 checkpoint for a new log; the driver's 100 ms minimum checkpoint interval is posix's `minCheckpointInterval`; upstream's default is 10 s and `WithWitnesses` turns a zero timeout into `DefaultWitnessTimeout` (5 s), as the option's documentation says.
+  - Each default and check is in the code in the stated order: `LogKey` required; "a log keeps its key" (`parseCheckpoint` of the stored checkpoint with the key and origin); `checkpointIntervalMs` default 1 s and minimum 100 ms, batching 256 / 100 ms, `appendOptions` applied before the key and witnesses (test: "installs its own key over one set by appendOptions"); witnesses fail closed. Server: storage required, `MemoryObjectStore` refused with a pointer to `{ memory: true }`. Browser: key strings refused naming `openDeviceKey`, a non-durable key refused for IndexedDB, Web Locks required unless `singleWriter`. `MaxEntryBytes` is 0xffff.
+  - Challenge: the original text says SQLite locking "defaults to lease"; the Update says the factory now defers to the adapter. Both are consistent as history, and I did not ask for the body to be rewritten.
+  - Not re-measured: "about 1.1 s measured on node:sqlite with lease locking".
 
 ## Update (2026-10-04): reading entries back, extra data, clearer refusals, and the adapter's locking
 
@@ -151,3 +155,5 @@ hint; locking for a file, an in-memory database, an adapter that does not say, a
 `browser_test.ts` (the Web Locks refusal in `openBrowserLog`'s terms, the store's own message unchanged,
 entries from IndexedDB, and the witness refusal after the log's database was deleted while its device key
 survived).
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `entries`/`entry`: Go's `client.EntryBundles` does pass `fromEntry+N` to `layout.Range` as its count (`stream.go` line 93), so the port streams to the tree size and `log.ts` answers the read-ahead past `to` with an empty bundle that is never parsed, as written; bounds (4 in flight, copies, clamp, `from == size` yields nothing, refusals) and the per-bundle leaf-hash check are in `#entries`. Extra data: see ADR-0225's update. The witness conflict message is built from Tessera's own client text by `witnessConflict`. The Web Locks check uses the store's own predicate. Locking: ADR-0210 does make every adapter fail closed (file-backed node:sqlite, D1, rqlite and remote libSQL lease; in-memory and Durable Object local), `openServerLog` passes `locking` only when given, and the server test asserts all five cases. Every test the update names exists (`server_test.ts`, `server_workers_test.ts`, `browser_test.ts`) and passes in Node, workerd and Chromium.

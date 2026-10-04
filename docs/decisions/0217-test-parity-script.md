@@ -1,6 +1,6 @@
 # ADR-0217: Check upstream test parity mechanically with `pnpm test:parity`
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** Gustavo Simões
 - **Upstream reference:** every `*_test.go` of Tessera at the pin and of the vendored modules (`merkle`,
@@ -49,6 +49,12 @@ It compares top-level names only. Subtest names are not compared: Go builds many
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Ran `scripts/test-parity.mjs` over my own vitest JSON report (122 files, 3439 tests passing): "227 Go tests: 146 ported, 81 allow-listed with an ADR, 0 missing, 0 failing", no PROBLEM line. Read the script against each numbered item of the Decision: `go test -list` merged with a static scan (the `go test -list + static scan` rows for `integration` and `storage/mysql` show why), a passing title or describe title matched exactly or followed by space, `/`, `:` or `(`, `storage/posix` also mapped to `src/storage/objectstore`, glob allow-list keys.
+  - Exercised every failure path in a scratch copy of the script, its allow-list and the report, edited: a Go test with no TypeScript counterpart is MISSING (exit 1); a test marked failed is FAILING, and a skipped one counts as failing; an allow-list entry citing a missing ADR, an entry matching nothing, and an entry for a test that is ported each give a PROBLEM line; a divergence entry citing a missing ADR (ADR-0204 removed from the scratch `docs/decisions`) gives a PROBLEM line. All as the ADR states.
+  - Read the 20 allow-list entries: each cites an existing ADR and a reason consistent with that ADR's title (0034 benchmarks, 0015 fuzz, 0071 note_rfc6962 and verifiers, 0093 tui, 0141 integration, hammer and the cloud and MySQL drivers, 0040 ASN.1 and fixed builder). I did not re-read those ADRs; other reviewers cover them.
+  - Gap worth one sentence in the ADR (non-blocking): the script lists the tests of `merkle`, `formats/{log,note}`, `sumdb/note` and `cryptobyte`, but not those of `formats/proof` (ADR-0224), because the generator's `go.mod` pins `formats` at a version without that package. Its three upstream tests (`TestMarshal`, `TestUnmarshalErrors`, `TestRoundTrip`) are ported with Go's cases and values (I compared the Go file at v0.1.1 with `tlog_proof_test.ts`), but nothing checks that mechanically.
+  - The only change since the ADR was written is the inline `bun run test:parity` pointer (commit 9849188); there is no Update section.
+  - Not verified: the CI job itself.

@@ -62,9 +62,15 @@ concern I/O the corpora do not perform. Each is covered by the owning work packa
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** changes requested
+- **Notes:**
+  - Checked all 13 `DIVERGENCES` entries in `src/testonly/testing/differential.ts` against the table and against the ADRs they cite. Names, ADR lists and rules agree: 0203 (origin UTF-8, and the quoting of invalid input), 0202 (root hash size; merkle hash sizes), 0206 and 0174 (unsafe verifier keys: `checkEd25519PublicKey` is called by both `newVerifier` and `newVerifierForCosignatureV1`), 0184 (quorum), 0185 and 0241 (https; platform parser; no host), 0242 (UTF-8 policy line), 0204 (quote bound, `maxQuotedNum` = 64, pinned by `strconv_test.ts`), 0182 (65,535-byte entries), 0194 (tile and bundle limits; both messages exist in `src/api/state.ts`), 0014 (`layout.range` RangeError, covered by ADR-0014's update). The 13 names in the ADR table are the 13 in the code. The retired `witness-url-absolute` and `witness-url-escaping` appear nowhere in code or tests, and the policy suite requires all four of its entries.
+  - The merkle harness (`checkVerify`, `checkSizeError`) does what the ADR says, exactly: it applies `merkle-hash-size` only where Go verified the proof, requires the named hash to really have the stated length, and elsewhere demands Go's text or a `RootMismatchError` with Go's calculated root. `bun run test:parity` rejects an entry citing a missing ADR: shown in a scratch copy with ADR-0204 removed (`differential divergence numerror-quote-bound cites ADR-0204, which does not exist`).
+  - REQUEST 1 (the Decision is not what four entries do). The Decision says: "A suite may apply an entry only to a record where Go's verdict and the port's match that rule exactly". In `src/testonly/testing/differential/root.ts`, `policyHardening` selects `witness-quorum-hardening`, `witness-url-https`, `witness-url-fetchable` and `witness-policy-utf8` from the port's message text alone; Go's side is never examined. In the committed witness-policy corpus the applications are, by Go's verdict (accepts / rejects with different text): https 7 / 17, quorum 5 / 10, fetchable 8 / 0, utf8 21 / 127. I read all 27 https and quorum records where Go rejects: in each, Go's error is on a later line (or later in the same group) than the port's, so the rule holds today, and for the utf8 ones it holds by construction (the port processes the earlier lines as Go does). But nothing would fail if it stopped holding, for example the port refusing a URL with the https message on the line where Go's own `url.Parse` error is expected. Either tighten `root.ts` (for the URL and quorum entries, require that Go's error is not on or before the offending line, e.g. by replaying both sides on the policy cut at that line; for `witness-policy-utf8`, require that the lines before the first invalid one get Go's verdict) or reword the Decision to say that the policy suite classifies by the shape of the port's message. The same gap, smaller: `sameModuloQuoteBound` does not check the 64-code-point cut (only `strconv_test.ts` does), and the bundle branch of `tile-bundle-size-limit` in `api.ts` is applied for any Go error (sound, because the port has parsed 256 entries before it fails). Say so, or tighten.
+  - Minor, in code (not the ADR): the doc comment of `sameModuloInvalidUTF8` in `differential.ts` still describes the port's `\ufffd` escape that the 2026-10-04 Update corrects.
+  - Observation, not blocking: the table in the body already holds the post-update state (it lists `witness-url-fetchable` and `witness-policy-utf8`, which the Update calls new), so the Update repeats part of it. Harmless while the ADR is unaccepted.
+  - Status stays `proposed` until Request 1 is answered.
 
 ## Update (2026-10-04)
 
@@ -80,3 +86,5 @@ concern I/O the corpora do not perform. Each is covered by the owning work packa
   itself, as Go writes a genuine U+FFFD; the escape is only for a lone surrogate. The comparison, which collapses
   both spellings, was already right.
 - Commands are `bun run fixtures` and `bun run test:parity` since ADR-0240.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. Each bullet checked: the two retired entries are gone from code and tests; `witness-url-https` cites 0185 and 0241, `witness-url-fetchable` cites 0241 and `witness-policy-utf8` cites 0242 in `DIVERGENCES`, and `root.ts` requires all four; `merkle-hash-size` matches `checkVerify` (see Notes); for `invalid-utf8-text` the port writes the character U+FFFD itself (ADR-0204's `quote`; only a lone surrogate becomes the escape) and the comparison collapses both spellings; the commands match `package.json` (`bun run fixtures`, `bun run test:parity`). Request 1 above concerns the Decision, not this Update.

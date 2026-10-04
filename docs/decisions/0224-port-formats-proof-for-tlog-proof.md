@@ -1,6 +1,6 @@
 # ADR-0224: Port transparency-dev/formats `proof` (C2SP tlog-proof) from formats v0.1.1, with canonical base64
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-03
 - **Author:** DX guardrails contributor
 - **Upstream reference:** `github.com/transparency-dev/formats/proof/tlog_proof.go` and `tlog_proof_test.go` @
@@ -74,9 +74,14 @@ Go's decoder is more lenient than the spec in places, recorded here from running
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Read `proof/tlog_proof.go` and `tlog_proof_test.go` at formats v0.1.1 (Go module cache) against `tlog_proof.ts` and `tlog_proof_test.ts`, branch by branch: Marshal, every Unmarshal error and its order, nil-versus-empty extra data, the 32-byte hashes, the uint64 index. The three Go tests are ported with the same cases and values; the extra tests are labelled as beyond upstream.
+  - Built a Go harness around the real `formats/proof` v0.1.1 (Go 1.25.5) and replayed 36,000 mutated proofs through it and through the port (bad and non-canonical base64, CR inside lines, CRLF, indices, truncation, lines around 64 KiB). 13,362 accepted by both with identical index, hashes, checkpoint bytes, extra data and `Marshal` output; 19,917 rejected by both with the same text; 2,609 accepted by Go and refused by the port only for non-canonical base64, the hardening the Decision adds; 112 differ only in how an invalid-UTF-8 or over-64-code-point index is quoted in the message (ADR-0203, ADR-0204; ADR-0216 entries). So "Error texts are Go's" needs "except where ADR-0203 and ADR-0204 apply" (non-blocking). Nothing else differs.
+  - The lenient edges in the Context are true of Go (padding bits, CR inside a hash, leading-zero index, CRLF, no final newline, no blank line and no checkpoint): I ran Go on every vector that `tlog_proof_test.ts` labels as Go's (the lenient edges, the error texts and the "Go's error first" inputs; the marshal vector too) and its values are what Go returns.
+  - Spec: fetched https://c2sp.org/tlog-proof and the main-branch markdown. "Encoders MUST generate canonical base64 ... and decoders MUST reject non-canonical encodings" is in the Conventions, so the hardening is the spec's requirement. Challenge recorded: the Format section also says the index is "an ASCII decimal with no leading zeroes" and gives every line shape as MUST; the ADR keeps Go's acceptance of `index 007`, CRLF and a missing final newline on the reading that only base64 has an explicit decoder requirement. That reading is defensible, the alternative is recorded and its "revisit if the spec adds decoder requirements" is the right exit. No change requested.
+  - `NOTICE` lists the proof port and `bufio.ts`; `webtessera/formats/proof` is in `exports` and `tsconfig` paths. Not verified: the C2SP commit hash 625d8db (the session has no GitHub API access); the content hash matches ADR-0225's record, below.
 
 ## Update (2026-10-04): `witness.ts` uses the shared `Scanner`
 
@@ -89,6 +94,8 @@ inside it), which changes nothing observable because nothing runs between the lo
 loop. The error is now the shared `ErrTooLong` sentinel, unwrapped. `witness_policy_test.ts` (its line-length
 cases, plus two asserting the sentinel's identity and that nothing after the long line is parsed),
 `witness_test.ts` and the differential corpus in `root_differential_test.ts` pass unchanged.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `newWitnessGroupFromPolicy` now reads with `scanner.scan()` and `scanner.text()` and throws `scanner.err()` unwrapped after the loop, line for line as `witness.go` does (read side by side). `witness_policy_test.ts` has the length cases and the two added ones (sentinel identity; nothing after the long line is parsed). Policies built from 90,000 fresh URLs and replayed through Go's `NewWitnessGroupFromPolicy` and the port agree (ADR-0241 notes), and the differential corpus passes.
 
 ## Update (2026-10-04): the scanner's state machine is Go's, and canonicality errors come last
 
@@ -116,3 +123,5 @@ The final fidelity audit found two places where the code did not do what the Dec
   Go Authors' BSD notice; `NOTICE` lists it. Neither caller's output changes: `TLogProof.unmarshal` still ends with
   `scanning tlog proof: bufio.Scanner: token too long`, and the policy parser still stops at its first false. On the
   audit's 20,000 inputs with lines around 64 KiB and eight `Scan` calls each, the stand-in now equals Go on every call.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `bufio.ts` against Go 1.25.5's `Scan`, `advance`, `setErr`, `ScanLines` and `dropCR`: the state machine matches, the omitted branches are unreachable for `ScanLines` over an in-memory reader, as the header says. Replayed 2,500 inputs (lines of 4,095 to 131,072 bytes; 930 end in ErrTooLong) through Go's `bufio.Scanner` over both a `bytes.Reader` and a `bytes.Buffer` and through the port, ten `Scan` calls each, comparing the result, the token's length and hash and `Err()` after every call: identical every time. In the 36,000-proof run above no record has the canonical-base64 error pre-empting an error of Go's, and `nonCanonical ??=` plus the throw after the `b.err()` check is the ordering the update describes; `tlog_proof.ts` copies each checkpoint line because `bytes()` is a view.
