@@ -28,6 +28,6 @@ require (
 
 // The generator must build against the exact upstream checkout the port is
 // pinned to (see scripts/upstream.json), not against whatever is on the module
-// proxy. `pnpm upstream` creates it at .upstream/tessera; `pnpm fixtures` does
+// proxy. `bun run upstream` creates it at .upstream/tessera; `bun run fixtures` does
 // that first and then runs the generator.
 replace github.com/transparency-dev/tessera => ../../.upstream/tessera

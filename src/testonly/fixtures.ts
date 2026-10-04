@@ -87,7 +87,7 @@ export async function loadFixture<T>(name: string): Promise<Fixture<T>> {
 	if (!isFixtureHeader(data)) {
 		throw new Error(
 			`fixture ${JSON.stringify(name)} is missing its description/upstream/commit header; ` +
-				`regenerate it with "pnpm fixtures"`,
+				`regenerate it with "bun run fixtures"`,
 		);
 	}
 

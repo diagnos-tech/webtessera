@@ -51,6 +51,9 @@ function matrix(yaml: string, key: string): string[] {
 	return [...out];
 }
 
+/** RUN_SCRIPT matches a workflow step that runs a root package.json script, whichever package manager starts it. */
+const RUN_SCRIPT = (name: string): RegExp => new RegExp(`\\b(?:bun|npm|pnpm|yarn) (?:run )?${name}\\b`);
+
 /** runtimeOf classifies a test file by the suffix that routes it to a vitest configuration. */
 function runtimeOf(file: string): string {
 	if (file.endsWith("_browser_test.ts")) return "chromium";
@@ -75,8 +78,8 @@ export function loadTestMatrix(repo: Repo): TestMatrix {
 		chromium: repo.exists("vitest.browser.config.ts") && /test:browser/.test(yaml),
 		workerd: repo.exists("vitest.workers.config.ts") && /test:workers/.test(yaml),
 		services: repo.exists("vitest.services.config.ts") && /test:services/.test(yaml),
-		interop: scripts.interop !== undefined && /pnpm (run )?interop\b/.test(yaml),
-		fixturesReproduced: /pnpm (run )?fixtures\b/.test(yaml),
+		interop: scripts.interop !== undefined && RUN_SCRIPT("interop").test(yaml),
+		fixturesReproduced: RUN_SCRIPT("fixtures").test(yaml),
 		golden,
 	};
 }

@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// `pnpm test:parity`: proves that every upstream Go test has a TypeScript counterpart.
+// `bun run test:parity`: proves that every upstream Go test has a TypeScript counterpart.
 //
 // AGENTS.md §4 requires each ported test file to keep upstream's test names. This script
 // checks that mechanically, for Tessera at the pinned commit and for the modules this
@@ -36,7 +36,7 @@
 // Usage:
 //   node scripts/test-parity.mjs [--report vitest.json ...] [--verbose] [--json out.json]
 //
-// It needs Go on PATH and `pnpm upstream` to have run (the first run downloads the Go
+// It needs Go on PATH and `bun run upstream` to have run (the first run downloads the Go
 // modules upstream's test packages import). See docs/compatibility.md ("Test parity").
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -167,7 +167,7 @@ function goPackagesWithTests(dir, modPath) {
 }
 
 if (!existsSync(upstreamDir)) {
-	fail("missing .upstream/tessera: run `pnpm upstream` first");
+	fail("missing .upstream/tessera: run `bun run upstream` first");
 }
 
 const goTests = new Map(); // pkg -> {names, source}
@@ -205,9 +205,18 @@ let tmp;
 if (reportFiles.length === 0) {
 	tmp = mkdtempSync(join(tmpdir(), "test-parity-"));
 	const out = join(tmp, "vitest.json");
+	// Vitest's own entry point, run by this Node: the suites run on Node (ADR-0240), and this
+	// works whichever package manager installed the dependencies.
 	const r = spawnSync(
-		process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-		["exec", "vitest", "run", "--config", "vitest.config.ts", "--reporter=json", `--outputFile=${out}`],
+		process.execPath,
+		[
+			join(root, "node_modules", "vitest", "vitest.mjs"),
+			"run",
+			"--config",
+			"vitest.config.ts",
+			"--reporter=json",
+			`--outputFile=${out}`,
+		],
 		{ cwd: root, stdio: ["ignore", "ignore", "inherit"] },
 	);
 	if (!existsSync(out)) {

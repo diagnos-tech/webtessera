@@ -20,8 +20,8 @@ long" — you have drifted off the job. The question is only ever: *does this do
 Assume the contributor was competent and hurried. The bugs you are looking for are not sloppy ones;
 they are the ones that come from translating an idiom without noticing it carried meaning.
 
-Upstream Tessera is available at the pinned commit with `pnpm upstream` (`.upstream/tessera`); the Go
-dependencies it needs are in the Go module cache once `pnpm fixtures` has run once.
+Upstream Tessera is available at the pinned commit with `bun run upstream` (`.upstream/tessera`); the Go
+dependencies it needs are in the Go module cache once `bun run fixtures` has run once.
 
 ## 2. What to check, in priority order
 
@@ -62,14 +62,14 @@ dependencies it needs are in the Go module cache once `pnpm fixtures` has run on
 ### 2.3 Tests (blocking)
 
 - Every Go test file has a TypeScript counterpart, with the same cases and the same values.
-- **Run the suite yourself** (`pnpm test:unit`, plus `pnpm test:browser` / `pnpm test:workers` for
+- **Run the suite yourself** (`bun run test:unit`, plus `bun run test:browser` / `bun run test:workers` for
   storage changes). Do not trust the author's report.
 - Look for tests that pass vacuously: an assertion on a value the test itself computed with the code
   under test, a `try/catch` that swallows, a table with an empty case list, a loop with no iterations.
 - Any `.skip`, `.only`, `@ts-expect-error`, `any`, or commented-out test is a blocking finding.
 - Golden fixtures: confirm the fixture is actually asserted against, and that **the port was changed
   to match the fixture, not the fixture changed to match the port**. Check `git log`/`git diff` on
-  `fixtures/data/` if anything looks convenient, and confirm `pnpm fixtures` leaves
+  `fixtures/data/` if anything looks convenient, and confirm `bun run fixtures` leaves
   `git status --porcelain fixtures/data` empty.
 
 ### 2.4 ADRs (blocking)
@@ -124,8 +124,8 @@ State plainly, with real pasted command output:
 1. **Verdict:** approved / changes requested / disputed.
 2. Files reviewed, and for each, whether you read the Go original **in full**.
 3. Defects found, with severity, and for each: fixed by you, or escalated and why.
-4. `pnpm test:unit` result **after** any fixes. Paste the summary line.
-5. `pnpm lint` and `pnpm typecheck` results after any fixes. Paste the output.
+4. `bun run test:unit` result **after** any fixes. Paste the summary line.
+5. `bun run lint` and `bun run typecheck` results after any fixes. Paste the output.
 6. ADRs signed, and any you disputed.
 7. **Anything you could not verify**, and why.
 

@@ -26,10 +26,10 @@ record witnessed by your server, see [`../session-receipts`](../session-receipts
 
 ## Run it
 
-Build the library once at the repository root (`pnpm build` or `bun run build`), then here:
+Build the library once at the repository root (`bun run build`), then here:
 
 ```sh
-npx vite          # or: bun x vite, pnpm vite — then open http://localhost:5173
+bun x vite        # or: npx vite — then open http://localhost:5173
 ```
 
 Log a few events, open the page in a second tab and log from there too: both tabs list the same

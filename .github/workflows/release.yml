@@ -34,6 +34,14 @@
 #   was added to the repository by mistake.
 # - Publishing goes through scripts/release/publish.mjs so that re-running a half-finished
 #   release completes it: a registry that already has the identical tarball is skipped.
+# - npm uploads, not `bun publish`. Bun is the package manager and packs the tarball
+#   (_package.yml), but `bun publish` supports neither npm's provenance statement
+#   (`--provenance`, oven-sh/bun#15601) nor trusted publishing, the OIDC exchange that needs no
+#   stored secret (oven-sh/bun#22423), and a release without them loses what makes it
+#   verifiable. `npm publish <tarball>` sends the file exactly as it finds it (the shasum and
+#   integrity it reports are the file's), so the digests recorded when `build` packed are the
+#   digests of what the registry receives. The publish jobs below therefore need Node and npm
+#   only, and install no Bun.
 name: Release
 
 on:

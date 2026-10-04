@@ -1,5 +1,0 @@
-# The library lives at the repository root. Workspace packages depend on it via
-# "workspace:*": the runnable examples, and the landing page in site/.
-packages:
-  - "examples/*"
-  - "site"

@@ -26,7 +26,7 @@ nothing but `fetch` and `node:fs`, which Node, Bun and Deno all provide, so it n
 
 ## Run it
 
-Build the library once at the repository root (`pnpm build` or `bun run build`). Then point it at
+Build the library once at the repository root (`bun run build`). Then point it at
 any tlog-tiles log, for example [`../log-server`](../log-server) running on port 8080:
 
 ```console

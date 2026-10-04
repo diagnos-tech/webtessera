@@ -15,7 +15,7 @@
 // Renders the committed image assets in public/: the 1200x630 social card (og.png) and
 // the PNG icons (favicon.png, apple-touch-icon.png), by screenshotting HTML in Chromium.
 // The card shows the same real checkpoint and tile as the page, built with the site's own
-// stylesheet and renderers, so it changes only when they do. Run it with `pnpm og` after
+// stylesheet and renderers, so it changes only when they do. Run it with `bun run og` after
 // changing the design, and commit the result.
 
 import { readFileSync, writeFileSync } from "node:fs";

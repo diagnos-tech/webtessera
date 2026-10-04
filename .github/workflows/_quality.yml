@@ -1,4 +1,4 @@
-# Static checks: formatting and lint, types, and the workflow files themselves.
+# Static checks: formatting and lint, types, Go formatting, and the workflow files themselves.
 #
 # Reusable workflow, called by ci.yml (and through it by release.yml). A leading underscore
 # marks files that are only ever called, never triggered directly.
@@ -20,7 +20,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: pnpm lint
+      # Biome: lint rules, formatting and import order for every file type it handles. The
+      # same command runs on staged files in the pre-commit hook (.githooks/pre-commit).
+      - run: bun run lint
 
   typecheck:
     name: Typecheck
@@ -31,7 +33,45 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: pnpm typecheck
+      - run: bun run typecheck
+
+  # The two Go modules (the fixture generator and the interop tools) are part of the evidence
+  # that the port is right, and gofmt is the one formatter Go code is judged by. `gofmt -l`
+  # prints the files it would change and always exits 0, so the step fails on any output.
+  # `go vet` type-checks the modules too, which needs the pinned upstream checkout that their
+  # `replace` directives point at; the composite action fetches it, and Go with its module cache.
+  go:
+    name: Go (gofmt, vet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Bun and Node only, to run the `upstream` script: nothing here needs node_modules.
+      - uses: ./.github/actions/setup
+        with:
+          install: "false"
+      - uses: ./.github/actions/setup-go-upstream
+
+      - name: Check formatting (gofmt)
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l fixtures/gen interop)"
+          if [ -n "$unformatted" ]; then
+            echo "::error title=gofmt::these files are not gofmt-formatted; run \`gofmt -w fixtures/gen interop\`"
+            echo "$unformatted"
+            gofmt -d fixtures/gen interop
+            exit 1
+          fi
+
+      # Each module is its own `go.mod`, so each is vetted from its own directory.
+      - name: Vet the fixture generator
+        working-directory: fixtures/gen
+        run: go vet ./...
+      - name: Vet the interop tools
+        working-directory: interop
+        run: go vet ./...
 
   # A mistake in a workflow only shows up when that workflow runs, which for release.yml
   # means on release day. actionlint (with shellcheck and pyflakes built into the image) finds

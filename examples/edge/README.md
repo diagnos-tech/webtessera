@@ -36,7 +36,7 @@ rqlite. [Choosing storage](../../docs/guides/choosing-storage.md) compares them.
 
 ## Run it
 
-Build the library once at the repository root (`pnpm build` or `bun run build`), then here:
+Build the library once at the repository root (`bun run build`), then here:
 
 ```sh
 node scripts/keygen.ts localhost/my-log      # prints the key pair, and the .dev.vars line

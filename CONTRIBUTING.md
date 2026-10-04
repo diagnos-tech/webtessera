@@ -29,14 +29,14 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Securit
 
 | Tool | Version | Needed for |
 | --- | --- | --- |
-| Node.js | 22 or newer (`.nvmrc` says 22) | everything |
-| pnpm | 10, pinned by the `packageManager` field | everything; `corepack enable` installs it |
-| Go | 1.24 or newer | `pnpm fixtures` and `pnpm interop` only |
-| Docker | any recent version | `pnpm test:services` only |
-| git | any recent version | `pnpm upstream`, `pnpm fixtures` |
-| Chromium | any recent version | `pnpm test:browser` only |
+| Bun | 1.3, pinned by the `packageManager` field (currently 1.3.14) | installing, and running every script; [bun.com/docs/installation](https://bun.com/docs/installation) |
+| Node.js | 22 or newer (`.nvmrc` says 22) | the test suites, and the release; it must be on your `PATH` (see [Bun and Node](#bun-and-node)) |
+| Go | 1.24 or newer | `bun run fixtures` and `bun run interop` only |
+| Docker | any recent version | `bun run test:services` only |
+| git | any recent version | `bun run upstream`, `bun run fixtures` |
+| Chromium | any recent version | `bun run test:browser` only |
 
-For Chromium, run `pnpm exec playwright install chromium` once (add `--with-deps` on a fresh Linux
+For Chromium, run `bunx playwright install chromium` once (add `--with-deps` on a fresh Linux
 machine). If you already have a Chromium, point `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at it instead.
 
 ## Setup
@@ -44,14 +44,35 @@ machine). If you already have a Chromium, point `PLAYWRIGHT_CHROMIUM_EXECUTABLE`
 ```sh
 git clone https://github.com/diagnos-tech/webtessera.git
 cd webtessera
-corepack enable        # once, so that the pinned pnpm is used
-pnpm install
-pnpm upstream          # optional until you need the Go source: see below
+bun install            # also links the library into the workspace and enables the pre-commit hook
+bun run upstream       # optional until you need the Go source: see below
 ```
 
-`pnpm upstream` clones Tessera into `.upstream/tessera` (gitignored) at the exact commit this port is
+`bun run upstream` clones Tessera into `.upstream/tessera` (gitignored) at the exact commit this port is
 pinned to (`scripts/upstream.json`). That checkout is the specification: **read the Go file and its
 test before you port anything**. It is also what the fixture generator runs against.
+
+## Bun and Node
+
+Bun installs the dependencies and runs every script (`bun run <script>`).
+[ADR-0240](docs/decisions/0240-bun-as-package-manager-and-script-runner.md) has the reasoning and the
+evidence. What Bun does not do is run the code under test, and four things follow from that:
+
+- **Vitest runs on Node.** `bun run test:unit` starts Vitest through the `#!/usr/bin/env node` line of its
+  binary, so the suites run on the Node that is on your `PATH`, as they do in CI (Node 22 and 24). Do not
+  push them onto Bun's runtime (`bunx --bun vitest`): `node:sqlite` does not exist there, which fails seven
+  suites, and the workerd pool never finishes. Check that `node --version` works: when Bun finds no Node, it
+  quietly makes `node` mean Bun.
+- **Write `bun run test`, never `bun test`.** `bun test` is Bun's own test runner, which knows nothing about
+  Vitest or the `*_test.ts` convention. The same goes for `bun run build` and `bun build`.
+- **npm publishes.** A release is packed with Bun and uploaded with `npm publish --provenance`, because
+  `bun publish` supports neither npm provenance nor trusted publishing ([`docs/RELEASING.md`](docs/RELEASING.md)).
+  You never need npm to develop.
+- **`bun install` also runs `prepare`** ([`scripts/prepare.mjs`](scripts/prepare.mjs)). It links the repository
+  root into `node_modules/webtessera`, because the examples and the site import the library by name and Bun
+  cannot link a workspace root into its own members, and, in a git checkout, it enables the pre-commit hook.
+  After `bun install --ignore-scripts`, run `node scripts/prepare.mjs` yourself. Registry installs of the
+  package never run `prepare`, whichever package manager the consumer uses.
 
 ## Scripts
 
@@ -59,26 +80,40 @@ Run everything from the repository root.
 
 | Script | What it does | When to run it |
 | --- | --- | --- |
-| `pnpm lint` | Biome: lint, format check, import order | Before every commit; CI fails on it |
-| `pnpm lint:fix` | The same, applying every safe fix | When `lint` complains about formatting |
-| `pnpm format` | Biome formatter only | Rarely; `lint:fix` covers it |
-| `pnpm typecheck` | `tsc` for the Node/browser sources, then for the workerd sources | Before every commit |
-| `pnpm test:unit` | Vitest on Node: nearly all tests | Constantly; this is the inner loop |
-| `pnpm test:watch` | The same, in watch mode | While developing |
-| `pnpm test:browser` | Vitest in real headless Chromium (`*_browser_test.ts`) | When you touch the IndexedDB driver or anything runtime-sensitive |
-| `pnpm test:workers` | Vitest inside workerd (`*_workers_test.ts`: the SQLite driver on D1 and Durable Objects) | When you touch the SQLite driver or anything runtime-sensitive |
-| `pnpm test:services` | Vitest against live rqlite and S3-compatible servers (`*_services_test.ts`) | When you touch the rqlite adapter or the S3 sink; see below |
-| `pnpm test` | unit, then workers, then browser | Before you open a pull request |
-| `pnpm build` | `tsc` emits ESM and declarations to `dist/` | Before touching `package.json` exports; examples need it |
-| `pnpm check` | `lint`, `typecheck`, `test`, `build` in sequence | The full pre-PR gate |
-| `pnpm upstream` | Checks out Tessera at the pinned commit into `.upstream/tessera` | Once, and after the pin moves; idempotent |
-| `pnpm fixtures` | Runs `pnpm upstream`, then regenerates `fixtures/data/` with the Go generator | When you add or change a generator case; see below |
-| `pnpm interop` | Builds the package, then has Tessera's Go code verify and extend logs written by webtessera, and the other way round, on every Node backend | When you touch the storage engine, a backend or a wire format |
-| `pnpm smoke` | Builds the package and runs an end-to-end smoke test of `dist/`, the SQLite driver included | Before touching `package.json` exports |
-| `pnpm clean` | Removes `dist/` | Rarely; `prepack` does it |
+| `bun run lint` | Biome: lint, format check, import order, for TypeScript, JavaScript, JSON and CSS | Before every commit; the pre-commit hook and CI both run it |
+| `bun run lint:fix` | The same, applying every safe fix | When `lint` complains about formatting |
+| `bun run format` | Biome formatter only | Rarely; `lint:fix` covers it |
+| `bun run typecheck` | `tsc` for the Node/browser sources, then for the workerd sources | Before every commit |
+| `bun run test:unit` | Vitest on Node: nearly all tests | Constantly; this is the inner loop |
+| `bun run test:watch` | The same, in watch mode | While developing |
+| `bun run test:browser` | Vitest in real headless Chromium (`*_browser_test.ts`) | When you touch the IndexedDB driver or anything runtime-sensitive |
+| `bun run test:workers` | Vitest inside workerd (`*_workers_test.ts`: the SQLite driver on D1 and Durable Objects) | When you touch the SQLite driver or anything runtime-sensitive |
+| `bun run test:services` | Vitest against live rqlite and S3-compatible servers (`*_services_test.ts`) | When you touch the rqlite adapter or the S3 sink; see below |
+| `bun run test` | unit, then workers, then browser | Before you open a pull request |
+| `bun run build` | `tsc` emits ESM and declarations to `dist/` | Before touching `package.json` exports; examples need it |
+| `bun run check` | `lint`, `typecheck`, `test`, `build` in sequence | The full pre-PR gate |
+| `bun run upstream` | Checks out Tessera at the pinned commit into `.upstream/tessera` | Once, and after the pin moves; idempotent |
+| `bun run fixtures` | Runs `bun run upstream`, then regenerates `fixtures/data/` with the Go generator | When you add or change a generator case; see below |
+| `bun run interop` | Builds the package, then has Tessera's Go code verify and extend logs written by webtessera, and the other way round, on every Node backend | When you touch the storage engine, a backend or a wire format |
+| `bun run smoke` | Builds the package and runs an end-to-end smoke test of `dist/`, the SQLite driver included | Before touching `package.json` exports |
+| `bun run clean` | Removes `dist/` | Rarely; `prepack` does it |
 
-Run a single test file with `pnpm exec vitest run --config vitest.config.ts src/api/layout/paths_test.ts`,
+Run a single test file with `bunx vitest run --config vitest.config.ts src/api/layout/paths_test.ts`,
 or a single test with `-t "name"`.
+
+### Formatting and the pre-commit hook
+
+Biome formats TypeScript, JavaScript, JSON and CSS and lints them ([`biome.jsonc`](biome.jsonc) says what is
+covered and why); `gofmt` formats the Go in `fixtures/gen` and `interop`. Markdown and YAML are not
+formatted by anything: [`.editorconfig`](.editorconfig) carries their conventions. The settings in
+[`.vscode/`](.vscode) make the editor do the same on save, with the Biome extension.
+
+`bun install` enables [`.githooks/pre-commit`](.githooks/pre-commit), which runs `biome check --staged` and
+`gofmt -l` on what you are about to commit and refuses a commit that CI would reject. It only checks, and
+never rewrites your files; `bun run lint:fix` and `gofmt -w <file>` repair what it reports.
+`git commit --no-verify` skips it for one commit (CI still checks). `bun install` leaves a `core.hooksPath`
+that is already set alone, and sets none in CI; to enable the hook by hand, run
+`git config core.hooksPath .githooks`.
 
 ## Tests
 
@@ -89,9 +124,9 @@ Tests sit next to the code they cover, and mirror upstream:
   grepped side by side. The convention is deliberate (AGENTS.md §3.1).
 - **`*_fixtures_test.ts`** assert golden fixtures. They are separate from the Go-mirrored file so
   that file keeps diffing line-for-line against its Go original.
-- **`*_browser_test.ts`** run in real Chromium under `pnpm test:browser`, **`*_workers_test.ts`** in
-  workerd under `pnpm test:workers`, and **`*_services_test.ts`** against live servers under
-  `pnpm test:services`. Everything else runs on Node.
+- **`*_browser_test.ts`** run in real Chromium under `bun run test:browser`, **`*_workers_test.ts`** in
+  workerd under `bun run test:workers`, and **`*_services_test.ts`** against live servers under
+  `bun run test:services`. Everything else runs on Node.
 - **`testing/` directories** hold shared helpers (the `ObjectStore` conformance suite, the workerd
   test Worker). They are excluded from the published package.
 - A test that was **skipped, weakened or deleted** to get a build green is a blocking review finding.
@@ -120,13 +155,13 @@ The full text, with the reasoning, is [AGENTS.md](AGENTS.md) §3; the summary:
 
 For every file you port (AGENTS.md §4):
 
-1. Read the Go source and its test file end to end (`pnpm upstream` puts them in
+1. Read the Go source and its test file end to end (`bun run upstream` puts them in
    `.upstream/tessera`).
 2. **Port the test first**, run it, and watch it fail. A test that passes before the implementation
    exists is broken.
 3. Port the implementation until it is green.
 4. Anything that produces bytes (tiles, bundles, checkpoints, proofs, paths, notes) also gets a
-   **golden fixture**: add a case to the Go generator in `fixtures/gen/`, run `pnpm fixtures`, and
+   **golden fixture**: add a case to the Go generator in `fixtures/gen/`, run `bun run fixtures`, and
    assert the resulting JSON from a `*_fixtures_test.ts`. The generator calls real Tessera and
    records what it returns; it never computes anything itself.
 5. Update `docs/PORTING-MAP.md`: status, test counts, notes.
@@ -137,7 +172,7 @@ Two rules about fixtures that are not negotiable:
 - **Never edit `fixtures/data/` by hand**, and never change a fixture to make a TypeScript test pass.
   The fixture is right and the port is wrong. If you believe a fixture is wrong, say so in the pull
   request and fix the generator.
-- **Regeneration must be reproducible.** After `pnpm fixtures`, `git status --porcelain fixtures/data`
+- **Regeneration must be reproducible.** After `bun run fixtures`, `git status --porcelain fixtures/data`
   must show only the changes you intended. CI regenerates the fixtures and fails on any difference.
 
 [`fixtures/README.md`](fixtures/README.md) explains the corpus and how to audit it.
@@ -167,29 +202,30 @@ have, and any new dependency needs an ADR in [`docs/decisions/`](docs/decisions/
 - **Keep pull requests focused.** One upstream file or one coherent change at a time reads far better
   against its Go original than a sweep.
 - **Fill in the pull request template.** Its checklist is the definition of done from
-  AGENTS.md §10, including pasting the real `pnpm test:unit` summary line. State plainly what is
+  AGENTS.md §10, including pasting the real `bun run test:unit` summary line. State plainly what is
   incomplete; a precise partial report beats an overconfident one.
 - **CI must be green.** The required check is `CI passed`. [Continuous integration](#continuous-integration)
-  below lists what it covers and how to reproduce each part locally; `pnpm check` plus `pnpm fixtures`
+  below lists what it covers and how to reproduce each part locally; `bun run check` plus `bun run fixtures`
   (if you touched the generator) reproduces most of it.
 
 ## Running the examples
 
-The examples are pnpm workspace packages under `examples/` that depend on the library through
-`workspace:*`. Their `dev`/`build`/`test` scripts build the library first.
+The examples are Bun workspace packages under `examples/` that import the library by its package name, which
+resolves to its built `dist/` (`bun install` links the repository root into `node_modules`, see
+[Bun and Node](#bun-and-node)). Build the library once with `bun run build`, and again after you change it;
+each example's README says how to run it on each runtime.
 
 ```sh
-# A transparency log in a browser tab, persisted in IndexedDB (Vite)
-pnpm --filter webtessera-example-browser dev
-
-# A log on a SQLite-backed Durable Object (wrangler dev; tests run in workerd)
-pnpm --filter webtessera-example-cloudflare-durable-object dev
-pnpm --filter webtessera-example-cloudflare-durable-object test
+bun run build
+bun run --cwd examples/client-only dev        # a browser's own log, in IndexedDB (Vite)
+bun run --cwd examples/log-server start:node  # or start:bun, start:deno: the same server on each runtime
+bun run --cwd examples/session-receipts ci    # any example's tests, as CI runs them
 ```
 
-CI runs every example's `ci` script (`pnpm --filter "./examples/**" --if-present run ci`), so a new
-example needs a `ci` script and no change to the workflows. Keep the examples working when you change
-the public API.
+CI runs every example's `ci` script (`bun run --filter './examples/*' ci`), so a new example needs a `ci`
+script and no change to the workflows. `bun run --filter` starts the scripts together, so a `ci` script does
+not rebuild the library (that would race on `dist/`): run `bun run build` first. Keep the examples working
+when you change the public API.
 
 ## Continuous integration
 
@@ -200,15 +236,15 @@ requires that single check, so adding or renaming a job never needs a settings c
 
 | Workflow | What it checks | Reproduce locally |
 | --- | --- | --- |
-| `_quality.yml` | Biome, types, and the workflow files themselves (actionlint) | `pnpm lint`, `pnpm typecheck` |
-| `_test.yml` | Unit tests on Node 22 and 24; the browser, workerd and services suites | `pnpm test:unit`, `pnpm test:browser`, `pnpm test:workers`, `pnpm test:services` |
-| `_compat.yml` | Fixtures regenerate unchanged from the pinned Go source; Go and TypeScript read each other's logs | `pnpm fixtures`, `pnpm interop` |
-| `_package.yml` | One job packs the tarball (and its GitHub Packages variant) from the lockfile; another tests it: smoke test, publint, Are the Types Wrong? | `pnpm pack`, then `node scripts/smoke-pack.mjs <tarball>` |
-| `_runtimes.yml` | The built package on Node, Bun and Deno | `pnpm build`, then `node scripts/smoke-runtimes.mjs` (or `bun`, or `deno run --allow-read`) |
-| `_examples.yml` | Every example's `ci` script | `pnpm --filter "./examples/**" --if-present run ci` |
-| `_site.yml` | The landing page builds and passes its browser smoke test | `pnpm --filter webtessera-site run ci` |
+| `_quality.yml` | Biome, types, Go formatting and `go vet`, and the workflow files themselves (actionlint) | `bun run lint`, `bun run typecheck`, `gofmt -l fixtures/gen interop` (must print nothing), `go vet ./...` in each Go module |
+| `_test.yml` | Unit tests on Node 22 and 24; the browser, workerd and services suites | `bun run test:unit`, `bun run test:browser`, `bun run test:workers`, `bun run test:services` |
+| `_compat.yml` | Fixtures regenerate unchanged from the pinned Go source; Go and TypeScript read each other's logs | `bun run fixtures`, `bun run interop` |
+| `_package.yml` | One job packs the tarball (and its GitHub Packages variant) from the lockfile; another tests it: smoke test, publint, Are the Types Wrong? | `bun pm pack`, then `node scripts/smoke-pack.mjs <tarball>` |
+| `_runtimes.yml` | The built package on Node, Bun and Deno | `bun run build`, then `node scripts/smoke-runtimes.mjs` (or `bun`, or `deno run --allow-read`) |
+| `_examples.yml` | Every example's `ci` script | `bun run build`, then `bun run --filter './examples/*' ci` |
+| `_site.yml` | The landing page builds and passes its browser smoke test | `bun run --filter webtessera-site ci` |
 
-`pnpm test:services` talks to an rqlite node and an S3-compatible server. CI starts them with Docker
+`bun run test:services` talks to an rqlite node and an S3-compatible server. CI starts them with Docker
 Compose, and you can start the very same containers (Docker with Compose is the only requirement):
 
 ```sh
@@ -216,7 +252,7 @@ docker compose --file .github/actions/services/compose.yaml \
   --env-file .github/actions/services/services.env up --detach
 set -a; . .github/actions/services/services.env; set +a
 node .github/actions/services/create-bucket.mjs
-pnpm test:services
+bun run test:services
 ```
 
 When you change a workflow:
@@ -226,6 +262,10 @@ When you change a workflow:
 - Third-party actions are pinned to a commit SHA, with the release in a trailing comment. Dependabot
   updates both; do not replace a SHA with a moving tag.
 - A step that several jobs share belongs in a composite action under `.github/actions/`, not copied.
+- Jobs install with `bun install --frozen-lockfile` (the `setup` action does), which fails when `bun.lock`
+  disagrees with a `package.json`: commit the two together. The Bun version is the `packageManager` field;
+  change it there and nowhere else. Tests run on Node, and publishing is `npm`: see
+  [Bun and Node](#bun-and-node).
 - Run [actionlint](https://github.com/rhysd/actionlint) before pushing (`actionlint` if installed, or
   `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12`). CI runs it too, but a workflow
   mistake otherwise only shows when that workflow runs.

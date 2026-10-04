@@ -5,7 +5,9 @@
 # every run (`install-deps` is an apt call); only the browser download is skipped.
 #
 # Requires dependencies to be installed already (`./.github/actions/setup`), since the pinned
-# Playwright CLI comes from node_modules.
+# Playwright CLI comes from node_modules. `bunx --no-install` runs exactly that copy and fails
+# if it is missing, instead of fetching whatever Playwright is newest: the browser build has to
+# match the Playwright version the lockfile pins.
 name: Set up browsers
 description: Install Playwright's Chromium and its system libraries, with the browser download cached.
 
@@ -27,9 +29,9 @@ runs:
     - name: Install Chromium and system libraries
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
-      run: pnpm exec playwright install --with-deps chromium
+      run: bunx --no-install playwright install --with-deps chromium
 
     - name: Install system libraries for the cached Chromium
       if: steps.cache.outputs.cache-hit == 'true'
       shell: bash
-      run: pnpm exec playwright install-deps chromium
+      run: bunx --no-install playwright install-deps chromium
