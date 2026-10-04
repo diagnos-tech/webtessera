@@ -13,7 +13,8 @@
 // limitations under the License.
 
 // fixtures/data/: the golden fixtures, recorded by running the real Tessera
-// (fixtures/gen) and asserted byte for byte by the test suite.
+// (fixtures/gen) and asserted byte for byte by the test suite. The differential corpora
+// that share the directory are counted by evidence.ts.
 
 import type { Repo } from "./repo.ts";
 
@@ -43,7 +44,7 @@ interface RawFixture {
 
 /** loadFixtures reads the header of every fixture file. */
 export function loadFixtures(repo: Repo): Fixtures {
-	const names = repo.list("fixtures/data", "file").filter((f) => f.endsWith(".json"));
+	const names = repo.list("fixtures/data", "file").filter((f) => f.endsWith(".json") && !f.startsWith("differential_"));
 	const commits = new Set<string>();
 	const logSizes: number[] = [];
 	let bytes = 0;

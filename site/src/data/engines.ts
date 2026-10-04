@@ -14,8 +14,10 @@
 
 // The SQLite engines the SQLite driver targets. The list is curated, in alphabetical
 // order within each group so that no vendor comes first; whether the repository's own
-// tests exercise an engine is not curated: it is read from the driver's test files.
+// tests exercise an engine is not curated: it is read from the driver's test files, and
+// each engine's default locking is read from README.md's engine table.
 
+import type { EngineRow } from "./readme.ts";
 import type { Repo } from "./repo.ts";
 
 /** SqliteEngine is one SQLite engine the driver can keep a log in. */
@@ -27,6 +29,8 @@ export interface SqliteEngine {
 	readonly adapter: string | undefined;
 	/** tested is true when a test of the SQLite driver imports or names the engine. */
 	readonly tested: boolean;
+	/** locking is the README's statement of the engine's default locking, if it gives one. */
+	readonly locking: string | undefined;
 }
 
 interface EngineSpec {
@@ -55,7 +59,7 @@ const engines: readonly EngineSpec[] = [
 		probe: /["']node:sqlite["']/,
 	},
 	{
-		name: "SQLite Wasm",
+		name: "sqlite-wasm",
 		where: "browsers and workers",
 		group: "Embedded",
 		adapter: "fromSqliteWasm",
@@ -92,7 +96,11 @@ const engines: readonly EngineSpec[] = [
 ];
 
 /** loadSqliteEngines lists the engines, with their adapters and whether the driver's tests exercise them. */
-export function loadSqliteEngines(repo: Repo, exported: ReadonlySet<string>): SqliteEngine[] {
+export function loadSqliteEngines(
+	repo: Repo,
+	exported: ReadonlySet<string>,
+	table: readonly EngineRow[],
+): SqliteEngine[] {
 	// The driver's tests and the shared helpers (testing/) they run each engine through.
 	const tests = repo
 		.walk("src/storage/sqlite", /\.ts$/)
@@ -103,5 +111,6 @@ export function loadSqliteEngines(repo: Repo, exported: ReadonlySet<string>): Sq
 		...e,
 		adapter: exported.has(adapter) ? adapter : undefined,
 		tested: probe.test(tests),
+		locking: table.find((r) => r.adapter === adapter)?.locking,
 	}));
 }

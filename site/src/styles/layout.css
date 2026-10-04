@@ -141,6 +141,17 @@
 	.site-nav ul {
 		justify-content: center;
 	}
+
+	.site-nav a {
+		padding: 6px 8px;
+		font-size: 0.86rem;
+	}
+}
+
+@media (min-width: 820px) and (max-width: 1179px) {
+	.brand-ver {
+		display: none;
+	}
 }
 
 /* Hero */
@@ -183,6 +194,13 @@
 	}
 }
 
+.pills {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0;
+}
+
 .pill {
 	display: inline-flex;
 	align-items: center;
@@ -194,6 +212,23 @@
 	background: var(--surface);
 	color: var(--ink-2);
 	font: 500 0.76rem / 1.6 var(--mono);
+}
+
+a.pill-link {
+	text-decoration: none;
+}
+
+a.pill-link:hover {
+	border-color: var(--accent-line);
+	color: var(--ink);
+}
+
+.pill code {
+	padding: 0;
+	background: none;
+	color: var(--accent);
+	font-size: inherit;
+	font-weight: 650;
 }
 
 .dot {
@@ -227,17 +262,99 @@
 	font-weight: 650;
 }
 
+.hero-lead code {
+	font-size: 0.86em;
+}
+
+/*
+ * The install switcher: one radio button per package manager, visually hidden but focusable,
+ * followed by their labels (the tabs) and one command per manager. The n-th checked radio
+ * shows the n-th tab as current and the n-th command; the rules cover up to six managers.
+ */
 .install {
-	display: flex;
-	align-items: center;
-	gap: 8px;
+	position: relative;
+	display: grid;
 	max-width: 440px;
 	margin-top: 30px;
-	padding: 5px 5px 5px 16px;
+	overflow: hidden;
 	border: 1px solid var(--line-2);
 	border-radius: 12px;
 	background: var(--surface);
 	box-shadow: var(--shadow);
+}
+
+.pm-radio {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.pm-tabs {
+	display: flex;
+	gap: 2px;
+	padding: 2px 8px 0;
+	border-bottom: 1px solid var(--line);
+	background: var(--code-head);
+}
+
+.pm-tabs label {
+	margin-bottom: -1px;
+	padding: 7px 10px 6px;
+	border-bottom: 2px solid transparent;
+	color: var(--ink-3);
+	font: 500 0.76rem / 1.2 var(--mono);
+	cursor: pointer;
+	user-select: none;
+}
+
+.pm-tabs label:hover {
+	color: var(--ink);
+}
+
+.pm-panes {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 46px;
+	padding: 5px 5px 5px 16px;
+}
+
+.pm-pane {
+	display: none;
+}
+
+.pm-radio:nth-of-type(1):checked ~ .pm-panes > .pm-pane:nth-child(1),
+.pm-radio:nth-of-type(2):checked ~ .pm-panes > .pm-pane:nth-child(2),
+.pm-radio:nth-of-type(3):checked ~ .pm-panes > .pm-pane:nth-child(3),
+.pm-radio:nth-of-type(4):checked ~ .pm-panes > .pm-pane:nth-child(4),
+.pm-radio:nth-of-type(5):checked ~ .pm-panes > .pm-pane:nth-child(5),
+.pm-radio:nth-of-type(6):checked ~ .pm-panes > .pm-pane:nth-child(6) {
+	display: block;
+}
+
+.pm-radio:nth-of-type(1):checked ~ .pm-tabs > label:nth-child(1),
+.pm-radio:nth-of-type(2):checked ~ .pm-tabs > label:nth-child(2),
+.pm-radio:nth-of-type(3):checked ~ .pm-tabs > label:nth-child(3),
+.pm-radio:nth-of-type(4):checked ~ .pm-tabs > label:nth-child(4),
+.pm-radio:nth-of-type(5):checked ~ .pm-tabs > label:nth-child(5),
+.pm-radio:nth-of-type(6):checked ~ .pm-tabs > label:nth-child(6) {
+	border-bottom-color: var(--accent);
+	color: var(--ink);
+	font-weight: 650;
+}
+
+.pm-radio:nth-of-type(1):focus-visible ~ .pm-tabs > label:nth-child(1),
+.pm-radio:nth-of-type(2):focus-visible ~ .pm-tabs > label:nth-child(2),
+.pm-radio:nth-of-type(3):focus-visible ~ .pm-tabs > label:nth-child(3),
+.pm-radio:nth-of-type(4):focus-visible ~ .pm-tabs > label:nth-child(4),
+.pm-radio:nth-of-type(5):focus-visible ~ .pm-tabs > label:nth-child(5),
+.pm-radio:nth-of-type(6):focus-visible ~ .pm-tabs > label:nth-child(6) {
+	border-radius: 4px;
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
 }
 
 .install-cmd {
@@ -252,21 +369,13 @@
 	background: none;
 }
 
+.install .copy {
+	margin-left: auto;
+}
+
 .prompt {
 	color: var(--ink-3);
 	user-select: none;
-}
-
-.install-alt {
-	margin: 10px 0 0;
-	color: var(--ink-3);
-	font-size: 0.84rem;
-}
-
-.install-alt code {
-	padding: 0;
-	background: none;
-	color: var(--ink-2);
 }
 
 .cta {
@@ -274,6 +383,16 @@
 	flex-wrap: wrap;
 	gap: 10px;
 	margin-top: 24px;
+}
+
+@media (max-width: 479px) {
+	.cta .btn {
+		flex: 1 1 0;
+	}
+
+	.cta .btn.primary {
+		flex-basis: 100%;
+	}
 }
 
 .facts {
@@ -320,13 +439,62 @@
 
 @media (min-width: 560px) {
 	.hero-art {
-		grid-template-columns: 196px minmax(0, 1fr);
-		align-items: end;
+		grid-template-columns: 172px minmax(0, 1fr);
+		align-items: start;
+		column-gap: 22px;
 	}
 
-	.hero-art .note {
+	.hero-art .receipt {
 		grid-column: 1 / -1;
 	}
+
+	.hero-art .tile {
+		max-width: 172px;
+	}
+}
+
+.hero-verify {
+	display: grid;
+	gap: 8px;
+	align-content: start;
+	min-width: 0;
+}
+
+.verify-call {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.verify-call code {
+	padding: 0;
+	background: none;
+	color: var(--ink-2);
+	font-size: 0.78rem;
+}
+
+.verify-ok {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	margin: 0;
+	color: var(--ink);
+	font-size: 0.9rem;
+	font-weight: 620;
+}
+
+.tick {
+	display: inline-grid;
+	flex: none;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border: 1px solid var(--accent-line);
+	border-radius: 6px;
+	background: var(--accent-soft);
+	color: var(--ok);
+	font-size: 0.75rem;
+	font-weight: 700;
+	transform: translateY(3px);
 }
 
 .art-caption {
@@ -334,6 +502,10 @@
 	color: var(--ink-3);
 	font-size: 0.84rem;
 	line-height: 1.55;
+}
+
+.art-caption code {
+	font-size: 0.8rem;
 }
 
 /* Sections */
@@ -406,6 +578,24 @@
 	letter-spacing: -0.01em;
 }
 
+.sub-title + .sub-lead {
+	max-width: 70ch;
+	margin: -8px 0 18px;
+	color: var(--ink-2);
+}
+
+.section-next {
+	max-width: 80ch;
+	margin: 36px 0 0;
+	padding: 14px 18px;
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--accent);
+	border-radius: var(--radius-sm);
+	background: var(--surface);
+	color: var(--ink-2);
+	font-size: 0.93rem;
+}
+
 .section.band {
 	background: var(--band);
 }
@@ -424,9 +614,17 @@
 	grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
 }
 
+.footer-brand {
+	grid-column: 1 / -1;
+}
+
 @media (min-width: 820px) {
 	.footer-grid {
 		grid-template-columns: minmax(0, 1.7fr) repeat(3, minmax(0, 1fr));
+	}
+
+	.footer-brand {
+		grid-column: auto;
 	}
 }
 

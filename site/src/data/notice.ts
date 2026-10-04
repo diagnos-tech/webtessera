@@ -23,6 +23,8 @@ export interface Attribution {
 	readonly url: string;
 	readonly copyright: string;
 	readonly license: string;
+	/** testOnly is true for test material that the published package does not contain. */
+	readonly testOnly: boolean;
 }
 
 /** Licensing is what the footer says about licences. */
@@ -63,7 +65,8 @@ export function loadLicensing(repo: Repo): Licensing {
 		}
 		for (const block of (parts[i + 1] ?? "").split(/\n\s*\n/)) {
 			const lines = block.trim().split("\n");
-			const head = lines[0] ?? "";
+			// A heading too long for one line ends in " -" and puts the URL on the next.
+			const head = lines[0]?.endsWith(" -") ? `${lines[0]} ${lines[1] ?? ""}` : (lines[0] ?? "");
 			const copyright = lines.find((l) => l.startsWith("Copyright "));
 			if (copyright === undefined) {
 				continue;
@@ -77,6 +80,7 @@ export function loadLicensing(repo: Repo): Licensing {
 					.replace(/;\s*Copyright\s+/g, ", ")
 					.trim(),
 				license: lic,
+				testOnly: /\bTest material only\b/i.test(block),
 			});
 		}
 	}

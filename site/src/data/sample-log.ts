@@ -47,9 +47,12 @@ export interface SampleLog {
 
 const enc = new TextEncoder();
 
-/** buildSampleLog appends entries to a fresh in-memory log and reads it back as a client would. */
-export async function buildSampleLog(origin: string, entries: readonly string[], prove: number): Promise<SampleLog> {
-	// A deterministic seed, so the build is reproducible. Never do this for a real log.
+/**
+ * sampleKey derives the page's demonstration key pair from the origin, so that the build is
+ * reproducible. Never derive a real log's key like this: it is public, and signs nothing
+ * but the logs this page builds.
+ */
+export function sampleKey(origin: string): { skey: string; vkey: string } {
 	const seed = DefaultHasher.hashLeaf(enc.encode(`webtessera site sample log: ${origin}`));
 	const rand = {
 		read(p: Uint8Array): number {
@@ -57,7 +60,12 @@ export async function buildSampleLog(origin: string, entries: readonly string[],
 			return p.length;
 		},
 	};
-	const { skey, vkey } = generateKey(rand, origin);
+	return generateKey(rand, origin);
+}
+
+/** buildSampleLog appends entries to a fresh in-memory log and reads it back as a client would. */
+export async function buildSampleLog(origin: string, entries: readonly string[], prove: number): Promise<SampleLog> {
+	const { skey, vkey } = sampleKey(origin);
 	const verifier = newVerifier(vkey);
 	const store = new MemoryObjectStore();
 	const ac = new AbortController();

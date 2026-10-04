@@ -195,19 +195,32 @@ a.code-src:hover {
 	font-size: 0.93rem;
 }
 
-.imports {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-	margin: auto 0 0;
-	padding: 4px 0 0;
-	list-style: none;
+.card-import code {
+	background: var(--accent-soft);
+	color: var(--ink);
+	font-size: 0.8rem;
 }
 
-.imports code {
-	display: inline-block;
-	border: 1px solid var(--line);
-	font-size: 0.74rem;
+.card-facts {
+	display: grid;
+	gap: 8px;
+	margin: auto 0 0;
+	padding-top: 12px;
+	border-top: 1px dashed var(--line-2);
+	font-size: 0.85rem;
+}
+
+.card-facts dt {
+	color: var(--ink-3);
+	font-size: 0.7rem;
+	font-weight: 650;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.card-facts dd {
+	margin: 0;
+	color: var(--ink-2);
 }
 
 /* The signed note */
@@ -297,6 +310,33 @@ a.code-src:hover {
 @media (max-width: 460px) {
 	.note-body .ln::after {
 		display: none;
+	}
+}
+
+/* A receipt is a signed note with a proof in front: the same card, the proof in amber. */
+
+.receipt .note-path .verb {
+	color: var(--proof);
+}
+
+.receipt .note-body .ln:first-child {
+	color: var(--ink-2);
+	font-weight: 500;
+}
+
+.receipt .note-body .proof-hash {
+	color: var(--proof);
+}
+
+.receipt .note-body .ln[data-label="origin"] {
+	font-weight: 650;
+}
+
+/* On a phone, a smaller face keeps each 44-character hash of the proof on one line. */
+@media (max-width: 460px) {
+	.receipt .note-body {
+		padding-inline: 14px;
+		font-size: 0.72rem;
 	}
 }
 

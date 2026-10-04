@@ -17,17 +17,31 @@
 import { execFileSync } from "node:child_process";
 import type { SiteConfig } from "../config.ts";
 import { loadTestMatrix, type TestMatrix } from "./ci.ts";
+import { type Contributing, loadContributing } from "./contributing.ts";
 import { type Decisions, loadDecisions } from "./decisions.ts";
 import { loadSqliteEngines, type SqliteEngine } from "./engines.ts";
 import { type EntryPoint, loadEntryPoints } from "./entrypoints.ts";
+import { type Evidence, loadEvidence } from "./evidence.ts";
 import { type Example, loadExamples } from "./examples.ts";
 import { type Fixtures, loadFixtures } from "./fixtures.ts";
 import { type Licensing, loadLicensing } from "./notice.ts";
 import { loadPackage, type PackageInfo } from "./package.ts";
 import { loadPortingMap, type PortingMap } from "./porting.ts";
-import { type Install, loadInstall, loadPackageTable, loadSnippets, type Snippet } from "./readme.ts";
+import {
+	type Install,
+	loadEngineTable,
+	loadInstall,
+	loadPackageTable,
+	loadSnippets,
+	loadStorageTable,
+	type Snippet,
+	type StorageRow,
+} from "./readme.ts";
+import { type BuiltReceipt, buildReceipt } from "./receipt-log.ts";
 import { Repo } from "./repo.ts";
+import { loadSafeApi, type SafeApi } from "./safe.ts";
 import { buildSampleLog, type SampleLog } from "./sample-log.ts";
+import { loadSecurity, type Security } from "./security.ts";
 
 /** SiteData is the input of every section renderer. */
 export interface SiteData {
@@ -40,15 +54,23 @@ export interface SiteData {
 	/** drift lists README regions whose copy in README.md differs from the tested source. */
 	readonly drift: readonly string[];
 	readonly install: Install;
+	readonly safe: SafeApi;
+	/** storage are the rows of README.md's storage driver table. */
+	readonly storage: readonly StorageRow[];
 	readonly sqliteEngines: readonly SqliteEngine[];
 	readonly porting: PortingMap;
 	readonly decisions: Decisions;
 	readonly fixtures: Fixtures;
 	readonly examples: readonly Example[];
 	readonly tests: TestMatrix;
+	readonly evidence: Evidence;
+	readonly security: Security;
+	readonly contributing: Contributing;
 	readonly licensing: Licensing;
 	readonly objectStoreMethods: readonly string[];
 	readonly sample: SampleLog;
+	/** receipt is the receipt a safe-API log returned while the page built. */
+	readonly receipt: BuiltReceipt;
 	/** lastModified is the date of the commit the site was built from, if git knows it. */
 	readonly lastModified: string | undefined;
 }
@@ -76,6 +98,11 @@ export async function loadSiteData(root: string, site: SiteConfig): Promise<Site
 	const pkg = loadPackage(repo);
 	const { entryPoints, missing } = loadEntryPoints(repo, pkg.exports, loadPackageTable(repo));
 	const { snippets, drift } = loadSnippets(repo);
+	const specifiers = entryPoints.map((e) => e.specifier);
+	const [sample, receipt] = await Promise.all([
+		buildSampleLog(site.origin, specifiers, 5),
+		buildReceipt(site.origin, specifiers, 5),
+	]);
 	return {
 		site,
 		pkg,
@@ -84,22 +111,25 @@ export async function loadSiteData(root: string, site: SiteConfig): Promise<Site
 		snippets,
 		drift,
 		install: loadInstall(repo),
+		safe: loadSafeApi(repo, entryPoints),
+		storage: loadStorageTable(repo),
 		sqliteEngines: loadSqliteEngines(
 			repo,
 			new Set(entryPoints.find((e) => e.specifier === "webtessera/storage/sqlite")?.names.map((n) => n.name)),
+			loadEngineTable(repo),
 		),
 		porting: loadPortingMap(repo),
 		decisions: loadDecisions(repo),
 		fixtures: loadFixtures(repo),
 		examples: loadExamples(repo),
 		tests: loadTestMatrix(repo),
+		evidence: loadEvidence(repo),
+		security: loadSecurity(repo),
+		contributing: loadContributing(repo),
 		licensing: loadLicensing(repo),
 		objectStoreMethods: objectStoreMethods(repo),
-		sample: await buildSampleLog(
-			site.origin,
-			entryPoints.map((e) => e.specifier),
-			5,
-		),
+		sample,
+		receipt,
 		lastModified: gitDate(root),
 	};
 }

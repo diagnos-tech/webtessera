@@ -14,17 +14,17 @@
 
 // Renders the committed image assets in public/: the 1200x630 social card (og.png) and
 // the PNG icons (favicon.png, apple-touch-icon.png), by screenshotting HTML in Chromium.
-// The card shows the same real checkpoint and tile as the page, built with the site's own
-// stylesheet and renderers, so it changes only when they do. Run it with `bun run og` after
-// changing the design, and commit the result.
+// The card shows the same real receipt and tile as the page's hero, built with the site's
+// own stylesheet and renderers, so it changes only when they do. Run it with `bun run og`
+// after changing the design, and commit the result.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { logo } from "../src/components/icons.ts";
+import { renderReceipt } from "../src/components/receipt.ts";
 import { siteConfig } from "../src/config.ts";
 import { loadSiteData } from "../src/data/index.ts";
 import { html, raw } from "../src/shared/html.ts";
-import { renderNote } from "../src/shared/note.ts";
 import { renderTile } from "../src/shared/tiles.ts";
 import { launch, siteDir } from "./browser.ts";
 
@@ -36,35 +36,39 @@ const styles = ["tokens", "base", "layout", "components", "sections"]
 // The card's own layout, on top of the site's stylesheet.
 const card = `
 body { width: 1200px; height: 630px; overflow: hidden; }
-.og { position: relative; isolation: isolate; display: grid; grid-template-columns: 580px 1fr; gap: 48px;
-  align-items: center; height: 630px; padding: 0 60px; }
+.og { position: relative; isolation: isolate; display: grid; grid-template-columns: 560px 1fr; gap: 44px;
+  align-items: center; height: 630px; padding: 0 56px; }
 .og::before { content: ""; position: absolute; inset: 0; z-index: -1;
   background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
   background-size: 32px 32px; mask-image: radial-gradient(ellipse 70% 80% at 80% 45%, #000 30%, transparent 75%); }
 .og .brand { font-size: 30px; gap: 14px; }
-.og h1 { margin: 32px 0 22px; font-size: 56px; line-height: 1.04; font-weight: 760; letter-spacing: -0.035em; }
+.og h1 { margin: 30px 0 22px; font-size: 56px; line-height: 1.04; font-weight: 760; letter-spacing: -0.035em; }
 .og .sub { margin: 0; color: var(--ink-2); font-size: 23px; line-height: 1.45; }
-.og .install { margin-top: 34px; max-width: 400px; box-shadow: none; padding: 10px 18px; }
-.og .install-cmd { font-size: 20px; }
-.og .art { display: grid; gap: 18px; justify-items: start; }
-.og .note { width: 100%; }
-.og .note-body { font-size: 15px; }
+.og .badge { display: inline-flex; margin-top: 30px; padding: 6px 14px; border: 1px solid var(--line-2); border-radius: 999px;
+  background: var(--surface); color: var(--ink-2); font: 500 17px/1.5 var(--mono); }
+.og .art { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 16px 18px; align-items: end; }
+.og .receipt { grid-column: 1 / -1; }
+.og .note-head { font-size: 13px; }
+.og .note-body { padding: 12px 16px 14px; font-size: 13px; line-height: 1.6; }
 .og .note-body .ln::after { display: none; }
-.og .tile { max-width: 170px; }
+.og .tile { max-width: 128px; }
+.og .tile figcaption { display: none; }
+.og .ok { margin: 0 0 6px; color: var(--ink); font: 650 18px/1.4 var(--sans); }
+.og .ok code { display: block; margin-bottom: 6px; padding: 0; background: none; color: var(--ink-2); font-size: 14px; font-weight: 500; }
 `;
 
 const site = siteConfig(repoRoot, process.env.SITE_URL);
 const data = await loadSiteData(repoRoot, site);
-const tile = data.sample.tiles[0];
+const { receipt } = data;
 const page = html`<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${raw(styles + card)}</style></head>
 <body><div class="og">
 <div>
 <p class="brand">${logo(40)}<span class="brand-name">${data.pkg.name}</span></p>
 <h1>Transparency logs for browsers, servers and the edge</h1>
-<p class="sub">A faithful TypeScript port of Tessera, byte-for-byte compatible with it. Open source, Apache-2.0.</p>
-<div class="install"><code class="install-cmd"><span class="prompt">$</span> ${data.install.command}</code></div>
+<p class="sub">A faithful TypeScript port of Tessera: signed receipts that verify offline, byte for byte with Go.</p>
+<p class="badge">Open source · ${data.pkg.license} · ${data.install.command}</p>
 </div>
-<div class="art">${renderNote(data.sample.note, "signed by webtessera")}${tile === undefined ? "" : renderTile(tile)}</div>
+<div class="art">${renderReceipt(receipt.text, "receipt", "returned by log.append()")}${receipt.tile === undefined ? "" : renderTile(receipt.tile, receipt.index)}<p class="ok"><code>verifyReceipt(text, { vkey, data })</code>✓ Entry ${receipt.index} is in the tree of ${receipt.size}</p></div>
 </div></body></html>`;
 
 const browser = await launch();

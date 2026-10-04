@@ -30,12 +30,17 @@ interface Rendered {
 // watched are the repository paths the page is generated from; editing one in dev reloads.
 const watched = [
 	"README.md",
+	"CHANGELOG.md",
+	"CONTRIBUTING.md",
 	"package.json",
 	"NOTICE",
 	"LICENSE",
 	"docs",
 	"examples",
 	"fixtures/data",
+	"scripts/upstream.json",
+	"scripts/test-parity-allowlist.json",
+	"scripts/interop",
 	"src",
 	".github",
 ];
