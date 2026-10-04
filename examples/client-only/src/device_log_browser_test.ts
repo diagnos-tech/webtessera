@@ -115,7 +115,10 @@ describe("this device's log, in Chromium", () => {
 		const origin = freshOrigin();
 		Object.defineProperty(navigator, "locks", { value: undefined, configurable: true });
 		try {
-			await expect(openDeviceLog({ origin, ...fast })).rejects.toThrow(/Web Locks/);
+			// The refusal names the option that lifts it, in openBrowserLog's own terms.
+			await expect(openDeviceLog({ origin, ...fast })).rejects.toThrow(
+				/Web Locks API .*pass storage: \{ indexedDB: "webtessera-log:[^"]+", singleWriter: true \}/,
+			);
 			const { log } = await openDeviceLog({ origin, singleWriter: true, ...fast });
 			expect(log.lockScope).toBe("realm");
 			await log.close();

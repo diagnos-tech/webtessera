@@ -99,3 +99,27 @@ API changes.
   signature is checked; its documentation now says bounding that cost is the caller's job and recommends a
   bounded, short-lived cache of answers, unknown origins included.
 - `maxBodyBytes` must be a positive safe integer ([ADR-0212](0212-http-request-targets-limits-and-error-bodies.md)).
+
+## Update (2026-10-04)
+
+- **`cosignerVkey(skey)`**, added to `webtessera/witness` (`src/witness/keys.ts`): the cosignature/v1
+  (type 0x04) vkey of the cosigner that `newSignerForCosignatureV1(skey)` builds, which is what a witness
+  publishes and what policies name. A witness then needs only its signer key: the session-receipts example
+  used to require `WITNESS_SKEY` and `WITNESS_VKEY` and check that they matched. It validates the key with
+  the ported `newSignerForCosignatureV1` (so its errors are formats/note's, which never quote the key),
+  derives the public key with `@noble/curves` from the seed it decodes, wipes the decoded bytes, and
+  composes the ported `newEd25519VerifierKey` and `vKeyToCosignatureV1`. A `vkey` on `WitnessServer`
+  itself, derived from its `signer`, was the other option and is not possible without changing ported
+  code: a `note.Signer` (Go's and the port's) carries a name, a key hash and a sign function, and the
+  formats/note cosignature signer keeps its public key in a closure, as Go's does; a key cannot be
+  recovered from Ed25519 signatures. Exposing it would add a member to a ported type (the BSD-licensed
+  `note_cosigv1.ts`), and a second way to give `newWitnessServer` its key would duplicate the input.
+  Tests: `keys_test.ts` (agreement with `vKeyToCosignatureV1` of the pair's vkey, verification of the
+  signer's cosignatures by `newVerifierForCosignatureV1`, use in `newWitness` and a policy file, and the
+  errors for a vkey, a truncated key, another algorithm and a non-string, none quoting the key).
+- **The handler never reads `request.signal`**, for the reasons in ADR-0170's update of the same date:
+  `addCheckpoint` is no longer passed it, and a 500 is reported to `onError` whether or not the client is
+  still there (it used to be skipped when the request's signal had aborted, which read the signal on the
+  failure path). Not cancelling is safe for the protocol: a checkpoint cosigned for a client that left is
+  one the log learns of from the witness's next 409. Test: `server_test.ts` answers 200, 409, 400, the
+  monitoring endpoint and a 500 from requests whose `signal` getter throws.

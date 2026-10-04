@@ -63,7 +63,10 @@ export {
 	type AppendCallOptions,
 	DefaultCheckpointIntervalMs,
 	DefaultPublishTimeoutMs,
+	type LogEntry,
 	type LogOptions,
+	MaxExtraDataBytes,
+	type ProveOptions,
 	type TransparencyLog,
 } from "../safe/log.ts";
 export {

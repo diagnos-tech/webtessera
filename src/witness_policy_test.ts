@@ -16,6 +16,7 @@
 // Ported from tessera/witness_policy_test.go @ 4a6d9f9
 
 import { describe, expect, it } from "vitest";
+import { ErrTooLong } from "./internal/gostd/bufio.ts";
 import { toUTF8 } from "./internal/gostd/bytes.ts";
 import { errorAs, SentinelError } from "./internal/gostd/errors.ts";
 import { newWitnessGroupFromPolicy } from "./witness.ts";
@@ -204,6 +205,14 @@ describe("NewWitnessGroupFromPolicy line length (port additions)", () => {
 
 	it("rejects a line of 65536 bytes with Go's bufio.ErrTooLong text", () => {
 		expect(errorOf(`${comment(65536)}\nquorum none\n`).message).toBe("bufio.Scanner: token too long");
+	});
+
+	it("returns the shared bufio stand-in's ErrTooLong, unwrapped, as Go returns scanner.Err()", () => {
+		expect(errorOf(`${comment(65536)}\nquorum none\n`)).toBe(ErrTooLong);
+	});
+
+	it("stops at a line that is too long, before the lines after it are parsed", () => {
+		expect(errorOf(`quorum none\n${comment(65536)}\nfoo\n`)).toBe(ErrTooLong);
 	});
 
 	it("counts the \\r of a \\r\\n line ending towards the limit", () => {

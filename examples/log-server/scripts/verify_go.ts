@@ -38,7 +38,6 @@ const { skey, vkey } = generateKey(undefined, "localhost/go-interop");
 const server = await startLogServer(await loadRuntime(), {
 	logKey: skey,
 	database: join(dir, "log.db"),
-	locking: "lease",
 	port: 0,
 	hostname: "127.0.0.1",
 });

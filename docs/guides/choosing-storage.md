@@ -53,8 +53,11 @@ logs; `namespace` keeps several logs (or a log and your own tables) apart in one
 | Cloudflare D1 | `fromD1(env.DB)` | `"lease"` |
 | SQLite-backed Durable Objects | `fromDurableObjectStorage(ctx.storage)` | `"local"` |
 
-That column is what the ported API (`newSqliteDriver`, `openSqliteObjectStore`) does. **The safe API
-is stricter: `openServerLog` uses `"lease"` unless you pass `locking: "local"`**, whatever the adapter.
+That column is what the ported API (`newSqliteDriver`, `openSqliteObjectStore`) and the safe API's
+`openServerLog` do. Every adapter fails closed: it answers `"lease"` unless it can show that nothing
+outside this JavaScript realm can reach the database, and a custom `SqlDatabase` that does not say gets
+`"lease"` too ([ADR-0210](../decisions/0210-sqlite-locking-fails-closed.md)). Pass `locking` to
+override it.
 
 ### Lease or local?
 
@@ -68,9 +71,10 @@ is stricter: `openServerLog` uses `"lease"` unless you pass `locking: "local"`**
   does. They suit a database that is private by construction: in memory, a Durable Object's, a
   WebAssembly SQLite in a private VFS.
 
-Two rules follow. **Say what you mean**: pass `locking` explicitly where it matters (the examples do),
-so that the choice survives a change of engine. And **every store over one database must use the
-same locking**: local locks and leases do not see each other.
+Two rules follow. **Declare a single writer only where it is one**: `locking: "local"` over a database
+another process can open forks the log the first time two of them append; the adapter's default never
+does. And **every store over one database must use the same locking**: local locks and leases do not
+see each other.
 
 Durability: an index or receipt the log hands back is on durable storage. The in-process adapters
 raise `synchronous` to `FULL`, and the networked engines resolve a write only once committed.

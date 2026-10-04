@@ -17,7 +17,6 @@
 
 import "./style.css";
 import { openDeviceKey, type Receipt, verifyReceipt } from "webtessera/browser";
-import { getEntryBundle } from "webtessera/client";
 import { decodeInteraction, encodeInteraction, type Interaction } from "../../shared/interaction.ts";
 import { newSessionOrigin, Routes } from "../../shared/protocol.ts";
 import { pushLog } from "./push.ts";
@@ -69,17 +68,10 @@ function verdict(session: Session, i: Interaction, receipt: Receipt): { ok: bool
 
 /** showHistory lists every interaction in the log, proving each against the latest checkpoint. */
 async function showHistory(session: Session): Promise<void> {
-	const { size } = await session.log.latestCheckpoint();
 	const rows: HTMLTableRowElement[] = [];
-	// The safe API has no way to read entries back, so this reads entry bundles through
-	// log.reader with webtessera/client, the ported API underneath.
-	for (let b = 0n; b * 256n < size; b++) {
-		const bundle = await getEntryBundle((i, p, s) => session.log.reader.readEntryBundle(i, p, s), b, size);
-		for (const [j, entry] of bundle.entries.entries()) {
-			const index = b * 256n + BigInt(j);
-			const i = decodeInteraction(entry);
-			rows.push(interactionRow(index, i, verdict(session, i, await session.log.prove(index))));
-		}
+	for await (const { index, data } of session.log.entries()) {
+		const i = decodeInteraction(data);
+		rows.push(interactionRow(index, i, verdict(session, i, await session.log.prove(index))));
 	}
 	ui.rows.replaceChildren(...rows);
 }

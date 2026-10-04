@@ -41,8 +41,8 @@
  *     and a browser that loads it anyway gets an error at import.
  *   - Keep a log in memory by accident: storage is a required choice, and memory must be
  *     asked for by name.
- *   - Fork a log across processes: SQLite storage uses lease locking unless told the
- *     process is the only writer.
+ *   - Fork a log across processes: SQLite storage uses lease locking for every database
+ *     another process could reach, unless told the process is the only writer.
  *   - Lose track of publication: append resolves only once a checkpoint commits to the
  *     entry, and hands back a receipt it has verified.
  *   - Change a log's key: a log refuses to open with a key that did not sign its checkpoint.
@@ -75,7 +75,10 @@ export {
 	type AppendCallOptions,
 	DefaultCheckpointIntervalMs,
 	DefaultPublishTimeoutMs,
+	type LogEntry,
 	type LogOptions,
+	MaxExtraDataBytes,
+	type ProveOptions,
 	type TransparencyLog,
 } from "../safe/log.ts";
 export {

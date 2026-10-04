@@ -27,10 +27,11 @@ export interface LogServerConfig {
 	/** database is the SQLite file the log lives in. */
 	readonly database: string;
 	/**
-	 * locking says who may write the database. "lease" is correct however many processes
-	 * share the file; "local" declares that this process is its only writer.
+	 * locking overrides the SQLite adapter's default, which is "lease" for a file, correct
+	 * however many processes share it, and "local" only for a private in-memory database.
+	 * "local" on a file declares that this process is its only writer.
 	 */
-	readonly locking: SqliteLocking;
+	readonly locking?: SqliteLocking | undefined;
 	readonly port: number;
 	readonly hostname: string;
 }
@@ -53,10 +54,10 @@ export async function openPublicLog(
 ): Promise<ServerLog> {
 	return openServerLog({
 		key: await importLogKey(config.logKey),
-		// Say which locking is wanted rather than rely on a default: with "lease", several
-		// processes (on any of the three runtimes) can append to the same file without forking
-		// the log, because each write is fenced on a lease held in the database itself.
-		storage: { sqlite: database, locking: config.locking },
+		// Unless told otherwise, the adapter chooses, and for a file it chooses "lease": several
+		// processes (on any of the three runtimes) can then append to the same file without
+		// forking the log, because each write is fenced on a lease held in the database itself.
+		storage: config.locking === undefined ? { sqlite: database } : { sqlite: database, locking: config.locking },
 		// The log is public: browsers on any origin may read and verify it.
 		http: { cors: true },
 	});

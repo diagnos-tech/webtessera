@@ -118,6 +118,16 @@ export async function openBrowserLog(options: BrowserLogOptions): Promise<Browse
 				"storage: { memory: true } for a log that lasts as long as the page.",
 		);
 	}
+	if ("indexedDB" in storage && storage.singleWriter !== true && !webLocksAvailable()) {
+		// The IndexedDB store refuses this too, but in terms of its own options (opts.locks,
+		// singleWriter); this says it in the terms the caller of openBrowserLog uses.
+		throw new Error(
+			`${where}: the Web Locks API (navigator.locks) is not available in this context (it requires a secure ` +
+				"context: HTTPS or localhost), so the log's locks could not exclude other tabs and workers writing it. " +
+				"Serve the page from a secure context; or, if this is the only tab or worker that will ever write the " +
+				`log, pass storage: { indexedDB: ${JSON.stringify(storage.indexedDB)}, singleWriter: true }.`,
+		);
+	}
 	const opened = await openStorage(storage);
 	const driver = newObjectStoreDriver(
 		options.fetch === undefined ? { store: opened.store } : { store: opened.store, fetch: options.fetch },
@@ -142,6 +152,15 @@ class browserLog extends LogBase implements BrowserLog {
 		this.storage = storage;
 		this.lockScope = lockScope;
 	}
+}
+
+/**
+ * webLocksAvailable reports whether openIndexedDBObjectStore would find a Web Locks
+ * LockManager: it uses `navigator.locks` when given no `locks` of its own, as here.
+ */
+function webLocksAvailable(): boolean {
+	const locks = (globalThis as { navigator?: { locks?: LockManager | null } }).navigator?.locks;
+	return locks !== undefined && locks !== null;
 }
 
 /** checkStorage returns storage if it is one of the shapes BrowserStorage allows, and throws otherwise. */

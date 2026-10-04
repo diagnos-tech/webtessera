@@ -27,7 +27,13 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
   non-extractable WebCrypto Ed25519 keys where the runtime has them (falling back to `@noble/curves`
   only when asked), resolve `append` only once a published checkpoint covers the entry, and return
   [C2SP tlog-proof](https://c2sp.org/tlog-proof) receipts that are verified before they are returned and
-  verify offline with `verifyReceipt`.
+  verify offline with `verifyReceipt`. Logs read their entries back with `log.entries(from?, to?)` (the
+  ported client's entry streaming, each entry checked against the log's tiles) and `log.entry(index)`.
+  Receipts can carry application data on their tlog-proof `extra` line (`append(data, { extraData })`,
+  `prove(index, { extraData })`, up to `MaxExtraDataBytes`), and `verifyReceipt(receipt, { vkey,
+  dataInExtra: true })` takes the entry from it, returning it only once the inclusion proof binds it.
+  `openServerLog` keeps the SQLite adapter's fail-closed default locking. `cosignerVkey(skey)` (in
+  `webtessera/witness`) derives the cosignature/v1 vkey a witness publishes from its signer key.
 - **Examples and guides**, one per use case, each a small tested application built on the safe API:
   `client-only` (a browser's own log), `session-receipts` (a browser log witnessed by its server and
   mirrored to S3-compatible storage), `notary` (offline-verifiable receipts for signed digests),

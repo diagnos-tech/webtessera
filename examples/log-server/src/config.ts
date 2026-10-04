@@ -29,7 +29,8 @@ export function readConfig(): LogServerConfig {
 	return {
 		logKey,
 		database: env.LOG_DB ?? "log.db",
-		locking: locking(env.LOG_LOCKING ?? "lease"),
+		// Unset, the adapter decides: lease locking for the database file.
+		locking: env.LOG_LOCKING === undefined ? undefined : locking(env.LOG_LOCKING),
 		port: port(env.PORT ?? "8080"),
 		hostname: env.HOST ?? "127.0.0.1",
 	};

@@ -78,6 +78,19 @@ Receipts verify anywhere, without the log:
 const { index, checkpoint } = verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });
 ```
 
+Receipts can carry their entry, and logs read their entries back:
+
+```ts file=src/README_test.ts region=safe_entries_example
+// A receipt can carry its own entry, which a verifier then takes from it, proven.
+const carrying = await log.append(entry, { extraData: entry });
+const { data } = verifyReceipt(carrying.text, { vkey: log.vkey, dataInExtra: true });
+
+// The log reads its entries back, in order, each checked against its tiles.
+for await (const e of log.entries()) {
+  read.push(e.data);
+}
+```
+
 A log of the browser's own, kept in IndexedDB:
 
 ```ts file=src/README_test.ts region=safe_browser_example
@@ -282,7 +295,8 @@ comment (`src/http/index.ts`, `src/witness/index.ts`, `src/mirror/index.ts`) has
   any `ObjectStore`, so it runs wherever a log does, and it can be given a fixed list of logs or a
   `lookupLog` function for an open-ended set. Its `handle` is a `webtessera/http` handler, and
   `addCheckpoint` makes the same call without HTTP. `vKeyToCosignatureV1` turns the witness's public key
-  into the form a log operator names in a witness policy. A log's witness URLs must use `https`, or
+  into the form a log operator names in a witness policy, and `cosignerVkey(skey)` derives that key from
+  the witness's signer key, so a witness is configured with its secret alone. A log's witness URLs must use `https`, or
   `http` for a loopback address.
 - **Mirroring.** `Mirror` from `webtessera/mirror` is the port of Tessera's experimental mirror: it
   copies the tiles and entry bundles a target lacks, in parallel, and writes the source checkpoint last.

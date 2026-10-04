@@ -25,8 +25,9 @@ export function readConfig(): NotaryConfig {
 				"(e.g. notary.example.com/v1), then start the notary again.",
 		);
 	}
-	const locking = env.NOTARY_LOCKING ?? "lease";
-	if (locking !== "lease" && locking !== "local") {
+	// Unset, the adapter decides: lease locking for the database file.
+	const locking = env.NOTARY_LOCKING;
+	if (locking !== undefined && locking !== "lease" && locking !== "local") {
 		throw new Error(`NOTARY_LOCKING must be "lease" or "local", got ${JSON.stringify(locking)}`);
 	}
 	const port = Number(env.PORT ?? "8081");
@@ -36,7 +37,7 @@ export function readConfig(): NotaryConfig {
 	return {
 		notaryKey,
 		database: env.NOTARY_DB ?? "notary.db",
-		locking: locking satisfies SqliteLocking,
+		locking: locking satisfies SqliteLocking | undefined,
 		port,
 		hostname: env.HOST ?? "127.0.0.1",
 	};

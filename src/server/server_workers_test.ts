@@ -22,6 +22,7 @@ import { describe, expect, it } from "vitest";
 import { describeWebCryptoGolden } from "../safe/testing/golden.ts";
 import { fromD1 } from "../storage/sqlite/adapters/d1.ts";
 import { fromDurableObjectStorage } from "../storage/sqlite/adapters/durableobject.ts";
+import type { SqlDatabase } from "../storage/sqlite/database.ts";
 import { uniqueNamespace } from "../storage/sqlite/testing/stores.ts";
 import { inFreshObject } from "../storage/sqlite/testing/workers/objects.ts";
 import { generateKey } from "../vendor/note/note.ts";
@@ -85,11 +86,26 @@ describe("webtessera/server in workerd", () => {
 		}
 	});
 
-	for (const locking of [undefined, "local"] as const) {
-		it(`runs a log in a Durable Object's SQLite (${locking ?? "default lease"} locking)`, async () => {
+	// The adapter's default is local, since the runtime runs one instance of an object at a
+	// time, and openServerLog defers to it; an explicit choice wins.
+	for (const locking of [undefined, "local", "lease"] as const) {
+		it(`runs a log in a Durable Object's SQLite (${locking ?? "the adapter's default, local,"} locking)`, async () => {
 			const key = await generateLogKey("example.com/do");
 			await inFreshObject(env.SQLITE_OBJECT, async (storage) => {
-				const sqlite = fromDurableObjectStorage(storage);
+				const sql: string[] = [];
+				const db = fromDurableObjectStorage(storage);
+				const sqlite: SqlDatabase = {
+					query: (st) => {
+						sql.push(st.sql);
+						return db.query(st);
+					},
+					batch: (sts) => {
+						sql.push(...sts.map((st) => st.sql));
+						return db.batch(sts);
+					},
+					defaultLocking: db.defaultLocking,
+					leaseClock: db.leaseClock,
+				};
 				const log = await openServerLog({
 					key,
 					storage: locking === undefined ? { sqlite } : { sqlite, locking },
@@ -100,6 +116,7 @@ describe("webtessera/server in workerd", () => {
 				} finally {
 					await log.close();
 				}
+				expect(sql.some((s) => s.includes("INTO webtessera_locks"))).toBe(locking === "lease");
 			});
 		});
 	}

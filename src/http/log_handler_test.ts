@@ -207,6 +207,47 @@ describe("newLogHandler", () => {
 		expect(onError).toHaveBeenCalledTimes(1);
 	});
 
+	it("never reads request.signal, whose first read prints a warning on Deno 2, nor passes a signal on", async () => {
+		const signals: (AbortSignal | undefined)[] = [];
+		const h = newLogHandler({
+			reader: {
+				readCheckpoint: (signal) => {
+					signals.push(signal);
+					return log.reader.readCheckpoint();
+				},
+				readTile: (l, i, p, signal) => {
+					signals.push(signal);
+					return log.reader.readTile(l, i, p);
+				},
+				readEntryBundle: (i, p, signal) => {
+					signals.push(signal);
+					return log.reader.readEntryBundle(i, p);
+				},
+			},
+			cors: true,
+		});
+		for (const [path, method, status] of [
+			["/checkpoint", "GET", 200],
+			["/tile/0/000", "HEAD", 200],
+			["/tile/entries/001.p/44", "GET", 200],
+			["/tile/entries/009", "GET", 404],
+			["/tile/0/x", "GET", 400],
+			["/checkpoint", "OPTIONS", 204],
+		] as const) {
+			const r = get(path, {
+				method,
+				headers: { Origin: "https://app.example", "Access-Control-Request-Method": "GET" },
+			});
+			Object.defineProperty(r, "signal", {
+				get: () => {
+					throw new Error("the handler read request.signal");
+				},
+			});
+			expect((await h(r))?.status, path).toBe(status);
+		}
+		expect(signals).toEqual([undefined, undefined, undefined, undefined]);
+	});
+
 	it("serves exactly W hashes when the reader substitutes a full tile for a partial one", async () => {
 		const full = await log.reader.readTile(0n, 0n, 0);
 		const substituting = {

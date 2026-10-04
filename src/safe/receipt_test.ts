@@ -113,6 +113,68 @@ describe("verifyReceipt", () => {
 				verifyReceipt(proof, { vkey: log.vkey, data: entries[0] as Uint8Array, leafHash: tree.leafHash(0n) }),
 			).toThrow("exactly one of data");
 			expect(() => verifyReceipt(proof, { vkey: log.vkey, leafHash: new Uint8Array(31) })).toThrow("32-byte");
+			expect(() => verifyReceipt(proof, { vkey: log.vkey, dataInExtra: false })).toThrow(/or dataInExtra: true/);
+		});
+
+		describe("with dataInExtra, from the extra line", () => {
+			const entry = entries[6] as Uint8Array;
+			const carrying = proofFor(6n, cp, entry);
+
+			it("takes the entry from the extra line, and returns it once the inclusion proof binds it", () => {
+				for (const r of [carrying, carrying.marshal(), fromUTF8(carrying.marshal())]) {
+					const v = verifyReceipt(r, { vkey: log.vkey, dataInExtra: true });
+					expect([v.index, v.data, v.extraData]).toEqual([6n, entry, entry]);
+				}
+				// Without dataInExtra the same receipt verifies as before, and data is not set.
+				expect(verifyReceipt(carrying, { vkey: log.vkey, data: entry }).data).toBeUndefined();
+			});
+
+			it("checks the extra line against the data or leaf hash the verifier holds", () => {
+				expect(verifyReceipt(carrying, { vkey: log.vkey, data: entry, dataInExtra: true }).data).toEqual(entry);
+				expect(
+					verifyReceipt(carrying, { vkey: log.vkey, leafHash: tree.leafHash(6n), dataInExtra: true }).data,
+				).toEqual(entry);
+				const other = failure(() =>
+					verifyReceipt(carrying, { vkey: log.vkey, data: entries[7] as Uint8Array, dataInExtra: true }),
+				);
+				expect(other.reason).toBe("extra");
+				expect(other.message).toMatch(
+					/does not hold the entry it is checked against; it is the receipt of another entry/,
+				);
+				const otherHash = failure(() =>
+					verifyReceipt(carrying, { vkey: log.vkey, leafHash: tree.leafHash(7n), dataInExtra: true }),
+				);
+				expect(otherHash.reason).toBe("extra");
+				expect(otherHash.message).toMatch(/does not have the leaf hash it is checked against/);
+				expect(() =>
+					verifyReceipt(carrying, { vkey: log.vkey, data: entry, leafHash: tree.leafHash(6n), dataInExtra: true }),
+				).toThrow(/at most one of data and leafHash/);
+			});
+
+			it("refuses a receipt with no extra line, and extra data that is not the logged entry", () => {
+				const none = failure(() => verifyReceipt(proofFor(6n, cp), { vkey: log.vkey, dataInExtra: true }));
+				expect(none.reason).toBe("extra");
+				expect(none.message).toMatch(/has no extra line, but dataInExtra says it carries the entry/);
+
+				// An extra line that is not the entry at that index: the proof cannot bind it.
+				const swapped = failure(() =>
+					verifyReceipt(proofFor(6n, cp, entries[7]), { vkey: log.vkey, dataInExtra: true }),
+				);
+				expect(swapped.reason).toBe("inclusion");
+				// Changing one bit of the extra data is the same.
+				const altered = proofFor(
+					6n,
+					cp,
+					entry.map((b, i) => (i === 0 ? b ^ 1 : b)),
+				);
+				expect(failure(() => verifyReceipt(altered, { vkey: log.vkey, dataInExtra: true })).reason).toBe("inclusion");
+				// And an extra line signed by no one is no better than the checkpoint it comes with.
+				const forged = proofFor(6n, checkpointOf(otherLog.skey), entry);
+				expect(failure(() => verifyReceipt(forged, { vkey: log.vkey, dataInExtra: true })).reason).toBe("signature");
+				expect(() => verifyReceipt(carrying, { vkey: log.vkey, dataInExtra: "yes" as never })).toThrow(
+					"dataInExtra must be true or false",
+				);
+			});
 		});
 	});
 

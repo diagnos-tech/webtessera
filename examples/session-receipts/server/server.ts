@@ -50,7 +50,6 @@ export async function startServer(
 	const { sink, description } = chooseSink(env, await store("commits"));
 	const server = newSessionServer({
 		witnessKey: config.witnessKey,
-		witnessVkey: config.witnessVkey,
 		stores,
 		sink,
 		...(onError === undefined ? {} : { onError }),

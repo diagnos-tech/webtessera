@@ -97,9 +97,11 @@ does: the record is the entry, and a changed entry is not the one in the log.
 
 The receipt's `extra` line carries the 137-byte record
 ([`src/record.ts`](src/record.ts)): version, time, digest, public key, signature, all fixed-length,
-so any implementation rebuilds the exact entry. The tlog-proof format does not authenticate extra
-data, and the verifier does not trust it: it first proves that *exactly these bytes* are an entry
-of the notary's log (`verifyReceipt` with `data` set to them), and only then reads a field.
+so any implementation rebuilds the exact entry. The notary puts it there with
+`log.append(record, { extraData: record })`. The tlog-proof format does not authenticate extra
+data, and the verifier does not trust it: `verifyReceipt(receipt, { vkey, dataInExtra: true })`
+first proves that *exactly these bytes* are an entry of the notary's log, and only then hands them
+back for the verifier to read a field.
 
 ## Trust model
 

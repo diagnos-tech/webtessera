@@ -16,9 +16,8 @@
 // proves the record is in the log. The log's read API is served next to it (see server.ts), so
 // anyone can monitor everything the notary ever notarized.
 
-import { TLogProof } from "webtessera/formats/proof";
 import { addErrorResponse, type Handler, readEntryBody } from "webtessera/http";
-import type { Receipt, ServerLog } from "webtessera/server";
+import type { ServerLog } from "webtessera/server";
 import { encodeRecord } from "./record.ts";
 import { parseSubmission, verifySubmission } from "./submission.ts";
 
@@ -60,31 +59,18 @@ export function newNotaryHandler(log: ServerLog, options: NotaryOptions = {}): H
 		}
 		const record = encodeRecord({ notarizedAt: BigInt(now()), ...submission });
 		try {
-			const receipt = await log.append(record);
-			return new Response(withRecord(receipt, record), {
-				headers: { "Content-Type": "text/plain; charset=utf-8" },
-			});
+			// The receipt carries the record in its extra line, so that one `.tlog-proof` file
+			// holds everything a verifier needs besides the document. The tlog-proof format does
+			// not authenticate extra data, and verify_notarization.ts does not trust it as such:
+			// verifyReceipt with dataInExtra proves that exactly these bytes are an entry of the
+			// log before the verifier reads a field of them.
+			const receipt = await log.append(record, { extraData: record });
+			return new Response(receipt.text, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 		} catch (err) {
 			options.onError?.(err);
 			return addErrorResponse(err);
 		}
 	};
-}
-
-/**
- * withRecord returns the receipt with the record in its extra data, so that one
- * `.tlog-proof` file carries everything a verifier needs besides the document.
- *
- * The tlog-proof format does not authenticate extra data, and verifiers must not trust it as
- * such. Nor does this example's: verify_notarization.ts proves that exactly these bytes are an
- * entry of the log before it reads a field of them.
- *
- * The safe API's receipts carry no extra data, so the receipt is re-encoded with the ported
- * tlog-proof encoder from webtessera/formats/proof.
- */
-function withRecord(receipt: Receipt, record: Uint8Array): string {
-	const { index, hashes, checkpoint } = receipt.proof;
-	return new TextDecoder().decode(new TLogProof({ index, hashes, checkpoint, extraData: record }).marshal());
 }
 
 function text(status: number, message: string, headers: Record<string, string> = {}): Response {

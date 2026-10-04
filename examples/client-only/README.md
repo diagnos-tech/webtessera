@@ -39,9 +39,9 @@ re-verifies the newest receipt by hand with the ported API (`webtessera/client`'
 
 **Without Web Locks.** Browsers provide Web Locks in secure contexts (HTTPS and `localhost`). Open
 `http://localhost:5173/?no-web-locks` to see a page without them: the log refuses to open, because
-two tabs appending at once with nothing to keep them apart would fork it, and the page offers to
-open it as this tab's alone (`storage: { indexedDB, singleWriter: true }`). The device's lock scope
-then reads "This tab only".
+two tabs appending at once with nothing to keep them apart would fork it. The page shows the
+refusal, which names the option that lifts it, and offers to open the log as this tab's alone
+(`storage: { indexedDB, singleWriter: true }`). The device's lock scope then reads "This tab only".
 
 `npx vite build` produces a static site in `dist/` that any static host can serve over HTTPS.
 
@@ -78,5 +78,5 @@ verification agreeing with the receipt; and forgetting the device.
 
 1. [`src/device_log.ts`](src/device_log.ts): the device key and the log, with the safe API.
 2. [`src/main.ts`](src/main.ts): appending, receipts, two tabs, and the no-Web-Locks path.
-3. [`src/history.ts`](src/history.ts): reading the log back, and verifying a receipt by hand with the
-   ported API underneath.
+3. [`src/history.ts`](src/history.ts): reading the log back with `log.entries`, and verifying a
+   receipt by hand with the ported API underneath.

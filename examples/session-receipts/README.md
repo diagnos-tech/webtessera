@@ -43,14 +43,16 @@ Build the library once at the repository root (`bun run build`). Then, in this
 directory, generate the witness's key and start the server on any of the three runtimes:
 
 ```sh
-node scripts/keygen.ts witness.localhost > .env       # WITNESS_SKEY (secret), WITNESS_VKEY
+node scripts/keygen.ts witness.localhost > .env       # WITNESS_SKEY, the one secret; prints the vkey
 
 node --env-file=.env server/main.ts                   # Node.js 22.18+ (node:sqlite)
 bun server/main.ts                                    # Bun (bun:sqlite; reads .env itself)
 deno run --env-file --allow-net --allow-read --allow-write --allow-env server/main.ts   # Deno 2
 ```
 
-The server listens on `127.0.0.1:8787` (`PORT`, `HOST`) and keeps its state in
+`WITNESS_SKEY` is the server's only key setting: the witness's public key, which browsers pin and
+auditors check with, is derived from it with `cosignerVkey` from `webtessera/witness`, and printed
+when the server starts. The server listens on `127.0.0.1:8787` (`PORT`, `HOST`) and keeps its state in
 `session-receipts.db` (`SERVER_DB`). It commits to a bucket when `S3_ENDPOINT`, `S3_BUCKET`,
 `S3_REGION`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` are all set (`S3_PREFIX` defaults to
 `session-receipts/`), and to its own database otherwise. For MinIO:
@@ -70,7 +72,8 @@ Save, load and delete notes. Each exchange appears with its receipt's verdict ("
 cosigned by witness.localhost"), and the page uploads the log after each one ("The server has
 committed the first 2 interactions to its bucket"). Reload: the session, its key and its log are
 still there, and every receipt is proven again. Then audit the session as a third party, with the
-log origin and key the page shows:
+log origin and key the page shows (and the witness vkey the server printed as a third argument, or,
+beside the server, the one `WITNESS_SKEY` derives):
 
 ```console
 $ node --env-file=.env scripts/audit.ts localhost:5173/session/8fa812b9… "localhost:5173/session/8fa812b9…+f0fb3c5b+AWYj…"

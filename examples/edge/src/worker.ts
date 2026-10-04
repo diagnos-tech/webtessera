@@ -45,8 +45,8 @@ export class LogObject extends DurableObject<Env> {
 			openServerLog({
 				key: await importLogKey(env.LOG_SKEY),
 				// The runtime runs one instance of an object at a time, so the object is its
-				// database's only writer: "local" says so, and spares the lease's writes.
-				storage: { sqlite: fromDurableObjectStorage(ctx.storage), locking: "local" },
+				// database's only writer, and the adapter's locks are local: no lease, no lease writes.
+				storage: { sqlite: fromDurableObjectStorage(ctx.storage) },
 				http: { cors: true },
 			}),
 		);

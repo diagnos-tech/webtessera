@@ -21,7 +21,7 @@
 // (merkle/proof's verifyInclusion). Nothing here re-implements a check. See
 // docs/decisions/0225-receipts-are-tlog-proofs.md.
 
-import { fromUTF8, toUTF8 } from "../internal/gostd/bytes.ts";
+import { bytesEqual, fromUTF8, toUTF8 } from "../internal/gostd/bytes.ts";
 import {
 	type Checkpoint,
 	ParseCheckpointError,
@@ -103,10 +103,18 @@ export interface VerifyReceiptOptions {
 	readonly vkey: string | Verifier;
 	/** origin is the log's checkpoint origin. It defaults to the key's name, which is the origin of every log webtessera writes. */
 	readonly origin?: string;
-	/** data is the entry the receipt is for. Give it, or its leafHash. */
+	/** data is the entry the receipt is for. Give it, or its leafHash, or set dataInExtra. */
 	readonly data?: Uint8Array;
 	/** leafHash is the RFC 6962 leaf hash of the entry, for a verifier that holds only the hash. */
 	readonly leafHash?: Uint8Array;
+	/**
+	 * dataInExtra says that the proof's `extra` line carries the entry itself, as a receipt
+	 * from `append(data, { extraData: data })` does. Alone, it takes the entry from the extra
+	 * line; with `data` or `leafHash`, it also checks that the extra line holds that entry.
+	 * Either way the inclusion proof then binds the extra data to the log, and it is returned
+	 * as `data`: authenticated, unlike `extraData`.
+	 */
+	readonly dataInExtra?: boolean;
 	/** witnesses is the witness policy the checkpoint must satisfy. By default no cosignature is required. */
 	readonly witnesses?: WitnessGroup | WitnessPolicy;
 }
@@ -128,11 +136,19 @@ export interface VerifiedReceipt {
 	 * NOT implicitly trust the extra data, as it is not authenticated."
 	 */
 	readonly extraData: Uint8Array | undefined;
+	/**
+	 * data is the logged entry when dataInExtra took it from, or checked it against, the
+	 * extra line: the same bytes as extraData, but proven to be the entry at index of the
+	 * checkpoint. It is undefined without dataInExtra.
+	 */
+	readonly data: Uint8Array | undefined;
 }
 
 /**
  * ReceiptError is thrown by verifyReceipt when a receipt does not prove what it is checked
  * against. `reason` says which check failed; the message says what that usually means.
+ * `extra` is the one that is not a step of the spec's verification: with dataInExtra, the
+ * proof's extra line is missing, or is not the entry it was checked against.
  *
  * ```ts
  * try {
@@ -145,7 +161,7 @@ export interface VerifiedReceipt {
  * ```
  */
 export class ReceiptError extends Error {
-	readonly reason: "malformed" | "signature" | "witnesses" | "inclusion";
+	readonly reason: "malformed" | "signature" | "witnesses" | "inclusion" | "extra";
 
 	constructor(reason: ReceiptError["reason"], message: string, options?: { cause?: unknown }) {
 		super(message, options);
@@ -179,7 +195,9 @@ export function parseReceipt(receipt: string | Uint8Array): TLogProof {
  * verifyReceipt checks a receipt offline, following the verification steps of
  * https://c2sp.org/tlog-proof, and returns what it proves, or throws a ReceiptError:
  *
- *   1. the leaf hash is the RFC 6962 hash of `data`, or `leafHash` as given;
+ *   1. the leaf hash is the RFC 6962 hash of `data`, or `leafHash` as given, or, with
+ *      dataInExtra, the hash of the proof's extra data, which must then match `data` or
+ *      `leafHash` if either is given;
  *   2. the checkpoint's origin is the log's, and the log's key signed it;
  *   3. every cosignature by a witness in the policy verifies, and the policy is satisfied;
  *   4. the inclusion proof binds the leaf hash at the receipt's index to the checkpoint's
@@ -189,8 +207,17 @@ export function parseReceipt(receipt: string | Uint8Array): TLogProof {
  *
  * ```ts
  * const { index, checkpoint } = verifyReceipt(receiptText, { vkey: logVkey, data: entry });
+ * const { data } = verifyReceipt(carrying, { vkey: logVkey, dataInExtra: true }); // the entry, proven
  * ```
  */
+export function verifyReceipt(
+	receipt: Receipt | TLogProof | string | Uint8Array,
+	options: VerifyReceiptOptions & { readonly dataInExtra: true },
+): VerifiedReceipt & { readonly data: Uint8Array };
+export function verifyReceipt(
+	receipt: Receipt | TLogProof | string | Uint8Array,
+	options: VerifyReceiptOptions,
+): VerifiedReceipt;
 export function verifyReceipt(
 	receipt: Receipt | TLogProof | string | Uint8Array,
 	options: VerifyReceiptOptions,
@@ -198,7 +225,7 @@ export function verifyReceipt(
 	const proof = toProof(receipt);
 	const verifier = typeof options.vkey === "string" ? verifierOf(options.vkey) : options.vkey;
 	const origin = options.origin ?? verifier.name();
-	const leafHash = leafHashOf(options);
+	const { leafHash, data } = leafHashOf(options, proof);
 	const policy = options.witnesses === undefined ? undefined : witnessGroupOf(options.witnesses);
 	const witnessVerifiers = policy === undefined ? [] : policyVerifiers(policy);
 
@@ -254,6 +281,7 @@ export function verifyReceipt(
 		checkpoint: logCheckpointOf(cp, proof.checkpoint),
 		cosignedBy,
 		extraData: proof.extraData,
+		data,
 	};
 }
 
@@ -341,19 +369,76 @@ function verifierOf(vkey: string): Verifier {
 	}
 }
 
-function leafHashOf(options: VerifyReceiptOptions): Uint8Array {
-	const { data, leafHash } = options;
+/**
+ * leafHashOf performs step 1, "Compute the leaf hash", which the spec leaves to the
+ * application: from the data or leaf hash the verifier holds, or, with dataInExtra, from
+ * the proof's extra line, which the spec names as one of the inputs to this step
+ * ("additional data necessary to reconstruct the record hash"). It returns the entry too
+ * when it came from the extra line, for verifyReceipt to hand back once step 4 has bound it
+ * to the checkpoint.
+ */
+function leafHashOf(
+	options: VerifyReceiptOptions,
+	proof: TLogProof,
+): { leafHash: Uint8Array; data: Uint8Array | undefined } {
+	const { data, leafHash, dataInExtra } = options;
+	if (dataInExtra !== undefined && typeof dataInExtra !== "boolean") {
+		throw new TypeError("verifyReceipt: dataInExtra must be true or false");
+	}
+	if (dataInExtra === true) {
+		if (data !== undefined && leafHash !== undefined) {
+			throw new TypeError(
+				"verifyReceipt with dataInExtra takes the entry from the extra line, and checks it against at most one of " +
+					"data and leafHash",
+			);
+		}
+		const expected = data === undefined ? undefined : checkData(data);
+		const expectedHash = leafHash === undefined ? undefined : checkLeafHash(leafHash);
+		const extra = proof.extraData;
+		if (extra === undefined) {
+			throw new ReceiptError(
+				"extra",
+				"receipt: it has no extra line, but dataInExtra says it carries the entry; it is not a receipt that " +
+					"carries its entry, or its extra line was removed",
+			);
+		}
+		if (expected !== undefined && !bytesEqual(extra, expected)) {
+			throw new ReceiptError(
+				"extra",
+				"receipt: its extra line does not hold the entry it is checked against; it is the receipt of another " +
+					"entry, or its extra line was altered",
+			);
+		}
+		const extraHash = DefaultHasher.hashLeaf(extra);
+		if (expectedHash !== undefined && !bytesEqual(extraHash, expectedHash)) {
+			throw new ReceiptError(
+				"extra",
+				"receipt: the entry in its extra line does not have the leaf hash it is checked against; it is the " +
+					"receipt of another entry, or its extra line was altered",
+			);
+		}
+		return { leafHash: extraHash, data: extra };
+	}
 	if ((data === undefined) === (leafHash === undefined)) {
 		throw new TypeError(
-			"verifyReceipt needs exactly one of data (the logged entry) and leafHash (its RFC 6962 leaf hash)",
+			"verifyReceipt needs exactly one of data (the logged entry) and leafHash (its RFC 6962 leaf hash), or " +
+				"dataInExtra: true for a receipt that carries its entry",
 		);
 	}
 	if (data !== undefined) {
-		if (!(data instanceof Uint8Array)) {
-			throw new TypeError("verifyReceipt: data must be the logged entry's bytes, as a Uint8Array");
-		}
-		return DefaultHasher.hashLeaf(data);
+		return { leafHash: DefaultHasher.hashLeaf(checkData(data)), data: undefined };
 	}
+	return { leafHash: checkLeafHash(leafHash), data: undefined };
+}
+
+function checkData(data: unknown): Uint8Array {
+	if (!(data instanceof Uint8Array)) {
+		throw new TypeError("verifyReceipt: data must be the logged entry's bytes, as a Uint8Array");
+	}
+	return data;
+}
+
+function checkLeafHash(leafHash: unknown): Uint8Array {
 	if (!(leafHash instanceof Uint8Array) || leafHash.length !== DefaultHasher.size()) {
 		throw new TypeError(`verifyReceipt: leafHash must be a ${DefaultHasher.size()}-byte RFC 6962 leaf hash`);
 	}

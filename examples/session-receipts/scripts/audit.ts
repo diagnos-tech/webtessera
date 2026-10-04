@@ -13,25 +13,30 @@
 // limitations under the License.
 // Audits a session from where the server committed it, as a third party would:
 //
-//     node --env-file=.env scripts/audit.ts <session log origin> <session log vkey>
+//     node --env-file=.env scripts/audit.ts <session log origin> <session log vkey> [<witness vkey>]
 //
 // It reads the commit sink the server is configured with (the S3_* variables, or the server's
 // database, SERVER_DB) and checks the committed log against both keys: the session's own, which
-// the page shows, and the server's witness key, WITNESS_VKEY. Then it lists the interactions.
+// the page shows, and the server's witness vkey, which the server prints when it starts. Run
+// beside the server, it derives the witness vkey from WITNESS_SKEY if none is given. Then it lists
+// the interactions.
 
 import { argv, env, exit } from "node:process";
 import { newSinkTarget } from "webtessera/mirror";
 import { openSqliteObjectStore } from "webtessera/storage/sqlite";
-import { originHash } from "webtessera/witness";
+import { cosignerVkey, originHash } from "webtessera/witness";
 import { auditSession } from "../audit/audit.ts";
 import { committedPrefix } from "../server/committer.ts";
 import { loadRuntime } from "../server/runtime/runtime.ts";
 import { chooseSink } from "../server/sink.ts";
 
-const [origin, vkey] = argv.slice(2);
-const witness = env.WITNESS_VKEY ?? "";
-if (origin === undefined || vkey === undefined || witness === "") {
-	say("usage: node --env-file=.env scripts/audit.ts <session log origin> <session log vkey>  (needs WITNESS_VKEY)");
+const [origin, vkey, witnessArg] = argv.slice(2);
+const witness = witnessArg ?? (env.WITNESS_SKEY === undefined ? undefined : cosignerVkey(env.WITNESS_SKEY));
+if (origin === undefined || vkey === undefined || witness === undefined) {
+	say(
+		"usage: node --env-file=.env scripts/audit.ts <session log origin> <session log vkey> [<witness vkey>]  " +
+			"(the witness vkey defaults to the one WITNESS_SKEY derives)",
+	);
 	exit(2);
 }
 

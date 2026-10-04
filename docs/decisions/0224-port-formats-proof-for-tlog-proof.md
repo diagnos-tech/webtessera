@@ -77,3 +77,15 @@ Go's decoder is more lenient than the spec in places, recorded here from running
 - **Reviewer:** pending
 - **Verdict:** pending
 - **Notes:** pending
+
+## Update (2026-10-04): `witness.ts` uses the shared `Scanner`
+
+The follow-up named above is done: `newWitnessGroupFromPolicy` (`src/witness.ts`) reads its policy with
+`Scanner` from `src/internal/gostd/bufio.ts` instead of a private `scanLines` generator, `scanner.scan()` /
+`scanner.text()` in the loop and `scanner.err()` thrown after it, which is `witness.go` line for line. The
+two had the same splitting, `\r` dropping, final-line and 64 KiB rules, and the same error text; the only
+difference is where the error is raised (after the loop, as Go returns `scanner.Err()`, rather than from
+inside it), which changes nothing observable because nothing runs between the long line and the end of the
+loop. The error is now the shared `ErrTooLong` sentinel, unwrapped. `witness_policy_test.ts` (its line-length
+cases, plus two asserting the sentinel's identity and that nothing after the long line is parsed),
+`witness_test.ts` and the differential corpus in `root_differential_test.ts` pass unchanged.

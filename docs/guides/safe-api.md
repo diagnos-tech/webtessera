@@ -90,8 +90,10 @@ the safe API.
 
 | Member | What it does |
 | --- | --- |
-| `append(data, { signal?, timeoutMs? })` | adds one entry (up to 65535 bytes) and resolves, once a published checkpoint commits to it, to a verified `Receipt` |
-| `prove(index)` | a receipt for an existing entry, relative to the latest checkpoint |
+| `append(data, { signal?, timeoutMs?, extraData? })` | adds one entry (up to 65535 bytes) and resolves, once a published checkpoint commits to it, to a verified `Receipt`, carrying `extraData` in its `extra` line if given |
+| `prove(index, { extraData? })` | a receipt for an existing entry, relative to the latest checkpoint |
+| `entries(from?, to?)` | the log's entries, in order, as `{ index, data }`: an async iterator up to `to` or the latest checkpoint's size |
+| `entry(index)` | one entry, as `entries` reads it |
 | `latestCheckpoint()` | the latest published checkpoint, verified |
 | `verify(receipt, data)` | checks a receipt against this log's key and witness policy |
 | `close()` | waits for every appended entry to be published, then stops |
@@ -103,11 +105,11 @@ The defaults are chosen so that the obvious call is the safe one:
 | Default | Why |
 | --- | --- |
 | Storage is required on a server; memory must be asked for as `{ memory: true }` | a log in memory loses its tree on restart while its checkpoints live on in clients |
-| SQLite uses lease locking unless you pass `locking: "local"` | two processes appending to one database under local locks fork the log |
-| A browser log is kept in IndexedDB (`webtessera-log:<origin>`) with Web Locks, and needs a persistent key | a log that outlives the page with a key that does not cannot be signed again |
+| SQLite locking is the adapter's, which fails closed: lease locking for every database another process could reach, local only for one that is private (in memory, a Durable Object) | two processes appending to one database under local locks fork the log |
+| A browser log is kept in IndexedDB (`webtessera-log:<origin>`) with Web Locks, and needs a persistent key; without Web Locks it refuses to open, naming `storage: { indexedDB, singleWriter: true }` | a log that outlives the page with a key that does not cannot be signed again, and two tabs without locks fork it |
 | A checkpoint is published every second while the log grows (`checkpointIntervalMs`) | `append` waits for one, so the interval is its latency |
 | `append` gives up after 30 s (`publishTimeoutMs`), saying whether and where the entry was sequenced | a receipt that cannot arrive should fail loudly |
-| Witnesses fail closed | a receipt promises the cosignatures its policy asks for |
+| Witnesses fail closed, and an open they refuse says why: unreachable, or storage that holds less than they cosigned | a receipt promises the cosignatures its policy asks for |
 | Every receipt is verified before it is returned | damaged storage is caught before a client sees it |
 
 `appendOptions: (opts) => opts.withAntispam(…)` tunes the ported `AppendOptions`; the log's key and witnesses are
@@ -132,7 +134,9 @@ createServer(toNodeListener(combineHandlers(log.handler))).listen(8080);
 
 `storage` is `{ sqlite, namespace?, locking?, lease? }` with any adapter from `webtessera/storage/sqlite`
 (`fromSqliteSync`, `fromLibsql`, `fromRqlite`, `fromD1`, `fromDurableObjectStorage`, `fromSqliteWasm`),
-`{ objectStore }` for a durable store of your own, or `{ memory: true }`. `log.handler` serves the tlog-tiles read
+`{ objectStore }` for a durable store of your own, or `{ memory: true }`. `locking` overrides the adapter's
+default, which is `"lease"` for a file and every networked engine, `"local"` for an in-memory database or a
+Durable Object ([choosing storage](choosing-storage.md#sqlite)). `log.handler` serves the tlog-tiles read
 API; on Deno it is `Deno.serve(combineHandlers(log.handler))`, on Workers `export default { fetch: … }`.
 
 ### In a browser
@@ -175,19 +179,42 @@ const { index, checkpoint, cosignedBy } = verifyReceipt(text, {
 
 `witnesses` may also be a `WitnessGroup` from `newWitnessGroupFromPolicy` (package `webtessera`), so a log's own
 witness policy file verifies its receipts. A failure is a `ReceiptError` whose `reason` is `malformed`,
-`signature`, `witnesses` or `inclusion`, with a message that says what it usually means. The proof's `extraData`
-is returned but is not authenticated: the spec forbids trusting it implicitly.
+`signature`, `witnesses`, `inclusion` or `extra`, with a message that says what it usually means.
+
+### Extra data
+
+A tlog-proof may carry application data on its `extra` line: `append(data, { extraData })` (or
+`prove(index, { extraData })`) puts it there, up to `MaxExtraDataBytes`. The spec is explicit that "Applications
+MUST NOT implicitly trust the extra data, as it is not authenticated", so `verifyReceipt` returns it as
+`extraData`, unchecked, unless you ask for more. The common case is a receipt that carries its own entry, so that
+one file holds everything a verifier needs:
+
+```ts
+const receipt = await log.append(entry, { extraData: entry });
+// later, anywhere, with nothing but the receipt and the vkey:
+const { data } = verifyReceipt(receipt.text, { vkey: logVkey, dataInExtra: true });
+```
+
+`dataInExtra: true` takes the entry from the extra line and returns it as `data` only once the inclusion proof
+has bound it to the signed checkpoint: this is the extra line as the spec's "additional data necessary to
+reconstruct the record hash". With `data` or `leafHash` as well, it also checks that the extra line holds that
+entry. A missing or different extra line fails with reason `extra`; altered extra data fails with `inclusion`.
 
 ## Use cases
 
 ### 1. A client-only log
 
-A browser keeps its own tamper-evident log, signed by a key that cannot leave the device:
+A browser keeps its own tamper-evident log, signed by a key that cannot leave the device, and reads it back:
 
 ```ts
 const log = await openBrowserLog({ key: await openDeviceKey("device.example/7f3a") });
 const receipt = await log.append(new TextEncoder().encode("opened the record"));
+for await (const { index, data } of log.entries()) { … }
 ```
+
+`entries` reads the log at the size of its latest checkpoint, a few entry bundles at a time, and checks each
+entry against the leaf hash the log's tiles hold for it, so damaged storage fails rather than yield an entry no
+receipt could prove; `prove(index)` gives the receipt that proves one to others.
 
 Without witnesses, the device can still rewrite its own history and sign the new one; what it cannot do is
 convince anyone who holds an older receipt or checkpoint, since the two would be inconsistent. Witnessing makes
@@ -202,7 +229,7 @@ and by you, of everything the server did in the user's space.
 On the server, run `webtessera/witness` and register each browser log's vkey when its session starts:
 
 ```ts
-import { newSignerForCosignatureV1, newWitnessServer } from "webtessera/witness";
+import { cosignerVkey, newSignerForCosignatureV1, newWitnessServer } from "webtessera/witness";
 
 const witness = newWitnessServer({
   signer: newSignerForCosignatureV1(env.WITNESS_SKEY),
@@ -211,7 +238,11 @@ const witness = newWitnessServer({
   prefix: "/witness",
   cors: true,                             // the browser posts cross-origin
 });
+const serverWitnessVkey = cosignerVkey(env.WITNESS_SKEY); // publish it: browsers and verifiers pin it
 ```
+
+The witness's signer key is its only secret and its only key setting: `cosignerVkey` derives the vkey it
+publishes, in the cosignature/v1 form that witness policies name.
 
 In the browser, configure the log with that witness:
 
@@ -225,7 +256,9 @@ const log = await openBrowserLog({
 ```
 
 Receipts then carry the server's cosignature, and verify with
-`{ witnesses: { threshold: 1, witnesses: [serverWitnessVkey] } }`. To keep an independent copy of a log, mirror it
+`{ witnesses: { threshold: 1, witnesses: [serverWitnessVkey] } }`. A browser log whose storage was wiped, while
+its device key survived, cannot open again: the witness has cosigned more than the storage holds, and
+`openBrowserLog` says exactly that. To keep an independent copy of a log, mirror it
 with `webtessera/mirror` to S3 or R2: `newVerifiedMirror({ source, origin, verifier, target: newS3Sink({ … }) })`,
 where `source` is the log's URL or a `log.reader`. Mirrors copy only what verifies.
 
@@ -236,11 +269,11 @@ the verifier can reproduce exactly; fixed-length fields are the simplest:
 
 ```ts
 const entry = new Uint8Array([...digest /* 32 bytes */, ...signature /* 64 bytes */]);
-const receipt = await log.append(entry);
-// later, anywhere: verifyReceipt(receipt.text, { vkey: notaryVkey, data: entry })
+const receipt = await log.append(entry, { extraData: entry });
+// later, anywhere: verifyReceipt(receipt.text, { vkey: notaryVkey, dataInExtra: true }).data is the entry
 ```
 
-A verifier that holds only the leaf hash passes `leafHash` instead of `data`.
+A verifier that holds the entry passes `data` instead, and one that holds only the leaf hash passes `leafHash`.
 
 ### 4. A log server
 

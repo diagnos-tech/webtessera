@@ -42,10 +42,13 @@ interface notary {
 	close(): Promise<void>;
 }
 
-/** openNotary opens a notary on a private in-memory database, the one case where "local" locking is right. */
+/**
+ * openNotary opens a notary on a private in-memory database, which the adapter locks locally:
+ * nothing outside this process can reach it.
+ */
 async function openNotary(skey: string): Promise<notary> {
 	const db = node.openSqlite(":memory:");
-	const log = await openNotaryLog(db.database, { notaryKey: skey, locking: "local" });
+	const log = await openNotaryLog(db.database, { notaryKey: skey });
 	const serve = newNotary(log, { now: () => Date.UTC(2026, 9, 3, 12) });
 	return {
 		log,

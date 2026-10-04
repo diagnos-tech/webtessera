@@ -80,10 +80,12 @@ describe("session receipts", () => {
 		await s.log.close();
 
 		// Same session, same device key, empty log: it cannot even publish its first checkpoint,
-		// because the server cosigned a larger tree for this origin.
+		// because the server cosigned a larger tree for this origin, and the error says so.
 		await expect(
 			openSession(s, { server: h.url, key: s.key, storage: { memory: true }, fetch: h.fetch }),
-		).rejects.toThrow(/witness.*replied with x\.tlog\.size 2, larger than log size 0/s);
+		).rejects.toThrow(
+			/this storage holds an older or different log than its witnesses cosigned: the witness at .* has cosigned this log at size 2, and the storage holds no entries/,
+		);
 	});
 
 	it("refuses a rewritten history, of the same size or larger, and keeps the evidence", async () => {
