@@ -13,8 +13,9 @@
 // limitations under the License.
 
 // What the test suites and CI actually run: the vitest configurations, the matrices and
-// commands of .github/workflows/*.yml, and the golden (byte-for-byte) test files per
-// runtime. The site claims a runtime or a check only if one of these says so.
+// commands of .github/workflows/*.yml, and the jobs ci.yml runs on every change. The site
+// claims a runtime or a check only if one of these says so. (Which backend runs the golden
+// suite in which runtime is evidence.ts's business.)
 
 import type { Repo } from "./repo.ts";
 
@@ -32,8 +33,23 @@ export interface TestMatrix {
 	readonly interop: boolean;
 	/** fixturesReproduced is true when CI regenerates the fixtures from upstream and diffs them. */
 	readonly fixturesReproduced: boolean;
-	/** golden counts the byte-for-byte golden test files per runtime (node, chromium, workerd). */
-	readonly golden: Readonly<Record<string, number>>;
+	/** parity is true when CI checks that every upstream Go test has a port or an allow-list entry. */
+	readonly parity: boolean;
+	/** examples is true when CI runs every example's own `ci` script. */
+	readonly examples: boolean;
+	/** jobs are the checks ci.yml runs on every change, grouped by the workflow that defines them. */
+	readonly jobs: readonly JobGroup[];
+	/** gate names ci.yml's own job that fails when any other does, if it has one. */
+	readonly gate: string | undefined;
+	/** releaseGated is true when release.yml runs ci.yml before it publishes. */
+	readonly releaseGated: boolean;
+}
+
+/** JobGroup is one workflow that ci.yml calls, with the names of the jobs it runs, matrix expanded. */
+export interface JobGroup {
+	readonly name: string;
+	readonly file: string;
+	readonly jobs: readonly string[];
 }
 
 /** matrix collects the values of a matrix key, written as `key: [a, b]` or as `- key: a` entries. */
@@ -54,24 +70,52 @@ function matrix(yaml: string, key: string): string[] {
 /** RUN_SCRIPT matches a workflow step that runs a root package.json script, whichever package manager starts it. */
 const RUN_SCRIPT = (name: string): RegExp => new RegExp(`\\b(?:bun|npm|pnpm|yarn) (?:run )?${name}\\b`);
 
-/** runtimeOf classifies a test file by the suffix that routes it to a vitest configuration. */
-function runtimeOf(file: string): string {
-	if (file.endsWith("_browser_test.ts")) return "chromium";
-	if (file.endsWith("_workers_test.ts")) return "workerd";
-	if (file.endsWith("_services_test.ts")) return "services";
-	return "node";
+/** jobBlocks splits a workflow's `jobs:` mapping into one block of YAML per job. */
+function jobBlocks(yaml: string): string[] {
+	const jobs = yaml.slice(Math.max(0, yaml.search(/^jobs:\s*$/m)));
+	return jobs.split(/^ {2}(?=[\w-]+:\s*$)/m).slice(1);
 }
 
-/** loadTestMatrix reads the vitest configurations, the CI workflows and the golden tests. */
+/** jobNames returns the display names of a workflow's jobs, one per matrix entry. */
+function jobNames(yaml: string): string[] {
+	return jobBlocks(yaml).flatMap((block) => {
+		const name = /^ {4}name:\s*(.+?)\s*$/m.exec(block)?.[1]?.replace(/^["']|["']$/g, "");
+		if (name === undefined) {
+			return [];
+		}
+		const key = /\$\{\{\s*matrix\.([\w-]+)\s*\}\}/.exec(name)?.[1];
+		const values = key === undefined ? [] : matrix(block, key);
+		return values.length === 0 ? [name] : values.map((v) => name.replace(/\$\{\{[^}]*\}\}/, v));
+	});
+}
+
+/**
+ * loadJobs reads the jobs ci.yml runs: each job that calls a reusable workflow is expanded
+ * into that workflow's jobs; the aggregate "passed" gate, which runs no check of its own, is
+ * left out.
+ */
+function loadJobs(repo: Repo): JobGroup[] {
+	const ci = repo.textOr(".github/workflows/ci.yml") ?? "";
+	const out: JobGroup[] = [];
+	for (const block of jobBlocks(ci)) {
+		const name = /^ {4}name:\s*(.+?)\s*$/m.exec(block)?.[1] ?? "";
+		const uses = /^ {4}uses:\s*\.\/(\.github\/workflows\/[\w.-]+\.ya?ml)\s*$/m.exec(block)?.[1];
+		if (uses === undefined) {
+			continue;
+		}
+		const jobs = jobNames(repo.textOr(uses) ?? "");
+		if (jobs.length > 0) {
+			out.push({ name, file: uses, jobs });
+		}
+	}
+	return out;
+}
+
+/** loadTestMatrix reads the vitest configurations and the CI workflows. */
 export function loadTestMatrix(repo: Repo): TestMatrix {
 	const workflows = repo.list(".github/workflows", "file").filter((f) => /\.ya?ml$/.test(f));
 	const yaml = workflows.map((f) => repo.text(`.github/workflows/${f}`)).join("\n");
 	const scripts = repo.json<{ scripts?: Record<string, string> }>("package.json").scripts ?? {};
-	const golden: Record<string, number> = {};
-	for (const f of repo.walk("src", /_golden\w*_test\.ts$/)) {
-		const r = runtimeOf(f);
-		golden[r] = (golden[r] ?? 0) + 1;
-	}
 	return {
 		nodeVersions: matrix(yaml, "node").sort((a, b) => Number(a) - Number(b)),
 		runtimes: matrix(yaml, "runtime"),
@@ -80,6 +124,15 @@ export function loadTestMatrix(repo: Repo): TestMatrix {
 		services: repo.exists("vitest.services.config.ts") && /test:services/.test(yaml),
 		interop: scripts.interop !== undefined && RUN_SCRIPT("interop").test(yaml),
 		fixturesReproduced: RUN_SCRIPT("fixtures").test(yaml),
-		golden,
+		parity: scripts["test:parity"] !== undefined && RUN_SCRIPT("test:parity").test(yaml),
+		examples: /--filter\s+['"]?\.\/examples\/\*['"]?\s+ci\b/.test(yaml),
+		jobs: loadJobs(repo),
+		gate: jobBlocks(repo.textOr(".github/workflows/ci.yml") ?? "")
+			.filter((b) => !/^ {4}uses:/m.test(b) && /^ {4}needs:/m.test(b))
+			.map((b) => /^ {4}name:\s*(.+?)\s*$/m.exec(b)?.[1])
+			.find((n) => n !== undefined),
+		releaseGated: /^\s+uses:\s*\.\/\.github\/workflows\/ci\.ya?ml\s*$/m.test(
+			repo.textOr(".github/workflows/release.yml") ?? "",
+		),
 	};
 }

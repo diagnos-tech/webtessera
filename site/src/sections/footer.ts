@@ -22,8 +22,10 @@ import { html, type SafeHtml } from "../shared/html.ts";
 /** credits groups NOTICE's attributions by copyright holder and licence. */
 function credits(list: readonly Attribution[]): SafeHtml {
 	const groups = new Map<string, { names: Attribution[]; holder: string; license: string }>();
-	for (const a of list) {
-		const holder = a.copyright.replace(/^\d{4}\s+/, "");
+	// Test material is not part of the package, so it is not something the package translates.
+	for (const a of list.filter((x) => !x.testOnly)) {
+		// "2009 The Go Authors (atoi.go, quote.go)" holds the same copyright as "2017 The Go Authors".
+		const holder = a.copyright.replace(/^\d{4}\s+/, "").replace(/\s*\([^)]*\)$/, "");
 		const key = `${holder}|${a.license}`;
 		const g = groups.get(key) ?? { names: [], holder, license: a.license };
 		g.names.push(a);
@@ -59,16 +61,18 @@ export function renderFooter(d: SiteData): SafeHtml {
 			"Documentation",
 			[
 				["README", `${site.repo}#readme`],
+				["Guides", `${site.tree}docs/guides`],
+				["Safe API guide", `${site.blob}docs/guides/safe-api.md`],
+				["Compatibility", `${site.blob}docs/compatibility.md`],
 				["Porting map", `${site.blob}docs/PORTING-MAP.md`],
 				["Decision records", `${site.tree}docs/decisions`],
-				["Contributing", `${site.blob}CONTRIBUTING.md`],
-				["Examples", `${site.tree}examples`],
 			],
 		],
 		[
 			"Policies",
 			[
 				["Security policy", `${site.blob}SECURITY.md`],
+				["Contributing", `${site.blob}CONTRIBUTING.md`],
 				["Code of conduct", `${site.blob}CODE_OF_CONDUCT.md`],
 				["License", `${site.blob}LICENSE`],
 				["NOTICE", `${site.blob}NOTICE`],

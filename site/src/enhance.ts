@@ -12,14 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The only script every visitor downloads: copy buttons, the current section in the
-// navigation, and the live demo, which is fetched only when its section approaches the
-// viewport. The page is complete without it.
+// The only script every visitor downloads: copy buttons, the package-manager switchers kept
+// in step, the current section in the navigation, and the live demo, which is fetched only
+// when its section approaches the viewport. The page is complete without it.
 
 function copyTextFor(button: HTMLElement): string {
 	const scope = button.closest(".install, .code");
-	const source = scope?.querySelector("[data-copy-text], pre");
+	// An install switcher has one command per package manager; copy the one on show.
+	const candidates = [...(scope?.querySelectorAll<HTMLElement>("[data-copy-text], pre") ?? [])];
+	const source = candidates.find((el) => el.offsetParent !== null) ?? candidates[0];
 	return source?.textContent?.trim() ?? "";
+}
+
+const pmKey = "webtessera-site:package-manager";
+
+/** syncPackageManagers keeps every switcher on the last package manager chosen, and remembers it. */
+function syncPackageManagers(): void {
+	const radios = [...document.querySelectorAll<HTMLInputElement>("input.pm-radio")];
+	const choose = (value: string) => {
+		for (const r of radios) {
+			r.checked = r.value === value;
+		}
+	};
+	try {
+		const saved = localStorage.getItem(pmKey);
+		if (saved !== null && radios.some((r) => r.value === saved)) {
+			choose(saved);
+		}
+	} catch {
+		// Storage can be unavailable (private windows, blocked site data); the default stays.
+	}
+	for (const r of radios) {
+		r.addEventListener("change", () => {
+			choose(r.value);
+			try {
+				localStorage.setItem(pmKey, r.value);
+			} catch {
+				// Not remembered; the choice still applies to this page.
+			}
+		});
+	}
 }
 
 function wireCopyButtons(): void {
@@ -106,5 +138,6 @@ function loadDemoWhenNear(): void {
 }
 
 wireCopyButtons();
+syncPackageManagers();
 trackCurrentSection();
 loadDemoWhenNear();

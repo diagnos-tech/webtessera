@@ -13,11 +13,12 @@
 // limitations under the License.
 
 // Smoke test of the built site (dist/), in a real Chromium: the page loads without
-// console errors, carries its SEO metadata, reads completely without JavaScript, fits a
-// 320 px screen, and the live demo appends an entry, verifies its inclusion proof,
-// rejects a tampered one and fills a tile. Run `bun run build` first; `bun run ci` does both.
+// console errors or layout shifts, carries its SEO metadata, reads completely without
+// JavaScript, fits a 320 px screen, its install switcher works with and without script,
+// and the live demo appends an entry, verifies its inclusion proof, rejects a tampered one
+// and fills a tile. Run `bun run build` first; `bun run ci` does both.
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { Page } from "playwright";
@@ -27,7 +28,22 @@ import { launch, serve, siteDir } from "./browser.ts";
 const repoRoot = join(siteDir, "..");
 const site = siteConfig(repoRoot, process.env.SITE_URL);
 const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as { version: string };
-const sections = ["why", "demo", "quick-start", "storage", "build", "fidelity", "runtimes", "packages"];
+const sections = [
+	"quick-start",
+	"concepts",
+	"demo",
+	"storage",
+	"serve",
+	"examples",
+	"compatibility",
+	"security",
+	"api",
+	"runtimes",
+];
+// The examples the page must list: every directory of examples/ with a package.json.
+const exampleDirs = readdirSync(join(repoRoot, "examples")).filter((d) =>
+	existsSync(join(repoRoot, "examples", d, "package.json")),
+);
 
 let failures = 0;
 
@@ -80,16 +96,28 @@ async function seo(page: Page, url: string): Promise<void> {
 	check((await meta('meta[name="twitter:card"]')) === "summary_large_image", "twitter:card");
 	check((await page.locator('meta[name="theme-color"]').count()) === 2, "theme-color for light and dark");
 	const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}") as {
-		"@graph"?: { "@type": string; version?: string; codeRepository?: string; license?: string }[];
+		"@graph"?: {
+			"@type": string;
+			version?: string;
+			codeRepository?: string;
+			license?: string;
+			programmingLanguage?: { name?: string };
+			isBasedOn?: { codeRepository?: string };
+		}[];
 	};
 	const code = ld["@graph"]?.find((n) => n["@type"] === "SoftwareSourceCode");
 	check(
-		code?.version === pkg.version && code.codeRepository === site.repo && code.license !== undefined,
+		code?.version === pkg.version &&
+			code.codeRepository === site.repo &&
+			code.license !== undefined &&
+			code.programmingLanguage?.name === "TypeScript",
 		"JSON-LD SoftwareSourceCode",
 		`version ${code?.version}`,
 	);
+	check(code?.isBasedOn?.codeRepository === site.tessera, "JSON-LD isBasedOn Tessera", code?.isBasedOn?.codeRepository);
 	check(ld["@graph"]?.some((n) => n["@type"] === "WebSite") === true, "JSON-LD WebSite");
 	check((await page.locator("h1").count()) === 1, "exactly one h1");
+	check((await page.locator("img:not([alt])").count()) === 0, "every image has alt text");
 	const levels = await page
 		.locator("main h1, main h2, main h3, main h4")
 		.evaluateAll((els) => els.map((e) => Number(e.tagName.slice(1))));
@@ -122,11 +150,75 @@ async function content(page: Page, label: string): Promise<void> {
 		`${await page.locator("pre.shiki").count()}`,
 	);
 	check(
-		(await page.locator(".hero .note-body .ln").first().textContent()) === site.origin,
-		"hero checkpoint origin line",
+		(await page.locator(".hero .receipt .note-body .ln").first().textContent()) === "c2sp.org/tlog-proof@v1",
+		"hero receipt is a tlog-proof",
 	);
-	check((await page.locator("#packages details.pkg").count()) >= 10, "package map lists entry points");
+	check(
+		(await page.locator('.hero .receipt [data-label="origin"]').textContent()) === site.origin,
+		"hero receipt's checkpoint origin line",
+	);
+	check(
+		(await page.locator("#quick-start pre.shiki").first().textContent())?.includes("openServerLog") === true,
+		"the quick start opens with the safe API",
+	);
+	check((await page.locator("#api details.pkg").count()) >= 10, "package map lists entry points");
 	check((await page.locator(".port-grid i").count()) > 100, "porting map mosaic");
+	const listed = await page
+		.locator("#examples .example h3 a")
+		.evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
+	check(
+		listed.length === exampleDirs.length &&
+			exampleDirs.every((dir) => listed.some((h) => h.endsWith(`/examples/${dir}`))),
+		"every example is listed, with a link to its folder",
+		`${listed.length} of ${exampleDirs.length}`,
+	);
+	const commands = await page.locator(".hero .install .pm-pane").evaluateAll((els) =>
+		els.map((e) => ({
+			text: e.textContent?.replace(/^\$\s*/, "").trim() ?? "",
+			shown: (e as HTMLElement).offsetParent !== null,
+		})),
+	);
+	check(
+		["npm", "bun", "pnpm", "yarn"].every((m) => commands.some((c) => c.text.startsWith(`${m} `))),
+		"install commands for npm, bun, pnpm and yarn",
+		commands.map((c) => c.text).join(" | "),
+	);
+	check(commands.filter((c) => c.shown).length === 1, "exactly one install command is on show");
+}
+
+async function installSwitcher(page: Page): Promise<void> {
+	heading("Install switcher");
+	await page.locator(".hero .pm-tabs label", { hasText: "pnpm" }).click();
+	const shown = async (scope: string) =>
+		page
+			.locator(`${scope} .pm-pane`)
+			.evaluateAll((els) =>
+				els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => e.textContent?.trim() ?? ""),
+			);
+	const hero = await shown(".hero");
+	check(hero.length === 1 && hero[0]?.includes("pnpm add") === true, "choosing pnpm shows its command", hero.join(""));
+	const start = await shown("#quick-start");
+	check(start[0]?.includes("pnpm add") === true, "the quick start's switcher follows", start.join(""));
+	await page.locator(".hero .pm-tabs label", { hasText: "npm" }).first().click();
+}
+
+async function layoutShift(page: Page): Promise<void> {
+	heading("Layout stability");
+	const cls = await page.evaluate(
+		() =>
+			new Promise<number>((resolve) => {
+				let total = 0;
+				new PerformanceObserver((list) => {
+					for (const e of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[]) {
+						if (!e.hadRecentInput) {
+							total += e.value;
+						}
+					}
+				}).observe({ type: "layout-shift", buffered: true });
+				setTimeout(() => resolve(total), 1500);
+			}),
+	);
+	check(cls < 0.05, "cumulative layout shift on load", cls.toFixed(4));
 }
 
 async function demo(page: Page): Promise<void> {
@@ -220,8 +312,10 @@ try {
 	const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 	const problems = watch(page);
 	await page.goto(served.url);
+	await layoutShift(page);
 	await seo(page, served.url);
 	await content(page, "JavaScript on");
+	await installSwitcher(page);
 	await demo(page);
 	await narrow(page, served.url);
 	heading("Console");

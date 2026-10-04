@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// What a transparency log is, in five ideas and one picture.
+// What a transparency log is, in six ideas and one picture.
 
 import type { SectionSpec } from "../components/section.ts";
 import { merkleTree } from "../components/tree.ts";
@@ -40,17 +40,22 @@ const ideas: readonly { title: string; text: string; spec?: [string, string] }[]
 		spec: ["C2SP tlog-tiles", "https://c2sp.org/tlog-tiles"],
 	},
 	{
+		title: "Receipts travel",
+		text: "A receipt bundles an entry’s index, its inclusion proof and the signed checkpoint. Whoever holds it and the log’s public key can check it offline, without asking the log.",
+		spec: ["C2SP tlog-proof", "https://c2sp.org/tlog-proof"],
+	},
+	{
 		title: "Witnesses keep it honest",
 		text: "Independent witnesses cosign checkpoints they have checked for consistency, so a log cannot show different histories to different readers.",
 		spec: ["C2SP tlog-witness", "https://c2sp.org/tlog-witness"],
 	},
 ];
 
-/** why is the section explaining transparency logs. */
-export function why(_d: SiteData): SectionSpec {
+/** concepts is the section explaining transparency logs. */
+export function concepts(_d: SiteData): SectionSpec {
 	return {
-		id: "why",
-		nav: "Why",
+		id: "concepts",
+		nav: "Concepts",
 		title: "An append-only log that anyone can check",
 		lead: "A transparency log is a tamper-evident record. Its operator can add entries but cannot remove, reorder or rewrite them unnoticed, because every reader can check two things alone: that an entry is in the log, and that today’s log extends yesterday’s. Certificate Transparency, the Go checksum database and Sigstore’s signature log all work this way.",
 		body: html`<div class="why-grid">

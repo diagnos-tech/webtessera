@@ -13,23 +13,27 @@
 // limitations under the License.
 
 // Puts the page together: the head, then header, hero, the numbered sections and the
-// footer. The order of `sections` is the order of the page and of its navigation.
+// footer. The order of `sections` is the order of the page and of its navigation: the safe
+// API first, then what a log is and a live one, where it is kept, what is built around it,
+// the examples, the evidence and the security posture, and the full ported API last.
 
 import type { Highlight } from "./components/code.ts";
 import { section } from "./components/section.ts";
 import type { SiteData } from "./data/index.ts";
-import { build } from "./sections/build.ts";
+import { api } from "./sections/api.ts";
+import { compatibility } from "./sections/compatibility.ts";
+import { concepts } from "./sections/concepts.ts";
 import { demo } from "./sections/demo.ts";
-import { fidelity } from "./sections/fidelity.ts";
+import { examples } from "./sections/examples.ts";
 import { renderFooter } from "./sections/footer.ts";
 import { renderHead } from "./sections/head.ts";
 import { renderHeader } from "./sections/header.ts";
 import { renderHero } from "./sections/hero.ts";
-import { packages } from "./sections/packages.ts";
 import { quickstart } from "./sections/quickstart.ts";
 import { runtimes } from "./sections/runtimes.ts";
+import { security } from "./sections/security.ts";
+import { serve } from "./sections/serve.ts";
 import { storage } from "./sections/storage.ts";
-import { why } from "./sections/why.ts";
 import { html } from "./shared/html.ts";
 
 /** Page is the rendered page, as the two placeholders of index.html receive it. */
@@ -49,14 +53,16 @@ function minify(markup: string): string {
 /** renderPage renders the whole page from the repository's data. */
 export function renderPage(d: SiteData, hl: Highlight): Page {
 	const sections = [
-		why(d),
-		demo(d),
 		quickstart(d, hl),
+		concepts(d),
+		demo(d),
 		storage(d, hl),
-		build(d),
-		fidelity(d),
+		serve(d),
+		examples(d),
+		compatibility(d),
+		security(d),
+		api(d, hl),
 		runtimes(d),
-		packages(d),
 	];
 	const body = html`${renderHeader(d, sections)}
 <main id="main">
