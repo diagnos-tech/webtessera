@@ -1,6 +1,6 @@
 # ADR-0023: `Note`'s signature lists are optional, and `generateKey` keeps its randomness parameter
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** note contributor
 - **Upstream reference:** `golang.org/x/mod/sumdb/note/note.go`, `note_test.go`, `example_test.go`

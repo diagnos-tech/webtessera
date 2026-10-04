@@ -1,6 +1,6 @@
 # ADR-0064: `client/fetcher.go`'s `FileFetcher` is not ported
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** client contributor
 - **Upstream reference:** `client/fetcher.go` (`FileFetcher`)

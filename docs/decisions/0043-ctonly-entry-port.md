@@ -1,6 +1,6 @@
 # ADR-0043: `ctonly.Entry` becomes a class with a field-object constructor, and gains the test file upstream lacks
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** ct contributor
 - **Upstream reference:** `ctonly/ct.go`

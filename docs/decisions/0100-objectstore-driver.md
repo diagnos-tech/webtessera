@@ -122,3 +122,10 @@ dropped (ADR-0103), and the public names differ (ADR-0104).
   - Not blocking, but the record should be kept straight with an Update line: (1) the Decision names
     `src/storage/durableobject/`, which ADR-0150 deleted (ADR-0120 to ADR-0123 carry the supersession); (2) "every other
     error text is upstream's" is no longer exact after ADR-0205 added `initialise`'s refusal and `checkPublishable`.
+
+## Update (2026-10-04)
+
+The Durable Object backend that the Context and Consequences name (`src/storage/durableobject/`, ADR-0120 to
+ADR-0123) was removed. ADR-0150 replaced it with the SQLite backend, of which a SQLite-backed Durable Object is one
+engine (`fromDurableObjectStorage`). The backends today are memory, IndexedDB and SQLite (ADR-0104, ADR-0110 to
+ADR-0113, ADR-0150 to ADR-0155).

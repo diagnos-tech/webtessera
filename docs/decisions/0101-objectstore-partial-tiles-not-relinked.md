@@ -103,3 +103,29 @@ This is correct because:
     distinguish the drivers except by response size"), and the premise of the first alternative ("emulating the symlink's
     content"). In a normal deployment both drivers hold identical partial files, which strengthens the decision. I would
     approve once the record says what POSIX actually does.
+
+## Update (2026-10-04): what POSIX actually leaves on disk
+
+This answers the Review above. The decision stands, on firmer ground.
+
+- **Context.** At 4a6d9f9, `writeTile` passes the log-root-relative `tPath` (`layout.TilePath(...)`) unjoined to
+  `filepath.Glob(tPath + ".p/*")` and to `os.Symlink(tPath, tmp)`. Only `createOverwrite` joins it with
+  `cfg.Path`. So the relinking described above happens only when the process's working directory is the log root.
+  Both the reviewer and ADR-0162's interop harness reproduced it with the real POSIX driver, for batches ending at
+  1, 255, 256 and 300 entries.
+  - In a normal deployment, with the working directory outside the log, the glob finds nothing. `tile/0/000.p/1`
+    (32 bytes) and `tile/0/000.p/255` (8160 bytes) stay regular files with their partial contents.
+  - With the working directory at the log root, they become symlinks to `tile/0/000`. That target resolves
+    relative to the link's own directory, so the links dangle, and readers fall back to the full tile.
+
+  So the sentence "a request for `tile/0/000.p/7` is answered with the full tile" holds only in that second case.
+- **Consequences.**
+  - The first bullet's "where a POSIX directory holds symlinks" should read: where a POSIX directory holds the same
+    superseded partial files, in a normal deployment. With garbage collection off, both drivers then keep the same
+    files.
+  - The second bullet's "a client cannot distinguish the drivers except by response size" applies only against a
+    POSIX log run from its own root. Otherwise the responses are identical.
+- **First alternative.** Its premise, "emulating the symlink's content", describes the rare case. In the normal
+  case there is no symlink content to emulate, which is one more reason to reject it.
+
+ADR-0162 records the same finding from the interop side.

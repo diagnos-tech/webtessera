@@ -152,3 +152,51 @@ the explicit `null` size or `fromSize` row; and every listed syntax-error wordin
 nesting case (Go reports `exceeded max depth`, the codec overflows its stack, both reject). Marshal is byte-identical across
 781 inputs. Not covered by the update, so still missing from the ADR: nested duplicate keys and the exact-plus-case-variant
 key (items 1 and 2 of the Review), and the "only then applies its own refusals" sentence (item 3).
+
+## Update (2026-10-04): which member sets which field, and the order of refusals
+
+This answers the four points of the Review above.
+
+1. **Repeated keys inside a skipped member are skipped, as in Go.** The reader checked for duplicates at every
+   depth, so `{"size":1,"root":"AAAA","x":{"a":1,"a":2}}` was rejected. The same held inside an array, or for a
+   skipped key repeated at the top (`"x":1,"x":2`). Go loads all three. The reader now returns every member in
+   document order and checks nothing about keys. The Decision's "unknown keys are skipped, whatever their value, as
+   it would in Go" is now true.
+2. **Members set fields by Go's rule.** For each key, `encoding/json` takes the field whose name equals the key.
+   Failing that, it takes the field whose name equals it under `foldName`, and failing that, none. Each member is
+   decoded in document order, so the last member that sets a field wins. Probes under Go 1.24.7 and 1.25.5 confirm
+   this:
+   - `{"size":1,"root":"AAAA","Size":3}` gives size 3, and `{"Size":3,"size":1,…}` gives size 1.
+   - `{"SIZE":5,"ROOT":"AAAA"}` loads.
+   - `ſize` (U+017F) folds with `size`, but `sıze` (the dotless i) does not.
+   - U+017F and U+212A are the only non-ASCII runes whose fold class holds an ASCII letter. An enumeration of every
+     rune under Go's `foldRune` confirms it.
+
+   The codec now picks fields the same way (`fieldOf`, `foldName` in `json.ts`). So the table's third row ("a key
+   differing only in case is ignored, so the field is missing") no longer applies: such a key sets the field, as
+   in Go. When two members set the same field, the fourth row applies: the codec refuses
+   (`json: duplicate field "Size"`) where Go keeps the last. Before, it silently took the exact key, so the value
+   it read could differ from Go's. Now it refuses, consistently with an exact key repeated. Taking the last member
+   instead would mean dropping the fourth row, which is an original decision of this ADR. That is left to the
+   maintainers.
+3. **The port's refusals now come after Go's errors, so the Update's sentence holds.** `fieldValues` checks
+   every member's value against its field in document order, including repeated members. Only then does it refuse a
+   field set twice, and after that a null or missing field. So `{"size":5,"size":6,"root":"cm9vdCk"}` now reports
+   Go's `illegal base64 data at input byte 4`. `{"size":5,"Size":-1,…}` reports Go's type error for `-1`.
+4. `json.ts` is 476 lines, no longer "under 400".
+
+Tests in `json_test.ts`, each against the Go output above:
+- accepted: repeated keys in a skipped object or array, a skipped key repeated, keys differing in case, and `ſize`;
+- rejected only by the port: the dotless `ı` (Go leaves size 0), and the two orders of an exact key with a case
+  variant;
+- Go's error first: the two inputs in point 3;
+- `gcState`: `FROMSIZE`, `fromſize`, a skipped object with a repeated key, and `fromsize` with `fromSize`.
+
+A differential of 4,000 generated inputs ran through Go 1.25.5, whose output was identical to Go 1.24.7's. The
+inputs mix the keys `size`, `Size`, `SIZE`, `ſize`, `sıze`, `root`, `Root`, `ROOT`, `x`, `X` and `fromSize` with
+values of every kind. Results:
+- 1,990 loaded with the same size and root.
+- 13 were rejected with Go's own text.
+- 1,997 were refused only by the port, each in one of its documented rows: missing field, null field, or field
+  set twice.
+- None loaded where Go failed, and none loaded with a different value.

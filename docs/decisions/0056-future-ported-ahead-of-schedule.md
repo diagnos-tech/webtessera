@@ -137,3 +137,11 @@ promise, so a value set together with an error is unobservable, which `get()`'s 
 is not reported as an unhandled rejection (port note in the file; test at line 86). It is a deliberate fidelity measure (a Go future set with an error that nobody
 reads is garbage) and it changes nothing a caller can observe through `get()`, but it is a behavioural choice of this ADR's file and belongs in a line of this ADR's
 next Update. Not blocking.
+
+## Update (2026-10-04)
+
+The Review notes one behaviour of `newFutureErr` that no ADR recorded: it calls `promise.catch(() => undefined)` on
+the future's promise. A Go future set with an error that nobody reads is simply garbage. A rejected promise that
+nobody awaits is instead reported as an unhandled rejection, which some runtimes make fatal. Marking it handled
+keeps Go's semantics, and `get()` still rethrows the error. The Port note in `future.ts` says so, and
+`future_test.ts` pins it.

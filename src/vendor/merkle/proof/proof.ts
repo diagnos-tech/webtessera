@@ -50,12 +50,17 @@ export class Nodes {
 	 */
 	_ephem: NodeID;
 
-	/** @internal Stands in for Go's `Nodes{...}` composite literal. */
-	constructor(ids: NodeID[], begin: number, end: number, ephem: NodeID) {
+	/**
+	 * Stands in for Go's `Nodes{IDs: ids}` composite literal, which code outside the
+	 * package may write because IDs is exported. The unexported fields keep their zero
+	 * values; only nodesLiteral, which stands in for the in-package literal, sets them.
+	 * See docs/decisions/0208-merkle-barrels-and-tuple-returns.md.
+	 */
+	constructor(ids: NodeID[] = []) {
 		this.ids = ids;
-		this._begin = begin;
-		this._end = end;
-		this._ephem = ephem;
+		this._begin = 0;
+		this._end = 0;
+		this._ephem = newNodeID(0, 0n);
 	}
 
 	/**
@@ -117,8 +122,21 @@ export class Nodes {
 			begin--;
 			end--;
 		}
-		return new Nodes(ids, begin, end, this._ephem);
+		return nodesLiteral(ids, begin, end, this._ephem);
 	}
+}
+
+/**
+ * @internal nodesLiteral stands in for Go's in-package composite literal
+ * `Nodes{IDs: ids, begin: begin, end: end, ephem: ephem}`, which sets the fields only
+ * package proof can reach. See docs/decisions/0010-package-private-members.md.
+ */
+export function nodesLiteral(ids: NodeID[], begin: number, end: number, ephem: NodeID): Nodes {
+	const n = new Nodes(ids);
+	n._begin = begin;
+	n._end = end;
+	n._ephem = ephem;
+	return n;
 }
 
 /**
@@ -152,7 +170,7 @@ export function consistency(size1: bigint, size2: bigint): Nodes {
 		throw new Error(`tree size ${size1} > ${size2}`);
 	}
 	if (size1 === size2 || size1 === 0n) {
-		return new Nodes([], 0, 0, newNodeID(0, 0n));
+		return new Nodes([]);
 	}
 
 	// Find the root of the biggest perfect subtree that ends at size1.
@@ -229,7 +247,7 @@ function nodes(index: bigint, level: number, size: bigint): Nodes {
 		len2 = 0;
 	}
 
-	return new Nodes(ids, len1, len2, fork.sibling());
+	return nodesLiteral(ids, len1, len2, fork.sibling());
 }
 
 /**

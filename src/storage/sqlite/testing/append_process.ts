@@ -13,12 +13,14 @@
 // limitations under the License.
 
 // A process that appends to a log kept in a SQLite file, for the tests that run several of
-// them against one file at once. It opens the file with node:sqlite and the store's default
-// options, appends `count` entries named after `tag`, and writes the indices they were
-// assigned to stdout as a JSON array of decimal strings. Test-only, Node-only; run it
-// directly, as Node strips its types:
+// them against one file at once. It opens the file with the engine named by `engine`
+// ("node:sqlite", or "libsql" for @libsql/client with a busy timeout, as fromLibsql's
+// documentation asks of a file several processes share) and the store's default options,
+// appends `count` entries named after `tag`, and writes the indices they were assigned to
+// stdout as a JSON array of decimal strings. Test-only, Node-only; run it directly, as Node
+// strips its types:
 //
-//	node append_process.ts <file> <tag> <count> <signer key>
+//	node append_process.ts <engine> <file> <tag> <count> <signer key>
 
 import { argv, stdout } from "node:process";
 import { DatabaseSync } from "node:sqlite";
@@ -26,22 +28,34 @@ import { newAppender, newAppendOptions } from "../../../append_lifecycle.ts";
 import { newEntry } from "../../../entry.ts";
 import { toUTF8 } from "../../../internal/gostd/bytes.ts";
 import { newSigner } from "../../../vendor/note/note.ts";
+import { fromLibsql } from "../adapters/libsql.ts";
 import { fromSqliteSync } from "../adapters/sync.ts";
+import { DefaultBusyTimeoutMs } from "../adapters/syncengine.ts";
+import type { SqlDatabase } from "../database.ts";
 import { newSqliteDriver } from "../sqlite.ts";
 
-const [file = "", tag = "", count = "0", skey = ""] = argv.slice(2);
-const db = new DatabaseSync(file);
+const [engine = "", file = "", tag = "", count = "0", skey = ""] = argv.slice(2);
+let database: SqlDatabase;
+let close: () => void;
+if (engine === "node:sqlite") {
+	const db = new DatabaseSync(file);
+	database = fromSqliteSync(db);
+	close = () => db.close();
+} else if (engine === "libsql") {
+	const { createClient } = await import("@libsql/client");
+	const client = createClient({ url: `file:${file}`, timeout: DefaultBusyTimeoutMs });
+	database = fromLibsql(client);
+	close = () => client.close();
+} else {
+	throw new Error(`unknown engine ${JSON.stringify(engine)}`);
+}
 const ac = new AbortController();
 const opts = newAppendOptions()
 	.withCheckpointSigner(newSigner(skey))
 	.withBatching(16, 5)
 	.withCheckpointInterval(100)
 	.withCheckpointRepublishInterval(0);
-const { appender, shutdown } = await newAppender(
-	await newSqliteDriver({ database: fromSqliteSync(db) }),
-	opts,
-	ac.signal,
-);
+const { appender, shutdown } = await newAppender(await newSqliteDriver({ database }), opts, ac.signal);
 const indices = await Promise.all(
 	Array.from({ length: Number(count) }, async (_, i) =>
 		String((await appender.add(newEntry(toUTF8(`${tag} ${i}`)))()).index),
@@ -49,5 +63,5 @@ const indices = await Promise.all(
 );
 await shutdown();
 ac.abort();
-db.close();
+close();
 stdout.write(JSON.stringify(indices));

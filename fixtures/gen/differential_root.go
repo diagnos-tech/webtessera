@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -178,7 +179,7 @@ func genDiffWitnessPolicy() diffFile {
 	record := func(p []byte, key any) []any {
 		wg, err := tessera.NewWitnessGroupFromPolicy(p)
 		if err != nil {
-			return []any{key, err.Error()}
+			return []any{key, err.Error(), policyErrLine(p)}
 		}
 		var eps []string
 		for u := range wg.Endpoints() {
@@ -235,13 +236,38 @@ func genDiffWitnessPolicy() diffFile {
 		upstream:    "github.com/transparency-dev/tessera (witness.go)",
 		sections: []diffSection{
 			dValue("columns", map[string]any{
-				"cases":  []string{"policy", "err", "group tree ([\"group\", N, children] / [\"witness\", key name, key hash, URL])", "sorted endpoint URLs"},
-				"binary": []string{"policyHex (not valid UTF-8)", "err", "group tree, or \"notUTF8\" where it holds bytes that are not valid UTF-8", "sorted endpoint URLs"},
+				"cases":  []string{"policy", "err", "group tree ([\"group\", N, children] / [\"witness\", key name, key hash, URL]), or for a rejected policy the line its error comes from (policyErrLine)", "sorted endpoint URLs"},
+				"binary": []string{"policyHex (not valid UTF-8)", "err", "group tree, or \"notUTF8\" where it holds bytes that are not valid UTF-8, or for a rejected policy the line its error comes from (policyErrLine)", "sorted endpoint URLs"},
 			}),
 			dRows("cases", rows),
 			dRows("binary", binRows),
 		},
 	}
+}
+
+// policyErrLine returns the number, counted from 1, of the line whose processing
+// NewWitnessGroupFromPolicy fails on, or 0 when it processes every line (it accepts
+// the policy, or rejects it only in the checks after the last line). It runs the
+// upstream function on each prefix of whole lines (cut after each '\n', the line
+// end bufio.ScanLines splits at) followed by a valid "quorum none" line, so that
+// only a line's own error can fail it. The differential suite needs it to tell an
+// error Go reports later in the policy than the port's documented refusals
+// (docs/decisions/0216-differential-divergence-allow-list.md) from an earlier one.
+func policyErrLine(p []byte) int {
+	line := 0
+	for start := 0; start < len(p); {
+		end := len(p)
+		if i := bytes.IndexByte(p[start:], '\n'); i >= 0 {
+			end = start + i + 1
+		}
+		line++
+		prefix := append(append([]byte{}, p[:end]...), "\nquorum none\n"...)
+		if _, err := tessera.NewWitnessGroupFromPolicy(prefix); err != nil {
+			return line
+		}
+		start = end
+	}
+	return 0
 }
 
 // validUTF8Tree reports whether every string in a recorded policy tree and

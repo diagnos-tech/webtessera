@@ -18,14 +18,15 @@
 // only through the individual modules, or not at all.
 // See docs/decisions/0010-package-private-members.md.
 //
-// Two deliberate differences, both type-only (docs/decisions/0208-merkle-barrels-and-tuple-returns.md):
-//   - Nodes is exported as a type only: Go's Nodes has unexported fields, so only
-//     Inclusion and Consistency produce one outside the package.
-//   - LogHasher, which Go declares in the root `merkle` package (merkle/hasher.go),
-//     is re-exported as a type. The root package has no entry point of its own in
-//     this port, and every verifier here takes a LogHasher, so this is where a
-//     caller implementing one finds the interface to implement.
+// Nodes is exported as Go exports it: its IDs field is `ids`, and `new Nodes(ids)` is
+// Go's `proof.Nodes{IDs: ids}`, the literal code outside the package may write.
+//
+// One deliberate difference, type-only (docs/decisions/0208-merkle-barrels-and-tuple-returns.md):
+// LogHasher, which Go declares in the root `merkle` package (merkle/hasher.go), is
+// re-exported as a type. The root package has no entry point of its own in this port,
+// and every verifier here takes a LogHasher, so this is where a caller implementing
+// one finds the interface to implement.
 
 export type { LogHasher } from "../hasher.ts";
-export { consistency, inclusion, type Nodes } from "./proof.ts";
+export { consistency, inclusion, Nodes } from "./proof.ts";
 export { RootMismatchError, rootFromInclusionProof, verifyConsistency, verifyInclusion } from "./verify.ts";

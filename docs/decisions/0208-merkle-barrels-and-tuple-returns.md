@@ -60,3 +60,28 @@ Three findings of the 2026-10-02 merkle fidelity audit concern the shape of the 
   - Factual error in the Context and Consequences: they say Go's `Nodes{...}` literal is package-private 'because the types have unexported fields', that outside their modules only `inclusion`/`consistency` construct a `Nodes` 'exactly as in Go', and that the barrels no longer offer constructors 'Go keeps package-private'. In Go `proof.Nodes` has an exported field, `IDs []compact.NodeID` (`proof.go:28-31`), so `proof.Nodes{IDs: ids}` compiles outside the package and works with `Rehash`/`Ephem`; TypeScript's type-only export also leaves `ids` assignable. The decision to hide the constructor is defensible, but it narrows Go's surface for `Nodes` (and `&compact.Range{}` is a legal zero literal outside Go's package too).
   - Required change: correct those statements and list the narrowing for `Nodes` under Consequences.
   - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
+
+## Update (2026-10-04): `Nodes` is exported as Go exports it
+
+This answers the Review above, by the fidelity route. The decision changes for `Nodes` only.
+
+- **The Context was wrong about `Nodes`.** Go's `proof.Nodes` has an exported field, `IDs []compact.NodeID`
+  (`proof.go:28-31`). So `proof.Nodes{IDs: ids}` compiles outside the package, and tessera's own
+  `client/client_test.go:337` writes exactly that. Go's literal is public, with the unexported `begin`, `end` and
+  `ephem` left at their zero values. It is not package-private, and `inclusion` and `consistency` are not the only
+  way to obtain one.
+- **The port now has the same surface.** The `Nodes` constructor (`src/vendor/merkle/proof/proof.ts`) is Go's
+  exported literal: `new Nodes(ids)` sets `ids`, Go's `IDs` named by ADR-0010's mapping, and leaves the unexported
+  fields at their zero values. `new Nodes()` is Go's `Nodes{}`. Only `nodesLiteral`, which is `@internal`, can set
+  `_begin`, `_end` and `_ephem`. It stands in for the in-package literal and is used by `inclusion`, `consistency`,
+  `skipFirst` and the ported in-package tests. The barrel (`proof/index.ts`) exports `Nodes` as a value again, and
+  its comment says why. `client_test.ts` now builds `new Nodes([...])`, as Go's test builds
+  `proof.Nodes{IDs: []compact.NodeID{...}}`.
+- **Probe and test.** merkle@v0.0.2 under Go 1.25.5 gives an outside-built `Nodes{IDs: ids}` an `Ephem()` of
+  `({0 0}, 0, 0)`, and its `Rehash` returns the hashes unchanged. The zero `Nodes{}` behaves the same, with no IDs.
+  `proof_test.ts`, "Nodes built outside the package", asserts those values on the barrel's `Nodes`.
+- **`Range` is still a type only, and that is a narrowing.** In Go, `&compact.Range{}` is a legal zero literal
+  outside the package, though every field is unexported. Its factory is nil, so it cannot append or hash. The port
+  does not offer it: `Range` stays a type-only export, and only `RangeFactory` constructs one. So the Consequences
+  sentence "the published surface no longer offers unvalidated constructors that Go keeps package-private" holds
+  for `Range`'s four-field literal. Go's zero `&compact.Range{}` is the one narrowing left.

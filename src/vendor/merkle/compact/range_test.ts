@@ -20,7 +20,7 @@
 
 import { describe, expect, it } from "vitest";
 import { len64 } from "../../../internal/gostd/bits.ts";
-import { bytesEqual, toBase64, toUTF8 } from "../../../internal/gostd/bytes.ts";
+import { bytesEqual, toBase64, toHex, toUTF8 } from "../../../internal/gostd/bytes.ts";
 import { newRand } from "../../../internal/gostd/rand.ts";
 import { DefaultHasher } from "../rfc6962/rfc6962.ts";
 import { compactTrees, leafInputs, rootHashes } from "../testonly/constants.ts";
@@ -583,5 +583,28 @@ describe("uint64 domain (port hardening)", () => {
 		rng.append(DefaultHasher.hashLeaf(toUTF8("x")), null);
 		expect(rng.begin()).toBe(max);
 		expect(rng.end()).toBe(0n);
+	});
+
+	// getMergePath(0, 0, MaxUint64) wraps Go's uint(high-1) to MaxUint, so the merge
+	// loop runs until it indexes past the right range's 63 remaining hashes. The
+	// expected values were printed by merkle@v0.0.2 under Go 1.25.5: 63 visits, from
+	// node (65, 0) to (127, 0), then the panic, with the range left as it was.
+	it("panics as Go does when [0, MaxUint64) is appended to an empty range", () => {
+		const max = B64 - 1n;
+		const hashes = Array.from({ length: 64 }, (_, i) => DefaultHasher.hashLeaf(toUTF8(`leaf ${i}`)));
+		const other = factory.newRange(0n, max, hashes);
+		const rng = factory.newEmptyRange(0n);
+		const visited: { id: NodeID; hash: Uint8Array }[] = [];
+		expect(() => rng.appendRange(other, (id, hash) => visited.push({ id, hash }))).toThrowError(
+			/^runtime error: index out of range \[63\] with length 63$/,
+		);
+		expect(visited).toHaveLength(63);
+		expect(visited[0]?.id).toEqual(newNodeID(65, 0n));
+		expect(visited[62]?.id).toEqual(newNodeID(127, 0n));
+		expect(toHex(visited[62]?.hash as Uint8Array)).toBe(
+			"eafdf4dd750e5f8f536259034fd0993db7a53dfcdbce79cb038bfa3ca895bb12",
+		);
+		expect(rng.end()).toBe(0n);
+		expect(rng.hashes()).toHaveLength(0);
 	});
 });

@@ -88,3 +88,52 @@ concern I/O the corpora do not perform. Each is covered by the owning work packa
 - Commands are `bun run fixtures` and `bun run test:parity` since ADR-0240.
 
 **Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. Each bullet checked: the two retired entries are gone from code and tests; `witness-url-https` cites 0185 and 0241, `witness-url-fetchable` cites 0241 and `witness-policy-utf8` cites 0242 in `DIVERGENCES`, and `root.ts` requires all four; `merkle-hash-size` matches `checkVerify` (see Notes); for `invalid-utf8-text` the port writes the character U+FFFD itself (ADR-0204's `quote`; only a lone surrogate becomes the escape) and the comparison collapses both spellings; the commands match `package.json` (`bun run fixtures`, `bun run test:parity`). Request 1 above concerns the Decision, not this Update.
+
+## Update (2026-10-04): the policy suite checks Go's side; the quote bound checks its cut
+
+This answers Request 1 and the minor point of the Review above, by tightening the code. The Decision's sentence
+now holds for every entry: a suite applies an entry only where Go's verdict and the port's match its rule.
+
+- **The four policy entries now check Go's verdict.**
+  - `fixtures/gen/differential_root.go` now records, for every policy Go rejects, the line its error comes from
+    (`policyErrLine`). This line is counted from 1, and is 0 when Go processes every line and fails only in its
+    checks after the last.
+  - The generator finds that line with upstream's own function: it runs `NewWitnessGroupFromPolicy` on each
+    prefix of whole lines followed by a valid `quorum none` line. It computes no verdict itself (§5).
+  - `differential_witness_policy.json` gains that column for rejected rows. Nothing else in it changes.
+  - `src/testonly/testing/differential/root.ts` finds the port's refused line the same way (`portErrLine`).
+    `goAgrees` then applies the entry only if Go processed every earlier line as the port did.
+  - For `witness-url-https`, `witness-url-fetchable` and a verifier key repeated on a witness line, Go must also
+    accept that line itself. The port checks the endpoint after every check of Go's on the line, so Go's error, if
+    any, comes later.
+  - For a threshold of 0 or a child repeated on a group line, Go may instead fail later on that same line, with
+    `invalid component name` or `unknown component … in group definition` for a child the port never reaches.
+  - For `witness-policy-utf8`, only the earlier lines are constrained.
+  - Any other record fails, with the port's line and Go's.
+  - The `rule` text of each entry in `DIVERGENCES` now states these conditions. They also refine this ADR's table
+    rows for the four entries.
+- **What the committed corpus shows**, by entry and Go's verdict:
+
+  | Entry | Go accepts | Go fails on a later line | Go fails later on the same line | Go fails only after the last line |
+  | --- | --- | --- | --- | --- |
+  | `witness-url-https` | 7 | 13 | 0 | 4 |
+  | `witness-quorum-hardening` | 5 | 2 | 7 | 1 |
+  | `witness-url-fetchable` | 8 | 0 | 0 | 0 |
+  | `witness-policy-utf8` | 21 | 6 | 114 | 7 |
+
+  Each entry is still applied at least once, and the suite still requires all four.
+- **Mutation check.** The URL check was moved before the verifier key in a scratch copy of `newWitness`. The
+  tightened suite then fails on four records where Go rejects the key on the same line. The suite before this
+  change would have passed them, since it looked only at the port's message.
+- **`sameModuloQuoteBound` checks the cut.** It now also requires the port's quoted prefix to spell exactly
+  `maxQuotedNum` (64) code points, counting each escape as one. With the bound changed to 63 in a scratch copy, the
+  gostd and checkpoint differential suites fail. Before this change they would have passed, since a shorter prefix
+  still satisfied the old check.
+- **The bundle branch of `tile-bundle-size-limit`, stated.** For entry bundles the entry is applied where Go parses
+  more than 256 entries, or where Go rejects the bundle with any error. The second case is sound because the port
+  has parsed the first 256 entries as Go did before it stops at the 257th. Go's error is therefore on an entry after
+  them: an earlier malformation would have given the port Go's own error. The rule text in `DIVERGENCES` now says
+  so. Tiles are applied only where Go parses more than 256 hashes.
+- **The doc comment of `sameModuloInvalidUTF8`** now describes what the port writes: a literal U+FFFD for each
+  invalid sequence, and the `�` escape only for a lone surrogate. This matches this ADR's first 2026-10-04
+  update.

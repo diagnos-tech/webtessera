@@ -42,9 +42,7 @@ export function marshalTreeState(ts: treeState): Uint8Array {
  * for the inputs Go would accept and this rejects.
  */
 export function unmarshalTreeState(raw: Uint8Array): treeState {
-	const fields = decodeObject(raw, "treeState");
-	const kinds = { size: "uint64", root: "bytes" } as const;
-	checkTypes(fields, "treeState", kinds);
+	const fields = fieldValues(decodeObject(raw, "treeState"), "treeState", { size: "uint64", root: "bytes" });
 	return {
 		size: uint64Field(fields, "treeState", "size"),
 		root: bytesField(fields, "treeState", "root"),
@@ -58,8 +56,7 @@ export function marshalGCState(gs: gcState): Uint8Array {
 
 /** unmarshalGCState parses a gcState written by marshalGCState or by the Go POSIX driver. */
 export function unmarshalGCState(raw: Uint8Array): gcState {
-	const fields = decodeObject(raw, "gcState");
-	checkTypes(fields, "gcState", { fromSize: "uint64" });
+	const fields = fieldValues(decodeObject(raw, "gcState"), "gcState", { fromSize: "uint64" });
 	return { fromSize: uint64Field(fields, "gcState", "fromSize") };
 }
 
@@ -76,15 +73,14 @@ type jsonValue =
 	| { readonly kind: "array"; readonly elements: readonly jsonValue[] }
 	| { readonly kind: "bool" | "object" };
 
+/** member is one key and value of a JSON object, in document order. */
+type member = readonly [key: string, value: jsonValue];
+
 /**
- * decodeObject parses raw as a single JSON object and returns its members.
- *
- * As in Go, keys that name no field of the target struct are skipped, so a state file
- * written by a newer driver with extra fields still loads. Unlike Go, a key that appears
- * twice is an error rather than last-one-wins, and keys are matched exactly rather than
- * case-insensitively.
+ * decodeObject parses raw as a single JSON object and returns its members, in document
+ * order and with any repeated keys: which of them set which field is fieldValues' business.
  */
-function decodeObject(raw: Uint8Array, structName: string): Map<string, jsonValue> {
+function decodeObject(raw: Uint8Array, structName: string): member[] {
 	let text: string;
 	try {
 		// Strict: a byte-order mark is kept (and then rejected as a syntax error, as Go rejects
@@ -103,36 +99,78 @@ function decodeObject(raw: Uint8Array, structName: string): Map<string, jsonValu
 		const v = d.value();
 		throw new Error(`json: cannot unmarshal ${v.kind} into Go value of type ${structName}`);
 	}
-	const fields = d.object();
+	const members = d.object();
 	d.skipSpace();
 	const trailing = d.peek();
 	if (trailing !== undefined) {
 		throw new Error(`invalid character ${quoteChar(trailing)} after top-level value`);
 	}
-	return fields;
+	return members;
 }
 
 /**
- * checkTypes throws the error `json.Unmarshal` returns for the first member, in document
- * order, whose value its field cannot hold: Go keeps decoding after such an error and
- * reports the earliest one. kinds maps each field's JSON key to its Go type. A null is not
- * an error here, as it is not in Go (it leaves the field unchanged); the port's own refusal
- * of a null or missing field comes afterwards, in uint64Field and bytesField, so every input
- * Go rejects gets Go's error.
+ * fieldValues returns, for each field that a member of the object sets, the member's value.
+ * kinds maps each field's JSON name to its Go type.
+ *
+ * A member sets a field as `json.Unmarshal` decides: the field named exactly as its key,
+ * else the field whose name equals its key case-insensitively (foldName), else none, and
+ * then the member is skipped, whatever its value, so a state file written by a newer driver
+ * with extra fields still loads. Go keeps decoding after a member whose value its field
+ * cannot hold and reports the earliest such error, in document order; so does this, over
+ * every member, before any of the port's own refusals. Those come after, so that every
+ * input Go rejects gets Go's error: two members that set one field (Go keeps the last; see
+ * docs/decisions/0102), and, in uint64Field and bytesField, a null or missing field.
  */
-function checkTypes(
-	fields: Map<string, jsonValue>,
+function fieldValues(
+	members: readonly member[],
 	structName: string,
 	kinds: Readonly<Record<string, "uint64" | "bytes">>,
-): void {
-	for (const [name, v] of fields) {
-		const kind = kinds[name];
-		if (kind === "uint64") {
-			uint64Value(v, structName, name);
-		} else if (kind === "bytes") {
-			bytesValue(v, structName, name);
+): Map<string, jsonValue> {
+	const names = Object.keys(kinds);
+	const fields: [field: string, m: member][] = [];
+	for (const m of members) {
+		const field = fieldOf(m[0], names);
+		if (field === undefined) {
+			continue;
 		}
+		if (kinds[field] === "uint64") {
+			uint64Value(m[1], structName, field);
+		} else {
+			bytesValue(m[1], structName, field);
+		}
+		fields.push([field, m]);
 	}
+	const values = new Map<string, jsonValue>();
+	for (const [field, [key, value]] of fields) {
+		if (values.has(field)) {
+			throw new Error(`json: duplicate field ${JSON.stringify(key)}`);
+		}
+		values.set(field, value);
+	}
+	return values;
+}
+
+/**
+ * fieldOf returns the name in names that the member key sets, as encoding/json chooses it:
+ * the name equal to key, else the one equal to it under foldName, else undefined.
+ */
+function fieldOf(key: string, names: readonly string[]): string | undefined {
+	if (names.includes(key)) {
+		return key;
+	}
+	const folded = foldName(key);
+	return names.find((name) => foldName(name) === folded);
+}
+
+/**
+ * foldName folds key as encoding/json's foldName does, for comparison with an ASCII field
+ * name: ASCII letters are upper-cased, and the two other runes whose Unicode fold class
+ * holds an ASCII letter, U+017F (ſ, with s) and U+212A (the Kelvin sign, with k), become
+ * that letter. Go folds every other rune to a rune outside ASCII, which can never equal a
+ * letter of an ASCII name, so it is kept as it is.
+ */
+function foldName(key: string): string {
+	return key.replace(/[a-z\u017f\u212a]/g, (c) => (c === "\u017f" ? "S" : c === "\u212a" ? "K" : c.toUpperCase()));
 }
 
 /**
@@ -290,13 +328,13 @@ class decoder {
 		}
 	}
 
-	object(): Map<string, jsonValue> {
-		const fields = new Map<string, jsonValue>();
+	object(): member[] {
+		const members: member[] = [];
 		this.#expect("{", "looking for beginning of value");
 		this.skipSpace();
 		if (this.peek() === "}") {
 			this.#i++;
-			return fields;
+			return members;
 		}
 		for (;;) {
 			this.skipSpace();
@@ -304,15 +342,11 @@ class decoder {
 			const key = this.#stringBody();
 			this.skipSpace();
 			this.#expect(":", "after object key");
-			const v = this.value();
-			if (fields.has(key)) {
-				throw new Error(`json: duplicate field ${JSON.stringify(key)}`);
-			}
-			fields.set(key, v);
+			members.push([key, this.value()]);
 			this.skipSpace();
 			const c = this.#next();
 			if (c === "}") {
-				return fields;
+				return members;
 			}
 			if (c !== ",") {
 				throw new Error(`invalid character ${quoteChar(c)} after object key:value pair`);

@@ -1,6 +1,6 @@
 # ADR-0082: `CheckpointPublisher` wires the witness gateway; `WithWitnesses`/`WitnessOptions` ported in full
 
-- **Status:** accepted; its empty checkpoint on early failure under FailOpen is superseded by ADR-0183 (proposed, review pending)
+- **Status:** accepted; its empty checkpoint on early failure under FailOpen is superseded by ADR-0183 (accepted)
 - **Date:** 2026-08-19
 - **Author:** append-lifecycle contributor
 - **Upstream reference:** `append_lifecycle.go:614-667` (`CheckpointPublisher`), `:810-841`

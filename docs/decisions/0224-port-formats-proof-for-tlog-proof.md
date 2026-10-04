@@ -125,3 +125,9 @@ The final fidelity audit found two places where the code did not do what the Dec
   audit's 20,000 inputs with lines around 64 KiB and eight `Scan` calls each, the stand-in now equals Go on every call.
 
 **Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `bufio.ts` against Go 1.25.5's `Scan`, `advance`, `setErr`, `ScanLines` and `dropCR`: the state machine matches, the omitted branches are unreachable for `ScanLines` over an in-memory reader, as the header says. Replayed 2,500 inputs (lines of 4,095 to 131,072 bytes; 930 end in ErrTooLong) through Go's `bufio.Scanner` over both a `bytes.Reader` and a `bytes.Buffer` and through the port, ten `Scan` calls each, comparing the result, the token's length and hash and `Err()` after every call: identical every time. In the 36,000-proof run above no record has the canonical-base64 error pre-empting an error of Go's, and `nonCanonical ??=` plus the throw after the `b.err()` check is the ordering the update describes; `tlog_proof.ts` copies each checkpoint line because `bytes()` is a view.
+
+## Update (2026-10-04)
+
+"Error texts are Go's" holds except where ADR-0203 and ADR-0204 apply. An index that is not valid UTF-8 is quoted with
+U+FFFD where Go writes `\xNN`. An index longer than 64 code points is quoted up to that bound and then `...`. The
+review's replay of 36,000 mutated proofs found 112 such messages and no other difference in text.

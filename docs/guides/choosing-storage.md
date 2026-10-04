@@ -76,6 +76,14 @@ another process can open forks the log the first time two of them append; the ad
 does. And **every store over one database must use the same locking**: local locks and leases do not
 see each other.
 
+Writers on one file also wait for each other's SQLite locks. `fromSqliteSync` gives its connection a
+5 s busy timeout when it has none. `fromLibsql` cannot do that: the libSQL client keeps a pool of
+connections, and only its own `timeout` option reaches all of them. So create a libSQL client for a
+`file:` database that other processes or clients also open with a busy timeout,
+`createClient({ url, timeout: 5000 })`. Without one, a writer that meets another's lock fails with
+`SQLITE_BUSY` instead of waiting. The log is not forked, and the error says what to change
+([ADR-0210](../decisions/0210-sqlite-locking-fails-closed.md)).
+
 Durability: an index or receipt the log hands back is on durable storage. The in-process adapters
 raise `synchronous` to `FULL`, and the networked engines resolve a write only once committed.
 

@@ -20,8 +20,9 @@
 // docs/decisions/0105-migration-tested-end-to-end-closes-adr-0074.md.
 //
 // The source logs are fixtures/data/log_<N>.json, written by the real Tessera POSIX
-// driver, served to the copier straight from the fixture. Upstream covers the same ground in
-// its integration/ suite against the POSIX driver.
+// driver, served to the copier straight from the fixture. Upstream has no test of the
+// migration lifecycle at the pinned commit (its integration/ suite only appends to and
+// verifies a live log), so these tests add coverage rather than port it.
 
 import { describe, expect, it } from "vitest";
 import { partialOrFullResource } from "../../internal/fetcher/fallback.ts";

@@ -92,3 +92,23 @@ The decision stands; the Context and Consequences misdescribed both Go and the t
 - Verified: with a cancelled signal the port reaches the policy-failure path (`failOpen` publishes the 195-byte log-signed checkpoint; otherwise `witness policy was not satisfied` followed by `failed to post to witness at "...": ...`). `client.NewProofBuilder` never returns an error (`client.go:191-197`), and `PolicyNotSatisfiedError` is what Go's join maps to. The named test uses a throwing `satisfied` (`explodingPolicy`) as stated.
 - Factual error: the Update says the case the decision covers is a `WitnessGroup` component 'whose `satisfied` or `endpoints` throws'. Only `satisfied` is covered. `checkpointPublisher` calls `newWitnessGateway(...)`, which calls `group.endpoints()`, outside the `try` that implements fail-open. Probe with `failOpen: true`: a throwing `satisfied` publishes 195 bytes, a throwing `endpoints` rejects with the thrown error. Change the Update to name `satisfied` only, or move the construction under the same handling and add a test.
 - Minor: the Update quotes Go's `context canceled`; the port's tail of that message is whatever the abort reason is ('This operation was aborted' for a bare `AbortController.abort()`), so 'the port does both' holds for the shape, not the exact text.
+
+## Update (2026-10-04): the case covered is a throwing `satisfied`
+
+This answers the review of the update above. The decision is unchanged.
+
+- **Only `satisfied` is covered.** The update above names "a `WitnessGroup` component whose `satisfied` or
+  `endpoints` throws". Only the first is the case the decision covers. `checkpointPublisher` builds the gateway
+  with `newWitnessGateway(...)`, which calls `endpoints()`, before the `try` that implements fail-open. Go's
+  `CheckpointPublisher` has the same structure: it calls `witness.NewWitnessGateway` before `wg.Witness`, outside
+  the error handling that fails open. In Go, `Endpoints` cannot fail there, because a policy component can neither
+  return an error from it nor raise one that `FailOpen` would see. So the port keeps Go's structure, and a throwing
+  `endpoints` rejects the publication with its error, whether or not `failOpen` is set. That sentence of the update
+  above should read: "a `WitnessGroup` component whose `satisfied` throws, from a caller-built policy". A test now
+  pins the narrower scope: `append_lifecycle_test.ts`, "rejects when a policy component's endpoints throws, even
+  when failing open".
+- **The cancelled-context message.** With a cancelled signal, the port's error has Go's shape:
+  `witness policy was not satisfied`, followed by `failed to post to witness at "…": …`. The text after that last
+  colon is the signal's abort reason, for a bare `abort()` `This operation was aborted`, where Go's is
+  `context canceled`. So "the port does both" holds for the outcome and the shape of the message, not for its last
+  words.

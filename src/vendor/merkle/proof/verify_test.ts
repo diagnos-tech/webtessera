@@ -512,9 +512,9 @@ describe("hash sizes (port hardening)", () => {
 					verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof, root),
 				);
 				expect(mismatch).toBeInstanceOf(RootMismatchError);
-				const forged = (mismatch as RootMismatchError).calculatedRoot;
+				const chainedRoot = (mismatch as RootMismatchError).calculatedRoot;
 				expect(
-					catchError(() => verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof, forged))
+					catchError(() => verifyInclusion(hasher, inclusion.leaf - 1n, inclusion.size, leafHash, proof, chainedRoot))
 						?.message,
 				).toBe(want);
 			}
@@ -532,8 +532,8 @@ describe("hash sizes (port hardening)", () => {
 		}
 	});
 
-	/** forgedRoots returns the roots a consistency proof chains to, read from Go's RootMismatchErrors. */
-	const forgedRoots = (proof: Uint8Array[]): [Uint8Array, Uint8Array] => {
+	/** chainedRoots returns the roots a consistency proof chains to, read from Go's RootMismatchErrors. */
+	const chainedRoots = (proof: Uint8Array[]): [Uint8Array, Uint8Array] => {
 		let r1 = croot1;
 		let r2 = croot2;
 		for (let k = 0; k < 2; k++) {
@@ -558,7 +558,7 @@ describe("hash sizes (port hardening)", () => {
 				expect(
 					catchError(() => verifyConsistency(hasher, consistency.size1, consistency.size2, proof, croot1, croot2)),
 				).toBeInstanceOf(RootMismatchError);
-				const [r1, r2] = forgedRoots(proof);
+				const [r1, r2] = chainedRoots(proof);
 				expect(
 					catchError(() => verifyConsistency(hasher, consistency.size1, consistency.size2, proof, r1, r2))?.message,
 				).toBe(`proof[${i}] has unexpected size ${(proof[i] as Uint8Array).length}, want 32`);

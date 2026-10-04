@@ -140,3 +140,9 @@ is absent from `fetch` rejections, and the witness POST message is `failed to po
 `URL`: `http://h/a%2Fb` requests `/a/b/checkpoint` in Go and `/a%2Fb/checkpoint` here; `%7Efoo` becomes `~foo` only in
 Go, and `/./dot/../x` resolves at construction only in the port, both requesting the same resource. All three bullets
 reproduce exactly. The `invalid URL` observation in the Review above is not covered by this update.
+
+## Update (2026-10-04)
+
+"What the port does not reproduce" lists `fmt.Errorf("invalid URL: %v")`. That item is out of date: commit 52c7b46
+put the branch back. `fetcher.ts` throws `invalid URL: <cause>` around `new URL(p, root)`, as Go does around
+`url.Parse`. `NewRequestWithContext(%q)` stays as written.

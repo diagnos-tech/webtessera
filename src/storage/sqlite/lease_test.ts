@@ -303,6 +303,92 @@ describe("SQLite lease locking", () => {
 		).rejects.toThrow("boom");
 		expect(await w.holder()).toBeUndefined();
 	});
+
+	// An engine with no busy timeout (a libSQL client created without one) fails a write
+	// that meets another connection's lock at once. Taking or renewing a lease waits that
+	// out like a held lock, instead of failing the caller (docs/decisions/0210).
+	const busyError = (): Error =>
+		Object.assign(new Error("SQLITE_BUSY: database is locked"), { code: "SQLITE_BUSY", rawCode: 5 });
+	const isLeaseBatch = (statements: readonly { sql: string }[], verb: string): boolean =>
+		statements[0]?.sql.startsWith(`${verb} webtessera_locks`) === true;
+
+	it("keeps trying to take a lease while the database is busy", async () => {
+		const w = newWorld();
+		const a = await w.open();
+		let busy = 3;
+		a.db.beforeBatch = async (statements) => {
+			if (isLeaseBatch(statements, "DELETE FROM") && busy > 0) {
+				busy--;
+				throw busyError();
+			}
+		};
+		expect(await a.store.lock(lockName, async () => "held")).toBe("held");
+		expect(busy).toBe(0);
+		expect(await w.holder()).toBeUndefined();
+	});
+
+	it("stops trying when the signal aborts while the database is busy", async () => {
+		const w = newWorld();
+		const a = await w.open();
+		a.db.beforeBatch = async (statements) => {
+			if (isLeaseBatch(statements, "DELETE FROM")) {
+				throw busyError();
+			}
+		};
+		const ac = new AbortController();
+		setTimeout(() => ac.abort(new Error("cancelled")), 40);
+		let ran = false;
+		await expect(
+			a.store.lock(
+				lockName,
+				async () => {
+					ran = true;
+				},
+				ac.signal,
+			),
+		).rejects.toThrow("cancelled");
+		expect(ran).toBe(false);
+		const batches = a.db.batches;
+		await tick(40);
+		expect(a.db.batches, "kept trying after the signal aborted").toBe(batches);
+	});
+
+	it("still fails at once on an error that is not a busy database", async () => {
+		const w = newWorld();
+		const a = await w.open();
+		a.db.beforeBatch = async (statements) => {
+			if (isLeaseBatch(statements, "DELETE FROM")) {
+				throw new Error("disk I/O error");
+			}
+		};
+		await expect(a.store.lock(lockName, async () => "held")).rejects.toThrow("disk I/O error");
+	});
+
+	it("retries a renewal that finds the database busy before the next interval", async () => {
+		const w = newWorld();
+		const a = await w.open({ ttlMs: 1000, renewIntervalMs: 200, maxPollIntervalMs: 10 });
+		let renewals = 0;
+		let busy = 2;
+		a.db.beforeBatch = async (statements) => {
+			if (isLeaseBatch(statements, "UPDATE")) {
+				renewals++;
+				if (busy > 0) {
+					busy--;
+					throw busyError();
+				}
+			}
+		};
+		const release = gate();
+		const holding = a.store.lock(lockName, () => release.promise);
+		// The first renewal is due at 200 ms; its two busy attempts are retried within a few
+		// milliseconds each, not 200 ms apart.
+		await tick(300);
+		expect(busy).toBe(0);
+		expect(renewals).toBe(3);
+		await a.store.put("checkpoint", enc.encode("still the holder"));
+		release.open();
+		await holding;
+	});
 });
 
 describe("SQLite lease fencing", () => {

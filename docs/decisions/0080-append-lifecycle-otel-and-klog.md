@@ -1,6 +1,6 @@
 # ADR-0080: `append_lifecycle.ts`/`await.ts`/`antispam.ts` drop OpenTelemetry and klog; keep the stats data-structures as logic
 
-- **Status:** accepted; its "keep the stats data-structures as logic" part is superseded by ADR-0181 (proposed, review pending)
+- **Status:** accepted; its "keep the stats data-structures as logic" part is superseded by ADR-0181 (accepted)
 - **Date:** 2026-08-19
 - **Author:** append-lifecycle contributor
 - **Upstream reference:** `append_lifecycle.go` (lines 39-210, and the `.Record`/`.Add` call sites throughout), `otel.go`, `await.go`, `antispam.go`

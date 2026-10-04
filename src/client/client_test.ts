@@ -355,9 +355,7 @@ describe("TestNodeFetcherAddressing", () => {
 				return r.marshalText();
 			};
 			const pb = await newProofBuilder(test.clientLogSize, f);
-			await expect(
-				pb.fetchNodes(new Nodes([newNodeID(test.nodeLevel, test.nodeIdx)], 0, 0, newNodeID(0, 0n))),
-			).resolves.toBeDefined();
+			await expect(pb.fetchNodes(new Nodes([newNodeID(test.nodeLevel, test.nodeIdx)]))).resolves.toBeDefined();
 
 			const wantLevel = BigInt(test.nodeLevel >> TileHeight);
 			expect(gotLevel, "level").toBe(wantLevel);

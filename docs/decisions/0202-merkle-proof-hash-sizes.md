@@ -125,3 +125,12 @@ states, instead of wherever Go returned a `RootMismatchError`.
 **Review of this update** — Reviewer: ADR reviewer (independent), 2026-10-04. Verdict: approved.
 
 - Checked in `verify.ts`: `verifyInclusion` computes the root with `rootFromInclusionProofUnchecked`, calls `verifyMatch`, and only then checks proof hashes and `root`; `rootFromInclusionProof` checks proof hashes on its success path; `verifyConsistency` checks root1, root2 and the full proof after both root comparisons on the general path and after `verifyMatch` on the size1 == size2 path; the size1 == 0 path, where upstream compares nothing, checks the roots after upstream's empty-proof check. `verify_test.ts` pins both halves (Go's `RootMismatchError` against the true root, the size error against the root the mangled proof chains to). ADR-0216's text and the harness (`checkVerify` applies `merkle-hash-size` only where Go verified) agree.
+
+## Update (2026-10-04): wording
+
+Two phrases, following the Review's notes:
+- **The Context's last sentence.** "The issue is reported upstream privately" is withdrawn. It is a disclosure claim
+  that this repository cannot substantiate.
+- **The first 2026-10-04 update.** "the size error against the forged one" should read "the size error against the
+  root the mangled proof chains to". The test's variables in `verify_test.ts` are renamed to match: `chainedRoot` and
+  `chainedRoots`.

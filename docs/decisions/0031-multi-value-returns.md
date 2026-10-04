@@ -1,6 +1,6 @@
 # ADR-0031: Go multi-value returns become named readonly result objects
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** layout contributor
 - **Upstream reference:** `api/layout/tile.go`, `api/layout/paths.go`, `internal/parse/parse.go`

@@ -104,3 +104,41 @@ a migration target has no checkpoint of its own.)
   - Required change 2 (unsupported claim): the Context says an empty or malformed checkpoint from the publisher 'is possible upstream (it is reported privately)', and the Consequences repeat that upstream's behaviour 'is reported privately'. I could find no such path in Go's own components: `newCP` always returns a signed note or an error, and the only nil return in `CheckpointPublisher` comes from `Witness`'s two early returns, which ADR-0183's 2026-10-04 Update shows are unreachable with Go's components. State the actual path or reword to what is reachable (a custom publisher or policy), and reconcile with ADR-0183.
   - Wording: describes the fork hazard and accidental causes; no construction. Unverifiable disclosure claims are the issue above.
   - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
+
+## Update (2026-10-04): the refusal writes nothing, and the publisher claim is narrowed
+
+This answers the Review above. The decision is unchanged.
+
+- **"Writes nothing" is now true.** Go's `initialise` (`files.go:487-530`) runs in this order:
+  - it creates `.state/` and takes the tree-state lock;
+  - it calls `ensureVersion`, which creates `.state/version` if the file is absent;
+  - it calls `readTreeState` and, on `ErrNotExist`, writes a size-0 tree state and publishes.
+  The port refused after `ensureVersion`, so in the ADR's own scenario (public files with no `.state/`) the refused
+  store gained `.state/version`. `appender.initialise` (`src/storage/objectstore/driver.ts`) now makes the refusal
+  decision first, from `stat` calls alone: no `.state/treeState` and a published `checkpoint`. A version file that
+  already exists is checked before refusing, which only reads it, so a version error still comes first, as in Go.
+  Everything after that runs in Go's order. A store that is not refused sees exactly Go's sequence of reads and
+  writes, plus a `stat` of `.state/treeState`, and of `checkpoint` when the tree state is missing.
+  A probe of the real POSIX driver at the pinned commit (Go 1.25.5) shows what the refusal prevents. A one-entry
+  log, reopened after `.state/` was deleted, recreated `.state/version` and `.state/treeState`. It then replaced the
+  size-1 checkpoint with a newly signed size-0 checkpoint.
+- **Tests.** `driver_test.ts` covers this in three tests:
+  - "refuses, and writes nothing, over published files with no .state/ at all" runs the ADR's scenario: a published
+    log whose whole `.state/` is deleted. It asserts that every key and value is unchanged after the refusal.
+  - "reports a bad version before refusing to start a new tree" pins Go's error order.
+  - The earlier test, which deletes only `treeState`, still passes.
+- **The publisher claim.** The Context said that an empty or malformed checkpoint from the publisher "is possible
+  upstream (it is reported privately)", and the Consequences said the same of the initialise path. Both claims are
+  withdrawn.
+  - In Go, `newCP` returns a signed note or an error. `CheckpointPublisher`'s only `nil` return comes from
+    `Witness`'s two early returns. ADR-0183's 2026-10-04 update shows that Go's own components never reach them.
+  - In the port, a caller-built witness policy whose `satisfied` throws under `failOpen` once reached them. Since
+    ADR-0183 it publishes the log-signed checkpoint instead.
+  - So no publisher built from either codebase's components is known to return such bytes. The check in
+    `publishCheckpoint` guards the driver's own invariant: whatever the publisher returns, a published checkpoint
+    is one that `publishedSize` can read back.
+  - It costs one parse. Without it, a misbehaving publisher would leave the log unable to publish again. Such a
+    publisher could be a later change on either side, or a component outside these guarantees.
+- **The initialise path.** It is reachable in Go as the Context describes. The probe above reproduces it. The
+  Consequences sentence should read "This is a divergence from upstream's POSIX driver, which starts a new tree
+  there".

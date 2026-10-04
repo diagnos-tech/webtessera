@@ -1,6 +1,6 @@
 # ADR-0024: `src/vendor/note/` is BSD-3-Clause, not Apache-2.0, and the package must ship the Go LICENSE
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** note contributor
 - **Upstream reference:** `golang.org/x/mod/sumdb/note/note.go`, `~/go/pkg/mod/golang.org/x/mod@v0.31.0/LICENSE`

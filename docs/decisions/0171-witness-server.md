@@ -132,3 +132,10 @@ API changes.
   monitoring endpoint and a 500 from requests whose `signal` getter throws.
 
 *Review of this update: approved, ADR reviewer (independent), 2026-10-04. `cosignerVkey` (`keys.ts`) validates with `newSignerForCosignatureV1`, derives the public key from the decoded seed with `@noble/curves`, wipes the decoded bytes and composes `newEd25519VerifierKey` with `vKeyToCosignatureV1`; `keys_test.ts` checks it against the vkey of the pair, verifies cosignatures with it, uses it in a policy, and checks that errors do not quote the key. The reasoning for not exposing a vkey on `WitnessServer` (a `note.Signer` has no public key, and adding one would change the BSD-licensed ported file) is right. The handler no longer reads `request.signal` (`server_test.ts` asserts through a throwing getter, including the 500 path); the session-receipts example derives the vkey from the signer key only.*
+
+## Update (2026-10-04)
+
+Answering 403 when a trusted key's signature fails to verify does not come from tlog-witness v1.0.0. That version
+says 403 only when no signature from a known key verifies. The behaviour comes from signed-note v1.0.0, which says a
+client SHOULD reject a note whose known-key signature fails, and from the tlog-witness editor's draft, which makes it
+a MUST. It belongs among the draft behaviours this ADR adopts, not under "Status codes follow v1.0.0".

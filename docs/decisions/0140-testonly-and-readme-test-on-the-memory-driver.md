@@ -96,3 +96,9 @@ running `mdcode` by hand and leaves the check itself as a TODO:
     `examples/cloudflare-durable-object/src/index.ts`. That directory no longer exists (`examples/` now holds `client-only`,
     `edge`, `log-server`, `monitor`, `notary`, `session-receipts`) and the test embeds only `src/README_test.ts`.
     ADR-0141's Update records the same reorganisation; this ADR deserves an Update line too.
+
+## Update (2026-10-04)
+
+Decision 3 says that `src/README_sync_test.ts` may embed `examples/cloudflare-durable-object/src/index.ts`. That
+example no longer exists: `examples/` now holds `client-only`, `edge`, `log-server`, `monitor`, `notary` and
+`session-receipts`, and the sync test embeds only `src/README_test.ts`.

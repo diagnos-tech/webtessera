@@ -44,3 +44,33 @@ TypeScript's `number` can also hold negative, fractional and NaN values a `uint`
   - Factual error in the Context, which understates the divergence. It says that with `numWorkers == 0` 'the producer blocks and the iterator never yields or returns'. I ran the pinned Go `EntryBundles` with 0 workers: a non-empty range hangs (2s timeout), but an empty tree and `N = 0` return after zero yields, and a failing `getSize` yields that error and returns. The port's check is unconditional, so in those three cases Go terminates normally and the port now throws `RangeError`. The Consequences ('where Go blocks forever, the port fails immediately') hide that.
   - Required change: amend the Context to say the hang needs at least one bundle to fetch, and the Consequences to record that `entryBundles(0, ...)` now throws even for an empty range or a failing `getSize`, where Go returns an empty or error-only iteration (or restrict the check to what hangs).
   - Full `bun run test:unit` (Vitest on Node 22.22.0), run twice during the review: 122 files, 3439 tests, all passed.
+
+## Update (2026-10-04): `numWorkers == 0` is refused only where Go hangs
+
+This answers the Review above.
+
+- **The Context overstated the hang.** Go's `EntryBundles` with `numWorkers == 0` blocks only when there is a bundle
+  to fetch. Its producer takes a token before each fetch, and there are none. With nothing to fetch, it closes the
+  channel and the iterator returns after no yields. A failing `getSize` is sent before any token is needed, so it is
+  yielded and the iterator returns. Run against `client.EntryBundles` at the pinned commit under Go 1.24.7 and
+  1.25.5, with a 2s limit:
+  - These returned after no yields: an empty tree, `N = 0`, `fromEntry` at the tree size, and `fromEntry` past it.
+  - A failing `getSize` yielded its error and returned.
+  - `[0, 600)` of 600 entries, and `[0, 1)` of 1, hung.
+  - None of them called `getBundle`.
+- **The port now refuses exactly that case.** `entryBundles` (`src/client/stream.ts`) still refuses, when it is
+  called, a `numWorkers` that Go's `uint` cannot hold: a negative, fractional or NaN value. `0` is a `uint`, so it
+  is no longer refused at the call. The generator calls `getSize` and builds the range, as for any worker count.
+  It throws the same `RangeError("numWorkers must be an integer of at least 1, got 0")` only if the range holds at
+  least one bundle, the point where Go's producer would block, and before any fetch. Otherwise it behaves as Go
+  does: an empty range ends after no yields, and a `getSize` error is thrown, which is how the port returns an
+  iterator error (ADR-0066).
+- **Consequences, corrected.** "Where Go blocks forever, the port fails immediately" now holds exactly. For
+  `numWorkers == 0`, the refusal comes at the first `next()` and not at the call. ADR-0066's lazy start already
+  defers `getSize`, and the range is not known before it. The second Consequences bullet still holds: `entryBundles`
+  stays a plain function for the domain check.
+- **`newFsck` is unchanged.** It maps an unset or zero `n` to 1, as `fsck.New` does, so fsck never passes 0. It
+  refuses only values a `uint` cannot hold.
+- **Tests.** `stream_test.ts`, "port addition: numWorkers below 1", has these cases:
+  - −1, 1.5 and NaN throw at the call.
+  - "numWorkers=0, …" runs Go's seven cases above, and asserts each outcome and that `getBundle` is never called.

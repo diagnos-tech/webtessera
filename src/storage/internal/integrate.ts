@@ -608,8 +608,11 @@ export function newTileWriteCache(treeSize: bigint, getTile: getPopulatedTileFun
  * instead of sitting inside it — the smallest structural adjustment upstream's declaration order
  * allows for. Both the product and the shift count wrap as Go's uint64 arithmetic does
  * (docs/decisions/0014-uint64-wrapping-made-explicit.md).
+ *
+ * @internal Unexported in Go; exported for integrate_test.ts. See
+ * docs/decisions/0010-package-private-members.md.
  */
-function minImpliedTreeSize(id: TileID): bigint {
+export function minImpliedTreeSize(id: TileID): bigint {
 	return shiftLeft64(asUint64(id.index * tileWidth64), Number(asUint64(id.level * 8n)));
 }
 

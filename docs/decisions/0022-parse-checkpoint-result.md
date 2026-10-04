@@ -1,6 +1,6 @@
 # ADR-0022: `parseCheckpoint` returns a result object and throws an error that carries the note
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-19
 - **Author:** note contributor
 - **Upstream reference:** `github.com/transparency-dev/formats/log/note.go`, `log/note_test.go`

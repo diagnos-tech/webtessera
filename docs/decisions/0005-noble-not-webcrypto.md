@@ -92,3 +92,14 @@ The Merkle layer stays synchronous, exactly as upstream.
     to be in force.
   - Browser claims (`crypto.subtle` only in secure contexts; uneven Ed25519 support) are platform facts I did not
     re-test and did not need to.
+
+## Update (2026-10-04)
+
+Two facts, recorded from the Review's notes; the decision is unchanged.
+- "Zero dependencies of their own" holds for `@noble/hashes`. `@noble/curves` 2.3.0 declares one dependency,
+  `@noble/hashes` itself, so the transitive set is still exactly the two packages this ADR counts.
+- The independent audits both READMEs list (Cure53: hashes 1.0.0, January 2022; curves 1.6.0, September 2024, with
+  Ed25519 in scope) cover 1.x releases. For 2.x the maintainers list their own audit. The reliance on audited
+  constant-time code rests on those.
+- ADR-0223 and ADR-0227 are the "optional async path … a new ADR" that the Consequences anticipated. They add
+  WebCrypto signers for non-extractable keys, and keep the Merkle layer and verification on noble and synchronous.

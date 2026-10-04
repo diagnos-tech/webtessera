@@ -42,12 +42,12 @@ contributor and the reviewer.**
 | `fsck/` (`fsck.go`, `status.go`) | port as a library | — | accepted |
 | `cmd/fsck/tui/`, `cmd/fsck/internal/tui/` | not ported — terminal UI (bubbletea/lipgloss), no meaning without a real TTY | ADR-0093 | not ported |
 | `cmd/fsck/main.go` | not ported — CLI flag parsing / process wiring around `fsck.New`/`.Check`; `Fsck.check()`/`.status()` themselves are fully ported as a library | ADR-0093 | not ported |
-| `storage/posix/` | proposed: `files.go` ported as the ObjectStore engine; `file_ops.go`, `otel.go` and `antispam/` (Badger) not ported | ADR-0141, ADR-0100 | proposed — ADR-0141 |
-| `storage/gcp/`, `storage/aws/`, `storage/mysql/` (+ their `antispam/`) | proposed: not ported — server SDKs and databases; any object store plugs in through the `ObjectStore` contract | ADR-0141 | proposed — ADR-0141 |
-| `internal/hammer/` (+ `loadtest/`) | proposed: not ported — a load-test command with a terminal UI, driving a log over HTTP | ADR-0141 | proposed — ADR-0141 |
-| `cmd/conformance/*`, `cmd/examples/*`, `cmd/experimental/*`, `keygen/` | proposed: not ported — binaries and personalities, whose role the examples play; `keygen/` does not exist at the pinned commit. `cmd/experimental/mirror/internal/mirror.go` is the exception: see the next row | ADR-0141 | proposed — ADR-0141 |
-| `cmd/experimental/mirror/internal/mirror.go` | port as `src/mirror/` (`webtessera/mirror`), with S3-compatible sinks and verification of what it copies; `cmd/experimental/mirror/posix/main.go` stays not ported | ADR-0173, ADR-0175, ADR-0176 | proposed — ADR-0173 |
-| `integration/`, `integration/fault/` | proposed: not ported as files — end-to-end coverage by `describeDriverConformance` on every backend, without fault injection | ADR-0141 | proposed — ADR-0141 |
+| `storage/posix/` | `files.go` ported as the ObjectStore engine; `file_ops.go`, `otel.go` and `antispam/` (Badger) not ported | ADR-0141, ADR-0100 | accepted — ADR-0141 |
+| `storage/gcp/`, `storage/aws/`, `storage/mysql/` (+ their `antispam/`) | not ported — server SDKs and databases; any object store plugs in through the `ObjectStore` contract | ADR-0141 | not ported — ADR-0141 |
+| `internal/hammer/` (+ `loadtest/`) | not ported — a load-test command with a terminal UI, driving a log over HTTP | ADR-0141 | not ported — ADR-0141 |
+| `cmd/conformance/*`, `cmd/examples/*`, `cmd/experimental/*`, `keygen/` | not ported — binaries and personalities, whose role the examples play; `keygen/` does not exist at the pinned commit. `cmd/experimental/mirror/internal/mirror.go` is the exception: see the next row | ADR-0141 | not ported — ADR-0141 |
+| `cmd/experimental/mirror/internal/mirror.go` | port as `src/mirror/` (`webtessera/mirror`), with S3-compatible sinks and verification of what it copies; `cmd/experimental/mirror/posix/main.go` stays not ported | ADR-0173, ADR-0175, ADR-0176 | accepted — ADR-0173 |
+| `integration/`, `integration/fault/` | not ported as files — end-to-end coverage by `describeDriverConformance` on every backend, without fault injection | ADR-0141 | not ported — ADR-0141 |
 
 ### Additions upstream does not have
 
@@ -56,12 +56,12 @@ These are ours and each needs its own ADR before implementation, arguing that it
 
 | Addition | Rationale sketch | State |
 | --- | --- | --- |
-| `storage/memory/` | The browser's equivalent of `storage/posix` — needed as the reference driver that the conformance suite runs against. | proposed — ADR-0141 (implemented: ADR-0100, ADR-0104, ADR-0106) |
-| `storage/indexeddb/` | Level-1 persistence in a tab. | proposed — ADR-0141 (implemented: ADR-0110 to ADR-0113) |
-| `storage/sqlite/` | Level-1 persistence on the server and the edge: any SQLite engine (node:sqlite, bun:sqlite, better-sqlite3, libSQL/Turso, rqlite, Cloudflare D1, SQLite-backed Durable Objects, sqlite-wasm), one adapter per engine. Replaces `storage/durableobject/`. | proposed — ADR-0141 (implemented: ADR-0150 to ADR-0155) |
-| `http/` | Serving a log as the tlog-tiles read API, which upstream leaves to each personality. | proposed — ADR-0170 (implemented) |
-| `witness/` | A tlog-witness server: the other half of the witness protocol whose client the root package ports. | proposed — ADR-0171, ADR-0172, ADR-0174 (implemented) |
-| `storage/s3/` | Level-2 sync to an S3-compatible object store. | proposed — ADR-0141 (deferred; replicating a log into a bucket is now the S3 sink of `webtessera/mirror`, ADR-0175) |
+| `storage/memory/` | The browser's equivalent of `storage/posix` — needed as the reference driver that the conformance suite runs against. | accepted — ADR-0141 (implemented: ADR-0100, ADR-0104, ADR-0106) |
+| `storage/indexeddb/` | Level-1 persistence in a tab. | accepted — ADR-0141 (implemented: ADR-0110 to ADR-0113) |
+| `storage/sqlite/` | Level-1 persistence on the server and the edge: any SQLite engine (node:sqlite, bun:sqlite, better-sqlite3, libSQL/Turso, rqlite, Cloudflare D1, SQLite-backed Durable Objects, sqlite-wasm), one adapter per engine. Replaces `storage/durableobject/`. | accepted — ADR-0141 (implemented: ADR-0150 to ADR-0155) |
+| `http/` | Serving a log as the tlog-tiles read API, which upstream leaves to each personality. | accepted — ADR-0170 (implemented) |
+| `witness/` | A tlog-witness server: the other half of the witness protocol whose client the root package ports. | accepted — ADR-0171, ADR-0172, ADR-0174 (implemented) |
+| `storage/s3/` | Level-2 sync to an S3-compatible object store. | accepted — ADR-0141 (deferred; replicating a log into a bucket is now the S3 sink of `webtessera/mirror`, ADR-0175) |
 | Application code outside the library (originally `src/adapters/**`) | Not part of this repository: the library never imports it, and it bolts onto the upstream interfaces from the outside. | accepted |
 
 ## Consequences
@@ -93,6 +93,19 @@ that ADR-0141 proposes not to port is ported after all: `cmd/experimental/mirror
 `webtessera/mirror` ([ADR-0173](0173-mirror-port.md), [ADR-0175](0175-mirror-sinks.md),
 [ADR-0176](0176-mirror-verification.md)). The rows above show the new state; the text of this ADR is
 otherwise as written. Like ADR-0141, the new ADRs are proposed until their reviews are signed.
+
+**Update (2026-10-04).** ADR-0141 is accepted: its review is signed and approved. So are the ADRs the
+register cites for the additions and for `mirror.go`: ADR-0100, ADR-0104, ADR-0106, ADR-0110 to ADR-0113, ADR-0150
+to ADR-0155, and ADR-0170 to ADR-0176. Under rule 3 the rows that read `proposed — ADR-…` are decided, and the State
+column now records the decision:
+- the `storage/posix/` row, the `mirror.go` row and every addition read `accepted`;
+- the cloud and MySQL driver rows, and the `internal/hammer/`, `cmd/*` and `integration/` rows, read `not ported`,
+  with the ADR that decided them.
+
+The Decision column no longer carries "proposed:". `docs/PORTING-MAP.md` moves the 40 files it kept at
+`pending ADR` to `not ported`, with ADR-0141 in their notes. `cmd/experimental/mirror/internal/mirror.go` was
+already `done`, and the four `storage/posix/` files carry ADR-0100's statuses. No register row is `pending` or
+`proposed` any more.
 
 ## Alternatives considered
 

@@ -214,3 +214,34 @@ Go's `compact_test` and `compact` packages respectively and share nothing.
     example `grep -rnE '\._(begin|end|ephem|hashes|f|hasher|size)\b|getMergePath|skipFirst' src --include='*.ts' |
     grep -v -e _test.ts -e '^src/vendor/merkle'`, which I ran and which prints nothing today.
   - Status stays `proposed` until those two corrections are recorded; nothing in the code needs to change.
+
+## Update (2026-10-04): the rule as applied, and a recipe that finds the members
+
+This answers the two points of the Review above. The decision is unchanged.
+
+1. **The rule actually applied.** The Decision's opening sentence and its later remark on scope disagree with
+   each other and with the table. The table, PORTING.md §3.8 and the code all follow this rule:
+   - An unexported struct field that upstream's in-package tests read or write becomes a public member prefixed
+     with `_` and marked `@internal`, whether or not it has a same-named exported accessor. So it applies to
+     `Range._f`, `Nodes._begin`/`_end` and `Tree._hasher`/`_hashes`, which have no accessor, as much as to
+     `Range._begin`/`_end`/`_hashes`, `Nodes._ephem` and `Tree._size`, which do.
+   - An unexported function or method that the in-package tests use keeps its Go name and is exported (or left
+     public) and marked `@internal`. That covers `getMergePath` and `skipFirst`, which upstream's tests use. It
+     also covers `minImpliedTreeSize`, which a port-added test uses since 2026-10-04 (ADR-0014).
+   - A stand-in for a package-private composite literal is marked `@internal` in the same way: `new Range(...)`,
+     and `nodesLiteral` for the in-package `Nodes{IDs, begin, end, ephem}`.
+   - Since ADR-0208's 2026-10-04 update, `Nodes`'s constructor is Go's exported literal `Nodes{IDs: ids}`. So the
+     2026-10-02 update's row `new Nodes(ids, begin, end, ephem)` now reads `nodesLiteral(ids, begin, end, ephem)`.
+   - Unexported members that the tests do not touch stay module-local or `#private`.
+
+   The sentence "it is not a general renaming rule and does not apply to fields that have no same-named method"
+   should be read as superseded by this rule.
+2. **A recipe that finds the members themselves.** The 2026-10-02 recipe matched only imports from sibling
+   directories, so it could not catch a reach-in from `client/`, `fsck/` or `safe/`. This one greps for the members
+   wherever they are used outside the merkle port and its tests:
+
+   ```
+   grep -rnE '\._(begin|end|ephem|hashes|f|hasher|size)\b|getMergePath|skipFirst' src --include='*.ts' | grep -v -e _test.ts -e '^src/vendor/merkle'
+   ```
+
+   It prints nothing today.

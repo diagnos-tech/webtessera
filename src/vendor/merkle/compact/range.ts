@@ -233,8 +233,20 @@ export class Range {
 	#appendImpl(end: bigint, seed: Uint8Array, hashes: readonly Uint8Array[], visitor: VisitFn | null): void {
 		// Bits [low, high) of r.end encode the merge path, i.e. the sequence of node
 		// merges that transforms the two compact ranges into one.
-		const [low, rawHigh] = getMergePath(this._begin, this._end, end);
-		const high = rawHigh < low ? low : rawHigh;
+		const [low, mergeHigh] = getMergePath(this._begin, this._end, end);
+		// Port note: getMergePath returns -1 where Go's uint(high-1) wraps to MaxUint.
+		// Of the ranges Append and AppendRange accept, only [0, MaxUint64) appended to
+		// an empty range at 0 gets there. Go compares high as a uint, so it is not
+		// clamped to low, and the merge loop is bounded only by the runtime: it panics
+		// once it indexes past the right range's hashes. The arithmetic below keeps -1,
+		// which yields Go's values (a shift count that saturates, a negative zeros),
+		// and the two comparisons read it as MaxUint. See
+		// docs/decisions/0014-uint64-wrapping-made-explicit.md.
+		const unbounded = mergeHigh < 0;
+		let high = mergeHigh;
+		if (!unbounded && high < low) {
+			high = low;
+		}
 		let index = shiftRight64(this._end, low);
 		// Now bits [0, high-low) of index encode the merge path.
 
@@ -256,8 +268,14 @@ export class Range {
 		// according to the mask. All new nodes are reported through the visitor.
 		let idx1 = this._hashes.length;
 		let idx2 = 0;
-		for (let h = low; h < high; h++) {
+		for (let h = low; unbounded || h < high; h++) {
 			if ((index & 1n) === 0n) {
+				// Port note: Go's bounds check on hashes[idx2]. Only the unbounded loop
+				// can fail it, and only here: the lhs check above counted every one bit
+				// of index, so idx1 never runs out first.
+				if (idx2 >= hashes.length) {
+					throw new Error(`runtime error: index out of range [${idx2}] with length ${hashes.length}`);
+				}
 				seed = this._f.hash(seed, hashes[idx2] as Uint8Array);
 				idx2++;
 			} else {
@@ -287,6 +305,11 @@ export class Range {
  *
  * The output is not specified if begin <= mid <= end doesn't hold, but the
  * function never panics.
+ *
+ * Port note: high is Go's uint(high-1), which wraps to MaxUint when high is 0.
+ * The port returns -1 there (begin = mid = 0, end = MaxUint64 is the one input
+ * within the precondition that gets it), and appendImpl reads it as MaxUint. See
+ * docs/decisions/0014-uint64-wrapping-made-explicit.md.
  *
  * @internal Unexported in Go; see docs/decisions/0010-package-private-members.md.
  */
