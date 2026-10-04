@@ -1,6 +1,6 @@
 # ADR-0141: Dispose of the remaining scope-register rows
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/` (with `antispam/`), `storage/aws/`, `storage/gcp/` and
@@ -289,6 +289,12 @@ awaits review like this ADR:
   `deferred`: replicating a log into a bucket is now the S3 sink of `webtessera/mirror`, while an
   `ObjectStore` over S3, which needs a `lock`, is still not provided.
 
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Approved. `src/storage/durableobject/` does not
+exist and `src/storage/sqlite/` does; ADR-0120 to ADR-0123 read `superseded by ADR-0150` to `ADR-0154`;
+`cmd/experimental/mirror/internal/mirror.go` is ported (`src/mirror/`, PORTING-MAP `done`) and `posix/main.go` is not;
+`src/http/` and `src/witness/` exist and are in the `exports` map; the `storage/s3/` row is `deferred` in ADR-0001. The
+"read the SQLite backend" instruction is narrower than the text it corrects (see the Review).
+
 ## Alternatives considered
 
 - **Port the cloud drivers over the server SDKs.** Rejected: they need database connections (Spanner, MySQL)
@@ -309,9 +315,41 @@ awaits review like this ADR:
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Verified the register against the pinned tree, not the row names. 106 `.go` files in total; the open rows are 45:
+    `storage/posix/` 4 (`files.go` 1031 lines, `files_test.go`, `file_ops.go`, `otel.go`), `posix/antispam/` 3,
+    `aws`+`gcp`+`mysql` 13 (antispam included), `internal/hammer/` 10, `cmd/{conformance,examples,experimental}` 13,
+    `integration/` 2; `keygen/` does not exist; `.github/workflows/aws_integration_test.yml` fetches `generate_keys` from
+    `serverless-log`. Every one of the 45 files has a row in `docs/PORTING-MAP.md` (`pending ADR`, except the
+    four posix rows carrying ADR-0100's status and `mirror.go`, `done`), as the Context says.
+  - Claims checked against upstream: the three antispam packages are labelled "This functionality is experimental!";
+    `docs/design/antispam.md` says "best effort" and lists strong deduplication as a non-goal; `newInMemoryDedup`'s comment
+    says "can be used in isolation"; `DefaultAntispamInMemorySize` is 256 << 10; the MySQL conformance personality runs
+    `WithAntispam(DefaultAntispamInMemorySize, nil)` (aws, gcp and posix pass a persistent one);
+    `withAntispam(n, null)` installs only the in-memory decorator in `append_lifecycle.ts`, as in Go. The hammer imports
+    `client.NewHTTPFetcher`, nothing else imports `internal/hammer`, and its writer parses the first line of the response
+    with `ParseUint`; `integration_test.go` parses the whole body (stricter than the ADR's "does the same"). `fault_test.go`
+    uses `strace` with `error=EIO` and `signal=KILL`; CI starts the MySQL and POSIX conformance binaries for
+    `TestLiveLogIntegration`; `cmd/conformance/README.md` says what the ADR quotes; `mirror.go` copies by range with retries
+    and writes the checkpoint last, and says it "_only copies the data_".
+  - The replacement claims, by running. `examples/log-server` answers `POST /add` with the bare decimal index (no
+    newline). I built upstream's unmodified `integration` test and `internal/hammer` from `.upstream/tessera` and ran
+    them against that server on Node: `TestLiveLogIntegration` passed (64 entries, then the default 1,024 concurrent
+    entries in 7.96 s) and the hammer reached its tree-size goal of 200 and exited 0. So the section 4 claim that the hammer
+    and `integration_test.go`'s client "can drive them as they stand" holds for `log-server`; `examples/edge` serves the same
+    handler but I did not run it (it needs workerd). The ten conformance cases are the ten in `driver_conformance.ts` and
+    match the content of `TestLiveLogIntegration` (add, await a checkpoint, read bundles back, verify inclusion). The
+    `keygen` scripts in the four examples call `generateKey` from `webtessera/note`.
+  - Challenge. The dispositions are argued from upstream and each states what is lost and what replaces it; the gaps are
+    stated rather than hidden (fault injection, scale, other processes). I accept all of them. The weakest is "persistent antispam
+    not ported", resting on upstream calling the mechanism best effort, which the design document supports.
+  - Not blocking. (1) The 2026-10-03 Update says to read the SQLite backend wherever "section 8 and the Context" name the
+    Durable Object backend, but section 1 (ADR-0120, ADR-0122) and section 7 (ADR-0121, ADR-0122, "Durable Objects in
+    workerd") name it too. (2) The Consequences count (2 ported, 43 not) predates the `mirror.go` port; it is now 3 and 42.
+    (3) After acceptance, `docs/PORTING-MAP.md` still shows these 44 files as `pending ADR` and ADR-0001's register as
+    `proposed - ADR-0141`; those are outside the ADR files and need updating by whoever owns them.
 
 **Update (2026-10-04).** The examples this ADR named as the replacements for `cmd/conformance/*` and
 `cmd/examples/*`, and as the hammer's target, no longer exist: `examples/cloudflare-durable-object` and
@@ -319,3 +357,8 @@ awaits review like this ADR:
 `log-server`, `monitor`, `edge`). The register row and sections 4, 5, 6 and 7 now name `examples/log-server` and
 `examples/edge`, which serve `POST /add` with the bare decimal index the hammer expects, and `examples/client-only`
 for a log in a tab. The dispositions themselves are unchanged.
+
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Approved. `examples/` holds exactly `client-only`,
+`edge`, `log-server`, `monitor`, `notary` and `session-receipts`; `cloudflare-durable-object` and `browser` are gone;
+`log-server` and `edge` serve `POST /add` with the bare decimal index (the Review notes record running upstream's
+`TestLiveLogIntegration` and hammer against `log-server`); `client-only` is the in-tab log. The dispositions are unchanged.

@@ -1,6 +1,6 @@
 # ADR-0133: The package root re-exports Tessera's root package, plus the names TypeScript needs to express it
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** the exported identifiers of package `tessera` at `4a6d9f9`: `append_lifecycle.go`, `await.go`, `ct_only.go`, `entry.go`, `lifecycle.go`, `log.go`, `migrate_lifecycle.go`, `witness.go`
@@ -88,9 +88,24 @@ readers who arrive from the Go documentation.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Enumerated the exported identifiers of package `tessera` at 4a6d9f9 by parsing the non-test files with `go/parser`: 37
+    (8 `Default*` consts, 2 funcs and 6 types in `append_lifecycle.go`, 2 in `await.go`, 1 in `ct_only.go`, 2 in `entry.go`,
+    3 types in `lifecycle.go`, `Driver` and 3 `ErrPushback*` in `log.go`, 4 in `migrate_lifecycle.go`, 5 in `witness.go`),
+    exactly the ADR's list. `src/index.ts` re-exports all 37 under ADR-0002's names, plus the six additions the table
+    justifies (`withCTLayout`, `AppendLifecycle`, `AppenderInit`, `NewAppenderResult`, `ErrNotExist`, `errorIs`) and nothing
+    else; none of the test-only helpers it lists is exported.
+  - `src/index_test.ts` passes (33 tests): the sorted list of runtime names written out in full (33 = 30 Go values plus the
+    three runtime additions), `expectTypeOf` for the type-only names, one case per Go value, and the leak list. Two nits
+    against the ADR's text: the leak list asserts `copier` and `bundle` where the ADR names `Copier` and `progress`
+    (`progress` was deleted by ADR-0181), but the exact-set test would catch any leak anyway.
+  - Challenge: `ErrNotExist` and `errorIs` at the root is the debatable part. The ADR records the subpath alternative and
+    leaves it to the reviewer; I accept the root, since `ErrPushback`'s documentation sends readers to `errors.Is` and a
+    personality handling `newAppender`'s futures needs both at that call site.
+  - The two "future work" statements have since been done (`docs/PORTING-MAP.md` now has a row for `src/index.ts`, and
+    `package.json` `exports` has every storage subpath); no change needed.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

@@ -1,6 +1,6 @@
 # ADR-0112: Take IndexedDB locks through the Web Locks API, falling back to in-process locks
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`lockFile`, `treeStateLock`, `publishLock`, `gcStateLock`)
@@ -59,6 +59,11 @@ a writer in more than one context.
 > Locks" — rejected below because it would leave no way to run in Node or in a single-context application — is
 > therefore adopted with exactly that escape hatch. See ADR-0201.
 
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Approved. `openIndexedDBObjectStore` and
+`newIndexedDBDriver` reject without a `LockManager` unless `singleWriter: true`, the check runs before the database is
+touched, `lockScope` reports `origin` or `realm`, and `indexeddb_test.ts` and `indexeddb_browser_test.ts` pin each case
+(passing). ADR-0201 carries its own review.
+
 ## Consequences
 
 - Two tabs, or a tab and a worker, can run appenders on the same log and the log stays consistent. The Chromium
@@ -83,9 +88,24 @@ a writer in more than one context.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Checked the quoted `lockFile` comment against `files.go`, and the Web Locks behaviour the Context relies on. In
+    `locks.ts`/`indexeddb.ts`: lock names are `webtessera/indexeddb/<encodeURIComponent(db)>/<name>` (never starting with
+    `-`); exclusive mode (the default); an already-aborted signal rejects with its reason before requesting;
+    an abandoned wait rejects with the signal's reason even when the browser rejects `AbortError`, while `fn`'s own error
+    is passed through; the injectable `locks` option; the in-process fallback is `NamedLocks`, FIFO, abortable, and
+    shared per `IDBFactory` in a `WeakMap`, so separate fake-indexeddb instances never contend. `node` 22.22 has no
+    `navigator.locks`, as stated.
+  - Tests, all passing: Node (named locks, per-factory sharing, `AbortError` mapping, `fn` error), and in real Chromium
+    "excludes another store open on the same database", "waits for a lock held in another realm", "makes another realm wait
+    for a lock held here" (page and dedicated module worker, both directions), the abort-while-waiting case, and the
+    Web Lock name. The Update's behaviour is tested: opening without Web Locks fails before the database is created
+    unless `singleWriter` is set, and Web Locks are used whenever a `LockManager` exists.
+  - Challenge: the "Refuse to open without Web Locks" alternative is still listed as rejected. The Update adopts it with
+    the `singleWriter` escape hatch and says so, which is the right way to record it; the Consequences' "silent fallback"
+    sentence is superseded in the same way. Fine as history.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

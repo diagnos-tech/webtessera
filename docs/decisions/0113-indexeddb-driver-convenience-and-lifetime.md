@@ -1,6 +1,6 @@
 # ADR-0113: `newIndexedDBDriver` returns the engine driver and ties the connection to a signal
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`New`); `append_lifecycle.go` (`NewAppender`'s context)
@@ -59,6 +59,10 @@ function's documentation points to.
 > unless `singleWriter: true` is passed. The second alternative below (subclassing `ObjectStoreDriver`) is
 > adopted for that one property; `close()` and `store` are still not attached. See ADR-0201.
 
+**Review of this update:** ADR reviewer (independent), 2026-10-04. Approved. `class indexedDBDriver extends
+ObjectStoreDriver` adds only `lockScope`; `newIndexedDBDriver` shares the engine's `cfg`, rejects without a `LockManager`
+unless `singleWriter: true`, and its tests (`newIndexedDBDriver reports the effective lock scope`, "refuses too") pass.
+
 ## Consequences
 
 - One call, and one lifetime to manage, for the common case; the same shape as upstream's `posix.New(ctx, cfg)`
@@ -81,9 +85,22 @@ function's documentation points to.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Checked against `posix.New` and `NewAppender`'s context (`files.go`, `append_lifecycle.go`) for the lifetime
+    analogy. `newIndexedDBDriver` opens with `openIndexedDBObjectStore(cfg, signal)` and returns
+    `newObjectStoreDriver({ store, fetch })`; aborting `signal` while opening abandons it (and closes a late connection),
+    and once open closes the connection; an already-aborted signal closes and throws the reason. The usage example's
+    shape matches `NewAppenderResult` (`appender`, `shutdown`). Tests: "keeps a log across restarts" (Node and
+    Chromium) asserts that aborting each driver's signal closed its connection so that deleting the database is not
+    blocked; "rejects with the signal's reason when already aborted"; Chromium "sequences writers in two realms into one
+    log". All passed.
+  - Consequences: after the connection closes, the store rejects every operation with `ErrClosed` as cause (store-level
+    "rejects every operation after close" test), so the appender's remaining writes fail as described. There is no
+    driver-level test of that exact sequence; non-blocking.
+  - Alternatives are reasoned. The Update (returning `IndexedDBDriver`, a subclass carrying read-only `lockScope`) matches
+    `indexeddb.ts`, including the "`close()` and `store` still not attached" limit.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

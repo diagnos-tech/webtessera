@@ -79,6 +79,27 @@ This is correct because:
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** changes requested
+- **Notes:**
+  - The decision checks out. `writeTile` in `driver.ts` only calls `createOverwrite`; `garbageCollect` removes the same
+    `.p/` prefixes as `files.go`; the quoted `LogReader.ReadTile` text is verbatim at `lifecycle.go:41-43`;
+    `partialOrFullResource` matches `internal/fetcher/fallback.go`; `testing/golden_fixtures.ts` derives its expected
+    key set from the fixtures and the layout rules, not from the driver, and the golden suite passes with exactly the
+    superseded partials the ADR describes, before and after GC.
+  - **Factual error about upstream, which must be corrected.** The Context says that when POSIX writes a full tile it
+    "replaces every partial version ... with a symlink", so that "a request for `tile/0/000.p/7` is answered with the full
+    tile". At 4a6d9f9 that only happens when the process's working directory is the log root: `writeTile` builds
+    `tPath := layout.TilePath(...)`, which is relative to the log root, and passes it unjoined to
+    `filepath.Glob(tPath + ".p/*")` and `os.Symlink(tPath, tmp)` (only `createOverwrite` joins `cfg.Path`). I ran the real
+    POSIX driver (a probe module replacing tessera with `.upstream/tessera`) for batches ending at 1, 255, 256 and 300
+    entries. With the working directory outside the log: `tile/0/000.p/1` (32 bytes) and `tile/0/000.p/255` (8160 bytes)
+    stay regular files with their partial contents, the same set of files this driver leaves. With the working directory
+    equal to the log root: they become symlinks to `tile/0/000`, resolved relative to the link's own directory, so they
+    dangle and readers fall back to the full tile. ADR-0162 records the same finding ("ADR-0101's description of what
+    POSIX does on disk should be read with it").
+  - What must change: add an Update, or amend the Context and Consequences, saying so. Specifically the Context sentence
+    quoted above, the first two Consequences bullets ("where a POSIX directory holds symlinks"; "a client cannot
+    distinguish the drivers except by response size"), and the premise of the first alternative ("emulating the symlink's
+    content"). In a normal deployment both drivers hold identical partial files, which strengthens the decision. I would
+    approve once the record says what POSIX actually does.

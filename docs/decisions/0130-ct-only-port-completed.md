@@ -1,6 +1,6 @@
 # ADR-0130: `ct_only.ts` is complete; `withCTLayout` serves both option types and closes ADR-0044
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `ct_only.go:20-72` (`NewCertificateTransparencyAppender`, both `WithCTLayout` methods), `append_lifecycle.go` (`AppendOptions`, `Appender`), `migrate_lifecycle.go` (`MigrationOptions`)
@@ -120,9 +120,24 @@ on the options reaches the driver's `appender()` call.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `ct_only.go` in full against `src/ct_only.ts`. Both `WithCTLayout` methods set what the ADR says: `AppendOptions`
+    sets `entriesPath` and `bundleIDHasher` (the struct has no leaf hasher, checked in `append_lifecycle.go`),
+    `MigrationOptions` additionally `bundleLeafHasher`. `NewCertificateTransparencyAppender` reads `a.Add` at call time,
+    as the Go closure does. `ctBundleIDHasher`, `ctMerkleLeafHasher`, `copy*`, `ctEntriesPath` and `convertCTEntry`
+    compared branch by branch, error texts included (`unknown entry type 0x%x`, the "trailing data" message). The
+    overloaded `withCTLayout` with an `instanceof` third branch is the only way to keep the single identifier name
+    (the problem ADR-0079's review flagged and left open, which I confirmed there). The ADR-0044 table is complete:
+    `identityHash`, `convertCTEntry`, `MigrationOptions.WithCTLayout` closed by ADR-0055, 0059 and 0079, the other two here;
+    `ct_only.ts` has no TODO or placeholder.
+  - Tests: `ct_only_test.ts` has 40 tests, all passing, of which 12 are Go's (6 `TestCTEntriesPath`, 3 `TestCTIdentityHasher`,
+    3 `TestCTMerkleLeafHasher`); upstream has no test for the other declarations, as the ADR says. The ordering case pins
+    both orders of `withCTLayout` and `withAntispam`; the guard branch, the signal forwarding and the per-call read of
+    `a.add` each have a case.
+  - The barrel claim holds: `src/index.ts` exports `newCertificateTransparencyAppender` and `withCTLayout` from
+    `ct_only.ts` and nothing else from it.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

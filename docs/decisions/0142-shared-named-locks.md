@@ -1,6 +1,6 @@
 # ADR-0142: Share one in-process named-lock implementation across the storage backends
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** lead maintainer
 - **Upstream reference:** `storage/posix/files.go` (`lockFile`), n/a otherwise
@@ -38,6 +38,18 @@ custom `ObjectStore` can implement `lock` in one line, and the README points to 
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - `NamedLocks` read against the ADR and against the ObjectStore contract's `lock` sentences: exclusive per name, FIFO,
+    release hands the lock straight to the first waiter, an already-aborted signal rejects before queuing, a waiter that
+    aborts leaves the queue and the lock is handed past it, and a name nobody holds keeps no map entry. `fn` is released
+    in `finally`, including a synchronous throw. The four cases in `namedlocks_test.ts` pass, and a scratch mutation that
+    leaks the map entry on release makes "keeps no state for names nobody holds" fail (a leaked entry is a stuck lock), so
+    that case is not vacuous. It is exported from `webtessera/storage/objectstore` and the README points to it.
+  - The three delegating backends: `MemoryObjectStore` and the IndexedDB fallback locker do use it; the Durable Object
+    backend named in the ADR is gone, and the SQLite store's local mode uses it instead (ADR-0152). The conformance suites
+    run it through every backend (memory, IndexedDB in Node and Chromium).
+  - Challenge: both alternatives are reasoned. Not blocking: this ADR replaces ADR-0104's description of the memory store's
+    per-name `Mutex` (and ADR-0103's Consequences) without saying so; a sentence here or Updates there would keep the
+    three consistent. `NamedLocks` is now public API with a one-process scope, which its doc comment states.

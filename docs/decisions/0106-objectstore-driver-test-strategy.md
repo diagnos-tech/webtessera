@@ -1,6 +1,6 @@
 # ADR-0106: Prove the ObjectStore driver against Go's tests, Go's logs, and one suite for every backend
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files_test.go`, `fixtures/gen/log.go`, `append_lifecycle.go`
@@ -73,6 +73,21 @@ faithfully in `append_lifecycle.ts`, and is noted where the tests depend on it.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Layer 1: `driver_test.ts` against `files_test.go`: the three tests, `TestGarbageCollectOption`'s on, on-ct and off,
+    `TestPublishTree`'s eight cases all present with Go's names and values (60,000-entry batches, `integrateEvery` 31,343,
+    256 x 384 = 98,304 entries, 1.2 s interval, the same attempt timings, the final `fsck`). A "partial directory" is a key
+    prefix ending in a `.p` segment, as stated. The one departure inside a ported case is recorded in a Port note: the fake
+    publisher writes base64 instead of `%x` because of ADR-0205. Run: all pass, the four GC cases about 10.5 s each, the
+    whole objectstore and memory run 45.75 s, so "about 50 s, almost all in the GC tests" is accurate. Internal cases
+    named in the ADR (version file, tree-state errors, lock naming and wrapping, fetch defaulting, partial fallback,
+    `maxBundles` bound, tile widths, migration bounds) exist.
+  - Layers 2 and 3: `json_test.ts` agrees with real Go (see ADR-0102's review); the golden suite is judged against
+    fixtures and layout rules, not against the driver. The one-entry `terminator.Shutdown` explanation is right
+    (`append_lifecycle.go:505`, `maxIndex == 0` returns at once).
+  - Layer 4 and the mutation claims, verified in a scratch copy of `src/`: making the publishing loop ignore the abort
+    signal fails exactly "stops every background task once shut down and aborted"; bypassing the tree-state lock fails
+    exactly "never assigns an index twice when two drivers share a store". `describeDriverConformance` has the ten cases.
+  - Not blocking: "a restarted Durable Object" in the `reopen` description refers to the backend superseded by ADR-0150.

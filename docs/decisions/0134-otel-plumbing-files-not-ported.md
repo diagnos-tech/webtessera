@@ -1,6 +1,6 @@
 # ADR-0134: `internal/otel/cast.go` and `storage/internal/otel.go` are not ported
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `internal/otel/cast.go`, `storage/internal/otel.go`
@@ -90,9 +90,19 @@ The tracer and attribute keys of `storage/internal/otel.go` have no consumer in 
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Read `internal/otel/cast.go` and `storage/internal/otel.go`. `Clamp64` is called on exactly 18 lines
+    (`append_lifecycle.go` x7, `storage/gcp/gcp.go` x2, `storage/posix/antispam/badger.go` x1, `storage/internal/integrate.go`
+    x2, `client/client.go` x6), every one an argument to `span.SetAttributes` or a metric `.Record`. `storage/internal/otel.go`
+    is a tracer plus five attribute keys, consumed only by the four spans (`integrate.go` x3, `queue.go` x1). There is no
+    `src/internal/otel/` and no `src/storage/internal/otel.ts`, and the PORTING-MAP rows for both read `not ported` citing
+    this ADR. ADR-0051, 0061, 0070 and 0080 exist and record the other files named.
+  - The reasoning against porting `Clamp64` over `bigint` is sound (an int64 target that JavaScript's OpenTelemetry API does
+    not have). Not blocking: the closing sentence lists five `otel.go` files as "every OpenTelemetry file ... inside this port's
+    scope", which omits `storage/posix/otel.go` (decided in ADR-0100) and `storage/posix/antispam/otel.go` (decided in ADR-0141).
+    Each does have a recorded decision, so nothing is false, but the list is not the whole set.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

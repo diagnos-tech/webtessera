@@ -1,6 +1,6 @@
 # ADR-0140: Port `testonly/testlog.go` and `README_test.go` onto the memory driver, and check README.md in CI
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** lead maintainer
 - **Upstream reference:** `testonly/testlog.go`, `README_test.go`, `README.md`
@@ -79,6 +79,20 @@ running `mdcode` by hand and leaves the check itself as a TODO:
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - `testonly/testlog.go` against `src/testonly/testlog.ts`: same key generation, signer and verifier, `opts.WithCheckpointSigner`,
+    `NewAppender`; `Root` becomes `store`, `t.Fatalf` becomes a throw, `t.Context()` the optional signal, the pair a named
+    object (ADR-0031). `webtessera/testonly` exports `newTestLog`, `TestLog`, `NewTestLogResult` and not the fixture loader.
+    `README_test.go` against `src/README_test.ts`: both upstream tests and `createSigner` are kept with Go's names and
+    regions (`common_imports`, `construct_example`, `use_appender_example`), memory driver for posix, plus the extra regions.
+    `README_sync_test.ts` is upstream's TODO: it fails on a block naming a file it does not load, a missing region, a body that differs
+    after dedent and tabs-as-two-spaces, and a README that lacks the three upstream regions. It does not pass vacuously
+    (12 tagged blocks now). Run: `README_test.ts`, `README_sync_test.ts`, `testlog_test.ts` and the fixture-loader tests
+    all pass (71 tests with `fetcher_test.ts`). The `paths` mirror in `tsconfig.json` equals the `package.json` exports
+    map, and no library file imports the package by name (only doc comments).
+  - Not blocking, stale since the examples were reorganised: Decision 3 says the sync test may embed
+    `examples/cloudflare-durable-object/src/index.ts`. That directory no longer exists (`examples/` now holds `client-only`,
+    `edge`, `log-server`, `monitor`, `notary`, `session-receipts`) and the test embeds only `src/README_test.ts`.
+    ADR-0141's Update records the same reorganisation; this ADR deserves an Update line too.

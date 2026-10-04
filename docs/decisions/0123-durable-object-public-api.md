@@ -62,6 +62,11 @@ this.#log = ctx.blockConcurrencyWhile(async () => {
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Reviewed only for the accuracy of the supersession note, as the ADR is superseded. The Status reads
+    `superseded by ADR-0154`, in the template's form. ADR-0154 defines `webtessera/storage/sqlite` and says "ADR-0123's `webtessera/storage/durableobject` goes with the backend it exported (ADR-0150)"; `fromDurableObjectStorage(ctx.storage)` is the Durable Object entry point there.
+  - Confirmed in the tree: `src/storage/durableobject/` does not exist and `package.json` `exports` has no
+    `./storage/durableobject` entry (only `./storage/sqlite`); `ADR-0150` to `ADR-0154` exist (`proposed`, reviewed
+    separately); `ADR-0001`'s 2026-10-03 Update and its review say the same, and `docs/PORTING-MAP.md` agrees.

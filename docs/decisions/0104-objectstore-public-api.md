@@ -1,6 +1,6 @@
 # ADR-0104: Name the ObjectStore and memory drivers' public API for a flat TypeScript namespace
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-02
 - **Author:** Gustavo Simões
 - **Upstream reference:** `storage/posix/files.go` (`Storage`, `Config`, `New`, `NewTreeFunc`,
@@ -89,6 +89,18 @@ Requested `package.json` entry points (not edited here): `"./storage/objectstore
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
+- **Notes:**
+  - Checked the table against `files.go` (`Storage`, `Config`, `New`, `NewTreeFunc`, `MigrationStorage`) and
+    `src/storage/objectstore/index.ts`: `posix.New` returns `&Storage{cfg}, nil` and uses neither context nor error;
+    `NewTreeFunc` is declared and used nowhere else upstream, as stated; `HTTPClient` feeds only `CheckpointPublisher`
+    (witnesses), as `fetch` does here, and the driver calls it through a receiver-less wrapper
+    (`fetcher_test.ts`/`driver_test.ts` cover the defaulting). The unexported members that other modules use are public
+    with `@internal`; `appender`, `logResourceStorage`, `json.ts` and `isLastLeafInParent` are not exported from the barrel.
+    `src/storage/memory/index.ts` exports exactly `MemoryObjectStore`, `newMemoryDriver`, `MemoryDriverConfig`; the
+    `package.json` `exports` entries the ADR asked for now exist. Alternatives (keep Go's names, return `Driver`, hide the
+    memory store) are fair. `memory_test.ts` (conformance, `keys()`, view copying, abandoned waiters) passes.
+  - Not blocking: the barrel also exports `NamedLocks` (ADR-0142), which this table does not list, and the description of
+    the memory store's lock ("one `Mutex` per lock name ... a waiter whose signal aborts stays queued") was replaced by
+    ADR-0142's `NamedLocks`. An Update line pointing at ADR-0142 would keep this ADR accurate.

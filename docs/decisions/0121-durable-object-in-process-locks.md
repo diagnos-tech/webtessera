@@ -76,6 +76,11 @@ flight, but they do not serialize concurrent async work inside one event, such a
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** approved
 - **Notes:**
+  - Reviewed only for the accuracy of the supersession note, as the ADR is superseded. The Status reads
+    `superseded by ADR-0152`, in the template's form. ADR-0152's "Local" locking is the in-process, per-name, FIFO, abortable lock of this ADR, now `NamedLocks` (ADR-0142), shared per database object; the Durable Object adapter defaults to it (ADR-0150's table). Its lease mode is the cross-process case this ADR said was not needed for a Durable Object.
+  - Confirmed in the tree: `src/storage/durableobject/` does not exist and `package.json` `exports` has no
+    `./storage/durableobject` entry (only `./storage/sqlite`); `ADR-0150` to `ADR-0154` exist (`proposed`, reviewed
+    separately); `ADR-0001`'s 2026-10-03 Update and its review say the same, and `docs/PORTING-MAP.md` agrees.

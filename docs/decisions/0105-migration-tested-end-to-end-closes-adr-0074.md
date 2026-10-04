@@ -61,6 +61,23 @@ ADR-0074 itself is not edited; this ADR supersedes its "Not covered" list for th
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
-- **Notes:** pending
+- **Reviewer:** ADR reviewer (independent), 2026-10-04
+- **Verdict:** changes requested
+- **Notes:**
+  - The tests do what the ADR says. `driver_migration_test.ts` drives `newMigrationTarget(newObjectStoreDriver({ store }),
+    newMigrationOptions())` and `migrate(4, size, root, getEntries)` with the real `MigrationStorage`; the sources are the
+    Go-written `log_<N>` fixtures served through `partialOrFullResource`; the cases are as listed (log_0, 1, 257 and 5000
+    reproducing tiles and bundles byte for byte; log_1000 continued to log_5000, fetching only bundles 3 to 19; a wrong
+    root failing with `migration completed, but local root hash ... != source root hash ...`, which is `migrate_lifecycle.go`
+    line 182 verbatim; no checkpoint published, reader reports `ErrNotExist`). They pass, as does the conformance
+    suite's "migrates a log into an empty store" on every backend I ran. The PORTING-MAP rows were updated as the
+    Consequences say.
+  - **Wrong citation, must be fixed.** The Upstream reference lists `integration/integration_test.go`. At 4a6d9f9 nothing
+    in `integration/`, in any `*_test.go`, or in `.github/workflows` touches migration (`grep -i migrat` finds only
+    non-test files, and `integration_test.go` is `TestLiveLogIntegration`, which adds entries over HTTP and verifies
+    proofs). Upstream has no migration test at all, so this ADR adds coverage rather than porting it. The same mistaken
+    premise sits in ADR-0074 ("exercised by Tessera's `integration/` end-to-end suite") and in the header of
+    `driver_migration_test.ts` ("Upstream covers the same ground in its `integration/` suite"); ADR-0074 and the code are
+    not this ADR's to edit, but this ADR must drop the reference and say that upstream has no such test.
+  - The remaining claims check out: each migration takes at least a second (`awaitIntegration` polls once a second, as
+    `files.go` does); the antispam-populating path is untested end to end.
