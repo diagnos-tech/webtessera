@@ -96,13 +96,18 @@ The Merkle layer stays synchronous, exactly as upstream.
 ## Update (2026-10-04)
 
 Two facts, recorded from the Review's notes, and a pointer to the ADRs that build on WebCrypto; the decision is unchanged.
+
+- *Review of this correction:* ADR reviewer (independent), 2026-10-04 — changes requested — The intro sentence is now right: the Review's notes give the two facts (the dependency count and the dated audits) and asked for the pointer, and the three bullets match "two facts and a pointer". But the same review's other remark is not answered, and the third bullet is still inaccurate against the ADRs and the code: ADR-0223 adds `AsyncSigner`, `signAsync` and `withCheckpointAsyncSigner` (`src/vendor/note/note.ts`, `src/append_lifecycle.ts`), ADR-0222 is the one that creates and imports non-extractable WebCrypto keys (`LogKey`, `src/safe/keys.ts`), and ADR-0227 only stores that key in IndexedDB (`src/browser/device_key.ts` defines no signer), so "ADR-0223 and ADR-0227 ... add WebCrypto signers" is the loose attribution the review named, and the pointer omits ADR-0222. Also, the "optional async path ... a new ADR" that the Consequences anticipated is an optional async fast path for hashing large entry payloads at the entry boundary (first Consequences bullet), not async signing, and the quotation is not verbatim ("async fast path"). To fix: say that ADR-0223 adds the async signing path, ADR-0222 the WebCrypto key custody and ADR-0227 device-key storage, and that none of them changes hashing, the Merkle layer or verification, which stay on noble and synchronous (that last claim holds: `crypto.subtle` is called only in `src/safe/keys.ts`). Also, the intro was changed in place with no Correction line, as ADR-0173 and ADR-0176 have.
 - "Zero dependencies of their own" holds for `@noble/hashes`. `@noble/curves` 2.3.0 declares one dependency,
   `@noble/hashes` itself, so the transitive set is still exactly the two packages this ADR counts.
 - The independent audits both READMEs list (Cure53: hashes 1.0.0, January 2022; curves 1.6.0, September 2024, with
   Ed25519 in scope) cover 1.x releases. For 2.x the maintainers list their own audit. The reliance on audited
   constant-time code rests on those.
-- ADR-0223 and ADR-0227 are the "optional async path … a new ADR" that the Consequences anticipated. They add
-  WebCrypto signers for non-extractable keys, and keep the Merkle layer and verification on noble and synchronous.
+- Three later ADRs build on WebCrypto, for keys only: ADR-0222 creates and imports non-extractable WebCrypto
+  Ed25519 keys (`src/safe/keys.ts`), ADR-0223 adds the async signing path (`AsyncSigner`, `signAsync`,
+  `withCheckpointAsyncSigner`), and ADR-0227 stores a device key in IndexedDB. None of them is the "optional async
+  fast path" the first Consequences bullet anticipates, which is about hashing large entry payloads; none changes
+  hashing, the Merkle layer or verification, which stay on noble and synchronous.
 
 **Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. Checked in
 `node_modules`: `@noble/curves` is 2.3.0 and declares exactly one dependency, `@noble/hashes` 2.3.0, which has none;
@@ -115,3 +120,9 @@ verification (`verifyEd25519`, `src/vendor/note/note.ts`) is synchronous on `@no
 "Two facts" and lists three bullets (the third is the pointer to ADR-0223 and ADR-0227, not a fact from the Review),
 and "ADR-0223 and ADR-0227 add WebCrypto signers" is loose: ADR-0223 adds the `AsyncSigner` and `signAsync` path,
 ADR-0227 stores the non-extractable device key, and the WebCrypto key creation itself is ADR-0222's (`src/safe/keys.ts`).
+
+- *Correction (2026-10-04, after review):* the intro sentence was reworded in place to "two facts … and a pointer",
+  and the third bullet now attributes key custody to ADR-0222, async signing to ADR-0223 and device-key storage to
+  ADR-0227, and no longer equates them with the Consequences' async hashing path, as the review of this correction
+  asked.
+- *Review of this correction:* ADR reviewer (independent), 2026-10-04 — approved — Checked the new third bullet and the Correction line against my request and the code. ADR-0222's key creation and import is `generateLogKey` and `importLogKey` in `src/safe/keys.ts`, which calls `subtle.importKey`, `generateKey`, `sign` and `exportKey` for Ed25519 with non-extractable keys. ADR-0223's async signing path is `AsyncSigner` and `signAsync` (`src/vendor/note/note.ts`) and `withCheckpointAsyncSigner` (`src/append_lifecycle.ts`). ADR-0227's device key in IndexedDB is `src/browser/device_key.ts`, which defines no signer. The first Consequences bullet's "optional async fast path" is about hashing large entry payloads, which none of the three is. "For keys only" and "none changes hashing, the Merkle layer or verification" hold: no `subtle.digest` exists, `crypto.subtle` is called only in `src/safe/keys.ts` (doc examples aside), and `LogKey.verifier()` is the ported `newVerifier` on noble. The intro now matches the bullets, and the Correction line records both changes.
