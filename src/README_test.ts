@@ -24,16 +24,17 @@
 // Port note: upstream keeps README.md in sync with this file by running mdcode by
 // hand, and leaves a TODO to check it in presubmit; README_sync_test.ts is that
 // check. The upstream regions (common_imports, construct_example, use_appender_example)
-// are kept; the others document the IndexedDB and SQLite drivers and verification, which
-// upstream's README covers in prose. The posix driver becomes the memory driver.
-// See docs/decisions/0140-testonly-and-readme-test-on-the-memory-driver.md.
+// are kept; the others document the safe API, the IndexedDB and SQLite drivers and
+// verification, which upstream's README covers in prose. README.md embeds some of them;
+// the guides in docs/guides copy others verbatim, tagged with the same file and region,
+// although README_sync_test.ts checks only README.md. The posix driver becomes the
+// memory driver. See docs/decisions/0140-testonly-and-readme-test-on-the-memory-driver.md.
 //
 // biome-ignore-all assist/source/organizeImports: the #region markers delimit import groups that README.md embeds verbatim.
 
 import "fake-indexeddb/auto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // #region common_imports
@@ -51,9 +52,13 @@ import { DefaultHasher } from "webtessera/merkle/rfc6962";
 import { generateKey, newSigner, newVerifier, type Signer } from "webtessera/note";
 import { newIndexedDBDriver } from "webtessera/storage/indexeddb";
 import { MemoryObjectStore } from "webtessera/storage/memory";
-import { fromSqliteSync, newSqliteDriver } from "webtessera/storage/sqlite";
+import { newSqliteDriver } from "webtessera/storage/sqlite";
 import { openBrowserLog, openDeviceKey } from "webtessera/browser";
+// #region safe_imports
+import { DatabaseSync } from "node:sqlite";
 import { importLogKey, openServerLog, verifyReceipt } from "webtessera/server";
+import { fromSqliteSync } from "webtessera/storage/sqlite";
+// #endregion
 import { newInProcessLockManager } from "./storage/indexeddb/testing/locks.ts";
 
 // fastOptions keeps the snippets' logs quick to publish under test; the README's
@@ -179,7 +184,7 @@ async function useSqlite(): Promise<void> {
 	const file = `${dir}/log.db`;
 
 	// #region sqlite_example
-	// node:sqlite here; any other engine only changes this line (see the table below).
+	// node:sqlite here; any other engine changes only this line, through its own adapter.
 	const database = fromSqliteSync(new DatabaseSync(file));
 	const driver = await newSqliteDriver({ database }, signal);
 	const { appender, shutdown } = await newAppender(driver, newAppendOptions().withCheckpointSigner(signer), signal);
@@ -195,13 +200,12 @@ async function useSqlite(): Promise<void> {
 }
 
 // The safe API (webtessera/server and webtessera/browser) has no upstream counterpart; its
-// snippets document docs/guides/safe-api.md and the README section that introduces it.
+// snippets document the README's quick start and docs/guides/safe-api.md.
 
 async function safeServerLog(): Promise<void> {
 	const dir = mkdtempSync(`${tmpdir()}/webtessera-readme-`);
 	const file = `${dir}/log.db`;
 	const env = { LOG_SKEY: generateKey(undefined, "example.com/my-log").skey };
-	const entry = new TextEncoder().encode("hello");
 
 	// #region safe_server_example
 	// The key comes from your secret store, never from source code.
@@ -210,16 +214,15 @@ async function safeServerLog(): Promise<void> {
 		storage: { sqlite: fromSqliteSync(new DatabaseSync(file)) },
 	});
 
-	// Resolves once a published checkpoint commits to the entry, with a receipt that
-	// proves it offline: a C2SP tlog-proof, already verified.
+	// append resolves once a published checkpoint covers the entry, with a verified receipt.
+	const entry = new TextEncoder().encode("hello");
 	const receipt = await log.append(entry);
+
+	// Anyone with the log's vkey and the entry can check the receipt, offline.
+	const { index, checkpoint } = verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });
 	// #endregion
 
 	try {
-		// #region safe_verify_example
-		// Anyone with the log's vkey and the entry can check a receipt, offline.
-		const { index, checkpoint } = verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });
-		// #endregion
 		expect(index).toBe(0n);
 		expect(checkpoint.size).toBe(1n);
 		expect((await log.handler(new Request("https://log.example/checkpoint")))?.status).toBe(200);

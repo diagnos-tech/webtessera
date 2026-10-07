@@ -1,10 +1,13 @@
 # At the edge
 
+This guide shows how to run the log server on an edge platform; read it when you deploy a log to an
+edge runtime.
+
 **Example:** [`examples/edge`](../../examples/edge)
 
-The log server of [the log server guide](log-server.md) runs on any runtime that serves a fetch
-handler, and an edge platform is one more. The example deploys the *same handler file* as a
-Cloudflare Worker, with the log in a SQLite-backed Durable Object:
+[The log server](log-server.md) runs on any runtime that serves a fetch handler, and an edge platform
+is one more. The example deploys the *same handler file* as a Cloudflare Worker, with the log in a
+SQLite-backed Durable Object:
 
 ```ts
 export class LogObject extends DurableObject<Env> {
@@ -30,10 +33,11 @@ export class LogObject extends DurableObject<Env> {
 | Containers, VMs, serverless functions with a disk | `fromSqliteSync` over node:sqlite or bun:sqlite | `"lease"` | See [the log server](log-server.md). |
 | Turso, rqlite | `fromLibsql`, `fromRqlite` | `"lease"` | A database several regions or instances reach over the network. |
 
-The locking column is each adapter's default, which `openServerLog` keeps unless it is given `locking`.
+The locking column is each adapter's default; [choosing storage](choosing-storage.md#sqlite) covers
+every engine.
 
-Whatever the platform, the log's key is a secret of the platform's (`wrangler secret put LOG_SKEY`),
-imported as a non-extractable WebCrypto key, and clients verify the log exactly as they would any
+Whatever the platform, the log's key is a secret of the platform's (on Workers,
+`wrangler secret put LOG_SKEY`), imported as a non-extractable WebCrypto key, and clients verify the log exactly as they would any
 other: the platform can withhold the log, not rewrite it unseen.
 
 The example's tests run inside workerd with `@cloudflare/vitest-pool-workers`, and the Worker needs

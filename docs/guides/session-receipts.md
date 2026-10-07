@@ -1,11 +1,14 @@
 # Session receipts
 
+This guide shows how a browser's log becomes a record that neither the user's device nor your server
+can rewrite alone; read it when both sides must be able to rely on the record of a session.
+
 **Example:** [`examples/session-receipts`](../../examples/session-receipts)
 
 The browser records every exchange with your server in its own log ([a client-only
 log](client-only-log.md)), and your server acts as that log's **witness** and **committer**. The
-record is then signed by the user's device and cosigned by your server, and neither can rewrite it
-alone: an auditable record of everything the server did in the user's space.
+record is then signed by the user's device and cosigned by your server: an auditable record of
+everything the server did in the user's space.
 
 ## The three moving parts
 
@@ -19,6 +22,9 @@ const log = await openBrowserLog({
   witnesses: newWitnessGroup(1, newWitness(serverWitnessVkey, new URL("/witness/", server))),
 });
 ```
+
+`newWitness` and `newWitnessGroup` come from `webtessera`. Receipts then carry the server's
+cosignature, and verify with `witnesses: { threshold: 1, witnesses: [serverWitnessVkey] }`.
 
 **2. The server as witness.** `newWitnessServer` from `webtessera/witness` cosigns a checkpoint only
 when its consistency proof shows that it contains the last checkpoint cosigned for that log. Sessions
@@ -37,9 +43,9 @@ const witness = newWitnessServer({
 const serverWitnessVkey = cosignerVkey(env.WITNESS_SKEY);  // what browsers pin: derived, not configured
 ```
 
-The witness's key is the server's only key setting: `cosignerVkey` derives the vkey it publishes (the
-cosignature/v1 form that witness policies name), which the example hands each browser when its session
-registers.
+`cosignerVkey` derives the vkey that the witness publishes, which the example hands each browser when
+its session registers. If your page is served from a different origin than the witness, pass
+`cors: true`. [Run a witness](serve-witness-mirror.md#run-a-witness) covers the other options.
 
 A browser that wipes its log, or rewrites an entry it already got cosigned, can never be cosigned
 again: the example's tests show both, one refused as the log opens ("this storage holds an older or

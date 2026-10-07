@@ -1,9 +1,12 @@
 # A notary
 
+This guide shows how to build a notary, a service that proves a document existed and that someone
+vouched for it at a point in a log's history; read it when you need receipts that anyone can verify
+offline.
+
 **Example:** [`examples/notary`](../../examples/notary)
 
-A notary proves that a document existed, and that someone vouched for it, at a point in a log's
-history. The document never leaves its owner: the submitter sends its SHA-256 digest and an Ed25519
+The document never leaves its owner: the submitter sends its SHA-256 digest and an Ed25519
 signature over it, the notary checks the signature and appends a record of the two to its log, and
 answers with a receipt that anyone can verify **offline**, with the document and the notary's vkey.
 
