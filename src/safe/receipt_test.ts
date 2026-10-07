@@ -462,12 +462,14 @@ describe("JSON", () => {
 
 	it("refuses a JSON form whose index is not the one its text proves", () => {
 		const text = fromUTF8(proof.marshal());
-		for (const index of ["5", "04", "", 4] as unknown as string[]) {
+		for (const index of ["5", "04", ""]) {
 			const err = failure(() => verifyReceipt({ index, text }, { vkey: log.vkey, data }));
 			expect([err.code, err.reason]).toEqual(["INVALID_RECEIPT", "malformed"]);
 			expect(err.message).toContain("is not the index its text proves, 4");
 			expect(() => parseReceipt({ index, text })).toThrow(ReceiptError);
 		}
+		const err = failure(() => verifyReceipt({ index: 4 as unknown as string, text }, { vkey: log.vkey, data }));
+		expect(err.message).toContain("must be the index as a decimal string, as toJSON writes it, got 4");
 	});
 });
 

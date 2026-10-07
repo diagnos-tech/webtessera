@@ -206,6 +206,21 @@ describe("a signer key where a public string belongs", () => {
 		});
 	}
 
+	it("is not repeated by parseReceipt for text that is no receipt but holds a key inside a line", () => {
+		for (const text of [`c2sp.org/tlog-proof@v1\nindex ${skey}\n`, `c2sp.org/tlog-proof@v1\nindex 0 ${skey}\n`]) {
+			const err = (() => {
+				try {
+					parseReceipt(text);
+				} catch (e) {
+					return e;
+				}
+				throw new Error("expected an error");
+			})();
+			expectNoSecret(err, JSON.stringify(text.slice(0, 32)));
+			expect((err as WebtesseraError).code).toBe("SIGNER_KEY_MISUSE");
+		}
+	});
+
 	it("refuses a namespace the SQLite store would refuse, with a code", async () => {
 		for (const namespace of ["Bad-Name", "", "x".repeat(65), 7]) {
 			const err = await errorOf(async () =>

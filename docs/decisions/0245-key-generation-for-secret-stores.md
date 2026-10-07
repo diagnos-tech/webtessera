@@ -1,6 +1,6 @@
 # ADR-0245: Generate log keys for a secret store with `generateLogKeyPair`, and a `webtessera keygen` command
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-07
 - **Author:** Gustavo Simões (DX audit fixes)
 - **Upstream reference:** golang.org/x/mod `sumdb/note/note.go` (`GenerateKey`), as ported in
@@ -69,7 +69,7 @@ usage error with status 2, a signer key as origin not repeated, and the executab
 ## Review
 
 - **Reviewer:** DX review agent (independent), 2026-10-07
-- **Verdict:** approved with notes
+- **Verdict:** approved
 - **Notes:**
   - `generateLogKeyPair` checks the runtime and the origin, then calls the ported `generateKey`. `server_test.ts` and `cli_test.ts` pass. Built this tree and packed it outside the repository with `npm pack`. `dist/cli/webtessera.js` starts with `#!/usr/bin/env node` and has mode 0644 in the tarball, 0755 after `npm install <tgz>` (npm 10.9.4). `npx webtessera keygen example.com/log` writes only the two lines to stdout and exits 0; with no origin it exits 2. Bun runs it too. No `exports` entry reaches `src/cli`.
   - The `biome.jsonc` exclusion of `src/cli/webtessera.ts` is unnecessary and too broad. The file's own `declare const process` already satisfies `noProcessGlobal`: linting the file alone with `noProcessGlobal` and `noNodejsModules` on is clean, while a bare `process.argv` is flagged. The exclusion also turns off `noNodejsModules` and the `Buffer` ban for the file, which the ADR does not say ("excludes that one file from `noProcessGlobal`"). Remove `"!src/cli/webtessera.ts"`. The same `declare const` would let any shipped file use `process` past the lint, which is worth a sentence in AGENTS.md §7.
@@ -77,6 +77,7 @@ usage error with status 2, a signer key as origin not repeated, and the executab
   - The CLI repeats an unknown command or option verbatim (see ADR-0243's review): use `quoteInput`.
   - AGENTS.md: §7 lets an ADR record any exception, so this ADR is formally enough. AGENTS.md is still the contract readers start from: its §2 tree should list `src/cli/`, and §7's "No `process`" should name this exception. The maintainers should make that edit; I have not changed AGENTS.md.
   - Not verified: Deno (not installed), and pnpm or yarn setting the bin's mode.
+  - Re-review of a2bd7a2. The `biome.jsonc` exclusion is removed, and `biome check src/cli` is clean. AGENTS.md §2 lists `src/cli/`, and §7 names the exception and the `declare const process` caveat. The ADR text now says the file declares `process`, and that `smoke-runtimes.mjs` calls `run`. The CLI quotes an unknown command or option (probe; `cli_test.ts` passes). Deno remains unverified.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

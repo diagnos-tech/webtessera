@@ -1,6 +1,6 @@
 # ADR-0243: Give the safe API one error class with stable codes, and never repeat a signer key in an error
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-07
 - **Author:** Gustavo Simões (DX audit fixes)
 - **Upstream reference:** n/a (the safe API has no upstream counterpart, ADR-0220). Go's `errors.As`
@@ -96,8 +96,10 @@ string would print (and converting a null-prototype object throws a `TypeError`)
 and so does the `webtessera` command for an unknown command or option. For a receipt, whose base64 lines can
 spell `PRIVATE+KEY+` (letters and `+` are base64 digits, so nine chosen bytes of extra data do it), the check is
 per line: `holdsSignerKeyLine` refuses a line that is a signer key once trimmed of whitespace, a `NAME=` prefix
-and quotes. Tests: `secrets_test.ts` adds those wrappers to every quoted input, and `receipt_test.ts` verifies a
-receipt whose extra line reads `PRIVATE+KEY+`.
+and quotes. Text that is no receipt but holds a key inside a line passes that check and fails in the ported
+parser, whose error quotes the line, so `parseReceipt` refuses such text as `SIGNER_KEY_MISUSE` instead, without
+the parser's message or cause. Tests: `secrets_test.ts` adds those wrappers to every quoted input and covers that
+text, and `receipt_test.ts` verifies a receipt whose extra line reads `PRIVATE+KEY+`.
 
 ## Consequences
 
@@ -134,7 +136,7 @@ short); `server_test.ts` ("errors you can handle in code": a code for each refus
 ## Review
 
 - **Reviewer:** DX review agent (independent), 2026-10-07
-- **Verdict:** changes requested
+- **Verdict:** approved with notes
 - **Notes:**
   - Checked `src/safe/errors.ts`, the `WebtesseraError` conversions in `src/safe`, `src/server`, `src/browser`, `ReceiptError` (name, `reason`, constructor kept, code `INVALID_RECEIPT`), `errorAs` at the root (`index_test.ts`), and `echo`/`logVerifier` in `src/witness` (they redact; no request is refused). Ran `secrets_test.ts`, `receipt_test.ts`, `keys_test.ts`, `browser_test.ts`, `server_test.ts`, `index_test.ts`: all pass. No test, guide or example still asserts `TypeError`/`RangeError` for a safe-API error. `isSignerKey` on an origin refuses nothing an origin could be, since an origin cannot contain `+` anyway.
   - Change requested (leak). `quoteInput` (errors.ts, the non-string branch) and `quoteOption` (log.ts) call `String()` on whatever they are given, so a non-string holding the key prints it. Probe, each message contained the seed: `log.prove([skey])`, `log.entries([skey])`, `append(d, { timeoutMs: [skey] })`, `fsck({ workers: [skey] })`, `openServerLog` with `storage.locking: [skey]`, `checkpointIntervalMs: [skey]`, `generateLogKey(o, { fallback: [skey] })`. `storage.locking: Object.create(null)` throws `TypeError: Cannot convert object to primitive value` instead of `INVALID_ARGUMENT`. Fix: quote only `number`, `bigint`, `boolean`, `null` and `undefined` with `String()`, anything else by its type name; make `quoteOption` call `quoteInput`; add a `[s]` form to `secrets_test.ts`'s quoted cases.
@@ -142,6 +144,7 @@ short); `server_test.ts` ("errors you can handle in code": a code for each refus
   - Change requested (CLI). `src/cli/cli.ts` echoes an unknown command and an unknown option with `JSON.stringify(arg)`: `webtessera <skey>` prints the key to stderr (probe). Use `quoteInput`.
   - Text to correct: "the messages are unchanged" (quoting is now cut at 96 characters, the fsck hint changed, `importLogKey`'s suffix changed, `#receipt`'s failure is `diverged()`); "it is the one file outside the safe API's directories that imports from them" (`src/witness/server.ts` and `src/cli/cli.ts` do too); "The CHANGELOG says so" (it has no breaking-change note, which is moot for an initial release: reword). `openServerLog` still lets the SQLite module's `RangeError` through for a bad `namespace` (probe: `"Bad-Name"` gives a `RangeError` with no `code`); convert it or say so.
   - Alternatives are honest; one class with a string-union code is the right call.
+  - Re-review of a2bd7a2. The verdict was "changes requested"; the three requested changes are made. (1) `quoteInput` now shows anything that is not a string or a primitive by its kind, and `quoteOption` is gone. A probe of `prove([skey])`, `append({ timeoutMs: { toString } })` and `entries(Symbol(skey))` gets "an array", "an object" and "a symbol". `storage.locking: Object.create(null)` is `INVALID_ARGUMENT`. (2) `holdsSignerKeyLine` checks each line, so a receipt whose extra line reads `PRIVATE+KEY+` verifies as text, as bytes and as JSON (probe and `receipt_test.ts`), while a pasted key, quoted, prefixed with `NAME=` or padded, is still refused. (3) The CLI quotes an unknown command or option with `quoteInput` (probe). The text is corrected. `secrets_test.ts`, `receipt_test.ts` and `cli_test.ts` pass. One follow-up, which I do not block on: the per-line check reopens one narrow path. Text that is not a receipt but carries a key inside a line, for example `c2sp.org/tlog-proof@v1\nindex PRIVATE+KEY+…`, reaches the ported parser, whose `strconv.ParseUint` error quotes the line, and `parseReceipt`'s `malformed` message and its cause repeat it (probe). No paste mistake produces that text, but the rule is absolute. Fix: in `parseReceipt`'s `catch`, when `isSignerKey(text)` is true, throw the `malformed` `ReceiptError` without the ported message and without a cause. Valid receipts parse and never reach the `catch`. Nit: the JSDoc of the removed `quoteOption` was left above `messageOf` (`src/safe/log.ts`, before `function messageOf`).
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
