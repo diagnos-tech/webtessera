@@ -423,7 +423,7 @@ Adding or changing a backend:
 4. Put runtime-specific tests where the right runner picks them up by suffix: `*_browser_test.ts`
    (Chromium), `*_workers_test.ts` (workerd), `*_services_test.ts` (live servers) — and keep
    `testing/` helpers out of the published build.
-5. Update `examples/` and the README's driver table if the backend is something a user would reach
+5. Update `examples/` and the driver table in `docs/guides/choosing-storage.md` if the backend is something a user would reach
    for.
 
 ---

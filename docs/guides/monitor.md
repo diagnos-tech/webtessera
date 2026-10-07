@@ -1,11 +1,14 @@
 # A monitor
 
+This guide shows how to follow a log you do not trust and detect forks and rollbacks; read it when
+you depend on a log that someone else runs.
+
 **Example:** [`examples/monitor`](../../examples/monitor)
 
 A log's promises (append-only, one history for everyone) are only worth what is checked. A monitor
-follows a log it does not trust and checks, at every new checkpoint, that the log's key signed it
-and that the new tree contains the last one it verified. `LogStateTracker` from `webtessera/client`
-(a port of Tessera's) does the proving; what a monitor adds is memory and alarms.
+checks, at every new checkpoint, that the log's key signed it and that the new tree contains the last
+one it verified. `LogStateTracker` from `webtessera/client` (a port of Tessera's) does the proving;
+what a monitor adds is memory and alarms.
 
 ```ts
 const log = newHTTPFetcher(new URL(logURL));

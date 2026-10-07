@@ -2,8 +2,14 @@
 
 webtessera claims that a log it writes, on any of its storage backends, is **byte for byte** the log Tessera's
 own POSIX driver writes for the same entries, and that each side can carry on a log the other started. This page
-explains how that claim is proven, what exactly is compared, and how to reproduce every check on your machine.
-The Go code the claim refers to is Tessera at the commit pinned in [`scripts/upstream.json`](../scripts/upstream.json).
+explains how that claim is proven, what exactly is compared, how to reproduce every check on your machine, and
+which runtimes CI tests. The Go code the claim refers to is Tessera at the commit pinned in
+[`scripts/upstream.json`](../scripts/upstream.json).
+
+The port is a translation, not a reimplementation, and is built to be reviewed against the original. Every source
+file mirrors an upstream file of the same name, with the upstream comments carried over.
+[`PORTING-MAP.md`](PORTING-MAP.md) tracks the status of every Go file, and each divergence, however small, is
+recorded as an ADR in [`decisions/`](decisions/).
 
 ## The evidence, in five layers
 
@@ -221,6 +227,15 @@ cd interop
 go run ./verify -dir /path/to/log -vkey "$(cat log.vkey)" -history /path/to/checkpoints
 go run ./produce -dir /tmp/log -skey "$SKEY" -seed 1 -from 0 -ends 1,256,1000 -history /tmp/log.history
 ```
+
+## Runtime support
+
+webtessera runs on Node.js 22 or later, Deno 2, Bun, current browsers (the IndexedDB driver needs IndexedDB and
+Web Locks), and edge runtimes built on web standards. The published build is ES2022.
+
+CI runs the test suites on Node 22 and 24, in Chromium and in workerd, and against live rqlite and S3-compatible
+servers. It also runs an end-to-end smoke test of the built package, the SQLite driver included, on Node, Bun and
+Deno.
 
 ## Adding a backend
 

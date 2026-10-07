@@ -1,16 +1,17 @@
 # Documentation
 
-Everything here exists to answer one question for a reviewer: *is this TypeScript what the Go
-original does, and where it is not, why not?* Start with [`../AGENTS.md`](../AGENTS.md) for the
-rules, and [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the workflow.
+Apart from the user guides, everything here answers one question for a reviewer: *is this
+TypeScript what the Go original does, and where it is not, why not?* Start with
+[`../AGENTS.md`](../AGENTS.md) for the rules, and [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the
+workflow.
 
 | Path | What it is |
 | --- | --- |
 | [`PORTING-MAP.md`](PORTING-MAP.md) | The file-by-file status of the port: one row per upstream Go file. |
-| [`compatibility.md`](compatibility.md) | How byte compatibility with Tessera is proven, per backend and in both directions, and how to reproduce it. |
+| [`compatibility.md`](compatibility.md) | How byte compatibility with Tessera is proven, per backend and in both directions, how to reproduce it, and which runtimes CI tests. |
 | [`RELEASING.md`](RELEASING.md) | How a release is prepared, published to npm and GitHub Packages, and verified. |
 | [`REVIEW-PROTOCOL.md`](REVIEW-PROTOCOL.md) | What a reviewer checks, in priority order, for ports, ADRs and pull requests. |
-| [`guides/`](guides/) | Guides for users of the package: [the safe API](guides/safe-api.md), choosing storage, and one guide per use case, each with a runnable example. |
+| [`guides/`](guides/) | Guides for users of the package: one per use case, each with a runnable example, plus [the safe API](guides/safe-api.md), [the ported API](guides/ported-api.md), choosing storage, and serving, witnessing and mirroring. |
 | [`decisions/`](decisions/) | Architecture decision records (ADRs): every divergence from Go and every file not ported. |
 | [`notes/`](notes/) | Free-form analysis that is not (yet) a decision. |
 | [`../fixtures/README.md`](../fixtures/README.md) | The golden fixtures: what they contain and how to audit them. |

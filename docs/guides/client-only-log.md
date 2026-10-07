@@ -1,10 +1,12 @@
 # A client-only log
 
+This guide shows how a browser keeps a tamper-evident log of its own, such as what an app did on the
+device or what a user consented to; read it when the log should live on the user's device.
+
 **Example:** [`examples/client-only`](../../examples/client-only)
 
-A browser can keep a transparency log of its own: what an app did on the device, what a user
-consented to, a signed activity history. With the safe API it takes two calls, and the log is
-durable, shared safely between tabs, and signed by a key no script can export.
+With the safe API it takes two calls, and the log is durable, shared safely between tabs, and signed
+by a key that no script can export:
 
 ```ts
 import { openBrowserLog, openDeviceKey, verifyReceipt } from "webtessera/browser";
@@ -20,10 +22,9 @@ verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });   // anyone, offli
 
 - **The origin** names the log, its key and its IndexedDB database. Choose one per device and per
   purpose (the example uses `<host>/device/<random>`), and remember it: it is public.
-- **Several tabs** write the same log through Web Locks (`log.lockScope === "origin"`). Without Web
-  Locks (outside a secure context), `openBrowserLog` refuses to open rather than let two tabs fork
-  the log, and its error names the way out: `storage: { indexedDB: name, singleWriter: true }`, to
-  pass only when one tab is certainly the only writer.
+- **Several tabs** write the same log through Web Locks (`log.lockScope === "origin"`). Outside a
+  secure context there are no Web Locks, and `openBrowserLog` refuses to open rather than let two
+  tabs fork the log; [choosing storage](choosing-storage.md#indexeddb) explains the way out.
 - **Persistence.** Ask for `navigator.storage.persist()`: a log the browser evicts can no longer
   prove what it signed (receipts already handed out still verify).
 - **Reading entries back**: `log.entries(from?, to?)` streams them in order, each checked against
@@ -42,6 +43,6 @@ rewrite what came before without every holder noticing. It is not tamper-proof: 
 own key, and could sign a different history for someone who has seen nothing yet. Witnessing closes
 that gap: [session receipts](session-receipts.md).
 
-The guardrails the example's Chromium tests cover: a tampered receipt, a receipt for other data and
+The example's Chromium tests cover the guardrails: a tampered receipt, a receipt for other data and
 one checked with another key all fail; two tabs appending at once make one log; the log refuses to
 open without Web Locks unless told otherwise. See also [the safe API](safe-api.md#in-a-browser).

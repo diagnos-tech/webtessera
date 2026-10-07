@@ -1,12 +1,12 @@
 # The safe API: `webtessera/server` and `webtessera/browser`
 
-webtessera is a faithful port of Tessera: its API is Go's, translated. That makes it reviewable against the
-original, and powerful, but easy to misuse. The safe API is a small layer on top of it that makes the common
-mistakes impossible. It has no upstream counterpart, lives in its own entry points, and never changes how the
-ported API behaves ([ADR-0220](../decisions/0220-safe-api-entry-points.md)).
+Read this guide before you open your first log: it covers the safe API's environment model, key custody, log
+object and receipts, and when to drop down to the ported API.
 
-This guide covers the environment model, key custody, the log object, receipts, four complete use cases, and when
-to drop down to the ported API.
+webtessera's ported API is Go's, translated, which makes it reviewable against the original but easy to
+misuse. The safe API is a small layer on top of it that makes the common mistakes impossible. It has no
+upstream counterpart, lives in its own entry points, and never changes how the ported API behaves
+([ADR-0220](../decisions/0220-safe-api-entry-points.md)).
 
 ## The environment model
 
@@ -75,7 +75,7 @@ reloads too ([ADR-0227](../decisions/0227-device-keys-in-indexeddb.md)). An appl
 passes an Ed25519 `CryptoKeyPair` to `fromCryptoKey`. Two things to know:
 
 - A non-extractable key cannot be stolen, but a script injected into the page can use it while the page is open.
-  Content Security Policy is still your first defence.
+  Content Security Policy is still your first defense.
 - Clearing site data deletes the key, and browsers may evict storage under pressure. A log that matters should
   ask for persistent storage with `navigator.storage.persist()`.
 
@@ -132,20 +132,24 @@ const log = await openServerLog({
 createServer(toNodeListener(combineHandlers(log.handler))).listen(8080);
 ```
 
-`storage` is `{ sqlite, namespace?, locking?, lease? }` with any adapter from `webtessera/storage/sqlite`
-(`fromSqliteSync`, `fromLibsql`, `fromRqlite`, `fromD1`, `fromDurableObjectStorage`, `fromSqliteWasm`),
-`{ objectStore }` for a durable store of your own, or `{ memory: true }`. `locking` overrides the adapter's
-default, which is `"lease"` for a file and every networked engine, `"local"` for an in-memory database or a
-Durable Object ([choosing storage](choosing-storage.md#sqlite)). `log.handler` serves the tlog-tiles read
-API; on Deno it is `Deno.serve(combineHandlers(log.handler))`, on Workers `export default { fetch: … }`.
+`storage` is `{ sqlite, namespace?, locking?, lease? }` with any adapter from `webtessera/storage/sqlite`,
+`{ objectStore }` for a durable store of your own, or `{ memory: true }`;
+[choosing storage](choosing-storage.md) covers each, and the locking each adapter defaults to. `log.handler`
+serves the tlog-tiles read API; on Deno it is `Deno.serve(combineHandlers(log.handler))`, on Workers
+`export default { fetch: … }`. [Serve a log](serve-witness-mirror.md#serve-a-log) covers the handler.
 
 ### In a browser
 
-```ts
-import { openBrowserLog, openDeviceKey } from "webtessera/browser";
+```ts file=src/README_test.ts region=safe_browser_example
+// A key generated on this device and kept in IndexedDB, which no script can export.
+const key = await openDeviceKey("device.example/7f3a");
+const log = await openBrowserLog({ key });
 
-const log = await openBrowserLog({ key: await openDeviceKey("device.example/7f3a") });
+const receipt = await log.append(new TextEncoder().encode("signed the form"));
 ```
+
+Both functions come from `webtessera/browser`. [A client-only log](client-only-log.md) covers the choices to
+make.
 
 ## Receipts
 
@@ -202,88 +206,16 @@ entry. A missing or different extra line fails with reason `extra`; altered extr
 
 ## Use cases
 
-### 1. A client-only log
+Each use case has its own guide and a runnable example:
 
-A browser keeps its own tamper-evident log, signed by a key that cannot leave the device, and reads it back:
-
-```ts
-const log = await openBrowserLog({ key: await openDeviceKey("device.example/7f3a") });
-const receipt = await log.append(new TextEncoder().encode("opened the record"));
-for await (const { index, data } of log.entries()) { … }
-```
-
-`entries` reads the log at the size of its latest checkpoint, a few entry bundles at a time, and checks each
-entry against the leaf hash the log's tiles hold for it, so damaged storage fails rather than yield an entry no
-receipt could prove; `prove(index)` gives the receipt that proves one to others.
-
-Without witnesses, the device can still rewrite its own history and sign the new one; what it cannot do is
-convince anyone who holds an older receipt or checkpoint, since the two would be inconsistent. Witnessing makes
-that visible to others, as below.
-
-### 2. Session receipts
-
-The browser logs every interaction with your server in its own log, and your server, as its witness, cosigns
-each checkpoint before the browser publishes it. The cosigned receipts are then a record, checkable by the user
-and by you, of everything the server did in the user's space.
-
-On the server, run `webtessera/witness` and register each browser log's vkey when its session starts:
-
-```ts
-import { cosignerVkey, newSignerForCosignatureV1, newWitnessServer } from "webtessera/witness";
-
-const witness = newWitnessServer({
-  signer: newSignerForCosignatureV1(env.WITNESS_SKEY),
-  store,                                  // any ObjectStore: SQLite, D1, a Durable Object...
-  lookupLog: (origin) => sessions.vkeyFor(origin), // { verifierKeys: [vkey] } or undefined
-  prefix: "/witness",
-  cors: true,                             // the browser posts cross-origin
-});
-const serverWitnessVkey = cosignerVkey(env.WITNESS_SKEY); // publish it: browsers and verifiers pin it
-```
-
-The witness's signer key is its only secret and its only key setting: `cosignerVkey` derives the vkey it
-publishes, in the cosignature/v1 form that witness policies name.
-
-In the browser, configure the log with that witness:
-
-```ts
-import { newWitness, newWitnessGroup } from "webtessera";
-
-const log = await openBrowserLog({
-  key,
-  witnesses: newWitnessGroup(1, newWitness(serverWitnessVkey, new URL("https://api.example/witness/"))),
-});
-```
-
-Receipts then carry the server's cosignature, and verify with
-`{ witnesses: { threshold: 1, witnesses: [serverWitnessVkey] } }`. A browser log whose storage was wiped, while
-its device key survived, cannot open again: the witness has cosigned more than the storage holds, and
-`openBrowserLog` says exactly that. To keep an independent copy of a log, mirror it
-with `webtessera/mirror` to S3 or R2: `newVerifiedMirror({ source, origin, verifier, target: newS3Sink({ … }) })`,
-where `source` is the log's URL or a `log.reader`. Mirrors copy only what verifies.
-
-### 3. A notary
-
-A server stores a SHA-256 digest and the submitter's signature, and hands back a receipt. Choose an entry encoding
-the verifier can reproduce exactly; fixed-length fields are the simplest:
-
-```ts
-const entry = new Uint8Array([...digest /* 32 bytes */, ...signature /* 64 bytes */]);
-const receipt = await log.append(entry, { extraData: entry });
-// later, anywhere: verifyReceipt(receipt.text, { vkey: notaryVkey, dataInExtra: true }).data is the entry
-```
-
-A verifier that holds the entry passes `data` instead, and one that holds only the leaf hash passes `leafHash`.
-
-### 4. A log server
-
-`openServerLog` on any SQLite with `log.handler` serves the read API. Writing is the personality's business; the
-conventional `POST /add` is a few lines with `readEntryBody`, `addResponse` and `addErrorResponse` from
-`webtessera/http`, or return `receipt.text` to give writers their receipts.
+- [A client-only log](client-only-log.md): a browser keeps its own log, signed by a device key.
+- [Session receipts](session-receipts.md): your server witnesses a browser's log, and commits it to a bucket.
+- [A notary](notary.md): receipts over document digests, verified offline.
+- [A log server](log-server.md): `POST /add` and the tlog-tiles read API on any SQLite.
 
 ## When to drop down to the ported API
 
-The safe API is deliberately small. Use the ported API, which it is built on, for:
+The safe API is deliberately small. Use [the ported API](ported-api.md), which it is built on, for:
 
 - **Key rotation** and multiple checkpoint signers (`AppendOptions.withCheckpointSigner` or
   `withCheckpointAsyncSigner(primary, ...additional)`; the latter takes `LogKey`s, keeping their custody).
