@@ -27,7 +27,7 @@
   "devDependencies": {
     "@vitest/browser-playwright": "4.1.11",
     "playwright": "1.56.1",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vite": "8.3.2",
     "vitest": "4.1.11"
   },
