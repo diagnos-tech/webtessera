@@ -31,6 +31,7 @@ declare module "node:child_process" {
 }
 
 declare module "node:fs" {
+	export function existsSync(path: string): boolean;
 	export function mkdirSync(path: string, options?: { recursive?: boolean }): void;
 	export function readdirSync(path: string): string[];
 	export function readFileSync(path: string | URL, encoding: "utf8"): string;
@@ -47,6 +48,7 @@ declare module "node:path" {
 
 declare module "node:process" {
 	export const execPath: string;
+	export const stderr: { write(chunk: string): boolean };
 }
 
 declare module "node:util" {

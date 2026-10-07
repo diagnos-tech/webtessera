@@ -160,4 +160,4 @@ preflight (OPTIONS) must be answered before calling it, as its TSDoc says.
 Tests: `log_handler_test.ts` ("refuses a request that is not a POST, which addErrorResponse answers with 405":
 GET, HEAD, OPTIONS, PUT and DELETE, and a GET with a query string).
 
-*Review of this update: pending.*
+**Review of this update:** DX reviewer (independent), 2026-10-07. Verdict: approved. `readEntryBody` validates `maxBytes` first (still a `RangeError`), then refuses any method but POST with an error caused by `ErrMethodNotAllowed`, quoting nothing from the request; `addErrorResponse` answers it with `methodNotAllowed("POST")` (405, `Allow: POST`). That matches Tessera's personalities, which register `http.HandleFunc("POST /add", …)` (`cmd/conformance/{posix,gcp,aws,mysql}/main.go`), so Go 1.22's ServeMux answers every other method, HEAD included, with 405 and `Allow`. `http/` is an addition (ADR-0170), so no ported behaviour changes. The guide, module and TSDoc examples now read inside the `try`. `log_handler_test.ts` passes.

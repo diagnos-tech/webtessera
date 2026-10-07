@@ -221,7 +221,7 @@ consequence of a wrong declaration, but it is reached by one word, and nothing n
 - **The tripwire** (`src/storage/sqlite/claim.ts`). A store whose *caller* chose local locking keeps a claim on
   its database, in the namespace's `meta` table (a named integer, which the frozen definition of that table
   allows; no schema change, no log byte):
-  - the claim is this realm's token, 48 random bits drawn once per realm, written with `INSERT OR REPLACE` the
+  - the claim is this realm's token, 48 random bits drawn once per realm on first use, written with `INSERT OR REPLACE` the
     first time the store takes a lock, which only a writer does (a store that only reads never claims); every
     store of a realm claims with the same token, so they never trip over each other, as they share its local
     locks;
@@ -254,9 +254,21 @@ store takes over; a stale writer's critical section never runs; stores of one re
 statement under lease locking or the adapter's local locking) and a conformance variant ("node:sqlite file,
 single-writer locking, second store on a second connection", the object-store and driver suites);
 `server_test.ts` ("keeps two processes that both declare themselves the only writer from forking the log": two
-child processes, `"single-writer"` and `"local"`, 30 entries each at the same instant; the first claimant is
-stopped with `WRITER_CONFLICT`, and every receipt the other handed out verifies, matches the entry the file holds
+child processes, `"single-writer"` and `"local"`, each opening the log and then, once both have, appending 30
+entries; the first claimant is stopped with `WRITER_CONFLICT`, at its open or at its appends, and every receipt the other handed out verifies, matches the entry the file holds
 at its index, and the file passes `log.fsck()`). The audit's `writer.ts`, re-run on the packed tarball with
 `locking: "local"`, no longer forks (see the report of 2026-10-07).
 
-*Review of this update: pending.*
+**Changes after review (2026-10-07).** The token was drawn when the module loaded, and workerd refuses random
+numbers at a Worker's global scope, so every Worker importing `webtessera/server` or `webtessera/storage/sqlite`
+failed to start; it is now drawn on first use. `scripts/smoke-workerd.mjs`, run by the Workers CI job and by
+`bun run smoke`, bundles every entry point and loads it at a Worker's global scope in workerd (it fails on the
+previous code for exactly those two). And every process that opens the log counts as a writer: `openServerLog`
+starts an appender, which takes the lock and publishes a checkpoint as it opens, so a second process that opens
+the log under the same declaration only to read it or run `log.fsck()` takes the claim and stops the first. The
+fsck TSDoc, `safe-api.md` and `choosing-storage.md` say so, and name the read-only way to check a log from
+another process: `newFsck` over `newHTTPFetcher`. Opening being a write also means that when two such processes
+open at once, the earlier claimant's open itself can fail with `WRITER_CONFLICT`; the two-process test now
+synchronises on both opens and accepts either. The log-server example accepts `LOG_LOCKING=single-writer`.
+
+**Review of this update:** DX reviewer (independent), 2026-10-07. Verdict: changes requested. Blocking: `claim.ts` draws `realmToken` with `crypto.getRandomValues` when the module is evaluated, and workerd forbids generating random values in global scope. Any Worker that imports `webtessera/server` or `webtessera/storage/sqlite` therefore fails at startup, whatever its locking ("Disallowed operation called within global scope … generating random values are not allowed within global scope"). Probe: esbuild bundles of `dist/storage/sqlite` and of `dist/server` (workerd condition), served by the repository's workerd 1.20260815.1, crash at load in `claim.js`; the same bundles built from the parent commit serve 200. This breaks `examples/edge` (which imports both) and every D1 and Durable Object user. vitest-pool-workers misses it because it evaluates test modules inside a request. Fix: draw the token on first use (`let realmToken: number | undefined; const token = () => (realmToken ??= draw())`), and add a check that evaluates a bundle at global scope in workerd (the repository's `node_modules` has the binary). The "Cost: none" for a Durable Object holds only after that fix. Required documentation: a second process that only means to read or fsck, but opens the log with `openServerLog` under the same `"single-writer"` option, takes the claim and stops the writer for good (probe in ADR-0244's review). Say so here and in `choosing-storage.md`. What I verified: every write goes through `#write`, and the claim fence is the first statement of the same batch (`put`, `create`, `deletePrefix`). Lease mode and the adapter's own local locking get no `WriterClaim` (only `chosen === "local"` does), and `#write` is unchanged for them. No table or column is added: one `meta` row, `local_writer`, which nothing enumerates. Namespaces have separate `meta` tables, so sole writers of different namespaces in one file never conflict. Race probe: 3 processes running 150 lock-read-increment-put sections each, 5 rounds each under `"single-writer"` and under `"local"`. In every round the final counter equalled the number of successful sections, and no process succeeded after its first conflict. A `"single-writer"` server killed with SIGKILL and restarted appended 20 of 20, and fsck verified 23 entries. Reopening in the same realm is covered by `sqlite_test.ts`. Nothing depends on a clock. The 6 tripwire cases and `server_test.ts` (48, including the two-process test) pass. Minor: the log-server example's `LOG_LOCKING` still accepts only `"lease"` and `"local"`.

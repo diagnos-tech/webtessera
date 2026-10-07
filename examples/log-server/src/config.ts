@@ -15,7 +15,7 @@
 // (`--env-file`), Bun (which loads .env itself) and Deno (`--env-file`).
 
 import { env } from "node:process";
-import type { SqliteLocking } from "webtessera/storage/sqlite";
+import type { SqliteLockingOption } from "webtessera/storage/sqlite";
 import type { LogServerConfig } from "./server.ts";
 
 export function readConfig(): LogServerConfig {
@@ -36,9 +36,9 @@ export function readConfig(): LogServerConfig {
 	};
 }
 
-function locking(value: string): SqliteLocking {
-	if (value !== "lease" && value !== "local") {
-		throw new Error(`LOG_LOCKING must be "lease" or "local", got ${JSON.stringify(value)}`);
+function locking(value: string): SqliteLockingOption {
+	if (value !== "lease" && value !== "single-writer" && value !== "local") {
+		throw new Error(`LOG_LOCKING must be "lease" or "single-writer", got ${JSON.stringify(value)}`);
 	}
 	return value;
 }

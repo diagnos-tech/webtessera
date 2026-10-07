@@ -97,7 +97,7 @@
     "fixtures": "bun scripts/fetch-upstream.mjs && cd fixtures/gen && go run . -out ../data",
     "interop": "node scripts/interop.mjs",
     "test:parity": "node scripts/test-parity.mjs",
-    "smoke": "bun run build && node scripts/smoke-runtimes.mjs && node scripts/smoke-sqlite.mjs",
+    "smoke": "bun run build && node scripts/smoke-runtimes.mjs && node scripts/smoke-sqlite.mjs && node scripts/smoke-workerd.mjs",
     "check": "bun run lint && bun run typecheck && bun run test && bun run build",
     "prepack": "bun run clean && bun run build",
     "prepare": "node scripts/prepare.mjs"

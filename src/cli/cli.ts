@@ -17,7 +17,7 @@
 // same on every runtime; webtessera.ts is the executable that connects it to a terminal.
 // See docs/decisions/0245-key-generation-for-secret-stores.md.
 
-import { WebtesseraError } from "../safe/errors.ts";
+import { quoteInput, WebtesseraError } from "../safe/errors.ts";
 import { generateLogKeyPair } from "../server/keys.ts";
 
 /** CliResult is what one run of the command prints, and the status it exits with. */
@@ -62,7 +62,7 @@ export function run(args: readonly string[]): CliResult {
 		return { code: command === undefined ? 2 : 0, stdout: "", stderr: Usage };
 	}
 	if (command !== "keygen") {
-		return usageError(`unknown command ${JSON.stringify(command)}`);
+		return usageError(`unknown command ${quoteInput(command)}`);
 	}
 	let origin: string | undefined;
 	let prefix = "LOG";
@@ -78,7 +78,7 @@ export function run(args: readonly string[]): CliResult {
 			}
 			prefix = value;
 		} else if (arg.startsWith("-")) {
-			return usageError(`unknown option ${JSON.stringify(arg)}`);
+			return usageError(`unknown option ${quoteInput(arg)}`);
 		} else if (origin === undefined) {
 			origin = arg;
 		} else {

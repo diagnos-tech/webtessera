@@ -128,10 +128,11 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
 - **Test helpers**: `webtessera/testonly` provides `newTestLog`, a ready-made log on the memory driver with
   its own signing key, for testing code built on webtessera, as Tessera's `testonly` package does for Go.
 - **Documentation and project tooling**: contributor guide, `PORTING.md` (the fidelity rules), ADRs, the porting map, `docs/compatibility.md`, `docs/RELEASING.md`, a
-  security policy, a small multi-page website generated from the code (Astro), and CI on Node 22 and 24, real Chromium,
-  workerd, and live rqlite and S3-compatible servers, with a smoke test of the built package on Node, Bun
-  and Deno. The README's code snippets run as tests, and a check fails if `README.md` drifts from them.
-  Releases publish one tested tarball, with provenance, to npm and GitHub Packages.
+  security policy, a small multi-page website generated from the code (Astro), and CI on Node 22 and 24,
+  real Chromium, workerd, and live rqlite and S3-compatible servers, with a smoke test of the built
+  package on Node, Bun and Deno, and every entry point loaded at a Worker's global scope in workerd. The
+  README's code snippets run as tests, and a check fails if `README.md` drifts from them. Releases
+  publish one tested tarball, with provenance, to npm and GitHub Packages.
 
 ### Behaviour and API details
 

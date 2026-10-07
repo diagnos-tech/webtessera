@@ -51,8 +51,9 @@ const { index, checkpoint } = verifyReceipt(receipt.text, { vkey: log.vkey, data
 ```
 
 To create the key, run `npx webtessera keygen example.com/log >> .env` once (or `bunx`, or
-`generateLogKeyPair` from `webtessera/server` in a script). Keep `LOG_SKEY` in your secret store, and
-publish `LOG_VKEY`.
+`generateLogKeyPair` from `webtessera/server` in a script), then start with `node --env-file=.env`
+(Deno: `--env-file`; Bun reads `.env` itself). Keep `LOG_SKEY` in your secret store, and publish
+`LOG_VKEY`.
 
 In a browser, `openDeviceKey` and `openBrowserLog` from `webtessera/browser` keep the log in IndexedDB:
 

@@ -148,4 +148,9 @@ Three changes from the fresh-eyes audit of the 0.1.0 tarball; the verification p
 Tests: `receipt_test.ts` ("requires the entry in its types", with `expectTypeOf(...).not.toExtend`; the cast
 calls still refused at run time; "errors"; "JSON").
 
-*Review of this update: pending.*
+**Changes after review (2026-10-07).** A receipt's signer-key check is per line (ADR-0243), so a valid receipt
+whose extra line base64-encodes `PRIVATE+KEY+` verifies. A receipt object's `index`, if present, must be the index
+its text proves, as a decimal string (or a bigint, for a `Receipt`); otherwise `verifyReceipt` and `parseReceipt`
+refuse it as `malformed` rather than ignore it.
+
+**Review of this update:** DX reviewer (independent), 2026-10-07. Verdict: approved with notes. The verification procedure is unchanged. `VerifyReceiptOptions` as `VerifyReceiptKey & VerifyReceiptEntry` rejects `{ vkey }` alone in a consumer's type check against the packed tarball, and the run-time checks remain. `ReceiptError` keeps its name, `reason` and constructor. The JSON forms round-trip (`receipt_test.ts` passes). One defect lands here, recorded in ADR-0243's review: the signer-key check runs over the whole receipt text, so a valid receipt whose extra line base64-encodes `PRIVATE+KEY+` is refused from its text and its JSON form (probe). Fix it as described there.

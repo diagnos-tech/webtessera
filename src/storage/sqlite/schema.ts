@@ -88,7 +88,13 @@ export const schemaMigrations: readonly Migration[] = [
 /** SchemaVersion is the version of the tables this code creates and expects. */
 export const SchemaVersion = 1 + schemaMigrations.length;
 
-const namespacePattern = /^[a-z0-9_]{1,64}$/;
+/**
+ * namespacePattern is what a namespace must match. The safe API checks it before it opens a
+ * store, to refuse a bad one with its own error.
+ *
+ * @internal
+ */
+export const namespacePattern = /^[a-z0-9_]{1,64}$/;
 
 /**
  * tableNames returns the names of the tables of namespace: `webtessera_<table>`, or

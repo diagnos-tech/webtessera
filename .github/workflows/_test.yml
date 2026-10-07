@@ -58,7 +58,9 @@ jobs:
           retention-days: 7
 
   # The `*_workers_test.ts` suites inside workerd, Cloudflare's runtime: the SQLite driver on
-  # D1 and on SQLite-backed Durable Objects, and the golden suite on the memory driver.
+  # D1 and on SQLite-backed Durable Objects, and the golden suite on the memory driver. Then
+  # every built entry point is loaded at a Worker's global scope, as a deployed Worker loads
+  # it, which the suites cannot check: they import their modules inside a request.
   workers:
     name: Workers (workerd)
     runs-on: ubuntu-latest
@@ -69,6 +71,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: bun run test:workers
+      - run: bun run build && node scripts/smoke-workerd.mjs
 
   # Suites that talk to real rqlite and S3-compatible servers (see actions/services).
   services:

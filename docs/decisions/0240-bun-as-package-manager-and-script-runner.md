@@ -309,4 +309,4 @@ repository, against a local registry serving the packed tarball as `webtessera@0
 tarball path (`ci`: 4 tests pass), edge with npm 10, the tarball and the log-server copy (`tsc` clean, 5 workerd
 tests pass).
 
-*Review of this update: pending.*
+**Review of this update:** DX reviewer (independent), 2026-10-07. Verdict: approved with notes. Reproduced the `edgesOut` crash independently: a project whose only dependency is `vitest@4.1.11`, installed with npm 10.9.4, fails with `Cannot read properties of null (reading 'edgesOut')`, the text the example READMEs quote. The READMEs' commands and the edge example's `file:../log-server` step agree with this update. Not reproduced: the Bun resolution experiments, the `spec` crash and the local-registry runs.

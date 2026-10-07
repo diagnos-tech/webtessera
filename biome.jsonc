@@ -133,10 +133,8 @@
     {
       // PORTING.md section 7, as a rule: code that ships runs in browsers and on the edge, so it
       // imports no Node built-in and uses neither `process` nor `Buffer`. Tests, test helpers,
-      // scripts and the site are not shipped and are exempt, as is the `webtessera` command's
-      // executable, which only a server runtime runs and nothing imports
-      // (docs/decisions/0245-key-generation-for-secret-stores.md).
-      "includes": ["src/**", "!src/**/*_test.ts", "!src/**/testing/**", "!src/cli/webtessera.ts"],
+      // scripts and the site are not shipped and are exempt.
+      "includes": ["src/**", "!src/**/*_test.ts", "!src/**/testing/**"],
       "linter": {
         "rules": {
           "correctness": {

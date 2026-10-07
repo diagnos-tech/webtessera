@@ -60,7 +60,7 @@ export type AsyncDisposableLog = { readonly [K in AsyncDisposeKey]: () => Promis
 
 Where the consumer's TypeScript lib declares `Symbol.asyncDispose` (TypeScript 5.2+, `esnext.disposable`), this is
 `AsyncDisposable`, and `await using` type-checks; where it does not, it is `{}`, and no shipped declaration names
-a symbol the lib lacks, so the declarations still type-check under `lib: ["es2022"]` with `skipLibCheck: false`,
+a symbol the lib lacks, so the declarations still type-check under `lib: ["es2022", "dom"]` with `skipLibCheck: false`,
 which the audit confirmed and this keeps. The factories type their result with a one-line assertion
 (`disposable()`), since the method is installed dynamically for the same reason. `tsconfig.json` adds
 `ESNext.Disposable` to `lib` for the repository's own type check only. `close()` is unchanged.
@@ -93,9 +93,13 @@ whole, an empty batch; `await using` through `Symbol.asyncDispose`, and
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** DX reviewer (independent), 2026-10-07
+- **Verdict:** approved with notes
 - **Notes:**
+  - Checked: `log.fetch` is `combineHandlers(handler)` held in a property, so it is bound. `appendMany` validates every entry before adding any, and `#append` adds its entry synchronously before its first `await`; `Promise.all` keeps the order. Also checked the receipt, checkpoint and verified-receipt classes with `toJSON`, `ReceiptJSON` accepted by `verifyReceipt`, `parseReceipt` and `log.verify`, `Symbol.asyncDispose` on `LogBase.prototype`, and `AsyncDisposableLog`. `server_test.ts`, `receipt_test.ts` and `browser_test.ts` pass.
+  - Type-checked a consumer against the packed tarball with `skipLibCheck: false`. `lib: [es2022, dom]` compiles `verifyReceipt(receipt.toJSON(), …)` and rejects `verifyReceipt(t, { vkey })`. Adding `esnext.disposable` compiles `await using`; without it, only the consumer's own `await using` fails. The ADR's `lib: ["es2022"]` alone fails on `AbortSignal` (pre-existing): say es2022 with DOM.
+  - `verifyReceipt` ignores `ReceiptJSON.index`: `{ index: "<anything>", text }` verifies and returns the text's index (probe). Check it against `proof.index` when present, or document that it is informational.
+  - `docs/guides/safe-api.md`'s member table lists `fetch` and `handler` among the members of the log both factories return. `BrowserLog` has neither: mark the row as server-only.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

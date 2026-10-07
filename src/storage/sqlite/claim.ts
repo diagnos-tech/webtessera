@@ -39,14 +39,20 @@ export const ErrWriterConflict = new SentinelError("sqlite: another writer took 
 /** claimName is the meta row naming the realm that last claimed a single-writer database. */
 const claimName = "local_writer";
 
-// realmToken identifies this JavaScript realm (a process, a worker thread, a page) among the
-// writers of a database: 48 random bits, drawn once, a safe integer the meta table's INTEGER
-// column holds. Every store of the realm claims with it, so they never trip over each other,
-// as they share its in-process locks.
-const realmToken = (() => {
-	const [hi = 0, lo = 0] = crypto.getRandomValues(new Uint32Array(2));
-	return (hi & 0xffff) * 2 ** 32 + lo;
-})();
+// token identifies this JavaScript realm (a process, a worker thread, a page) among the
+// writers of a database: 48 random bits, a safe integer the meta table's INTEGER column holds,
+// drawn on first use, since workerd refuses random numbers at a Worker's global scope. Every
+// store of the realm claims with it, so they never trip over each other, as they share its
+// in-process locks.
+let realmToken: number | undefined;
+
+function token(): number {
+	if (realmToken === undefined) {
+		const [hi = 0, lo = 0] = crypto.getRandomValues(new Uint32Array(2));
+		realmToken = (hi & 0xffff) * 2 ** 32 + lo;
+	}
+	return realmToken;
+}
 
 /**
  * WriterClaim is one store's single-writer claim on its database.
@@ -87,7 +93,7 @@ export class WriterClaim {
 		if (this.#state === "unclaimed") {
 			await this.#db.query({
 				sql: `INSERT OR REPLACE INTO ${this.#t.meta} (name, value) VALUES ('${claimName}', ?)`,
-				params: [realmToken],
+				params: [token()],
 			});
 			this.#state = "claimed";
 			return;
@@ -95,7 +101,7 @@ export class WriterClaim {
 		const row = (
 			await this.#db.query({ sql: `SELECT value FROM ${this.#t.meta} WHERE name = '${claimName}'`, params: [] })
 		)[0];
-		if (row === undefined || asInteger(row.value, `${this.#t.meta}.${claimName}`) !== realmToken) {
+		if (row === undefined || asInteger(row.value, `${this.#t.meta}.${claimName}`) !== token()) {
 			this.#state = "lost";
 			throw writerConflictError();
 		}
@@ -118,7 +124,7 @@ export class WriterClaim {
 			sql:
 				`INSERT INTO ${this.#t.fence} (${leaseLostConstraint}) SELECT NULL WHERE NOT EXISTS ` +
 				`(SELECT 1 FROM ${this.#t.meta} WHERE name = '${claimName}' AND value = ?)`,
-			params: [realmToken],
+			params: [token()],
 		};
 	}
 

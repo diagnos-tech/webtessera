@@ -62,6 +62,12 @@ describe("webtessera keygen", () => {
 		expect(r.code).toBe(2);
 		expect(r.stderr).toMatch(/looks like a private signer key/);
 		expect(r.stderr).not.toContain("AU8kTyK0RJFiR8hEREk5X103hoUKgM7BxP0nTyBIuUCY");
+		// Nor as a command or an option, which it quotes back.
+		for (const args of [[skey], ["keygen", "example.com/log", `--${skey}`]]) {
+			const wrong = run(args);
+			expect(wrong.code, args[0]).toBe(2);
+			expect(wrong.stderr, args[0]).not.toContain("AU8kTyK0RJFiR8hEREk5X103hoUKgM7BxP0nTyBIuUCY");
+		}
 		expect(run(["help"])).toEqual({ code: 0, stdout: "", stderr: Usage });
 	});
 
