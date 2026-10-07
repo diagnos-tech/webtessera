@@ -1,0 +1,63 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// One page per example, rendered from its README, with links to its source and its guide.
+
+import { getCollection, render } from "astro:content";
+import Doc from "../../layouts/Doc.astro";
+import { inline, plainText } from "../../lib/markdown.ts";
+import { meta, neighbours } from "../../lib/pages.ts";
+import { guideSlug } from "../../lib/routes.ts";
+import { getSiteData } from "../../lib/site.ts";
+import { href } from "../../lib/url.ts";
+import { list } from "../../lib/words.ts";
+
+export async function getStaticPaths() {
+	const examples = await getCollection("examples");
+	return examples.map((example) => ({ params: { name: example.id }, props: { example } }));
+}
+
+const { example } = Astro.props;
+const { Content, headings } = await render(example);
+const { examples, site } = await getSiteData();
+const info = examples.find((x) => x.dir === example.id);
+const sequence = examples.map((x) => ({ path: `examples/${x.dir}/`, title: x.title }));
+const { prev, next } = neighbours(sequence, `examples/${example.id}/`);
+---
+
+<Doc
+	title={plainText(example.data.title)}
+	heading={inline(example.data.title)}
+	description={example.data.description}
+	headings={headings}
+	source={example.data.file}
+	trail={[{ path: "examples/", title: meta.examples.title }]}
+	prev={prev}
+	next={next}
+>
+	{example.data.lead !== "" && <p class="lead" slot="lead" set:html={example.data.lead} />}
+	<p slot="lead" class="small">
+		Source in <a href={`${site.repo}/tree/${site.commit}/examples/${example.id}`}><code>examples/{example.id}</code></a>{
+			info !== undefined && info.runtimes.length > 0 && `; runs on ${list(info.runtimes.map((r) => (r === "Browsers" ? "browsers" : r)))}`
+		}{
+			info?.guide !== undefined && (
+				<>
+					; its guide is <a href={href(`docs/${guideSlug(info.guide.path)}/`)}>{info.guide.title}</a>
+				</>
+			)
+		}.
+	</p>
+	<div class="prose"><Content /></div>
+</Doc>

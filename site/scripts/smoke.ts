@@ -12,63 +12,90 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Smoke test of the built site (dist/), in a real Chromium: the page loads without
-// console errors or layout shifts, carries its SEO metadata, reads completely without
-// JavaScript, fits a 320 px screen, its install switcher works with and without script,
-// and the live demo appends an entry, verifies its inclusion proof, rejects a tampered one
-// and fills a tile. Run `bun run build` first; `bun run ci` does both.
+// Smoke test of the built site (dist/), in a real Chromium, served as GitHub Pages serves it.
+// Every page in the sitemap, and every page a link reaches, must render without console errors,
+// failed or third-party requests, with its own title, description, canonical URL, social image
+// and valid structured data, one h1 and headings in order, and no horizontal scrolling on a
+// phone. Every internal link and #fragment must resolve, and every link into this repository
+// must name a file that exists. The home page must keep to the length budget of
+// site design (section 6), show the facts the build derives from the
+// repository, read without JavaScript, and run the live demo. Run `bun run build` first;
+// `bun run ci` does both.
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import type { Page } from "playwright";
-import { siteConfig } from "../src/config.ts";
-import { launch, serve, siteDir } from "./browser.ts";
+import { type Browser, chromium, type Page } from "playwright";
+import { siteConfig } from "../src/lib/url.ts";
+import { distDir, serve } from "./serve.ts";
 
-const repoRoot = join(siteDir, "..");
-const site = siteConfig(repoRoot, process.env.SITE_URL);
-const pkg = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as { version: string };
-const sections = [
-	"quick-start",
-	"concepts",
-	"demo",
-	"storage",
-	"serve",
-	"examples",
-	"compatibility",
-	"security",
-	"api",
-	"runtimes",
-];
-// The examples the page must list: every directory of examples/ with a package.json.
-const exampleDirs = readdirSync(join(repoRoot, "examples")).filter((d) =>
-	existsSync(join(repoRoot, "examples", d, "package.json")),
-);
+const root = join(distDir, "..", "..");
+const site = siteConfig(root);
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+	license: string;
+	exports: Record<string, unknown>;
+};
+
+/** The home page's length budget (site design, section 6). */
+const budget = { words: 800, h2: 5, code: 3, codeLines: 12, tables: 1, nav: 5, js: 2048, h1440: 4500, h390: 9000 };
 
 let failures = 0;
-
 function check(ok: boolean, what: string, detail = ""): void {
 	if (!ok) {
 		failures++;
 	}
 	process.stdout.write(`${ok ? "  ok  " : "  FAIL"} ${what}${detail === "" ? "" : `: ${detail}`}\n`);
 }
-
 function heading(text: string): void {
 	process.stdout.write(`\n${text}\n`);
 }
 
-/** watch collects console errors, uncaught exceptions and failed requests. */
-function watch(page: Page): string[] {
+// What the repository says the site must show.
+const fixtureCount = readdirSync(join(root, "fixtures/data")).filter(
+	(f) => f.endsWith(".json") && !f.startsWith("differential_"),
+).length;
+const exampleDirs = readdirSync(join(root, "examples")).filter((d) =>
+	existsSync(join(root, "examples", d, "package.json")),
+);
+const guideSlugs = readdirSync(join(root, "docs/guides"))
+	.filter((f) => f.endsWith(".md") && f !== "README.md")
+	.map((f) => f.replace(/\.md$/, ""));
+const specifiers = Object.entries(pkg.exports)
+	.filter(([, v]) => {
+		const target = typeof v === "string" ? v : ((v as Record<string, string>).default ?? "");
+		return (
+			target.endsWith(".js") && existsSync(join(root, target.replace(/^\.\/dist\//, "src/").replace(/\.js$/, ".ts")))
+		);
+	})
+	.map(([k]) => (k === "." ? "webtessera" : `webtessera/${k.slice(2)}`));
+const { loadTestMatrix } = await import("../src/data/ci.ts");
+const { Repo } = await import("../src/data/repo.ts");
+const ciJobs = loadTestMatrix(new Repo(root)).jobs.flatMap((g) => g.jobs);
+
+/** PageReport is what one visit to a page found. */
+interface PageReport {
+	readonly path: string;
+	readonly title: string;
+	readonly links: readonly string[];
+	readonly ids: readonly string[];
+}
+
+/** watch collects console errors, exceptions, failed requests and requests to other origins. */
+function watch(page: Page, origin: string): string[] {
 	const problems: string[] = [];
 	page.on("console", (m) => {
-		if (m.type() === "error") {
+		if (m.type() === "error" && !(m.text().includes("404") && page.url().endsWith("/404/"))) {
 			problems.push(`console: ${m.text()}`);
 		}
 	});
 	page.on("pageerror", (e) => problems.push(`exception: ${e.message}`));
+	page.on("request", (r) => {
+		if (!r.url().startsWith(origin) && !r.url().startsWith("data:")) {
+			problems.push(`third-party request: ${r.url()}`);
+		}
+	});
 	page.on("response", (r) => {
-		if (r.status() >= 400) {
+		if (r.status() >= 400 && !(r.request().resourceType() === "document" && r.url().endsWith("/404/"))) {
 			problems.push(`HTTP ${r.status()} ${r.url()}`);
 		}
 	});
@@ -76,158 +103,316 @@ function watch(page: Page): string[] {
 	return problems;
 }
 
-async function seo(page: Page, url: string): Promise<void> {
-	heading("SEO and metadata");
-	const meta = (sel: string) => page.locator(sel).first().getAttribute("content");
-	const title = await page.title();
-	check(title.length > 10 && title.length <= 65 && title.includes("webtessera"), "title", title);
-	const description = (await meta('meta[name="description"]')) ?? "";
-	check(description.length >= 70 && description.length <= 170, "meta description", `${description.length} chars`);
-	check((await page.locator('link[rel="canonical"]').getAttribute("href")) === site.url, "canonical URL", site.url);
-	check((await page.locator("html").getAttribute("lang")) === "en", 'html lang="en"');
-	check((await meta('meta[property="og:title"]')) === title, "og:title");
-	const image = (await meta('meta[property="og:image"]')) ?? "";
-	check(image === new URL("og.png", site.url).href, "og:image is absolute", image);
-	check(
-		(await meta('meta[property="og:image:width"]')) === "1200" &&
-			(await meta('meta[property="og:image:height"]')) === "630",
-		"og:image is 1200x630",
+/** local maps a URL of the published site to the same page on the local server. */
+function local(url: string, served: string): string {
+	return url.startsWith(site.url) ? served + url.slice(site.url.length) : url;
+}
+
+/** visit loads a page and checks what every page must have. */
+async function visit(browser: Browser, served: string, path: string): Promise<PageReport> {
+	const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+	const problems = watch(page, new URL(served).origin);
+	const response = await page.goto(served + path, { waitUntil: "networkidle" });
+	const where = `/${path}`;
+	// Every check of the page is gathered, and the page is reported on one line.
+	const issues: string[] = [];
+	const need = (ok: boolean, what: string, detail = "") => {
+		if (!ok) {
+			issues.push(detail === "" ? what : `${what} (${detail})`);
+		}
+	};
+	need(response?.status() === (path === "404/" ? 404 : 200), `renders`, String(response?.status()));
+	const head = await page.evaluate(() => {
+		const meta = (sel: string) => document.querySelector(sel)?.getAttribute("content") ?? "";
+		const levels = [...document.querySelectorAll("main h1, main h2, main h3, main h4")].map((h) =>
+			Number(h.tagName[1]),
+		);
+		return {
+			title: document.title,
+			lang: document.documentElement.lang,
+			description: meta('meta[name="description"]'),
+			canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
+			ogUrl: meta('meta[property="og:url"]'),
+			ogImage: meta('meta[property="og:image"]'),
+			themes: document.querySelectorAll('meta[name="theme-color"]').length,
+			h1: document.querySelectorAll("h1").length,
+			skipped: levels.findIndex((l, i) => i > 0 && l > (levels[i - 1] ?? 1) + 1),
+			unlabelled: document.querySelectorAll("img:not([alt]), svg[role='img']:not([aria-label]):not([aria-labelledby])")
+				.length,
+			ld: [...document.querySelectorAll('script[type="application/ld+json"]')].map((s) => s.textContent ?? ""),
+			links: [...document.querySelectorAll<HTMLAnchorElement>("a[href]")].map((a) => a.href),
+			ids: [...document.querySelectorAll("[id]")].map((e) => e.id),
+			overflow: document.documentElement.scrollWidth - window.innerWidth,
+		};
+	});
+	const canonical = new URL(path, site.url).href;
+	need(head.lang === "en" && head.themes === 2, `has lang="en" and both theme colours`);
+	need(head.title.length > 0 && (path === "" || head.title.endsWith(" | webtessera")), `title`, head.title);
+	need(
+		head.description.length >= 70 && head.description.length <= 160,
+		`description`,
+		`${head.description.length} characters`,
 	);
-	check((await meta('meta[name="twitter:card"]')) === "summary_large_image", "twitter:card");
-	check((await page.locator('meta[name="theme-color"]').count()) === 2, "theme-color for light and dark");
+	need(head.canonical === canonical && head.ogUrl === canonical, `canonical and og:url`, head.canonical);
+	const image = head.ogImage.startsWith(site.url) ? join(distDir, head.ogImage.slice(site.url.length)) : "";
+	need(image !== "" && existsSync(image), `og:image exists`, head.ogImage);
+	need(head.h1 === 1 && head.skipped < 0, `has one h1 and no skipped heading level`);
+	need(head.unlabelled === 0, `images and diagrams are labelled`);
+	need(head.overflow <= 0, `has no horizontal scroll at 390 px`, head.overflow > 0 ? `${head.overflow} px` : "");
+	let ld: { "@graph"?: Record<string, unknown>[] } = {};
+	try {
+		ld = JSON.parse(head.ld[0] ?? "{}") as typeof ld;
+	} catch (e) {
+		need(false, `JSON-LD parses`, String(e));
+	}
+	const types = (ld["@graph"] ?? []).map((n) => n["@type"]);
+	if (path.startsWith("docs/") || path.startsWith("examples/")) {
+		need(types.includes("TechArticle") && types.includes("BreadcrumbList"), `JSON-LD`, types.join(", "));
+	}
+	need(problems.length === 0, `has no console errors or failed or third-party requests`, problems.join("; "));
+	check(issues.length === 0, where, issues.join("; ") || head.title);
+	await page.close();
+	return { path, title: head.title, links: head.links, ids: head.ids };
+}
+
+/** sitemapPaths reads the sitemap index and its sitemaps, as paths under the base. */
+async function sitemapPaths(served: string): Promise<string[]> {
+	const index = await (await fetch(`${served}sitemap-index.xml`)).text();
+	const paths: string[] = [];
+	for (const loc of index.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+		const xml = await (await fetch(local(loc[1] ?? "", served))).text();
+		for (const page of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+			paths.push((page[1] ?? "").slice(site.url.length));
+		}
+	}
+	return paths;
+}
+
+/** crawl visits every page of the sitemap and every page a link reaches, and checks the links. */
+async function crawl(browser: Browser, served: string): Promise<Map<string, PageReport>> {
+	heading("Every page");
+	const fromSitemap = await sitemapPaths(served);
+	check(fromSitemap.includes("") && !fromSitemap.includes("404/"), "the sitemap lists the home page, not the 404 page");
+	const queue = [...fromSitemap, "404/"];
+	const seen = new Map<string, PageReport>();
+	const repoLinks = new Set<string>();
+	const unslashed = new Set<string>();
+	while (queue.length > 0) {
+		const path = queue.shift() ?? "";
+		if (seen.has(path)) {
+			continue;
+		}
+		const report = await visit(browser, served, path);
+		seen.set(path, report);
+		for (const link of report.links) {
+			const url = new URL(link);
+			if (link.startsWith(served)) {
+				const target = url.pathname.slice(new URL(served).pathname.length);
+				if (!/\.(png|svg|xml|txt|woff2)$/.test(target)) {
+					if (target !== "" && !target.endsWith("/")) {
+						unslashed.add(`/${target} (from /${path})`);
+					}
+					if (!seen.has(target) && !queue.includes(target)) {
+						queue.push(target);
+					}
+				}
+			} else if (link.startsWith(`${site.repo}/blob/`) || link.startsWith(`${site.repo}/tree/`)) {
+				repoLinks.add(url.pathname.split("/").slice(5).join("/"));
+			}
+		}
+	}
+	const titles = [...seen.values()].map((r) => r.title);
+	check(new Set(titles).size === titles.length, "every page has its own title", `${titles.length} pages`);
+	const notInSitemap = [...seen.keys()].filter((p) => p !== "404/" && !fromSitemap.includes(p));
+	check(notInSitemap.length === 0, "the sitemap lists every page", notInSitemap.join(", "));
+
+	heading("Links");
+	let internal = 0;
+	const broken: string[] = [];
+	for (const report of seen.values()) {
+		for (const link of report.links) {
+			const url = new URL(link);
+			if (!link.startsWith(served)) {
+				continue;
+			}
+			internal++;
+			const target = seen.get(url.pathname.slice(new URL(served).pathname.length));
+			const id = decodeURIComponent(url.hash.slice(1));
+			if (
+				target === undefined ? !/\.(png|svg|xml|txt|woff2)$/.test(url.pathname) : id !== "" && !target.ids.includes(id)
+			) {
+				broken.push(`${url.pathname}${url.hash} (from /${report.path})`);
+			}
+		}
+	}
+	check(unslashed.size === 0, "every link to a page ends in a slash", [...unslashed].join(", "));
+	check(broken.length === 0, "every internal link and #fragment resolves", broken.join(", ") || `${internal} links`);
+	const missing = [...repoLinks].filter((p) => p !== "" && !existsSync(join(root, p.replace(/#.*$/, ""))));
+	check(missing.length === 0, "every link into the repository names a file that exists", missing.join(", "));
+	return seen;
+}
+
+/** facts checks that pages show what the repository says. */
+async function facts(browser: Browser, served: string, pages: Map<string, PageReport>): Promise<void> {
+	heading("Facts from the repository");
+	const page = await browser.newPage();
+	await page.goto(served, { waitUntil: "networkidle" });
+	const receipt = await page.locator(".steps pre.note").last().locator(".ln").allTextContents();
+	check(receipt[0] === "c2sp.org/tlog-proof@v1", "the receipt is a C2SP tlog-proof", receipt[0]);
+	check(receipt.includes(site.origin), "the receipt's checkpoint names the site's origin", site.origin);
+	const hero = await page.locator(".hero pre.note .ln").allTextContents();
+	check(hero[0] === site.origin, "the hero's checkpoint names the site's origin");
+	const text = (await page.locator("main").textContent()) ?? "";
+	check(
+		text.includes(`${fixtureCount} golden fixture files`),
+		"the evidence counts the golden fixtures",
+		String(fixtureCount),
+	);
 	const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}") as {
-		"@graph"?: {
-			"@type": string;
-			version?: string;
-			codeRepository?: string;
-			license?: string;
-			programmingLanguage?: { name?: string };
-			isBasedOn?: { codeRepository?: string };
-		}[];
+		"@graph"?: { "@type": string; license?: string[]; version?: string; isBasedOn?: { codeRepository?: string } }[];
 	};
 	const code = ld["@graph"]?.find((n) => n["@type"] === "SoftwareSourceCode");
+	const licences = pkg.license
+		.split(/\s+AND\s+/)
+		.map((id) => `https://spdx.org/licenses/${id.replace(/[()]/g, "")}.html`);
 	check(
-		code?.version === pkg.version &&
-			code.codeRepository === site.repo &&
-			code.license !== undefined &&
-			code.programmingLanguage?.name === "TypeScript",
-		"JSON-LD SoftwareSourceCode",
-		`version ${code?.version}`,
+		JSON.stringify(code?.license) === JSON.stringify(licences),
+		"JSON-LD licence is package.json's, Apache-2.0 first",
+		code?.license?.join(" "),
 	);
-	check(code?.isBasedOn?.codeRepository === site.tessera, "JSON-LD isBasedOn Tessera", code?.isBasedOn?.codeRepository);
+	check(code?.isBasedOn?.codeRepository === site.tessera, "JSON-LD isBasedOn Tessera");
 	check(ld["@graph"]?.some((n) => n["@type"] === "WebSite") === true, "JSON-LD WebSite");
-	check((await page.locator("h1").count()) === 1, "exactly one h1");
-	check((await page.locator("img:not([alt])").count()) === 0, "every image has alt text");
-	const levels = await page
-		.locator("main h1, main h2, main h3, main h4")
-		.evaluateAll((els) => els.map((e) => Number(e.tagName.slice(1))));
-	const skipped = levels.findIndex((l, i) => i > 0 && l > (levels[i - 1] ?? 1) + 1);
-	check(skipped < 0, "heading levels are not skipped", skipped < 0 ? `${levels.length} headings` : `at #${skipped}`);
-	for (const path of ["robots.txt", "sitemap.xml", "og.png", "favicon.svg", "favicon.png", "apple-touch-icon.png"]) {
-		const r = await page.request.get(new URL(path, url).href);
-		check(r.ok(), `serves ${path}`, `${r.status()} ${r.headers()["content-type"] ?? ""}`);
-	}
-	const sitemap = await (await page.request.get(new URL("sitemap.xml", url).href)).text();
-	check(sitemap.includes(`<loc>${site.url}</loc>`), "sitemap lists the canonical URL");
+
+	await page.goto(`${served}compatibility/`);
+	const compat = (await page.locator("main").textContent()) ?? "";
+	const absent = ciJobs.filter((j) => !compat.includes(j));
+	check(absent.length === 0, "the compatibility page lists every CI job", absent.join(", ") || `${ciJobs.length} jobs`);
+	const examples = pages.get("examples/")?.links ?? [];
+	const unlisted = exampleDirs.filter((d) => !examples.includes(`${served}examples/${d}/`));
+	check(
+		unlisted.length === 0 && exampleDirs.every((d) => pages.has(`examples/${d}/`)),
+		"every example has a page",
+		unlisted.join(", "),
+	);
+	const reference = pages.get("docs/reference/")?.links ?? [];
+	const unreferenced = specifiers.filter(
+		(s) => !reference.some((l) => l === `${served}docs/reference/${s === "webtessera" ? s : s.slice(11)}/`),
+	);
+	check(
+		unreferenced.length === 0,
+		"every entry point has a reference page",
+		unreferenced.join(", ") || `${specifiers.length}`,
+	);
+	const unrendered = guideSlugs.filter((g) => !pages.has(`docs/${g}/`));
+	check(unrendered.length === 0, "every guide has a page", unrendered.join(", ") || `${guideSlugs.length}`);
+	const robots = await (await fetch(`${served}robots.txt`)).text();
+	check(robots.includes(`Sitemap: ${site.url}sitemap-index.xml`), "robots.txt names the sitemap");
+	await page.close();
 }
 
-async function content(page: Page, label: string): Promise<void> {
-	heading(`Content (${label})`);
-	for (const id of sections) {
-		check((await page.locator(`section#${id} h2`).count()) === 1, `section #${id}`);
-	}
-	const navTargets = await page
-		.locator(".site-nav a")
-		.evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).hash));
-	check(
-		navTargets.join(" ") === sections.map((id) => `#${id}`).join(" "),
-		"navigation links every section",
-		navTargets.join(" "),
-	);
-	check(
-		(await page.locator("pre.shiki").count()) >= 4,
-		"highlighted code samples",
-		`${await page.locator("pre.shiki").count()}`,
-	);
-	check(
-		(await page.locator(".hero .receipt .note-body .ln").first().textContent()) === "c2sp.org/tlog-proof@v1",
-		"hero receipt is a tlog-proof",
-	);
-	check(
-		(await page.locator('.hero .receipt [data-label="origin"]').textContent()) === site.origin,
-		"hero receipt's checkpoint origin line",
-	);
-	check(
-		(await page.locator("#quick-start pre.shiki").first().textContent())?.includes("openServerLog") === true,
-		"the quick start opens with the safe API",
-	);
-	check((await page.locator("#api details.pkg").count()) >= 10, "package map lists entry points");
-	check((await page.locator(".port-grid i").count()) > 100, "porting map mosaic");
-	const listed = await page
-		.locator("#examples .example h3 a")
-		.evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
-	check(
-		listed.length === exampleDirs.length &&
-			exampleDirs.every((dir) => listed.some((h) => h.endsWith(`/examples/${dir}`))),
-		"every example is listed, with a link to its folder",
-		`${listed.length} of ${exampleDirs.length}`,
-	);
-	const commands = await page.locator(".hero .install .pm-pane").evaluateAll((els) =>
-		els.map((e) => ({
-			text: e.textContent?.replace(/^\$\s*/, "").trim() ?? "",
-			shown: (e as HTMLElement).offsetParent !== null,
-		})),
-	);
-	check(
-		["npm", "bun", "pnpm", "yarn"].every((m) => commands.some((c) => c.text.startsWith(`${m} `))),
-		"install commands for npm, bun, pnpm and yarn",
-		commands.map((c) => c.text).join(" | "),
-	);
-	check(commands.filter((c) => c.shown).length === 1, "exactly one install command is on show");
-}
-
-async function installSwitcher(page: Page): Promise<void> {
-	heading("Install switcher");
-	await page.locator(".hero .pm-tabs label", { hasText: "pnpm" }).click();
-	const shown = async (scope: string) =>
-		page
-			.locator(`${scope} .pm-pane`)
-			.evaluateAll((els) =>
-				els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => e.textContent?.trim() ?? ""),
+/** home checks the home page's length budget, its scripts, its look in both schemes and its demo. */
+async function home(browser: Browser, served: string): Promise<void> {
+	heading("Home page budget");
+	for (const [width, height, limit] of [
+		[1440, 900, budget.h1440],
+		[390, 844, budget.h390],
+	] as const) {
+		const page = await browser.newPage({ viewport: { width, height } });
+		const scripts: number[] = [];
+		page.on("response", async (r) => {
+			if (r.request().resourceType() === "script") {
+				scripts.push(gzipSync(await r.body(), { level: 9 }).length);
+			}
+		});
+		await page.goto(served, { waitUntil: "networkidle" });
+		const m = await page.evaluate(() => {
+			const main = document.querySelector("main")?.cloneNode(true) as HTMLElement;
+			for (const n of main.querySelectorAll("pre, code, svg, [data-demo]")) {
+				n.remove();
+			}
+			return {
+				height: document.documentElement.scrollHeight,
+				words: (main.textContent ?? "").split(/\s+/).filter(Boolean).length,
+				h2: document.querySelectorAll("main h2").length,
+				code: [...document.querySelectorAll("main figure.code pre")].map(
+					(p) => (p.textContent ?? "").split("\n").length,
+				),
+				cards: [...document.querySelectorAll("main *")].filter((e) =>
+					/\b(card|pill|chip|badge)\b/.test(typeof e.className === "string" ? e.className : ""),
+				).length,
+				tables: document.querySelectorAll("main table").length,
+				nav: document.querySelectorAll("header nav a").length,
+			};
+		});
+		check(m.height <= limit, `height at ${width} px`, `${m.height} of ${limit}`);
+		if (width === 1440) {
+			check(m.words <= budget.words, "prose words", `${m.words} of ${budget.words}`);
+			check(m.h2 <= budget.h2, "h2 sections", `${m.h2} of ${budget.h2}`);
+			check(
+				m.code.length <= budget.code && m.code.every((n) => n <= budget.codeLines),
+				"code blocks",
+				`${m.code.length} of ${budget.code}, lines ${m.code.join(", ")} of ${budget.codeLines} each`,
 			);
-	const hero = await shown(".hero");
-	check(hero.length === 1 && hero[0]?.includes("pnpm add") === true, "choosing pnpm shows its command", hero.join(""));
-	const start = await shown("#quick-start");
-	check(start[0]?.includes("pnpm add") === true, "the quick start's switcher follows", start.join(""));
-	await page.locator(".hero .pm-tabs label", { hasText: "npm" }).first().click();
-}
+			check(m.cards === 0, "no cards, pills, chips or badges", String(m.cards));
+			check(m.tables <= budget.tables, "tables", `${m.tables} of ${budget.tables}`);
+			check(m.nav <= budget.nav, "navigation links", `${m.nav} of ${budget.nav}`);
+			const js = scripts.reduce((a, b) => a + b, 0);
+			check(
+				scripts.length === 1 && js <= budget.js,
+				"JavaScript before the demo is near",
+				`${scripts.length} script, ${js} B gzipped`,
+			);
+		}
+		await page.close();
+	}
 
-async function layoutShift(page: Page): Promise<void> {
-	heading("Layout stability");
-	const cls = await page.evaluate(
+	heading("Look and behaviour");
+	const dark = await browser.newPage({ colorScheme: "dark" });
+	await dark.goto(served);
+	const bg = await dark.evaluate(() => getComputedStyle(document.body).backgroundColor);
+	check(bg === "rgb(21, 23, 27)", "dark scheme follows the system", bg);
+	await dark.close();
+	const still = await browser.newPage({ reducedMotion: "reduce" });
+	await still.goto(served);
+	const motion = await still.evaluate(
+		() => getComputedStyle(document.querySelector(".note") as Element).transitionDuration,
+	);
+	check(motion === "0s", "no motion under prefers-reduced-motion", motion);
+	await still.close();
+	const narrow = await browser.newPage({ viewport: { width: 320, height: 700 } });
+	await narrow.goto(served);
+	const overflow = await narrow.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+	check(overflow <= 0, "no horizontal scroll at 320 px", overflow > 0 ? `${overflow} px` : "");
+	await narrow.close();
+
+	const shift = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+	await shift.goto(served);
+	const cls = await shift.evaluate(
 		() =>
 			new Promise<number>((resolve) => {
 				let total = 0;
 				new PerformanceObserver((list) => {
 					for (const e of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[]) {
-						if (!e.hadRecentInput) {
-							total += e.value;
-						}
+						total += e.hadRecentInput ? 0 : e.value;
 					}
 				}).observe({ type: "layout-shift", buffered: true });
 				setTimeout(() => resolve(total), 1500);
 			}),
 	);
 	check(cls < 0.05, "cumulative layout shift on load", cls.toFixed(4));
+	await shift.close();
 }
 
-async function demo(page: Page): Promise<void> {
+/** demo appends an entry, verifies its proof, rejects a tampered one and fills a tile. */
+async function demo(browser: Browser, served: string): Promise<void> {
 	heading("Live demo");
-	await page.locator("#demo").scrollIntoViewIfNeeded();
+	const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+	const problems = watch(page, new URL(served).origin);
+	await page.goto(served);
+	await page.locator("[data-demo]").scrollIntoViewIfNeeded();
 	await page.waitForSelector('[data-demo][data-live="true"]', { timeout: 20_000 });
 	check(true, "the log starts in the tab");
-	const sizeLine = page.locator("[data-demo-note] .ln").nth(1);
-	const before = Number(await sizeLine.textContent());
+	const before = Number(await page.locator("[data-demo-note] .ln").nth(1).textContent());
 	const text = `smoke test ${Date.now()}`;
 	await page.fill("#demo-entry", text);
 	await page.click('[data-demo-form] button[type="submit"]');
@@ -250,78 +435,43 @@ async function demo(page: Page): Promise<void> {
 	);
 	await page.check("[data-demo-tamper]");
 	await page.waitForSelector("[data-demo-proof] .verdict-line.bad", { timeout: 10_000 });
-	check(
-		true,
-		"a tampered entry's proof is rejected",
-		((await page.locator("[data-demo-proof] code").first().textContent()) ?? "").slice(0, 80),
-	);
+	check(true, "a tampered entry's proof is rejected");
 	await page.uncheck("[data-demo-tamper]");
 	await page.waitForSelector("[data-demo-proof] .verdict-line.ok", { timeout: 10_000 });
 	await page.click("[data-demo-fill]");
 	await page.waitForSelector('[data-demo-tiles] .tile[data-level="1"]', { timeout: 30_000 });
-	const files = await page.locator("[data-demo-files] code").allTextContents();
+	const tiles = await page.locator("[data-demo-tiles] figcaption code").allTextContents();
 	check(
-		files.includes("tile/0/000") && files.includes("tile/1/000.p/1"),
-		"filling the tile creates tile/0/000 and tile/1/000.p/1",
-		files.join(" "),
+		tiles.includes("tile/0/000") && tiles.includes("tile/1/000.p/1"),
+		"filling the tile makes tile/0/000 and tile/1/000.p/1",
+		tiles.join(" "),
 	);
-}
+	check(problems.length === 0, "the demo runs without console errors", problems.join("; "));
+	await page.close();
 
-async function noScript(url: string): Promise<void> {
 	heading("Without JavaScript");
-	const browser = await launch();
-	const page = await browser.newPage({ javaScriptEnabled: false });
-	await page.goto(url);
-	await content(page, "no JavaScript");
-	check(await page.locator(".demo-form").isHidden(), "demo controls are hidden");
-	check(await page.locator("button[data-copy]").first().isHidden(), "copy buttons are hidden");
+	const context = await browser.newContext({ javaScriptEnabled: false });
+	const still = await context.newPage();
+	await still.goto(served);
+	check(await still.locator(".demo-form").isHidden(), "the demo's controls are hidden");
 	check(
-		(await page.locator("[data-demo-proof] .verdict-line.ok").count()) === 1,
-		"the build-time proof is shown, verified",
+		(await still.locator("[data-demo-proof] .verdict-line.ok").count()) === 1,
+		"the build's proof is shown, verified",
 	);
-	await browser.close();
+	check((await still.locator(".steps .tile-grid .c[data-i]").count()) > 0, "the tile is drawn");
+	await context.close();
 }
 
-async function narrow(page: Page, url: string): Promise<void> {
-	heading("Small screens");
-	for (const width of [320, 375]) {
-		await page.setViewportSize({ width, height: 800 });
-		await page.goto(url);
-		const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-		check(overflow <= 0, `no horizontal scrolling at ${width} px`, overflow > 0 ? `${overflow} px too wide` : "");
-	}
-}
-
-function sizes(): void {
-	heading("Page weight (dist/)");
-	const dist = join(siteDir, "dist");
-	const files = ["index.html", ...readdirSync(join(dist, "assets")).map((f) => `assets/${f}`)];
-	for (const f of files) {
-		const data = readFileSync(join(dist, f));
-		const gz = gzipSync(data, { level: 9 }).length;
-		process.stdout.write(
-			`  ${f.padEnd(28)} ${(statSync(join(dist, f)).size / 1024).toFixed(1).padStart(7)} KiB  ${(gz / 1024).toFixed(1).padStart(6)} KiB gzip\n`,
-		);
-	}
-}
-
-const served = await serve();
-const browser = await launch();
+const served = await serve(site.base);
+const browser = await chromium.launch(
+	process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {},
+);
 try {
-	process.stdout.write(`Smoke-testing ${served.url} (canonical ${site.url})\n`);
-	const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-	const problems = watch(page);
-	await page.goto(served.url);
-	await layoutShift(page);
-	await seo(page, served.url);
-	await content(page, "JavaScript on");
-	await installSwitcher(page);
-	await demo(page);
-	await narrow(page, served.url);
-	heading("Console");
-	check(problems.length === 0, "no console errors, exceptions or failed requests", problems.join("; "));
-	await noScript(served.url);
-	sizes();
+	process.stdout.write(`Smoke-testing ${served.url} (published at ${site.url})\n`);
+	const pages = await crawl(browser, served.url);
+	await facts(browser, served.url, pages);
+	await home(browser, served.url);
+	await demo(browser, served.url);
 } finally {
 	await browser.close();
 	await served.close();

@@ -108,6 +108,19 @@
   },
   "overrides": [
     {
+      // Biome reads only the frontmatter of an .astro file, so a name that only the template
+      // uses looks unused to it; `astro check` (site/package.json) reports the real ones.
+      "includes": ["**/*.astro"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/*_test.ts", "**/testing/**"],
       "linter": {
         "rules": {

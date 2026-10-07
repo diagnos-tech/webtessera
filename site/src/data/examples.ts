@@ -16,12 +16,11 @@
 // first heading, its pitch is its package.json description, the runtimes it runs on are read
 // from what its scripts start (start:node, start:bun and start:deno, Vite for a browser
 // page, wrangler for Cloudflare Workers), and its guide is the docs/guides page whose row
-// in docs/guides/README.md links to it. They are listed in the order README.md's examples
-// table gives them; an example the table does not list yet comes last.
+// in docs/guides/README.md links to it. They are listed in the order of that table; an example
+// it does not list yet comes last.
 
-import { loadExampleOrder } from "./readme.ts";
 import type { Repo } from "./repo.ts";
-import { markdownTable } from "./tables.ts";
+import { requireTable } from "./tables.ts";
 
 /** Example is one runnable example. */
 export interface Example {
@@ -68,23 +67,32 @@ export function runtimesOf(pkg: RawExample): string[] {
 	return out;
 }
 
-/** loadGuides maps an example directory to the guide that docs/guides/README.md pairs with it. */
-function loadGuides(repo: Repo): Map<string, { path: string; title: string }> {
-	const out = new Map<string, { path: string; title: string }>();
-	for (const row of markdownTable(repo.textOr("docs/guides/README.md") ?? "", "# Guides")) {
+/** guidesIndex is the table that pairs each use-case guide with its example. */
+export const guidesIndex = { file: "docs/guides/README.md", heading: "# Guides" } as const;
+
+/**
+ * loadGuides reads the first table of docs/guides/README.md: the example directories in the
+ * order it lists them, and the guide it pairs with each.
+ */
+function loadGuides(repo: Repo): { order: string[]; guides: Map<string, { path: string; title: string }> } {
+	const order: string[] = [];
+	const guides = new Map<string, { path: string; title: string }>();
+	for (const row of requireTable(repo.text(guidesIndex.file), guidesIndex.file, guidesIndex.heading)) {
 		const guide = /\[([^\]]+)\]\(([\w.-]+\.md)\)/.exec(row[0] ?? "");
 		const dir = /examples\/([\w.-]+)/.exec(row[row.length - 1] ?? "")?.[1];
-		if (guide !== null && dir !== undefined) {
-			out.set(dir, { title: guide[1] ?? "", path: `docs/guides/${guide[2] ?? ""}` });
+		if (dir !== undefined) {
+			order.push(dir);
+			if (guide !== null) {
+				guides.set(dir, { title: guide[1] ?? "", path: `docs/guides/${guide[2] ?? ""}` });
+			}
 		}
 	}
-	return out;
+	return { order, guides };
 }
 
 /** loadExamples reads every examples/<dir> that has a package.json. */
 export function loadExamples(repo: Repo): Example[] {
-	const order = loadExampleOrder(repo);
-	const guides = loadGuides(repo);
+	const { order, guides } = loadGuides(repo);
 	const rank = (dir: string) => {
 		const i = order.indexOf(dir);
 		return i < 0 ? order.length : i;

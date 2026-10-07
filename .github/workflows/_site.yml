@@ -1,5 +1,6 @@
-# Builds the landing page (site/) and smoke-tests it in Chromium, so a broken page is caught on
-# the pull request that breaks it rather than when pages.yml deploys it.
+# Builds the website (site/, an Astro site generated from the repository) and smoke-tests every
+# page in Chromium, so a broken page, link or budget is caught on the pull request that breaks it
+# rather than when pages.yml deploys it.
 #
 # Reusable workflow, called by ci.yml. Deployment is pages.yml's job, not this one's.
 name: Site
@@ -21,5 +22,6 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/setup-browsers
-      # `ci` is the package's own definition of "builds and passes its smoke test".
+      # `ci` is the package's own definition of "builds, type-checks and passes its smoke test".
+      # Astro runs on the Node.js that the setup action installs (22.12 or later, from .nvmrc).
       - run: bun run --filter webtessera-site ci

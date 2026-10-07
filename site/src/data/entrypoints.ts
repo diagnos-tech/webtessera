@@ -34,7 +34,7 @@ export interface ExportedName {
 export interface EntryPoint {
 	readonly specifier: string;
 	readonly source: string;
-	/** summary describes the entry point in a sentence. */
+	/** summary describes the entry point in a sentence, as inline Markdown (`code` spans). */
 	readonly summary: string;
 	/** go names the Go package it corresponds to, if any. */
 	readonly go: string;
@@ -203,7 +203,9 @@ export function loadEntryPoints(
 		const row = describe(table, t.specifier);
 		const position = row?.imports.indexOf(t.specifier) ?? -1;
 		const own = moduleSummary(repo, t.source);
-		const fromTable = row === undefined ? "" : capitalise(row.contents.replace(/\s*\(see above\)/, "").trim());
+		const contents = row?.contents.replace(/\s*\(see above\)/, "").trim() ?? "";
+		// A description that starts with an identifier keeps its case.
+		const fromTable = contents.startsWith("`") ? contents : capitalise(contents);
 		// A table row that names only this entry point describes it best; a shared or glob
 		// row is less specific than the module's own package comment.
 		const exact = position >= 0 && row?.imports.length === 1;

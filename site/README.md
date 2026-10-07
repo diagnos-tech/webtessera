@@ -1,13 +1,12 @@
 # webtessera-site
 
-The landing page of webtessera, published to GitHub Pages at
-<https://diagnos-tech.github.io/webtessera/>. It is one static page whose content is generated from
-this repository while it builds, so it cannot drift from the code: the entry points, their exports
-and doc comments, the tested code samples, the safe API's guards, the compatibility evidence, the
-porting status, the decision records, the examples, the CI jobs and the licence notices are all read
-from source, and the receipt in the hero is one the library produced while the page was built.
-JavaScript only adds the copy buttons, keeps the package-manager tabs in step and runs the live demo;
-the page reads completely without it.
+The website of webtessera, published to GitHub Pages at <https://diagnos-tech.github.io/webtessera/>.
+It is a static [Astro](https://astro.build/) site generated from this repository while it builds, so
+it cannot drift from the code: the guides and the examples' READMEs are rendered from their Markdown,
+the API reference from the sources' doc comments, the compatibility evidence from the fixtures, tests
+and workflows, and every checkpoint, tile, proof and receipt on the home page is one the library
+produced during the build. The only script is the live demo's, loaded when it nears the viewport; every
+page reads completely without it.
 
 ## Commands
 
@@ -15,90 +14,86 @@ From the repository root:
 
 ```sh
 bun install
-bun run --cwd site dev        # dev server; edits to the repository reload the page
-bun run --cwd site build      # builds the library, then the page into site/dist
-bun run --cwd site preview    # serves site/dist at http://localhost:4173/webtessera/
-bun run --cwd site typecheck  # type-checks the generator, the demo and the scripts
+bun run --cwd site dev        # dev server at http://localhost:4321/webtessera/
+bun run --cwd site build      # builds the library, then the site into site/dist
+bun run --cwd site preview    # serves site/dist at http://localhost:4173/webtessera/, as GitHub Pages does
+bun run --cwd site typecheck  # astro check: the pages, the extractors, the demo and the scripts
 bun run --cwd site smoke      # smoke-tests site/dist in Chromium (build first)
-bun run --cwd site ci         # build + typecheck + smoke, as CI runs it (it uses --filter webtessera-site)
-bun run --cwd site og         # regenerates public/og.png and the PNG icons
+bun run --cwd site ci         # build + typecheck + smoke, as CI runs it
 ```
 
-The smoke test and `og` drive Chromium through Playwright, a development dependency of the workspace
-root. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use a Chromium installed elsewhere.
+Astro runs on Node.js 22.12 or later. The smoke test drives Chromium through Playwright, a development
+dependency of the workspace root; set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use a Chromium installed
+elsewhere. It visits every page in the sitemap and every page a link reaches, and fails on a console
+error, a failed or third-party request, a missing or duplicate title, description, canonical URL or
+social image, invalid structured data, a skipped heading level, horizontal scrolling at 390 px, a broken
+internal link or `#fragment`, or a link to a repository file that does not exist. It also holds the home
+page to the length budget of the design brief, checks the facts it shows against the repository, and
+runs the live demo.
 
 ## Publishing
 
-`.github/workflows/pages.yml` builds the page on every push to `main` (and on demand from the Actions
-tab), runs the same `ci` script, and deploys `site/dist` with GitHub's Pages actions. Pull requests
-run the `ci` script through `ci.yml`, so a change that breaks the page fails its pull request.
+`.github/workflows/pages.yml` builds the site on every push to `main` (and on demand), runs the same
+`ci` script, and deploys `site/dist` with GitHub's Pages actions. Pull requests run the `ci` script
+through `ci.yml`, so a change that breaks the site fails its pull request.
 
-**One-time setup**, by a repository admin: open **Settings → Pages**, and under **Build and
-deployment** set **Source** to **GitHub Actions**. Nothing else is needed: the workflow creates the
-`github-pages` environment on its first run. After the first deployment, it is worth submitting
-`https://diagnos-tech.github.io/webtessera/sitemap.xml` in Google Search Console, since a project
-site's `robots.txt` is not at the root of its host, where crawlers look for it.
+**One-time setup**, by a repository admin: open **Settings → Pages**, and under **Build and deployment**
+set **Source** to **GitHub Actions**. After the first deployment, submit
+`https://diagnos-tech.github.io/webtessera/sitemap-index.xml` in Google Search Console: a project site's
+`robots.txt` is not at the root of its host, where crawlers look for it.
 
 The public URL defaults to the repository's Pages URL, derived from `repository` in the root
-`package.json`. In CI it comes from `actions/configure-pages`, so a custom domain configured in the
-Pages settings is picked up automatically. To build for another address, set `SITE_URL`
-(`SITE_URL=https://example.org/ bun run --cwd site build`): the base path, canonical URL,
-Open Graph tags, JSON-LD, sitemap and `robots.txt` follow it.
+`package.json`. In CI it comes from `actions/configure-pages`, so a custom domain is picked up. To build
+for another address, set `SITE_URL` (`SITE_URL=https://example.org/ bun run --cwd site build`): the base
+path, canonical URLs, sitemap, `robots.txt`, social images and structured data follow it.
 
-## What is generated, and from where
+## Pages, and where they come from
 
-| On the page | Read from |
+| Page | Generated from |
 | --- | --- |
-| Version, description, keywords, licence, Node requirement, dependency count | `package.json` |
-| Install commands, one tab per package manager | `README.md`, "Install" |
-| The hero's receipt and tile | a log opened with `webtessera/server` while the page builds: the receipt `append()` returned, checked again with `verifyReceipt`, and the key custody (`backend`, `extractable`) of the key that signed it |
-| Safe API cards: where each entry point runs, what it holds, what it refuses, its guard | `README.md`'s safe API table, the "What it will not let you do" list in `src/server/index.ts` and `src/browser/index.ts`, and the export conditions of `./server` in `package.json` |
-| Receipt failure reasons | `ReceiptError`'s `reason` type in `src/safe/receipt.ts` |
-| Code samples (quick start, storage, full API) | the `// #region` blocks README.md embeds, read from their tested source files with the same extraction as `src/README_sync_test.ts`, shown with the import declarations of the same test file that the region uses; a region whose README copy differs is reported as a build warning, and the page shows the tested source |
-| Entry points, their exports, kinds and one-line docs | the `exports` map and the TypeScript compiler (barrels resolved, doc comments read); entry points declared but not yet written are left out |
-| Entry point descriptions and Go counterparts | `README.md`'s package table, the barrels' package comments, and the files' `Ported from` headers |
-| Storage cards | the storage entry points and `README.md`'s driver table |
-| SQLite engines: adapters, default locking, tested | `webtessera/storage/sqlite`'s exports, `README.md`'s engine table, and the driver's test files |
-| The `ObjectStore` method list | `src/storage/objectstore/objectstore.ts` |
-| Serve, witness, mirror and monitor cards | shown only when their entry points exist; the functions named on them are checked against the exports |
-| Examples: title, pitch, runtimes, imports, guide, order | `examples/*/package.json` (description; runtimes from the `start:node`/`start:bun`/`start:deno` scripts, Vite and wrangler), each README's title, the imports in its code, `docs/guides/README.md`, and `README.md`'s examples table for the order |
-| Golden fixtures, recorded log sizes | `fixtures/data/*.json` headers (the differential corpora left out) |
-| Differential cases, corpora, replay runtimes | the record tables of `fixtures/data/differential_*.json`, and the `*differential*_test.ts` files |
-| The golden-suite matrix (backend × runtime) | the test files that call `describeGoldenCompatibility` or `describeWebCryptoGolden`, classified by suffix and by the adapter they use |
-| Interop backends | `scripts/interop/backends.mjs` |
-| Test-parity allow-list size | `scripts/test-parity-allowlist.json` |
-| Porting mosaic and counts, pinned commit | `docs/PORTING-MAP.md`, `scripts/upstream.json` |
-| Decision record count and statuses | `docs/decisions/` |
-| Security reviews and hardening list | ADRs that mention a security review (and their author lines), and the items of `CHANGELOG.md`'s "Security" list with the ADRs they cite |
-| Tested runtimes, interop, parity and fixture checks, the CI board | `.github/workflows/*.yml` (job names expanded by their matrices) and the vitest configurations |
-| Contributor commands and package manager | `CONTRIBUTING.md`'s command table, `package.json`'s `packageManager` |
-| Footer licence and attributions | `LICENSE`, `NOTICE` (test-only material left out) |
-| The concepts figure, the hero tile and the demo's static view | real webtessera logs created while the page builds, from the built package |
+| `/` | `package.json` (the description), `README.md` (the install command, the runtimes sentence and the tested regions it embeds, read from `src/README_test.ts`), and two logs created while the site builds (`src/data/sample-log.ts`, `src/data/receipt-log.ts`): the checkpoint, the leaf hashes, the tile, the inclusion proof, the public key and a receipt returned by `webtessera/server` and checked with `verifyReceipt`; the evidence paragraph counts the fixtures, backends and differential records |
+| `/docs/` | the safe API's environment table in `docs/guides/safe-api.md`, the tested regions, and the guides' order and descriptions in `docs/guides/README.md` |
+| `/docs/<guide>/` | each `docs/guides/*.md`, rendered, with links to guides and examples turned into site links and links to other files into GitHub links at the build's commit |
+| `/docs/concepts/` | hand-written, with a Merkle tree hashed by the library while the site builds |
+| `/docs/reference/` and `/docs/reference/<entry>/` | the `exports` map, the package table in `docs/guides/ported-api.md`, and the TypeScript compiler's view of each entry point: its exports, their kinds and the first sentence of their doc comments, and the `Ported from` headers |
+| `/examples/` and `/examples/<name>/` | each `examples/*/README.md` and `package.json` (description, and runtimes from the scripts), in the order of `docs/guides/README.md` |
+| `/compatibility/` | `fixtures/data`, the test files that run the golden suite, `scripts/interop/backends.mjs`, `scripts/test-parity-allowlist.json`, `docs/PORTING-MAP.md`, `docs/decisions/`, `.github/workflows/*.yml`, and two sections of `docs/compatibility.md` |
+| `/security/` | the "What it will not let you do" lists of `src/server/index.ts` and `src/browser/index.ts`, the decision records that cite a security review, `CHANGELOG.md`'s security list and `SECURITY.md`'s reporting section |
+| `/og/*.png` | every page's title and description, drawn over the wordmark and the build's checkpoint |
 
-Curated, because no file states it: the headline and section copy, the explanation of transparency
-logs, the step texts beside each tested snippet, the role descriptions, the locking explanation, the
-security posture cards, the SQLite engine list (names, where each runs, and which adapter function
-wraps it; whether it is tested and its default locking are generated), the runtime cards'
-requirements, the subset of contributor commands shown, and the footer's link list. The test-parity
-totals (Go tests ported and allow-listed) need Go and the upstream checkout, which the site's CI job
-does not have, so the page states the rule and the allow-list size rather than a count.
+Hand-written: the headline and the sentences around the generated facts, the five steps, the concepts
+page, the docs front page's linking sentences, and the page titles and descriptions in
+`src/lib/pages.ts`. An extractor that finds a heading, table or region missing fails the build with a
+message naming the file, instead of leaving part of a page empty.
 
 ## How it is built
 
-- `index.html` has two placeholders that `src/plugin.ts` (a Vite plugin) fills with the rendered
-  head and body, then emits `sitemap.xml` and `robots.txt` and inlines the stylesheet.
-- `src/data/` has one extractor per source, `src/sections/` one renderer per section,
-  `src/components/` the shared pieces (Shiki code blocks, icons, the Merkle tree SVG, the receipt
-  card, the package-manager tabs).
-- `src/shared/` is isomorphic: the signed note, tile mosaic and audit-path renderers, and the code
-  that reads a log as a client does. The build uses it on the log it creates; the demo uses it on
-  the log running in the visitor's tab, so the static page and the live demo render identically.
-- `src/enhance.ts` is the only script every visitor loads (about 1.5 KiB gzipped). It loads
-  `src/demo/` when the demo section approaches the viewport.
-- `src/styles/` are plain CSS files with light and dark tokens; system fonts only, no third-party
-  requests.
-- `public/og.png`, `public/favicon.png` and `public/apple-touch-icon.png` are rendered by
-  `scripts/og.ts` and committed. Rerun `bun run --cwd site og` after changing the design or the
-  headline.
-- `types/node.d.ts` declares the handful of Node APIs the build-time code uses, since the site has
-  no `@types/node` of its own.
+```
+site/
+├── astro.config.ts        site and base from SITE_URL or package.json, sitemap, trailing slashes
+├── public/                favicon.svg, fonts/
+├── scripts/serve.ts       serves dist/ under its base path, as GitHub Pages does
+├── scripts/smoke.ts       the smoke test and the home page's length budget
+└── src/
+    ├── content.config.ts  the repository Markdown the site renders
+    ├── data/              one extractor per source in the repository
+    ├── lib/               getSiteData() (the extractors, run once per build), URLs and links,
+    │                      the Markdown loader, page titles, the social image background
+    ├── shared/            renderers of a checkpoint, a tile and a proof, used by the build and the demo
+    ├── demo/              the live demo, plain TypeScript
+    ├── layouts/           Base.astro (head, header, footer) and Doc.astro (every page but the home page)
+    ├── components/        Seo, Figure, CodeSample, Demo
+    ├── pages/             one file per route, robots.txt and the social images
+    └── styles/            tokens.css, base.css, demo.css
+```
+
+The fonts are self-hosted, and the site makes no third-party request. Source Serif 4 is Google Fonts'
+Latin subset, as packaged by `@fontsource-variable/source-serif-4` 5.3.0, unmodified. Go Mono is
+`Go-Mono.ttf` from `golang.org/x/image` v0.46.0, subset and converted to WOFF2 with fontTools:
+
+```sh
+pyftsubset Go-Mono.ttf --flavor=woff2 --layout-features='*' --output-file=go-mono-latin.woff2 \
+  --unicodes="U+0020-007E,U+00A0-00FF,U+0131,U+0152-0153,U+2010-2027,U+2030-203A,U+2190-2195,U+2212,U+2248,U+2260,U+2264-2265,U+2500-257F,U+25A0-25FF"
+```
+
+Their licences are in [`LICENSES/`](../LICENSES), and [`NOTICE`](../NOTICE) attributes them.

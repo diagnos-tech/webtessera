@@ -20,7 +20,7 @@
 import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "webtessera";
 import { type FetchedCheckpoint, fetchCheckpoint, getEntryBundle } from "webtessera/client";
 import { generateKey, newSigner, newVerifier } from "webtessera/note";
-import { MemoryObjectStore, newMemoryDriver } from "webtessera/storage/memory";
+import { newMemoryDriver } from "webtessera/storage/memory";
 import { type Inclusion, proveInclusion, readTiles } from "../shared/inspect.ts";
 import type { ListedEntry } from "../shared/panels.ts";
 import type { TileView } from "../shared/tiles.ts";
@@ -35,7 +35,6 @@ export interface Snapshot {
 	readonly checkpoint: FetchedCheckpoint;
 	readonly tiles: readonly TileView[];
 	readonly latest: readonly ListedEntry[];
-	readonly files: readonly { path: string; size: number }[];
 }
 
 /** DemoLog is a log running in this tab. */
@@ -44,33 +43,24 @@ export class DemoLog {
 	readonly #started: Started;
 	readonly #awaiter: ReturnType<typeof newPublicationAwaiter>;
 	readonly #verifier: ReturnType<typeof newVerifier>;
-	readonly #store: MemoryObjectStore;
 
-	private constructor(
-		origin: string,
-		started: Started,
-		verifier: ReturnType<typeof newVerifier>,
-		store: MemoryObjectStore,
-		signal: AbortSignal,
-	) {
+	private constructor(origin: string, started: Started, verifier: ReturnType<typeof newVerifier>, signal: AbortSignal) {
 		this.origin = origin;
 		this.#started = started;
 		this.#verifier = verifier;
-		this.#store = store;
 		this.#awaiter = newPublicationAwaiter((s) => started.reader.readCheckpoint(s), 50, signal);
 	}
 
 	/** open starts a new, empty log whose checkpoints carry the given origin. */
 	static async open(origin: string, signal: AbortSignal): Promise<DemoLog> {
 		const { skey, vkey } = generateKey(undefined, origin);
-		const store = new MemoryObjectStore();
 		const opts = newAppendOptions()
 			.withCheckpointSigner(newSigner(skey))
 			// A demo wants its entries published at once; the defaults suit a busy log.
 			.withBatching(256, 25)
 			.withCheckpointInterval(100);
-		const started = await newAppender(newMemoryDriver({ store }), opts, signal);
-		return new DemoLog(origin, started, newVerifier(vkey), store, signal);
+		const started = await newAppender(newMemoryDriver(), opts, signal);
+		return new DemoLog(origin, started, newVerifier(vkey), signal);
 	}
 
 	/** append adds entries and resolves to their indices once a checkpoint commits to all of them. */
@@ -106,17 +96,10 @@ export class DemoLog {
 		const checkpoint = await this.checkpoint();
 		const size = checkpoint.checkpoint.size;
 		const from = size > BigInt(latest) ? size - BigInt(latest) : 0n;
-		const files: { path: string; size: number }[] = [];
-		for (const path of this.#store.keys()) {
-			if (!path.startsWith(".")) {
-				files.push({ path, size: (await this.#store.stat(path))?.size ?? 0 });
-			}
-		}
 		return {
 			checkpoint,
 			tiles: await readTiles(this.#started.reader, size),
 			latest: await this.entries(from, size, size),
-			files,
 		};
 	}
 

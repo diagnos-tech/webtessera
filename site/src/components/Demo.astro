@@ -1,0 +1,113 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The live demo, the site's only island. Without JavaScript it shows the log the build
+// created, drawn by the same renderers as the live one; its script loads src/demo/ when the
+// demo nears the viewport, starts a log in the tab and takes over the same markup.
+
+import type { SampleLog } from "../data/sample-log.ts";
+import { listed } from "../demo/listed.ts";
+import { renderNoteBody } from "../shared/note.ts";
+import { renderEntries, renderInclusion, renderTiles } from "../shared/panels.ts";
+
+interface Props {
+	sample: SampleLog;
+	origin: string;
+}
+
+const { sample, origin } = Astro.props;
+const entries = sample.entries.map((text, i) => ({ index: BigInt(i), text })).slice(-listed);
+const selected = sample.inclusion.index;
+---
+
+<div class="demo row" data-demo data-origin={origin} data-seed={JSON.stringify(sample.entries)}>
+	<div class="demo-side">
+		<form class="demo-form js-only" data-demo-form>
+			<label for="demo-entry">New entry</label>
+			<div class="field">
+				<input
+					id="demo-entry"
+					name="entry"
+					maxlength="200"
+					autocomplete="off"
+					spellcheck="false"
+					placeholder="hello, transparency"
+					required
+					disabled
+				/>
+				<button type="submit" disabled>Append</button>
+			</div>
+			<div class="actions">
+				<button type="button" data-demo-add disabled>Add 10 entries</button>
+				<button type="button" data-demo-fill disabled>Fill the tile</button>
+			</div>
+		</form>
+		<p class="status" role="status" aria-live="polite" data-demo-status>
+			This is the log the page was built with. <span class="js-only">The live log starts as you scroll to it.</span>
+		</p>
+		<noscript><p class="status">The live log needs JavaScript.</p></noscript>
+		<div class="tiles" data-demo-tiles set:html={renderTiles(sample.tiles, selected).value} />
+		<h3>Latest entries</h3>
+		<ol class="entries" data-demo-entries set:html={renderEntries(entries, selected).value} />
+	</div>
+	<div class="demo-main">
+		<figure class="fig">
+			<figcaption><code>GET /checkpoint</code><span data-demo-note-meta>signed at build time</span></figcaption>
+			<pre class="note" data-demo-note set:html={renderNoteBody(sample.note).value} />
+		</figure>
+		<figure class="fig">
+			<figcaption>
+				<code>inclusionProof</code>
+				<label class="tamper js-only"><input type="checkbox" data-demo-tamper disabled /> Tamper with the entry</label>
+			</figcaption>
+			<div data-demo-proof set:html={renderInclusion(sample.inclusion, false).value} />
+		</figure>
+	</div>
+</div>
+
+<script>
+	// Loads the demo when it nears the viewport, or as soon as the reader points at it or
+	// tabs into it. Until then the page has no other script.
+	const root = document.querySelector<HTMLElement>("[data-demo]");
+	if (root !== null) {
+		let started = false;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((e) => e.isIntersecting)) {
+					start();
+				}
+			},
+			{ rootMargin: "320px 0px" },
+		);
+		const start = () => {
+			if (started) {
+				return;
+			}
+			started = true;
+			observer.disconnect();
+			import("../demo/main.ts")
+				.then((demo) => demo.start(root))
+				.catch((err: unknown) => {
+					const status = root.querySelector("[data-demo-status]");
+					if (status !== null) {
+						status.textContent = `The live log could not start: ${String(err)}`;
+					}
+				});
+		};
+		observer.observe(root);
+		root.addEventListener("pointerenter", start, { once: true });
+		root.addEventListener("focusin", start, { once: true });
+	}
+</script>

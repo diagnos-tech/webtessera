@@ -38,10 +38,7 @@ export function splitHashes(tile: Uint8Array): Uint8Array[] {
 	return out;
 }
 
-/** formatBytes renders a byte count for people. */
-export function formatBytes(n: number): string {
-	if (n < 1024) {
-		return `${n} B`;
-	}
-	return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KiB`;
+/** toBase64 renders bytes as standard base64, as a checkpoint writes its root hash. */
+export function toBase64(bytes: Uint8Array): string {
+	return btoa(String.fromCharCode(...bytes));
 }

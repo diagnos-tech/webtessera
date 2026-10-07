@@ -1,0 +1,121 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Every page but the home page: a document with one h1, a contents list when it has three
+// sections or more, the source file it is generated from, and the previous and next pages.
+
+import type { MarkdownHeading } from "astro";
+import { getSiteData } from "../lib/site.ts";
+import { href } from "../lib/url.ts";
+import Base from "./Base.astro";
+
+/** Link is a page to point to: its path under the base, and its title. */
+export interface Link {
+	readonly path: string;
+	readonly title: string;
+}
+
+interface Props {
+	/** title is the page's name: the h1, and the document title before " | webtessera". */
+	title: string;
+	description: string;
+	/** code sets the h1 as machine text, for a page named after an import specifier. */
+	code?: boolean;
+	/** heading, if set, is the h1 as HTML (a title with code spans). */
+	heading?: string;
+	headings?: readonly MarkdownHeading[];
+	/** source is the repository file the page is rendered from, for the edit link. */
+	source?: string;
+	/** trail are the pages above this one, after the home page, for the breadcrumb data. */
+	trail?: readonly Link[];
+	prev?: Link | undefined;
+	next?: Link | undefined;
+}
+
+const { title, description, code = false, heading, headings = [], source, trail = [], prev, next } = Astro.props;
+const { site } = await getSiteData();
+const url = new URL(Astro.url.pathname, Astro.site ?? site.url).href;
+const sections = headings.filter((h) => h.depth === 2);
+const crumbs = [{ path: "", title: "webtessera" }, ...trail, { path: Astro.url.pathname.slice(href().length), title }];
+const jsonLd = [
+	{
+		"@type": "TechArticle",
+		"@id": `${url}#article`,
+		headline: title,
+		description,
+		url,
+		inLanguage: "en",
+		isPartOf: { "@id": `${site.url}#website` },
+		about: { "@id": `${site.url}#software` },
+		...(site.date === undefined ? {} : { dateModified: site.date }),
+	},
+	{
+		"@type": "BreadcrumbList",
+		itemListElement: crumbs.map((c, i) => ({
+			"@type": "ListItem",
+			position: i + 1,
+			name: c.title,
+			item: new URL(href(c.path), Astro.site ?? site.url).href,
+		})),
+	},
+];
+---
+
+<Base title={`${title} | webtessera`} description={description} jsonLd={jsonLd}>
+	<article class="doc">
+		{heading !== undefined ? <h1 set:html={heading} /> : <h1>{code ? <code>{title}</code> : title}</h1>}
+		<slot name="lead" />
+		{
+			sections.length >= 3 && (
+				<nav class="toc" aria-label="On this page">
+					<p>
+						On this page:{" "}
+						{sections.map((h, i) => <>{i > 0 && ", "}<a href={`#${h.slug}`}>{h.text}</a></>)}.
+					</p>
+				</nav>
+			)
+		}
+		<slot />
+		{
+			source !== undefined && (
+				<p class="edit">
+					This page is generated from{" "}
+					<a href={`${site.repo}/blob/${site.commit}/${source}`}>
+						<code>{source}</code>
+					</a>
+					. <a href={`${site.repo}/edit/main/${source}`}>Edit it on GitHub</a>.
+				</p>
+			)
+		}
+		{
+			(prev !== undefined || next !== undefined) && (
+				<nav class="pager" aria-label="Previous and next">
+					{prev !== undefined && (
+						<a class="prev" href={href(prev.path)} rel="prev">
+							<span>Previous</span>
+							{prev.title}
+						</a>
+					)}
+					{next !== undefined && (
+						<a class="next" href={href(next.path)} rel="next">
+							<span>Next</span>
+							{next.title}
+						</a>
+					)}
+				</nav>
+			)
+		}
+	</article>
+</Base>

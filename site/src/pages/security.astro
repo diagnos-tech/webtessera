@@ -1,0 +1,110 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The security record: what each entry point of the safe API refuses to do (its module
+// comment), the reviews behind it (the decision records that cite them), the hardening beyond
+// Tessera (CHANGELOG.md's security list), and how to report a vulnerability (SECURITY.md).
+
+import { getEntry, render } from "astro:content";
+import Doc from "../layouts/Doc.astro";
+import { meta } from "../lib/pages.ts";
+import { getSiteData } from "../lib/site.ts";
+import { href } from "../lib/url.ts";
+import { list } from "../lib/words.ts";
+
+const { site, safe, security } = await getSiteData();
+const blob = (path: string) => `${site.repo}/blob/${site.commit}/${path}`;
+const excerpt = async (id: string) => {
+	const entry = await getEntry("excerpts", id);
+	return entry === undefined ? undefined : (await render(entry)).Content;
+};
+const Reporting = await excerpt("reporting");
+const Hardening = await excerpt("hardening");
+const adr = (a: { number: string; file: string; title: string }) => ({
+	href: blob(`docs/decisions/${a.file}`),
+	label: `ADR-${a.number}`,
+	title: a.title,
+});
+const reviewed = [...security.reviewed, ...security.fixes].sort((a, b) => a.number.localeCompare(b.number)).map(adr);
+---
+
+<Doc
+	title={meta.security.title}
+	description={meta.security.description}
+	headings={[
+		{ depth: 2, slug: "safe-defaults", text: "Safe defaults" },
+		{ depth: 2, slug: "reviews", text: "Reviews" },
+		{ depth: 2, slug: "hardening-beyond-tessera", text: "Hardening beyond Tessera" },
+		{ depth: 2, slug: "report-a-vulnerability", text: "Report a vulnerability" },
+	]}
+>
+	<p class="lead" slot="lead">
+		The safe API is built so that the obvious call is the safe one, and a divergence from Tessera that changes a
+		verification outcome is treated as a security bug. To report one, use a
+		<a href={`${site.repo}/security/advisories/new`}>private security advisory</a> on GitHub.
+	</p>
+
+	<h2 id="safe-defaults">Safe defaults</h2>
+	<p>
+		Each entry point of <a href={href("docs/safe-api/")}>the safe API</a> refuses the mistakes that are easy to make with
+		a transparency log. Its module documentation lists them:
+	</p>
+	{
+		safe.entries.map((e) => (
+			<>
+				<h3>
+					<code>{e.specifier}</code>
+				</h3>
+				<p>
+					Runs in {e.runsIn}.
+					{e.guardConditions.length > 0 &&
+						` A bundle built under the ${list(e.guardConditions.map((c) => `“${c}”`))} condition${e.guardConditions.length === 1 ? "" : "s"} gets a module that fails the build.`}
+				</p>
+				<ul>
+					{e.refuses.map((r) => (
+						<li>
+							<strong>{r.title.replace(/\.$/, "")}{r.text === "" ? "." : ":"}</strong> {r.text}
+						</li>
+					))}
+				</ul>
+			</>
+		))
+	}
+
+	<h2 id="reviews">Reviews</h2>
+	<p>
+		The safe API and the storage drivers went through security reviews. These decision records state what the reviews
+		required, and how each finding was fixed:
+	</p>
+	<ul>
+		{
+			reviewed.map((a) => (
+				<li>
+					<a href={a.href}>{a.label}</a>: {a.title}
+				</li>
+			))
+		}
+	</ul>
+
+	<h2 id="hardening-beyond-tessera">Hardening beyond Tessera</h2>
+	{Hardening !== undefined && <div class="prose"><Hardening /></div>}
+
+	<h2 id="report-a-vulnerability">Report a vulnerability</h2>
+	{Reporting !== undefined && <div class="prose"><Reporting /></div>}
+	<p>
+		The full policy, with what is in scope and which versions are supported, is
+		<a href={blob("SECURITY.md")}><code>SECURITY.md</code></a>.
+	</p>
+</Doc>

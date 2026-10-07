@@ -1,0 +1,193 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// What a transparency log is, in six ideas and one figure: a Merkle tree hashed by webtessera
+// while the site builds, with one entry's inclusion proof marked. The prose is hand-written;
+// it states the design, and the guides and the reference say how to use it.
+
+import Doc from "../../layouts/Doc.astro";
+import { docsSequence, meta, neighbours } from "../../lib/pages.ts";
+import { merkleTree, treeLeaves } from "../../lib/tree.ts";
+import { href } from "../../lib/url.ts";
+import { num } from "../../lib/words.ts";
+import { TileWidth } from "../../shared/tiles.ts";
+
+const target = 5;
+const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
+---
+
+<Doc
+	title={meta.concepts.title}
+	description={meta.concepts.description}
+	headings={[
+		{ depth: 2, slug: "entries-become-leaves", text: "Entries become leaves" },
+		{ depth: 2, slug: "leaves-fill-tiles", text: "Leaves fill tiles" },
+		{ depth: 2, slug: "checkpoints-commit", text: "Checkpoints commit" },
+		{ depth: 2, slug: "proofs-replace-trust", text: "Proofs replace trust" },
+		{ depth: 2, slug: "receipts-travel", text: "Receipts travel" },
+		{ depth: 2, slug: "witnesses-keep-it-honest", text: "Witnesses keep it honest" },
+		{ depth: 2, slug: "specifications", text: "Specifications" },
+	]}
+	trail={[{ path: "docs/", title: meta.docs.title }]}
+	prev={prev}
+	next={next}
+>
+	<p class="lead" slot="lead">
+		A transparency log is a tamper-evident record. Its operator can add entries but cannot remove, reorder or rewrite
+		them unnoticed, because every reader can check two things alone: that an entry is in the log, and that today’s log
+		extends yesterday’s. Certificate Transparency, the Go checksum database and Sigstore’s signature log all work this
+		way.
+	</p>
+
+	<h2 id="entries-become-leaves">Entries become leaves</h2>
+	<p>
+		Each entry is hashed into a leaf of a Merkle tree, and each pair of hashes into the node above them, up to a single
+		root hash. A leaf and a node are hashed with different prefixes, so one cannot pass for the other. Change one byte of
+		any entry and its leaf hash changes, then every hash on the way to the root.
+	</p>
+
+	<h2 id="leaves-fill-tiles">Leaves fill tiles</h2>
+	<p>
+		The tree is stored as tiles: each tile holds 256 hashes of one level of the tree. A full tile never changes, and the
+		tile at the log’s right edge is published as a partial tile, which is replaced by a longer one as entries arrive.
+		The entries themselves are stored in bundles of 256 beside the tiles. Every tile and bundle has a fixed path, so a
+		log is a directory of static files that any web server, bucket or CDN can serve, and caches can keep forever.
+	</p>
+
+	<h2 id="checkpoints-commit">Checkpoints commit</h2>
+	<p>
+		The log regularly signs its size and root hash. That signed checkpoint is a short text: the log’s name (its origin),
+		the number of entries, the root hash, then one signature line per signer. Because the root depends on every entry,
+		the signature commits the log to all of them, in order, for good.
+	</p>
+
+	<h2 id="proofs-replace-trust">Proofs replace trust</h2>
+	<figure class="fig tree-fig">
+		<figcaption><code>PATH({target}, D[{treeLeaves}])</code><span>RFC 6962, a tree of {num(treeLeaves)} entries</span></figcaption>
+		<div class="tree-scroll" tabindex="0" role="group" aria-label="Merkle tree diagram" set:html={merkleTree(target).value} />
+	</figure>
+	<p>
+		A reader does not need the whole log to check it. An inclusion proof shows that an entry is in the tree under a
+		checkpoint: it is the hashes of the subtrees beside the entry’s path to the root, and hashing them in order with the
+		entry must give the checkpoint’s root. In the figure, entry {target} needs {num(Math.log2(treeLeaves))} hashes, not
+		{num(treeLeaves)} entries; a log of a billion entries needs about {Math.ceil(Math.log2(1e9))}.
+	</p>
+	<p>
+		A consistency proof shows that a newer checkpoint extends an older one, with nothing removed or changed. A client
+		that keeps the last checkpoint it saw, and checks each new one this way, knows the log has only grown.
+	</p>
+
+	<h2 id="receipts-travel">Receipts travel</h2>
+	<p>
+		A receipt bundles an entry’s index, its inclusion proof and the checkpoint the proof is relative to. Whoever holds
+		the receipt, the entry and the log’s public key can check it offline, without asking the log anything. webtessera’s
+		<code>append()</code> returns one, verified, in the C2SP tlog-proof format.
+	</p>
+
+	<h2 id="witnesses-keep-it-honest">Witnesses keep it honest</h2>
+	<p>
+		A log could still show one history to some readers and another to the rest. Witnesses prevent that: they are
+		independent services that check each new checkpoint is consistent with the last one they saw, and cosign it. A
+		reader who requires cosignatures from enough witnesses knows that everyone sees the same log. A monitor goes
+		further, and reads every entry.
+	</p>
+
+	<h2 id="specifications">Specifications</h2>
+	<ul>
+		<li><a href="https://www.rfc-editor.org/rfc/rfc6962#section-2.1">RFC 6962, section 2.1</a>: the Merkle tree, its hashes and its proofs.</li>
+		<li><a href="https://c2sp.org/signed-note">C2SP signed-note</a> and <a href="https://c2sp.org/tlog-checkpoint">tlog-checkpoint</a>: the checkpoint’s text and signatures.</li>
+		<li><a href="https://c2sp.org/tlog-tiles">C2SP tlog-tiles</a>: the tiles, the bundles and their paths.</li>
+		<li><a href="https://c2sp.org/tlog-proof">C2SP tlog-proof</a>: the receipt.</li>
+		<li><a href="https://c2sp.org/tlog-witness">C2SP tlog-witness</a> and <a href="https://c2sp.org/tlog-cosignature">tlog-cosignature</a>: witnesses and their cosignatures.</li>
+		<li><a href="https://research.swtch.com/tlog">Transparent Logs for Skeptical Clients</a>, by Russ Cox: the design, explained from first principles.</li>
+	</ul>
+	<p>
+		To see these pieces in a running log, <a href={href("#demo")}>append to the log on the home page</a>. To build one,
+		start with <a href={href("docs/safe-api/")}>the safe API</a>.
+	</p>
+</Doc>
+
+<style>
+	.tree-fig {
+		max-width: var(--prose);
+		margin: 8px 0 24px;
+	}
+
+	.tree-scroll {
+		overflow-x: auto;
+		padding-top: 12px;
+	}
+
+	.tree-fig :global(svg) {
+		display: block;
+		width: 100%;
+		min-width: 520px;
+		height: auto;
+		font-family: var(--mono);
+		font-size: 13px;
+	}
+
+	.tree-fig :global(.edge) {
+		stroke: var(--rule);
+		stroke-width: 1.5;
+	}
+
+	.tree-fig :global(.edge.hot) {
+		stroke: var(--verified);
+	}
+
+	.tree-fig :global(.n rect) {
+		fill: var(--paper);
+		stroke: var(--rule);
+	}
+
+	.tree-fig :global(.n.path rect) {
+		stroke: var(--verified);
+		stroke-width: 1.5;
+	}
+
+	.tree-fig :global(.n.proof rect) {
+		stroke: var(--proof);
+		stroke-width: 1.5;
+	}
+
+	.tree-fig :global(.n text) {
+		text-anchor: middle;
+		fill: var(--ink);
+	}
+
+	.tree-fig :global(.n.path text) {
+		fill: var(--verified);
+	}
+
+	.tree-fig :global(.n.proof text) {
+		fill: var(--proof);
+	}
+
+	.tree-fig :global(.idx) {
+		text-anchor: middle;
+		fill: var(--ink-2);
+	}
+
+	.tree-fig :global(.idx.on) {
+		fill: var(--ink);
+		font-weight: 600;
+	}
+
+	.tree-fig :global(.cap) {
+		fill: var(--ink-2);
+		font-family: var(--serif);
+	}
+</style>

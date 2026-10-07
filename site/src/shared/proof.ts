@@ -14,10 +14,10 @@
 
 // Explains an inclusion proof. The proof's hashes come from webtessera's client; this
 // module only works out which subtree each hash stands for (RFC 6962 §2.1.1's PATH,
-// which yields them in the same bottom-up order) and draws the audit path: the leaf
-// at the bottom, one sibling per level, the recomputed root at the top.
+// which yields them in the same bottom-up order) and lists the audit path: the recomputed
+// root at the top, one sibling per level, the leaf at the bottom.
 
-import { fragment } from "./bytes.ts";
+import { fragment, toBase64 } from "./bytes.ts";
 import { html, type SafeHtml } from "./html.ts";
 
 /** PathStep is one sibling on an audit path: the subtree [lo, hi) on one side of the path. */
@@ -90,33 +90,26 @@ function range(lo: bigint, hi: bigint): string {
 	return hi - lo === 1n ? `entry ${lo}` : `entries ${lo}–${hi - 1n}`;
 }
 
-/** renderProof draws the audit path from the recomputed root down to the leaf. */
+/**
+ * renderProof lists an audit path from the recomputed root down to the entry: the root, then
+ * the proof's hashes, each the root of the subtree it stands for, then the entry's leaf hash.
+ */
 export function renderProof(v: ProofView): SafeHtml {
 	const computed = v.spine[v.spine.length - 1] ?? new Uint8Array(32);
 	const ok = fragment(computed, 32) === fragment(v.root, 32);
-	const rows: SafeHtml[] = [];
-	rows.push(html`<li class="row top">
-<span class="node${ok ? " ok" : " bad"}"><span class="k">root</span> <code>${fragment(computed)}</code></span>
-<span class="verdict ${ok ? "ok" : "bad"}">${ok ? "= checkpoint root" : `≠ checkpoint root ${fragment(v.root)}`}</span>
-</li>`);
+	const rows: SafeHtml[] = [
+		html`<li class="row top"><span class="k">root</span><code class="${ok ? "ok" : "bad"}">${fragment(computed)}</code><span class="verdict ${ok ? "ok" : "bad"}">${ok ? `= the checkpoint’s root, ${toBase64(v.root).slice(0, 8)}…` : `≠ the checkpoint’s root, ${toBase64(v.root).slice(0, 8)}…`}</span></li>`,
+	];
 	for (let k = v.steps.length - 1; k >= 0; k--) {
 		const s = v.steps[k];
-		const node = v.spine[k];
-		if (s === undefined || node === undefined) {
-			continue;
+		if (s !== undefined) {
+			rows.push(
+				html`<li class="row sib" data-lo="${s.lo}" data-hi="${s.hi}"><span class="k">${range(s.lo, s.hi)}</span><code>${fragment(v.proof[k] ?? new Uint8Array(32))}</code></li>`,
+			);
 		}
-		const sib = v.proof[k] ?? new Uint8Array(32);
-		const isLeaf = k === 0;
-		rows.push(html`<li class="row ${s.side}" data-lo="${s.lo}" data-hi="${s.hi}">
-<span class="sib" tabindex="0"><span class="k">${range(s.lo, s.hi)}</span> <code>${fragment(sib)}</code></span>
-<span class="node${isLeaf ? " leaf" : ""}"><span class="k">${isLeaf ? `entry ${v.index}` : "path"}</span> <code>${fragment(node)}</code></span>
-</li>`);
 	}
-	if (v.steps.length === 0) {
-		rows.push(
-			html`<li class="row"><span class="node leaf"><span class="k">entry ${v.index}</span> <code>${fragment(v.spine[0] ?? computed)}</code></span></li>`,
-		);
-	}
-	rows.push(html`<li class="row base"><span class="data" translate="no">${v.entry}</span></li>`);
+	rows.push(
+		html`<li class="row leaf"><span class="k">entry ${v.index}</span><code>${fragment(v.spine[0] ?? computed)}</code><span class="data" translate="no">${v.entry}</span></li>`,
+	);
 	return html`<ol class="proof" aria-label="Audit path for entry ${v.index} in a tree of ${v.size}">${rows}</ol>`;
 }

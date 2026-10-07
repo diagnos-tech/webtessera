@@ -16,7 +16,6 @@
 // by the live demo (from the log in the visitor's tab), so that the page does not jump
 // when the live log takes over.
 
-import { formatBytes } from "./bytes.ts";
 import { html, type SafeHtml } from "./html.ts";
 import type { Inclusion } from "./inspect.ts";
 import { renderProof } from "./proof.ts";
@@ -36,11 +35,6 @@ export function renderEntries(entries: readonly ListedEntry[], selected: bigint 
 			(e) =>
 				html`<li${e.index === selected ? html` class="sel"` : ""}><span class="ix">${e.index}</span><span class="tx" translate="no">${e.text}</span><button type="button" class="link-btn js-only" data-prove="${e.index}" aria-label="Prove entry ${e.index}">prove</button></li>`,
 		)}`;
-}
-
-/** renderFiles lists the objects in the log's store: the tlog-tiles resources. */
-export function renderFiles(files: readonly { path: string; size: number }[]): SafeHtml {
-	return html`${files.map((f) => html`<li><code>${f.path}</code><span>${formatBytes(f.size)}</span></li>`)}`;
 }
 
 /** renderTiles renders the tiles of a log, highest level first, at most `max` per level. */

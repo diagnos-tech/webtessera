@@ -1,281 +1,309 @@
-/* The live demo: controls and lists on the side, checkpoint, tiles and proof in the main column. */
+/*
+ * The log's artefacts as the home page draws them (tiles and audit paths, from src/shared) and
+ * the live demo's controls. Motion only answers the reader: a new leaf's cell fills, a new
+ * checkpoint is marked, a tampered proof turns --fail. None of it runs under reduced motion.
+ */
 
-#demo {
-	background: var(--band);
-}
-
-.demo {
+/* A tile: 16 × 16 cells, one per hash, toned by the hash; empty cells are hashes still to come. */
+.tile-grid {
+	--cell: 10px;
 	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 24px;
+	grid-template-columns: repeat(16, var(--cell));
+	gap: 2px;
+	padding-top: 12px;
+	width: max-content;
 }
 
-@media (min-width: 1000px) {
-	.demo {
-		grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-		align-items: start;
-		gap: 32px;
-	}
+.tile-grid .c {
+	width: var(--cell);
+	height: var(--cell);
 }
 
-.demo-side,
-.demo-main {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 14px;
-	align-content: start;
-	min-width: 0;
+.c.e {
+	border: 1px solid var(--rule);
 }
 
-.demo-main {
-	gap: 18px;
+.c.s0 {
+	background: var(--t0);
 }
 
-.demo-form {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: 8px;
-	padding: 16px;
-	border: 1px solid var(--line);
-	border-radius: var(--radius);
-	background: var(--surface);
+.c.s1 {
+	background: var(--t1);
 }
 
-.demo-form label {
-	font-size: 0.88rem;
-	font-weight: 650;
+.c.s2 {
+	background: var(--t2);
 }
 
-.field {
-	display: flex;
-	gap: 8px;
+.c.s3 {
+	background: var(--t3);
 }
 
-.field input {
-	flex: 1;
-	width: 0;
-	min-width: 0;
-	height: 42px;
-	padding: 0 12px;
-	border: 1px solid var(--line-2);
-	border-radius: var(--radius-sm);
-	background: var(--bg);
-	font: 400 0.9rem var(--mono);
+.c.s4 {
+	background: var(--t4);
 }
 
-.field input::placeholder {
-	color: var(--ink-3);
+.c.s5 {
+	background: var(--t5);
 }
 
-.field input:focus-visible {
-	border-color: var(--accent);
+.c.s6 {
+	background: var(--t6);
+}
+
+.c.s7 {
+	background: var(--t7);
+}
+
+.c.hit {
+	outline: 2px solid var(--ink);
 	outline-offset: 1px;
 }
 
-.demo-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-.demo-status {
-	min-height: 3.2em;
-	margin: 0;
-	padding: 10px 14px;
-	border: 1px solid var(--line);
-	border-left: 3px solid var(--accent);
-	border-radius: var(--radius-sm);
-	background: var(--surface);
-	color: var(--ink-2);
-	font-size: 0.86rem;
-}
-
-.demo-status.bad {
-	border-left-color: var(--bad);
-}
-
-.panel-title {
-	margin: 6px 0 0;
-	color: var(--ink-3);
-	font-size: 0.74rem;
-	font-weight: 650;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-}
-
-.demo-entries,
-.demo-files {
-	margin: 0;
-	padding: 0;
-	overflow: hidden;
-	border: 1px solid var(--line);
-	border-radius: var(--radius-sm);
-	background: var(--surface);
-	list-style: none;
-}
-
-.demo-entries li {
-	display: grid;
-	grid-template-columns: 2.6rem minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 8px;
-	min-height: 38px;
-	padding: 4px 8px 4px 10px;
-	font-size: 0.84rem;
-}
-
-.demo-files li {
-	display: flex;
-	justify-content: space-between;
-	gap: 12px;
-	padding: 7px 12px;
-	font-size: 0.8rem;
-}
-
-.demo-entries li + li,
-.demo-files li + li {
-	border-top: 1px solid var(--line);
-}
-
-.demo-entries li.sel {
-	background: var(--accent-soft);
-}
-
-.demo-entries .ix {
-	color: var(--ink-3);
-	font: 500 0.74rem var(--mono);
-	text-align: right;
-}
-
-.demo-entries .tx {
-	overflow: hidden;
-	font: 400 0.8rem var(--mono);
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.demo-files code {
-	padding: 0;
-	background: none;
-	color: var(--ink);
-}
-
-.demo-files span {
-	flex: none;
-	color: var(--ink-3);
-	font: 400 0.74rem var(--mono);
-}
-
-.demo-store,
-.demo-proof {
-	display: grid;
-	gap: 14px;
-	min-width: 0;
-	padding: 16px;
-	border: 1px solid var(--line);
-	border-radius: var(--radius);
-	background: var(--surface);
-}
-
-.demo-store {
-	gap: 18px;
-}
-
-@media (min-width: 720px) {
-	.demo-store {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 250px);
-		align-items: start;
-	}
-}
-
-.demo-tiles {
-	display: grid;
-	gap: 14px;
-	min-width: 0;
-}
-
-.demo-files-wrap {
-	display: grid;
-	gap: 8px;
-	min-width: 0;
-}
-
-.demo-files-wrap .panel-title {
-	margin: 0;
-}
-
-.demo-files-note {
-	margin: 0;
-	color: var(--ink-3);
-	font-size: 0.8rem;
+.c.rng {
+	outline: 2px solid var(--proof);
+	outline-offset: 0;
 }
 
 .tile-row {
 	display: flex;
 	flex-wrap: wrap;
-	align-items: flex-start;
-	gap: 14px;
-}
-
-.tile-row .tile {
-	flex: 1 1 150px;
-	max-width: 200px;
+	gap: 24px;
+	align-items: flex-end;
 }
 
 .tile-row + .tile-row {
-	padding-top: 14px;
-	border-top: 1px dashed var(--line);
+	margin-top: 16px;
 }
 
 .tile-more {
-	align-self: center;
 	margin: 0;
-	color: var(--ink-3);
-	font-size: 0.8rem;
-}
-
-.proof-head {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-}
-
-.proof-head .panel-title {
-	margin: 0;
-}
-
-.tamper {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
+	font-size: 0.9rem;
 	color: var(--ink-2);
-	font-size: 0.86rem;
+}
+
+/* An audit path, from the recomputed root down to the entry: the root, the proof's hashes in the
+   colour of proof material, each with the subtree it stands for, then the entry's leaf hash. */
+.proof {
+	list-style: none;
+	margin: 0;
+	padding: 12px 0 0;
+	font-size: 0.95rem;
+	line-height: 1.45;
+}
+
+.proof .row {
+	display: grid;
+	grid-template-columns: 9em 6.5em minmax(0, 1fr);
+	gap: 0 12px;
+	align-items: baseline;
+	margin: 0;
+	padding: 1px 0;
+}
+
+@media (max-width: 480px) {
+	.proof .row {
+		grid-template-columns: 8em 6.5em;
+	}
+
+	.proof .verdict,
+	.proof .data {
+		grid-column: 1 / -1;
+	}
+}
+
+.proof .k {
+	color: var(--ink-2);
+}
+
+.proof .sib,
+.proof .sib .k {
+	color: var(--proof);
+}
+
+.proof .ok,
+.proof .verdict.ok {
+	color: var(--verified);
+}
+
+.proof .bad,
+.proof .verdict.bad {
+	color: var(--fail);
+}
+
+.proof .data {
+	font-family: var(--mono);
+	font-size: 0.92em;
+	overflow-wrap: anywhere;
+}
+
+/* The live demo. */
+.demo {
+	margin-top: 24px;
+}
+
+.demo h3 {
+	font-size: 1rem;
+	margin: 24px 0 4px;
+}
+
+.demo-form label {
+	display: block;
+	font-size: 0.95rem;
+	margin-bottom: 4px;
+}
+
+.demo-form .field {
+	display: flex;
+	gap: 8px;
+}
+
+.demo-form input[type="text"],
+.demo-form input:not([type]) {
+	flex: 1;
+	min-width: 0;
+	font: inherit;
+	font-family: var(--mono);
+	font-size: 0.95rem;
+	padding: 6px 8px;
+	color: var(--ink);
+	background: var(--paper);
+	border: 1px solid var(--ink-2);
+	border-radius: 3px;
+}
+
+.demo button {
+	font: inherit;
+	font-size: 0.95rem;
+	padding: 6px 12px;
+	color: var(--ink);
+	background: var(--paper);
+	border: 1px solid var(--ink-2);
+	border-radius: 3px;
 	cursor: pointer;
 }
 
-.tamper input {
-	width: 16px;
-	height: 16px;
-	margin: 0;
-	accent-color: var(--proof);
+.demo button:disabled,
+.demo input:disabled {
+	cursor: default;
+	opacity: 0.55;
 }
 
-.verdict-line {
-	margin: 0 0 14px;
+.demo-form .actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.demo .status {
+	margin: 16px 0 0;
+	font-size: 0.95rem;
 	color: var(--ink-2);
+	min-height: 2lh;
+}
+
+.demo .status.bad {
+	color: var(--fail);
+}
+
+.entries {
+	list-style: none;
+	margin: 0;
+	padding: 0;
 	font-size: 0.9rem;
 }
 
+.entries li {
+	display: flex;
+	gap: 12px;
+	align-items: baseline;
+	margin: 0;
+	padding: 2px 0;
+}
+
+.entries .ix {
+	min-width: 4ch;
+	color: var(--ink-2);
+	font-variant-numeric: tabular-nums;
+}
+
+.entries .tx {
+	flex: 1;
+	min-width: 0;
+	font-family: var(--mono);
+	font-size: 0.95em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.entries li.sel .tx {
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+}
+
+.demo .entries .link-btn {
+	padding: 0;
+	border: 0;
+	background: none;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.18em;
+	font-size: 0.9rem;
+}
+
+.demo .tiles {
+	margin-top: 16px;
+}
+
+.demo-main {
+	display: grid;
+	gap: 24px;
+}
+
+.tamper {
+	font-size: 0.9rem;
+	color: var(--ink);
+	cursor: pointer;
+}
+
+.verdict-line {
+	margin: 12px 0 0;
+	font-size: 0.95rem;
+}
+
 .verdict-line.ok strong {
-	color: var(--ok);
+	color: var(--verified);
 }
 
+.verdict-line.bad,
 .verdict-line.bad strong {
-	color: var(--bad);
+	color: var(--fail);
 }
 
-.verdict-line code {
-	font-size: 0.78rem;
+@media (prefers-reduced-motion: no-preference) {
+	.tile-grid .c.new {
+		animation: fill 220ms ease-out;
+	}
+
+	.note {
+		transition: color 250ms ease-out;
+	}
+
+	.note.flash {
+		color: var(--verified);
+		transition: none;
+	}
+
+	.proof .row {
+		transition: color 150ms ease-out;
+	}
+}
+
+@keyframes fill {
+	from {
+		background: transparent;
+	}
 }

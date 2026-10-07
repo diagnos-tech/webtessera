@@ -1,0 +1,50 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Tested code regions, as README.md embeds them, under one caption: the test file they are read
+// from, linked at the build's commit to the lines of the first region, and the line numbers of
+// each. Every region is one code block.
+
+import { Code } from "astro:components";
+import type { Snippet } from "../data/readme.ts";
+import { github, type SiteConfig } from "../lib/url.ts";
+import { list } from "../lib/words.ts";
+import Figure from "./Figure.astro";
+
+interface Props {
+	snippets: readonly Snippet[];
+	site: SiteConfig;
+	root: string;
+	/** imports adds the test file's imports of the names a region uses. */
+	imports?: boolean;
+}
+
+const { snippets, site, root, imports = false } = Astro.props;
+const [first] = snippets;
+if (first === undefined || snippets.some((s) => s.file !== first.file)) {
+	throw new Error("CodeSample shows one or more regions of the same file");
+}
+const ranges = snippets.map((s) => `${s.lines[0]}–${s.lines[1]}`);
+const code = (s: Snippet) => (imports && s.imports !== "" ? `${s.imports}\n\n${s.code}` : s.code);
+---
+
+<Figure
+	caption={first.file}
+	href={github(site, root, first.file, `L${first.lines[0]}-L${first.lines[1]}`)}
+	note={`lines ${list(ranges)}`}
+	class="code"
+>
+	{snippets.map((s) => <Code code={code(s)} lang="ts" theme="css-variables" />)}
+</Figure>

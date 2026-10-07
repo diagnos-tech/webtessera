@@ -1,0 +1,249 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The compatibility evidence, counted from the repository while the site builds: the golden
+// fixtures, which backend runs the golden suite in which runtime, the Go interop backends, the
+// differential corpora, test parity, the porting status, the decision records, CI's jobs and the
+// runtimes. A check is claimed as CI's only when a workflow runs it. Two sections are rendered
+// from docs/compatibility.md, which explains the method.
+
+import { getEntry, render } from "astro:content";
+import { runtimeOrder } from "../data/evidence.ts";
+import { countByStatus } from "../data/porting.ts";
+import Doc from "../layouts/Doc.astro";
+import { meta } from "../lib/pages.ts";
+import { getSiteData } from "../lib/site.ts";
+import { capitalise, count, list, num, short } from "../lib/words.ts";
+
+const d = await getSiteData();
+const { site, porting, decisions, fixtures, evidence, tests, install } = d;
+const blob = (path: string) => `${site.repo}/blob/${site.commit}/${path}`;
+const tree = (path: string) => `${site.repo}/tree/${site.commit}/${path}`;
+const upstream = `${porting.upstream}/tree/${porting.commit}`;
+const fmt = (n: number) => n.toLocaleString("en-GB");
+
+const matrix = [
+	...evidence.golden,
+	...(evidence.webCrypto.length > 0 ? [{ backend: "WebCrypto keys", runtimes: evidence.webCrypto }] : []),
+];
+const columns = runtimeOrder.filter((r) => matrix.some((row) => row.runtimes.includes(r)));
+
+// What each corpus records, in a few words: its description up to the first colon or parenthesis.
+const subject = (description: string) => {
+	const text = description.replace(/^(Differential|Runtime-parity) corpus for /, "");
+	const cut = text.search(/[:(]| over | built /);
+	const head = (cut < 0 ? text : text.slice(0, cut)).trim();
+	return head.length <= 70 ? head : `${head.slice(0, head.lastIndexOf(" ", 68))}…`;
+};
+
+const statuses = [
+	...new Set([...countByStatus(porting.tessera), ...countByStatus(porting.dependencies)].map((c) => c.status)),
+];
+const tessera = new Map(countByStatus(porting.tessera).map((c) => [c.status, c.count]));
+const deps = new Map(countByStatus(porting.dependencies).map((c) => [c.status, c.count]));
+
+const compared = await getEntry("excerpts", "compared");
+const reproducing = await getEntry("excerpts", "reproducing");
+const Compared = compared === undefined ? undefined : (await render(compared)).Content;
+const Reproducing = reproducing === undefined ? undefined : (await render(reproducing)).Content;
+---
+
+<Doc
+	title={meta.compatibility.title}
+	description={meta.compatibility.description}
+	headings={[
+		"Golden fixtures",
+		"The golden suite",
+		"Go interop",
+		"Differential corpora",
+		"Test parity",
+		"What is compared",
+		"Porting status",
+		"CI",
+		"Runtimes",
+		"Reproduce it",
+	].map((text) => ({ depth: 2, slug: text.toLowerCase().replace(/[^a-z]+/g, "-"), text }))}
+>
+	<p class="lead" slot="lead">
+		webtessera is a translation of <a href={upstream}>Tessera at <code>{short(porting.commit)}</code></a>, and a log
+		it writes is byte for byte the log Tessera writes for the same entries. {capitalise(count(fixtures.files.length, "golden fixture file"))},
+		the golden suite on {count(evidence.golden.length, "storage backend")}, Go interop and {fmt(evidence.differentialRecords)}
+		differential records check that claim on every change. Each number below is counted from the repository while this
+		page is built.
+	</p>
+
+	<h2 id="golden-fixtures">Golden fixtures</h2>
+	<p>
+		<a href={tree("fixtures")}><code>fixtures/data</code></a> holds {count(fixtures.files.length, "file")} recorded by
+		running Tessera at <code>{fixtures.commits.map(short).join(", ")}</code>: paths, tiles, entry bundles, proofs,
+		notes and checkpoints, and complete logs of {list(fixtures.logSizes.map(fmt))} entries written by its POSIX driver,
+		<code>.state</code> files included. The tests compare webtessera’s output with them byte for byte.{
+			tests.fixturesReproduced && " CI regenerates them from Tessera on every change and fails if any byte differs."
+		}
+	</p>
+
+	<h2 id="the-golden-suite">The golden suite</h2>
+	<p>
+		Every storage backend, in every runtime it supports, must store exactly the files Tessera’s POSIX driver stores for
+		the fixture logs: in one batch, in batches, across restarts, and when it carries on a log Go wrote.
+	</p>
+	<div class="table-wrap" tabindex="0" role="region" aria-label="Backends and runtimes of the golden suite">
+		<table class="matrix">
+			<thead>
+				<tr><th scope="col">Backend</th>{columns.map((c) => <th scope="col">{c}</th>)}</tr>
+			</thead>
+			<tbody>
+				{
+					matrix.map((row) => (
+						<tr>
+							<th scope="row">{row.backend}</th>
+							{columns.map((c) => <td>{row.runtimes.includes(c) ? "yes" : ""}</td>)}
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+	</div>
+	{
+		evidence.webCrypto.length > 0 && (
+			<p>
+				The last row replays Go’s signed notes and checkpoints through non-extractable WebCrypto keys. Ed25519 is
+				deterministic, so they must match to the byte.
+			</p>
+		)
+	}
+
+	<h2 id="go-interop">Go interop</h2>
+	<p>
+		{tests.interop ? "In CI, " : ""}Tessera’s own Go code verifies, reproduces byte for byte and carries on logs that
+		webtessera wrote, and webtessera does the same with logs Go wrote, on {count(evidence.interop.length, "backend")}:
+		{list(evidence.interop)}. The harness is <a href={tree("interop")}><code>interop/</code></a>, driven by
+		<a href={blob("scripts/interop.mjs")}><code>scripts/interop.mjs</code></a>.
+	</p>
+
+	<h2 id="differential-corpora">Differential corpora</h2>
+	<p>
+		Go’s verdict, exact error text and output on {fmt(evidence.differentialRecords)} generated inputs, most of them
+		malformed{evidence.everyCodePoint && ", and on every Unicode code point"}, in {count(evidence.corpora.length, "corpus", "corpora")}
+		replayed in {list(evidence.differentialRuntimes)}. Every difference from Go is a named divergence with a decision
+		record, or a failure.
+	</p>
+	<div class="table-wrap" tabindex="0" role="region" aria-label="Differential corpora">
+		<table>
+			<thead><tr><th scope="col">Corpus</th><th scope="col">What Go recorded</th><th scope="col" class="num">Records</th></tr></thead>
+			<tbody>
+				{
+					evidence.corpora.map((c) => (
+						<tr>
+							<td><a href={blob(`fixtures/data/${c.file}`)}><code>{c.file.replace(/\.json$/, "")}</code></a></td>
+							<td>{subject(c.description)}</td>
+							<td class="num">{fmt(c.records)}</td>
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+	</div>
+
+	{
+		tests.parity && (
+			<>
+				<h2 id="test-parity">Test parity</h2>
+				<p>
+					Every Go test, example, fuzz target and benchmark of Tessera and of the modules it depends on must have a
+					passing TypeScript test of the same name, or an entry in
+					<a href={blob("scripts/test-parity-allowlist.json")}><code>scripts/test-parity-allowlist.json</code></a> that
+					cites the decision record leaving it out: {count(evidence.parity.entries, "entry", "entries")} today, citing
+					{count(evidence.parity.adrs, "record")}. CI fails on any other.
+				</p>
+			</>
+		)
+	}
+
+	<h2 id="what-is-compared">What is compared</h2>
+	{Compared !== undefined && <div class="prose"><Compared /></div>}
+
+	<h2 id="porting-status">Porting status</h2>
+	<p>
+		Each source file mirrors the upstream file of the same name, with its comments carried over.
+		<a href={blob("docs/PORTING-MAP.md")}><code>docs/PORTING-MAP.md</code></a> tracks every Go file:
+	</p>
+	<div class="table-wrap" tabindex="0" role="region" aria-label="Porting status">
+		<table>
+			<thead><tr><th scope="col">Status</th><th scope="col" class="num">Tessera’s files</th><th scope="col" class="num">Its Go dependencies’ files</th></tr></thead>
+			<tbody>
+				{
+					statuses.map((s) => (
+						<tr>
+							<th scope="row">{capitalise(s)}</th>
+							<td class="num">{tessera.get(s) ?? 0}</td>
+							<td class="num">{deps.get(s) ?? 0}</td>
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+	</div>
+	<p>
+		Every divergence from Go, however small, and every file not ported has a decision record:
+		<a href={tree("docs/decisions")}>{count(decisions.total, "record")}</a>, of which {
+			list(decisions.byStatus.map((s) => `${num(s.count)} ${s.status}`))
+		}.
+	</p>
+
+	<h2 id="ci">CI</h2>
+	<p>
+		<a href={blob(".github/workflows/ci.yml")}><code>ci.yml</code></a> runs these jobs on every pull request and push{
+			tests.gate !== undefined && <>, and “{tests.gate}” fails if any of them does</>
+		}{tests.releaseGated && "; a release is published only after the same jobs pass"}:
+	</p>
+	<dl class="index ci">
+		{
+			tests.jobs.map((g) => (
+				<>
+					<dt><a href={blob(g.file)}>{g.name}</a></dt>
+					<dd>{list(g.jobs)}.</dd>
+				</>
+			))
+		}
+	</dl>
+
+	<h2 id="runtimes">Runtimes</h2>
+	<p>
+		{install.runs} CI runs the unit tests on Node.js {list(tests.nodeVersions)}{tests.chromium && ", the browser tests in Chromium"}{
+			tests.workerd && ", the Workers tests in workerd"
+		}{tests.services && " and the services tests against live rqlite and S3-compatible servers"}{
+			tests.runtimes.length > 0 && <>, and smoke-tests the built package on {list(tests.runtimes.map((r) => ({ node: "Node.js", bun: "Bun", deno: "Deno" })[r] ?? r))}</>
+		}.
+	</p>
+
+	<h2 id="reproduce-it">Reproduce it</h2>
+	{Reproducing !== undefined && <div class="prose"><Reproducing /></div>}
+	<p>
+		<a href={blob("docs/compatibility.md")}><code>docs/compatibility.md</code></a> explains each layer of evidence in
+		full, and how to hold a new backend to it.
+	</p>
+</Doc>
+
+<style>
+	.num {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.matrix td {
+		min-width: 6rem;
+	}
+</style>

@@ -168,6 +168,34 @@ translation keeps it:
   src/ctonly/ct.ts
 
 --------------------------------------------------------------------------------
+Website fonts
+--------------------------------------------------------------------------------
+
+The website in site/ serves two fonts from site/public/fonts/. They are not part of
+the published package, and are redistributed under their own licences.
+
+Source Serif 4 - https://github.com/adobe-fonts/source-serif
+Copyright 2014 The Source Serif 4 Project Authors; the font files carry "(c) 2014 -
+2021 Adobe Systems Incorporated (http://www.adobe.com/), with Reserved Font Name
+'Source'".
+Licensed under the SIL Open Font License, Version 1.1, reproduced in
+LICENSES/OFL-1.1-Source-Serif-4.txt (google/fonts, ofl/sourceserif4/OFL.txt at commit
+7085eb89a950e85db5b166b7a58d414544b4140c).
+Google Fonts' Latin subsets of version 4.004, as packaged by
+@fontsource-variable/source-serif-4 5.3.0, unmodified:
+  site/public/fonts/source-serif-4-latin-opsz-normal.woff2
+  site/public/fonts/source-serif-4-latin-opsz-italic.woff2
+
+Go Mono - https://go.dev/blog/go-fonts
+Copyright (c) 2016 Bigelow & Holmes Inc.
+Licensed under the BSD 3-Clause licence that the Go fonts are distributed under,
+reproduced in LICENSES/BSD-3-Clause-Go-Fonts.txt (golang.org/x/image v0.46.0,
+font/gofont/ttfs/README).
+Go-Mono.ttf version 2.010 from golang.org/x/image v0.46.0, subset to Latin-1,
+general punctuation, arrows and box drawing and converted to WOFF2 with fontTools:
+  site/public/fonts/go-mono-latin.woff2
+
+--------------------------------------------------------------------------------
 Runtime dependencies
 --------------------------------------------------------------------------------
 

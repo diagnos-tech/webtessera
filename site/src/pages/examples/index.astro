@@ -1,0 +1,50 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The examples, in the order docs/guides/README.md gives them: each one's title (its README's
+// heading), its description (its package.json's) and the runtimes its scripts start it on.
+
+import Doc from "../../layouts/Doc.astro";
+import { meta } from "../../lib/pages.ts";
+import { getSiteData } from "../../lib/site.ts";
+import { href } from "../../lib/url.ts";
+import { list } from "../../lib/words.ts";
+
+const { examples, tests, site } = await getSiteData();
+---
+
+<Doc title={meta.examples.title} description={meta.examples.description}>
+	<p class="lead" slot="lead">
+		Each example is a small application with its own README, trust model and tests{
+			tests.examples && ", which CI runs on every change"
+		}. None needs a network or an external service.
+	</p>
+	<dl class="index">
+		{
+			examples.map((x) => (
+				<>
+					<dt><a href={href(`examples/${x.dir}/`)}>{x.title}</a></dt>
+					<dd>
+						{x.pitch} Runs on {list(x.runtimes.map((r) => (r === "Browsers" ? "browsers" : r)))}.
+					</dd>
+				</>
+			))
+		}
+	</dl>
+	<p>
+		To run one, build the library at the repository root, then run its <code>ci</code> script in its directory. The
+		sources are in <a href={`${site.repo}/tree/${site.commit}/examples`}><code>examples/</code></a>.
+	</p>
+</Doc>
