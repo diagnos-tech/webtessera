@@ -21,7 +21,7 @@
     "astro": "7.3.6",
     "astro-og-canvas": "0.13.2",
     "canvaskit-wasm": "0.42.0",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "webtessera": "*"
