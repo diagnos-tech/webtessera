@@ -34,6 +34,27 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
   dataInExtra: true })` takes the entry from it, returning it only once the inclusion proof binds it.
   `openServerLog` keeps the SQLite adapter's fail-closed default locking. `cosignerVkey(skey)` (in
   `webtessera/witness`) derives the cosignature/v1 vkey a witness publishes from its signer key.
+- **Safe API conveniences**:
+  - **Errors to branch on.** Every error the safe API raises itself is a `WebtesseraError` with a stable
+    `code` (`ENTRY_TOO_LARGE`, `PUBLISH_TIMEOUT`, `LOG_CLOSED`, `KEY_MISMATCH`, `WRITER_CONFLICT`,
+    `STORAGE_DIVERGED`, `WRONG_ENVIRONMENT` and the rest) and, where it concerns an entry, its `index`.
+    `ReceiptError` is one, with the code `INVALID_RECEIPT` (ADR-0243). `errorAs` is exported from
+    `webtessera` next to `errorIs`.
+  - **Key generation.** `generateLogKeyPair(origin)` in `webtessera/server`, and the
+    `webtessera keygen <origin>` command (`npx`, `bunx`, `deno run npm:webtessera`), which prints the pair
+    as `.env` lines (ADR-0245). `importLogKey` accepts an unset key and refuses it by name, so
+    `importLogKey(process.env.LOG_SKEY)` type-checks.
+  - **Whole-log checks.** `log.fsck()` verifies the log against its latest checkpoint. `newFsck`'s bundle
+    hasher defaults to `defaultMerkleLeafHasher`, which `webtessera/fsck` exports (ADR-0244).
+  - **Serving, batching and JSON.** `log.fetch`, a fetch handler that answers 404 for what is not the
+    log's (`Bun.serve({ fetch: log.fetch })`, `Deno.serve(log.fetch)`, `export default { fetch: log.fetch }`).
+    `log.appendMany(entries)`, a batch for the cost of one checkpoint wait. `toJSON()` on receipts and
+    checkpoints (`{ index: "7", text }`), which `verifyReceipt` takes back. `await using`, through
+    `Symbol.asyncDispose` (ADR-0246).
+  - **A tripwire for a declared single writer.** `locking: "single-writer"` is the new name of `"local"`,
+    which stays an alias. A SQLite store opened with it claims the database, and stops writing
+    (`ErrWriterConflict`, `WRITER_CONFLICT`) as soon as another process claims it too, before the two can
+    fork the log. Lease locking pays nothing for it (ADR-0210).
 - **Examples and guides**, one per use case, each a small tested application built on the safe API:
   `client-only` (a browser's own log), `session-receipts` (a browser log witnessed by its server and
   mirrored to S3-compatible storage), `notary` (offline-verifiable receipts for signed digests),
@@ -87,7 +108,9 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
   Bun, Workers, service workers and, through `toNodeListener`, `node:http`. It sets the specification's
   content types and cache headers, accepts only canonical paths, and adds CORS headers when asked.
   `combineHandlers` composes handlers; `readEntryBody`, `addResponse` and `addErrorResponse` give a
-  `POST /add` endpoint Tessera's conventions.
+  `POST /add` endpoint Tessera's conventions. `readEntryBody` refuses anything but a POST, with an error
+  caused by `ErrMethodNotAllowed` that `addErrorResponse` answers with 405, so a crawler's GET never
+  adds an entry (ADR-0170).
 - **Witnessing** (`webtessera/witness`): `newWitnessServer`, a C2SP tlog-witness server that checks each
   checkpoint against the last one it cosigned for the same log, for a fixed list of logs or an
   open-ended set (`lookupLog`), with its state in any `ObjectStore` and timestamped cosignature/v1
@@ -105,13 +128,18 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
 - **Test helpers**: `webtessera/testonly` provides `newTestLog`, a ready-made log on the memory driver with
   its own signing key, for testing code built on webtessera, as Tessera's `testonly` package does for Go.
 - **Documentation and project tooling**: contributor guide, `PORTING.md` (the fidelity rules), ADRs, the porting map, `docs/compatibility.md`, `docs/RELEASING.md`, a
-  security policy, a landing page generated from the code, and CI on Node 22 and 24, real Chromium,
+  security policy, a small multi-page website generated from the code (Astro), and CI on Node 22 and 24, real Chromium,
   workerd, and live rqlite and S3-compatible servers, with a smoke test of the built package on Node, Bun
   and Deno. The README's code snippets run as tests, and a check fails if `README.md` drifts from them.
   Releases publish one tested tarball, with provenance, to npm and GitHub Packages.
 
 ### Behaviour and API details
 
+- The package needs Node.js 22.18 or later (`engines`), the first 22.x with both `node:sqlite` and
+  type stripping unflagged. It ships no source maps, and its declarations link the ADRs they cite. A
+  browser build of `webtessera/server` resolves to `dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js`,
+  so the bundler's error explains itself (ADR-0221, ADR-0247). `openServerLog` names the adapter to wrap
+  a raw database connection with, and `openDeviceKey` says when a page is not a secure context.
 - Witness policy URLs are parsed with a transcription of Go's `net/url` (`url.Parse`, `JoinPath`,
   `String`), so verdicts, error texts and endpoints, percent-escaping included, are Go's. A URL with no
   host, or one the platform URL parser rejects, is refused with its own message (ADR-0241). A policy
@@ -159,6 +187,10 @@ an ADR says why.
 
 Hardening beyond Tessera, from input validation that upstream lacks. None of it changes the bytes of a
 valid log.
+
+- **No error repeats a signer key**: a signer key passed where a verifier key, an origin or a name
+  belongs, in the safe API or in `webtessera/witness`, is refused with the code `SIGNER_KEY_MISUSE`, and
+  no message, cause or stack contains it (ADR-0243).
 
 - **Leases wait out a busy database**: taking or renewing a lease waits on `SQLITE_BUSY`/`SQLITE_LOCKED`
   instead of failing. A libSQL `file:` database shared by several processes needs a client with a busy

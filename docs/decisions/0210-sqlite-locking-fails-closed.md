@@ -210,3 +210,53 @@ This answers the Review above. The decision stands.
   - Code: `LeaseLocks.#acquire` treats a busy batch as a held lock (jittered backoff, abort honoured through `throwIfAborted` and `sleep(..., signal)`); `#renewWhileHeld` retries a busy renewal after the same backoff, not a full interval later; other errors are handled as before; `isBusy` reads `code`, `errcode`, `rawCode`, `resultCode` and the message, and follows the cause chain. `fromLibsql` wraps a busy error from a `file:` client whose `PRAGMA busy_timeout` is 0 (read once; remote clients and clients with a timeout pass errors through). Tests: `lease_test.ts` (busy acquisition retried, abort while busy, non-busy error fatal, busy renewal retried early), `busy_test.ts`, `libsql_test.ts` (three-process append with a busy timeout; the actionable error); `busy_test`, `lease_test` and `libsql_test` run 188 tests, and the node:sqlite three-process test in `sqlite_test.ts` passes.
   - The corrections hold. The Alternatives sentence is restated with its scope: node:sqlite, bun:sqlite and better-sqlite3 get a busy timeout from the adapter (`DefaultBusyTimeoutMs = 5000`, `syncengine.ts`), the networked engines arbitrate writes themselves, and a libSQL `file:` database shared by processes needs a client with a timeout. The multi-process claim names its engines (node:sqlite; libSQL with a timeout; D1, rqlite, Durable Objects and sqlite-wasm have none). `README.md` and `docs/guides/choosing-storage.md` both carry the libSQL sentence; the Update's "README.md needs the same sentence" is stale wording, since the README already has it.
   - Non-blocking: the Decision table's `fromLibsql` row is not edited (history), so a reader needs the Update to learn the condition.
+
+## Update (2026-10-07): a tripwire for a wrong single-writer declaration, and the name `"single-writer"`
+
+A fresh-eyes audit of the 0.1.0 tarball ran two Node processes appending 40 entries each to one SQLite file,
+both opened with `locking: "local"`. The log forked in 3 of 4 runs; in one, the winner had handed out 40 valid
+receipts before the other overwrote storage, two different size-40 trees signed by one key. That is the documented
+consequence of a wrong declaration, but it is reached by one word, and nothing noticed until a reader did.
+
+- **The tripwire** (`src/storage/sqlite/claim.ts`). A store whose *caller* chose local locking keeps a claim on
+  its database, in the namespace's `meta` table (a named integer, which the frozen definition of that table
+  allows; no schema change, no log byte):
+  - the claim is this realm's token, 48 random bits drawn once per realm, written with `INSERT OR REPLACE` the
+    first time the store takes a lock, which only a writer does (a store that only reads never claims); every
+    store of a realm claims with the same token, so they never trip over each other, as they share its local
+    locks;
+  - every critical section then starts by reading the token back, and every write batch is fenced on it in the
+    same transaction, with the NOT NULL fence of lease mode (ADR-0211) and `WHERE NOT EXISTS (… value = token)`;
+  - once the token is another realm's, the store refuses every lock and write, for good, with an error caused by
+    the new sentinel `ErrWriterConflict` (exported from `webtessera/storage/sqlite`), whose text leads the message
+    so that it survives the driver's `%v`-style flattening. `openServerLog` turns it into a `WebtesseraError` with
+    the code `WRITER_CONFLICT` naming the method that met it (ADR-0226's update).
+  The latest realm to start writing wins and every earlier one stops at its next lock or write, so their writes
+  never interleave and the log they leave is the one the latest writer continues, as if the earlier had crashed
+  there, which the driver already survives (it reads the tree state afresh under every lock). A restarted process
+  takes over from its dead predecessor with no operator, which a "first claim wins" rule could not allow, since a
+  dead holder's token cannot be told from a live one's. The check at the start of a critical section stops a stale
+  writer before it reads the tree state and signs a checkpoint over it, except when the other realm claims during
+  that critical section; the fence stops its writes even then. A witness may still have cosigned a checkpoint the
+  stale writer signed in that window and could not publish, as with a lapsed lease.
+- **Cost.** Lease mode: none (no claim, no statement). A database the adapter showed to be private (in memory, a
+  Durable Object): none, because its local locking is the adapter's choice, not a declaration, and the tripwire
+  could never fire. An explicit single-writer store: one indexed `SELECT` per critical section and one extra
+  statement in each write batch, inside SQLite.
+- **The name.** `locking: "single-writer"` is accepted by `openSqliteObjectStore` and `openServerLog`, and is what
+  the documentation and errors now use; `"local"` stays as its alias, with the same tripwire. The store's
+  `locking` property still reports `"local"`: it describes the locks' scope, and existing callers compare it.
+  `SqliteLockingOption` (`SqliteLocking | "single-writer"`) is the options' type; `SqliteLocking` is unchanged.
+
+Tests: `sqlite_test.ts` ("the single-writer tripwire": the alias; one claim at the first lock and fences after it;
+a takeover fails a write already under way in its own transaction, then every lock and write for good, while a new
+store takes over; a stale writer's critical section never runs; stores of one realm never conflict; no claim
+statement under lease locking or the adapter's local locking) and a conformance variant ("node:sqlite file,
+single-writer locking, second store on a second connection", the object-store and driver suites);
+`server_test.ts` ("keeps two processes that both declare themselves the only writer from forking the log": two
+child processes, `"single-writer"` and `"local"`, 30 entries each at the same instant; the first claimant is
+stopped with `WRITER_CONFLICT`, and every receipt the other handed out verifies, matches the entry the file holds
+at its index, and the file passes `log.fsck()`). The audit's `writer.ts`, re-run on the packed tarball with
+`locking: "local"`, no longer forks (see the report of 2026-10-07).
+
+*Review of this update: pending.*

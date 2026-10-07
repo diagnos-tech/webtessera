@@ -26,13 +26,15 @@
 // that commits to the last one, verifies the log's signature on that checkpoint,
 // and verifies an inclusion proof for the entry against it. Then it does the same
 // through the safe API's entry points, webtessera/server and webtessera/browser,
-// which must load on every server runtime and recognise it as one. It uses only
+// which must load on every server runtime and recognise it as one, and generates a
+// key pair with generateLogKeyPair and with the `webtessera keygen` command. It uses only
 // runtime-neutral APIs, so it needs no permissions beyond reading the package.
 
 import { verifyReceipt } from "../dist/browser/index.js";
+import { run as runCommand } from "../dist/cli/cli.js";
 import { fetchCheckpoint, newProofBuilder } from "../dist/client/index.js";
 import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "../dist/index.js";
-import { detectRuntime, importLogKey, openServerLog } from "../dist/server/index.js";
+import { detectRuntime, generateLogKeyPair, importLogKey, openServerLog } from "../dist/server/index.js";
 import { newMemoryDriver } from "../dist/storage/memory/index.js";
 import { verifyInclusion } from "../dist/vendor/merkle/proof/index.js";
 import { DefaultHasher } from "../dist/vendor/merkle/rfc6962/rfc6962.js";
@@ -81,8 +83,21 @@ if (verified.index !== 0n || receipt.checkpoint.size !== 1n) {
 	throw new Error(`unexpected receipt: index ${verified.index}, checkpoint size ${receipt.checkpoint.size}`);
 }
 
+// A key pair for a secret store, from code and from the `webtessera keygen` command (whose
+// executable is cli.js's run, given process.argv), opens as the same key.
+const pair = generateLogKeyPair("example.com/smoke-keygen");
+if ((await importLogKey(pair.skey)).vkey !== pair.vkey) {
+	throw new Error("generateLogKeyPair: the signer key does not open as its verifier key");
+}
+const keygen = runCommand(["keygen", "example.com/smoke-keygen", "--json"]);
+const generated = JSON.parse(keygen.stdout);
+if (keygen.code !== 0 || (await importLogKey(generated.skey)).vkey !== generated.vkey) {
+	throw new Error(`webtessera keygen: exit ${keygen.code}: ${keygen.stderr}`);
+}
+
 // biome-ignore lint/suspicious/noConsole: the script's output is its report; console is the one sink every runtime shares.
 console.log(
 	`smoke-runtimes: ok (index ${index.index} proven in a tree of ${checkpoint.size}; ` +
-		`safe API on ${runtime} with a ${key.extractable ? "extractable" : "non-extractable"} ${key.backend} key)`,
+		`safe API on ${runtime} with a ${key.extractable ? "extractable" : "non-extractable"} ${key.backend} key; ` +
+		"keygen ok)",
 );

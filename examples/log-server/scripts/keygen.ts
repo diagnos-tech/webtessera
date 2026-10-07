@@ -20,7 +20,7 @@
 // store. LOG_VKEY is public: clients verify the log with it.
 
 import { argv, exit } from "node:process";
-import { generateKey } from "webtessera/note";
+import { generateLogKeyPair } from "webtessera/server";
 
 const origin = argv[2] ?? "";
 if (origin === "") {
@@ -28,6 +28,6 @@ if (origin === "") {
 	console.error("usage: node scripts/keygen.ts <origin>   e.g. node scripts/keygen.ts log.example.com/v1 > .env");
 	exit(2);
 }
-const { skey, vkey } = generateKey(undefined, origin);
+const { skey, vkey } = generateLogKeyPair(origin);
 // biome-ignore lint/suspicious/noConsole: the key pair is this script's output.
 console.log(`LOG_SKEY=${skey}\nLOG_VKEY=${vkey}`);

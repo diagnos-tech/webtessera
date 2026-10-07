@@ -18,7 +18,8 @@ repository root, then run `npm run ci` (or `bun run ci`, `pnpm run ci`) in the e
 ## Topics
 
 - [The safe API](safe-api.md): the layer every use case starts from: key custody, the log object,
-  receipts.
+  errors.
+- [Receipts](receipts.md): what `append` returns, and how anyone verifies it offline.
 - [Choosing storage](choosing-storage.md): memory, IndexedDB, each SQLite engine, your own store and
   S3 buckets: what each guarantees, and how locking keeps a log from forking.
 - [The ported API](ported-api.md): Tessera's own API, translated, and the map of every package.

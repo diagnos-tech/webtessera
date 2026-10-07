@@ -73,6 +73,28 @@
  * message text, and `context.Context` is an optional trailing `AbortSignal`. The reasoning is in
  * docs/decisions/, starting at ADR-0002, ADR-0003 and ADR-0004.
  *
+ * # Testing for errors
+ *
+ * Go's sentinel errors (`ErrPushback`, `ErrNotExist`, …) are single `Error` instances that other
+ * errors wrap through `cause`, as `fmt.Errorf("…: %w", err)` wraps them in Go, so test for them
+ * with {@link errorIs}, the counterpart of `errors.Is`, never with `===` or `instanceof`. Errors
+ * that carry data are classes; find one anywhere in the chain with {@link errorAs}, the
+ * counterpart of `errors.As`:
+ *
+ * ```ts
+ * try {
+ *   await appender.add(entry)();
+ * } catch (err) {
+ *   if (errorIs(err, ErrPushback)) {
+ *     // slow down, then retry
+ *   }
+ *   const inconsistent = errorAs(err, ErrInconsistency); // from webtessera/client
+ * }
+ * ```
+ *
+ * The safe API (webtessera/server, webtessera/browser) has errors of its own instead: one class,
+ * WebtesseraError, with a stable `code`.
+ *
  * What this module exports is exactly what Tessera's root package exports, plus a few names
  * TypeScript needs to express the same contract (docs/decisions/0133-package-root-barrel.md).
  * Helpers that exist only so that this repository's tests can reach what Go's in-package tests
@@ -105,7 +127,7 @@ export {
 export { newPublicationAwaiter, PublicationAwaiter } from "./await.ts";
 export { newCertificateTransparencyAppender, withCTLayout } from "./ct_only.ts";
 export { Entry, newEntry } from "./entry.ts";
-export { ErrNotExist, errorIs } from "./internal/gostd/errors.ts";
+export { ErrNotExist, errorAs, errorIs } from "./internal/gostd/errors.ts";
 export type { Antispam, Follower, LogReader } from "./lifecycle.ts";
 export { type Driver, ErrPushback, ErrPushbackAntispam, ErrPushbackIntegration } from "./log.ts";
 export { MigrationOptions, MigrationTarget, newMigrationOptions, newMigrationTarget } from "./migrate_lifecycle.ts";

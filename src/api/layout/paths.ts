@@ -25,7 +25,7 @@ import { asUint64, MaxUint64 } from "../../internal/gostd/bits.ts";
 import { parseUint } from "../../internal/gostd/strconv.ts";
 import { EntryBundleWidth, partialTileSize, TileWidth } from "./tile.ts";
 
-// CheckpointPath is the location of the file containing the log checkpoint.
+/** CheckpointPath is the location of the file containing the log checkpoint. */
 export const CheckpointPath = "checkpoint";
 
 // Port note: see the note in tile.ts — the spec constants are exported as `number`,
@@ -34,30 +34,34 @@ export const CheckpointPath = "checkpoint";
 const entryBundleWidth64 = BigInt(EntryBundleWidth);
 const tileWidth64 = BigInt(TileWidth);
 
-// EntriesPathForLogIndex builds the local path at which the leaf with the given index lives in.
-// Note that this will be an entry bundle containing up to 256 entries and thus multiple
-// indices can map to the same output path.
-// The logSize is required so that a partial qualifier can be appended to tiles that
-// would contain fewer than 256 entries.
+/**
+ * EntriesPathForLogIndex builds the local path at which the leaf with the given index lives in.
+ * Note that this will be an entry bundle containing up to 256 entries and thus multiple
+ * indices can map to the same output path.
+ * The logSize is required so that a partial qualifier can be appended to tiles that
+ * would contain fewer than 256 entries.
+ */
 export function entriesPathForLogIndex(seq: bigint, logSize: bigint): string {
 	const tileIndex = seq / entryBundleWidth64;
 	return entriesPath(tileIndex, partialTileSize(0n, tileIndex, logSize));
 }
 
-// Range returns an iterator over a list of RangeInfo structs which describe the bundles/tiles
-// necessary to cover the specified range of individual entries/hashes `[from, min(from+N, treeSize) )`.
-//
-// If from >= treeSize or N == 0, the returned iterator will yield no elements.
-//
-// Port note: Go's `iter.Seq[RangeInfo]` becomes a generator (PORTING.md §3.5). Upstream's
-// `if !yield(ri) { return }` early exit is what a consumer's `break` does to a generator,
-// so it needs no equivalent here.
-//
-// Port note: `from+N` and `endInc` wrap as Go's uint64 arithmetic does, so a request whose
-// end overflows yields exactly the bundles Go yields. In the one case where that overflow
-// makes Go's `uint` count N itself wrap (a single bundle whose wrapped end falls before
-// First), the result does not fit RangeInfo.n's `number` and a RangeError is thrown
-// instead. See docs/decisions/0014-uint64-wrapping-made-explicit.md.
+/**
+ * Range returns an iterator over a list of RangeInfo structs which describe the bundles/tiles
+ * necessary to cover the specified range of individual entries/hashes `[from, min(from+N, treeSize) )`.
+ *
+ * If from >= treeSize or N == 0, the returned iterator will yield no elements.
+ *
+ * Port note: Go's `iter.Seq[RangeInfo]` becomes a generator (PORTING.md §3.5). Upstream's
+ * `if !yield(ri) { return }` early exit is what a consumer's `break` does to a generator,
+ * so it needs no equivalent here.
+ *
+ * Port note: `from+N` and `endInc` wrap as Go's uint64 arithmetic does, so a request whose
+ * end overflows yields exactly the bundles Go yields. In the one case where that overflow
+ * makes Go's `uint` count N itself wrap (a single bundle whose wrapped end falls before
+ * First), the result does not fit RangeInfo.n's `number` and a RangeError is thrown
+ * instead. See docs/decisions/0014-uint64-wrapping-made-explicit.md.
+ */
 export function* range(from: bigint, N: bigint, treeSize: bigint): Generator<RangeInfo> {
 	// Range is empty if we're entirely beyond the extent of the tree, or we've been asked for zero items.
 	if (from >= treeSize || N === 0n) {
@@ -118,10 +122,12 @@ export interface RangeInfo {
 	n: number;
 }
 
-// NWithSuffix returns a tiles-spec "N" path, with a partial suffix if p > 0.
-//
-// Port note: `l` is unused, exactly as in the Go original. It is kept so that the
-// signature still matches upstream's.
+/**
+ * NWithSuffix returns a tiles-spec "N" path, with a partial suffix if p > 0.
+ *
+ * Port note: `l` is unused, exactly as in the Go original. It is kept so that the
+ * signature still matches upstream's.
+ */
 // biome-ignore lint/correctness/noUnusedFunctionParameters: `l` mirrors the upstream signature (see port note above).
 export function nWithSuffix(l: bigint, n: bigint, p: number): string {
 	let suffix = "";
@@ -131,14 +137,18 @@ export function nWithSuffix(l: bigint, n: bigint, p: number): string {
 	return `${fmtN(n)}${suffix}`;
 }
 
-// EntriesPath returns the local path for the nth entry bundle. p denotes the partial
-// tile size, or 0 if the tile is complete.
+/**
+ * EntriesPath returns the local path for the nth entry bundle. p denotes the partial
+ * tile size, or 0 if the tile is complete.
+ */
 export function entriesPath(n: bigint, p: number): string {
 	return `tile/entries/${nWithSuffix(0n, n, p)}`;
 }
 
-// TilePath builds the path to the subtree tile with the given level and index in tile space.
-// If p > 0 the path represents a partial tile.
+/**
+ * TilePath builds the path to the subtree tile with the given level and index in tile space.
+ * If p > 0 the path represents a partial tile.
+ */
 export function tilePath(tileLevel: bigint, tileIndex: bigint, p: number): string {
 	return `tile/${tileLevel}/${nWithSuffix(tileLevel, tileIndex, p)}`;
 }
@@ -176,11 +186,13 @@ export interface TileLevelIndexPartial {
 	readonly width: number;
 }
 
-// ParseTileLevelIndexPartial takes level and index in string, validates and returns the level, index and width in uint64.
-//
-// Examples:
-// "/tile/0/x001/x234/067" means level 0 and index 1234067 of a full tile.
-// "/tile/0/x001/x234/067.p/8" means level 0, index 1234067 and width 8 of a partial tile.
+/**
+ * ParseTileLevelIndexPartial takes level and index in string, validates and returns the level, index and width in uint64.
+ *
+ * Examples:
+ * "/tile/0/x001/x234/067" means level 0 and index 1234067 of a full tile.
+ * "/tile/0/x001/x234/067.p/8" means level 0, index 1234067 and width 8 of a partial tile.
+ */
 export function parseTileLevelIndexPartial(level: string, index: string): TileLevelIndexPartial {
 	const l = parseTileLevel(level);
 
@@ -189,7 +201,7 @@ export function parseTileLevelIndexPartial(level: string, index: string): TileLe
 	return { level: l, index: i, width: w };
 }
 
-// ParseTileLevel takes level in string, validates and returns the level in uint64.
+/** ParseTileLevel takes level in string, validates and returns the level in uint64. */
 export function parseTileLevel(level: string): bigint {
 	const l = tryParseUint(level);
 	// Verify that level is an integer between 0 and 63 as specified in the tlog-tiles specification.
@@ -212,7 +224,7 @@ export interface TileIndexPartial {
 	readonly width: number;
 }
 
-// ParseTileIndexPartial takes index in string, validates and returns the index and width in uint64.
+/** ParseTileIndexPartial takes index in string, validates and returns the index and width in uint64. */
 export function parseTileIndexPartial(index: string): TileIndexPartial {
 	let w = 0;
 	let indexPaths = index.split("/");

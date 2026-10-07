@@ -21,7 +21,7 @@
 // (merkle/proof's verifyInclusion). Nothing here re-implements a check. See
 // docs/decisions/0225-receipts-are-tlog-proofs.md.
 
-import { bytesEqual, fromUTF8, toUTF8 } from "../internal/gostd/bytes.ts";
+import { bytesEqual, fromUTF8, toBase64, toUTF8 } from "../internal/gostd/bytes.ts";
 import {
 	type Checkpoint,
 	ParseCheckpointError,
@@ -34,18 +34,23 @@ import { verifyInclusion } from "../vendor/merkle/proof/verify.ts";
 import { DefaultHasher } from "../vendor/merkle/rfc6962/rfc6962.ts";
 import { newVerifier, type Verifier } from "../vendor/note/note.ts";
 import { newWitnessGroup, Witness, WitnessGroup } from "../witness.ts";
+import { isSignerKey, quoteInput, signerKeyMisuse, WebtesseraError } from "./errors.ts";
 
 /**
  * Receipt proves, offline, that an entry is in a log: it is a C2SP tlog-proof
  * (https://c2sp.org/tlog-proof) holding the entry's index, an inclusion proof, and the
  * log's signed checkpoint with any witness cosignatures.
  *
- * `text` is the encoding to store (in a `.tlog-proof` file, as the spec recommends) or
- * send; anyone holding the log's vkey and the entry can check it with verifyReceipt.
+ * `text` is the wire format: store it (in a `.tlog-proof` file, as the spec recommends),
+ * send it, and hand it to verifyReceipt or parseReceipt at the other end. Anyone holding
+ * the log's vkey and the entry can check it. `JSON.stringify(receipt)` gives
+ * {@link ReceiptJSON}, whose `text` is the same string and which verifyReceipt also takes;
+ * the other fields hold bigints and bytes, which JSON cannot.
  *
  * ```ts
  * const receipt = await log.append(entry);
  * await save(`${receipt.index}.tlog-proof`, receipt.text);
+ * return Response.json(receipt); // {"index":"7","text":"c2sp.org/tlog-proof@v1\n…"}
  * ```
  */
 export interface Receipt {
@@ -55,7 +60,24 @@ export interface Receipt {
 	readonly checkpoint: LogCheckpoint;
 	/** proof is the decoded tlog-proof, for code that works with the format directly. */
 	readonly proof: TLogProof;
-	/** text is the tlog-proof encoding of the receipt. */
+	/** text is the tlog-proof encoding of the receipt: the form to store, send and verify. */
+	readonly text: string;
+	/** toJSON is what JSON.stringify shows of the receipt: its index as a decimal string, and its text. */
+	toJSON(): ReceiptJSON;
+}
+
+/**
+ * ReceiptJSON is a receipt as JSON.stringify writes it: the index as a decimal string, since
+ * JSON has no 64-bit integers, and the tlog-proof text, which carries everything else.
+ * verifyReceipt and parseReceipt take it back as it is.
+ *
+ * ```ts
+ * const { text } = (await response.json()) as ReceiptJSON;
+ * verifyReceipt(text, { vkey, data });
+ * ```
+ */
+export interface ReceiptJSON {
+	readonly index: string;
 	readonly text: string;
 }
 
@@ -73,6 +95,24 @@ export interface LogCheckpoint {
 	readonly hash: Uint8Array;
 	/** signed is the checkpoint as the log published it: a signed note. */
 	readonly signed: Uint8Array;
+	/** toJSON is what JSON.stringify shows of the checkpoint: see {@link LogCheckpointJSON}. */
+	toJSON(): LogCheckpointJSON;
+}
+
+/**
+ * LogCheckpointJSON is a checkpoint as JSON.stringify writes it: the size as a decimal
+ * string, the root hash in standard base64 (as the checkpoint's own text has it), and the
+ * signed note as text.
+ *
+ * ```ts
+ * JSON.stringify(await log.latestCheckpoint()); // {"origin":"example.com/log","size":"20",…}
+ * ```
+ */
+export interface LogCheckpointJSON {
+	readonly origin: string;
+	readonly size: string;
+	readonly hash: string;
+	readonly signed: string;
 }
 
 /**
@@ -92,32 +132,52 @@ export interface WitnessPolicy {
 }
 
 /**
- * VerifyReceiptOptions says what verifyReceipt checks a receipt against.
+ * VerifyReceiptOptions says what verifyReceipt checks a receipt against: the log's key,
+ * and the entry, as one of `data`, `leafHash` or `dataInExtra: true`. The type requires one
+ * of the three, as verifyReceipt does.
  *
  * ```ts
  * { vkey: "example.com/log+1a2b3c4d+AQ…", leafHash: DefaultHasher.hashLeaf(entry) }
  * ```
  */
-export interface VerifyReceiptOptions {
-	/** vkey is the log's verifier key, or a note Verifier for it. */
+export type VerifyReceiptOptions = VerifyReceiptKey & VerifyReceiptEntry;
+
+/**
+ * VerifyReceiptKey is the part of {@link VerifyReceiptOptions} that names the log.
+ *
+ * ```ts
+ * { vkey: logVkey, witnesses: { threshold: 1, witnesses: [witnessVkey] } }
+ * ```
+ */
+export interface VerifyReceiptKey {
+	/** vkey is the log's verifier key, or a note Verifier for it. Never its signer key. */
 	readonly vkey: string | Verifier;
 	/** origin is the log's checkpoint origin. It defaults to the key's name, which is the origin of every log webtessera writes. */
 	readonly origin?: string;
-	/** data is the entry the receipt is for. Give it, or its leafHash, or set dataInExtra. */
-	readonly data?: Uint8Array;
-	/** leafHash is the RFC 6962 leaf hash of the entry, for a verifier that holds only the hash. */
-	readonly leafHash?: Uint8Array;
-	/**
-	 * dataInExtra says that the proof's `extra` line carries the entry itself, as a receipt
-	 * from `append(data, { extraData: data })` does. Alone, it takes the entry from the extra
-	 * line; with `data` or `leafHash`, it also checks that the extra line holds that entry.
-	 * Either way the inclusion proof then binds the extra data to the log, and it is returned
-	 * as `data`: authenticated, unlike `extraData`.
-	 */
-	readonly dataInExtra?: boolean;
 	/** witnesses is the witness policy the checkpoint must satisfy. By default no cosignature is required. */
 	readonly witnesses?: WitnessGroup | WitnessPolicy;
 }
+
+/**
+ * VerifyReceiptEntry is the part of {@link VerifyReceiptOptions} that names the entry: its
+ * `data`, its `leafHash`, or `dataInExtra: true` for a receipt that carries it.
+ *
+ *   - `data` is the entry the receipt is for.
+ *   - `leafHash` is the RFC 6962 leaf hash of the entry, for a verifier that holds only the hash.
+ *   - `dataInExtra` says that the proof's `extra` line carries the entry itself, as a receipt
+ *     from `append(data, { extraData: data })` does. Alone, it takes the entry from the extra
+ *     line; with `data` or `leafHash`, it also checks that the extra line holds that entry.
+ *     Either way the inclusion proof then binds the extra data to the log, and it is returned
+ *     as `data`: authenticated, unlike `extraData`.
+ *
+ * ```ts
+ * { data: entry } | { leafHash } | { dataInExtra: true }
+ * ```
+ */
+export type VerifyReceiptEntry =
+	| { readonly data: Uint8Array; readonly leafHash?: undefined; readonly dataInExtra?: boolean }
+	| { readonly leafHash: Uint8Array; readonly data?: undefined; readonly dataInExtra?: boolean }
+	| { readonly dataInExtra: true; readonly data?: undefined; readonly leafHash?: undefined };
 
 /**
  * VerifiedReceipt is what verifyReceipt returns once every check has passed.
@@ -142,13 +202,32 @@ export interface VerifiedReceipt {
 	 * checkpoint. It is undefined without dataInExtra.
 	 */
 	readonly data: Uint8Array | undefined;
+	/** toJSON is what JSON.stringify shows of the result: see {@link VerifiedReceiptJSON}. */
+	toJSON(): VerifiedReceiptJSON;
+}
+
+/**
+ * VerifiedReceiptJSON is a verified receipt as JSON.stringify writes it: the index as a
+ * decimal string, the checkpoint as {@link LogCheckpointJSON}, and bytes in standard base64.
+ *
+ * ```ts
+ * return Response.json(verifyReceipt(text, { vkey, data })); // {"index":"7","checkpoint":{…},…}
+ * ```
+ */
+export interface VerifiedReceiptJSON {
+	readonly index: string;
+	readonly checkpoint: LogCheckpointJSON;
+	readonly cosignedBy: readonly string[];
+	readonly extraData?: string;
+	readonly data?: string;
 }
 
 /**
  * ReceiptError is thrown by verifyReceipt when a receipt does not prove what it is checked
- * against. `reason` says which check failed; the message says what that usually means.
- * `extra` is the one that is not a step of the spec's verification: with dataInExtra, the
- * proof's extra line is missing, or is not the entry it was checked against.
+ * against. It is a {@link WebtesseraError} with the code `INVALID_RECEIPT`; `reason` says
+ * which check failed, and the message says what that usually means. `extra` is the one that
+ * is not a step of the spec's verification: with dataInExtra, the proof's extra line is
+ * missing, or is not the entry it was checked against.
  *
  * ```ts
  * try {
@@ -160,26 +239,33 @@ export interface VerifiedReceipt {
  * }
  * ```
  */
-export class ReceiptError extends Error {
+export class ReceiptError extends WebtesseraError {
 	readonly reason: "malformed" | "signature" | "witnesses" | "inclusion" | "extra";
 
 	constructor(reason: ReceiptError["reason"], message: string, options?: { cause?: unknown }) {
-		super(message, options);
+		super("INVALID_RECEIPT", message, options);
 		this.name = "ReceiptError";
 		this.reason = reason;
 	}
 }
 
 /**
- * parseReceipt decodes a tlog-proof, as text or bytes, without verifying anything. It
- * throws a ReceiptError with reason "malformed" if it is not one.
+ * parseReceipt decodes a tlog-proof, as text or bytes (or a {@link ReceiptJSON}, for its
+ * text), without verifying anything. It throws a ReceiptError with reason "malformed" if it
+ * is not one.
  *
  * ```ts
  * const proof = parseReceipt(await file.text());
  * proof.index; // the entry's index, unverified
  * ```
  */
-export function parseReceipt(receipt: string | Uint8Array): TLogProof {
+export function parseReceipt(receipt: string | Uint8Array | ReceiptJSON): TLogProof {
+	if (typeof receipt === "object" && receipt !== null && !(receipt instanceof Uint8Array)) {
+		return parseReceipt(textOf(receipt, "parseReceipt"));
+	}
+	if (isSignerKey(typeof receipt === "string" ? receipt : fromUTF8(receipt))) {
+		throw signerKeyMisuse("parseReceipt", "the receipt");
+	}
 	const p = new TLogProof();
 	try {
 		p.unmarshal(typeof receipt === "string" ? toUTF8(receipt) : receipt);
@@ -211,19 +297,36 @@ export function parseReceipt(receipt: string | Uint8Array): TLogProof {
  * ```
  */
 export function verifyReceipt(
-	receipt: Receipt | TLogProof | string | Uint8Array,
+	receipt: Receipt | ReceiptJSON | TLogProof | string | Uint8Array,
 	options: VerifyReceiptOptions & { readonly dataInExtra: true },
 ): VerifiedReceipt & { readonly data: Uint8Array };
 export function verifyReceipt(
-	receipt: Receipt | TLogProof | string | Uint8Array,
+	receipt: Receipt | ReceiptJSON | TLogProof | string | Uint8Array,
 	options: VerifyReceiptOptions,
 ): VerifiedReceipt;
 export function verifyReceipt(
-	receipt: Receipt | TLogProof | string | Uint8Array,
+	receipt: Receipt | ReceiptJSON | TLogProof | string | Uint8Array,
 	options: VerifyReceiptOptions,
 ): VerifiedReceipt {
+	if (typeof options !== "object" || options === null) {
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			"verifyReceipt takes options: { vkey, data } (or leafHash, or dataInExtra: true)",
+		);
+	}
+	// A signer key in place of the vkey, the origin or the receipt is refused before
+	// anything else could quote it.
+	if (isSignerKey(options.vkey)) {
+		throw signerKeyMisuse("verifyReceipt", "vkey");
+	}
+	if (isSignerKey(options.origin)) {
+		throw signerKeyMisuse("verifyReceipt", "the origin");
+	}
 	const proof = toProof(receipt);
-	const verifier = typeof options.vkey === "string" ? verifierOf(options.vkey) : options.vkey;
+	const verifier = typeof options.vkey === "string" ? verifierOf(options.vkey) : checkVerifier(options.vkey);
+	if (options.origin !== undefined && typeof options.origin !== "string") {
+		throw new WebtesseraError("INVALID_ARGUMENT", "verifyReceipt: origin must be a string, the log's origin");
+	}
 	const origin = options.origin ?? verifier.name();
 	const { leafHash, data } = leafHashOf(options, proof);
 	const policy = options.witnesses === undefined ? undefined : witnessGroupOf(options.witnesses);
@@ -276,13 +379,7 @@ export function verifyReceipt(
 		);
 	}
 
-	return {
-		index: proof.index,
-		checkpoint: logCheckpointOf(cp, proof.checkpoint),
-		cosignedBy,
-		extraData: proof.extraData,
-		data,
-	};
+	return new verifiedReceipt(proof.index, logCheckpointOf(cp, proof.checkpoint), cosignedBy, proof.extraData, data);
 }
 
 /**
@@ -295,7 +392,13 @@ export function witnessGroupOf(w: WitnessGroup | WitnessPolicy): WitnessGroup {
 		return w;
 	}
 	if (typeof w !== "object" || w === null || !Array.isArray(w.witnesses) || !Number.isInteger(w.threshold)) {
-		throw new TypeError("witnesses must be a WitnessGroup or { threshold: number, witnesses: vkey[] }");
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			"witnesses must be a WitnessGroup or { threshold: number, witnesses: vkey[] }",
+		);
+	}
+	if (w.witnesses.some(isSignerKey)) {
+		throw signerKeyMisuse("witnesses", "a witness key");
 	}
 	// A Witness's URL is where an appender sends it checkpoints. A policy used only to check
 	// cosignatures never sends anything, so the witnesses here have none.
@@ -328,7 +431,7 @@ export function policyVerifiers(group: WitnessGroup): Verifier[] {
  * @internal Shared with the log factories.
  */
 export function logCheckpointOf(cp: Checkpoint, signed: Uint8Array): LogCheckpoint {
-	return { origin: cp.origin, size: cp.size, hash: cp.hash, signed };
+	return new logCheckpoint(cp.origin, cp.size, cp.hash, signed);
 }
 
 /**
@@ -337,36 +440,141 @@ export function logCheckpointOf(cp: Checkpoint, signed: Uint8Array): LogCheckpoi
  * @internal Shared with the log factories.
  */
 export function newReceipt(proof: TLogProof, checkpoint: LogCheckpoint): Receipt {
-	return { index: proof.index, checkpoint, proof, text: fromUTF8(proof.marshal()) };
+	return new receipt(proof, checkpoint);
 }
 
-function toProof(receipt: Receipt | TLogProof | string | Uint8Array): TLogProof {
+/** receipt implements Receipt; toJSON is a method, so that spreading a receipt copies only its data. */
+class receipt implements Receipt {
+	readonly index: bigint;
+	readonly checkpoint: LogCheckpoint;
+	readonly proof: TLogProof;
+	readonly text: string;
+
+	constructor(proof: TLogProof, checkpoint: LogCheckpoint) {
+		this.index = proof.index;
+		this.checkpoint = checkpoint;
+		this.proof = proof;
+		this.text = fromUTF8(proof.marshal());
+	}
+
+	toJSON(): ReceiptJSON {
+		return { index: this.index.toString(), text: this.text };
+	}
+}
+
+/** logCheckpoint implements LogCheckpoint. */
+class logCheckpoint implements LogCheckpoint {
+	readonly origin: string;
+	readonly size: bigint;
+	readonly hash: Uint8Array;
+	readonly signed: Uint8Array;
+
+	constructor(origin: string, size: bigint, hash: Uint8Array, signed: Uint8Array) {
+		this.origin = origin;
+		this.size = size;
+		this.hash = hash;
+		this.signed = signed;
+	}
+
+	toJSON(): LogCheckpointJSON {
+		return {
+			origin: this.origin,
+			size: this.size.toString(),
+			hash: toBase64(this.hash),
+			signed: fromUTF8(this.signed),
+		};
+	}
+}
+
+/** verifiedReceipt implements VerifiedReceipt. */
+class verifiedReceipt implements VerifiedReceipt {
+	readonly index: bigint;
+	readonly checkpoint: LogCheckpoint;
+	readonly cosignedBy: readonly string[];
+	readonly extraData: Uint8Array | undefined;
+	readonly data: Uint8Array | undefined;
+
+	constructor(
+		index: bigint,
+		checkpoint: LogCheckpoint,
+		cosignedBy: readonly string[],
+		extraData: Uint8Array | undefined,
+		data: Uint8Array | undefined,
+	) {
+		this.index = index;
+		this.checkpoint = checkpoint;
+		this.cosignedBy = cosignedBy;
+		this.extraData = extraData;
+		this.data = data;
+	}
+
+	toJSON(): VerifiedReceiptJSON {
+		return {
+			index: this.index.toString(),
+			checkpoint: this.checkpoint.toJSON(),
+			cosignedBy: this.cosignedBy,
+			...(this.extraData === undefined ? {} : { extraData: toBase64(this.extraData) }),
+			...(this.data === undefined ? {} : { data: toBase64(this.data) }),
+		};
+	}
+}
+
+function toProof(receipt: Receipt | ReceiptJSON | TLogProof | string | Uint8Array): TLogProof {
 	if (typeof receipt === "string" || receipt instanceof Uint8Array) {
+		if (isSignerKey(typeof receipt === "string" ? receipt : fromUTF8(receipt))) {
+			throw signerKeyMisuse("verifyReceipt", "the receipt");
+		}
 		return parseReceipt(receipt);
 	}
 	if (receipt instanceof TLogProof) {
 		return receipt;
 	}
-	if (typeof receipt === "object" && receipt !== null && receipt.proof instanceof TLogProof) {
-		return receipt.proof;
+	if (typeof receipt === "object" && receipt !== null && (receipt as Receipt).proof instanceof TLogProof) {
+		return (receipt as Receipt).proof;
 	}
 	// A Receipt from another copy of this library (two versions in one bundle, say) has
-	// another TLogProof class, but the same text.
+	// another TLogProof class, but the same text; and a ReceiptJSON is the text.
+	return parseReceipt(textOf(receipt, "verifyReceipt"));
+}
+
+/** textOf returns the tlog-proof text of a Receipt or ReceiptJSON. */
+function textOf(receipt: unknown, where: string): string {
 	if (typeof receipt === "object" && receipt !== null && typeof (receipt as { text?: unknown }).text === "string") {
-		return parseReceipt((receipt as { text: string }).text);
+		return (receipt as { text: string }).text;
 	}
-	throw new TypeError("verifyReceipt takes a Receipt, a TLogProof, or the text or bytes of a tlog-proof");
+	throw new WebtesseraError(
+		"INVALID_ARGUMENT",
+		`${where} takes a Receipt, a TLogProof, or the text or bytes of a tlog-proof`,
+	);
 }
 
 function verifierOf(vkey: string): Verifier {
 	try {
 		return newVerifier(vkey);
 	} catch (err) {
-		throw new TypeError(
-			`verifyReceipt: ${JSON.stringify(vkey)} is not a note verifier key (${messageOf(err)}); expected ` +
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`verifyReceipt: ${quoteInput(vkey)} is not a note verifier key (${messageOf(err)}); expected ` +
 				"<origin>+<hash>+<key>, the log's published vkey",
 		);
 	}
+}
+
+/** checkVerifier returns v if it is a note Verifier, and throws otherwise. */
+function checkVerifier(v: unknown): Verifier {
+	if (
+		typeof v === "object" &&
+		v !== null &&
+		typeof (v as Verifier).name === "function" &&
+		typeof (v as Verifier).keyHash === "function" &&
+		typeof (v as Verifier).verify === "function"
+	) {
+		return v as Verifier;
+	}
+	throw new WebtesseraError(
+		"INVALID_ARGUMENT",
+		"verifyReceipt: vkey must be the log's verifier key (<origin>+<hash>+<key>), or a note Verifier for it",
+	);
 }
 
 /**
@@ -381,13 +589,18 @@ function leafHashOf(
 	options: VerifyReceiptOptions,
 	proof: TLogProof,
 ): { leafHash: Uint8Array; data: Uint8Array | undefined } {
-	const { data, leafHash, dataInExtra } = options;
+	const { data, leafHash, dataInExtra } = options as {
+		readonly data?: unknown;
+		readonly leafHash?: unknown;
+		readonly dataInExtra?: unknown;
+	};
 	if (dataInExtra !== undefined && typeof dataInExtra !== "boolean") {
-		throw new TypeError("verifyReceipt: dataInExtra must be true or false");
+		throw new WebtesseraError("INVALID_ARGUMENT", "verifyReceipt: dataInExtra must be true or false");
 	}
 	if (dataInExtra === true) {
 		if (data !== undefined && leafHash !== undefined) {
-			throw new TypeError(
+			throw new WebtesseraError(
+				"INVALID_ARGUMENT",
 				"verifyReceipt with dataInExtra takes the entry from the extra line, and checks it against at most one of " +
 					"data and leafHash",
 			);
@@ -420,7 +633,8 @@ function leafHashOf(
 		return { leafHash: extraHash, data: extra };
 	}
 	if ((data === undefined) === (leafHash === undefined)) {
-		throw new TypeError(
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
 			"verifyReceipt needs exactly one of data (the logged entry) and leafHash (its RFC 6962 leaf hash), or " +
 				"dataInExtra: true for a receipt that carries its entry",
 		);
@@ -433,14 +647,20 @@ function leafHashOf(
 
 function checkData(data: unknown): Uint8Array {
 	if (!(data instanceof Uint8Array)) {
-		throw new TypeError("verifyReceipt: data must be the logged entry's bytes, as a Uint8Array");
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			"verifyReceipt: data must be the logged entry's bytes, as a Uint8Array",
+		);
 	}
 	return data;
 }
 
 function checkLeafHash(leafHash: unknown): Uint8Array {
 	if (!(leafHash instanceof Uint8Array) || leafHash.length !== DefaultHasher.size()) {
-		throw new TypeError(`verifyReceipt: leafHash must be a ${DefaultHasher.size()}-byte RFC 6962 leaf hash`);
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`verifyReceipt: leafHash must be a ${DefaultHasher.size()}-byte RFC 6962 leaf hash`,
+		);
 	}
 	return leafHash;
 }

@@ -5,7 +5,9 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // ESNext.Disposable types Symbol.asyncDispose for the tests of `await using`; no shipped
+    // declaration names it (src/safe/log.ts, AsyncDisposableLog), so consumers need no such lib.
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
     "types": [],
 
     // Relative imports carry an explicit ".ts" extension so the sources run as-is

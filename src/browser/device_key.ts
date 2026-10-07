@@ -17,6 +17,7 @@
 // (structured clone keeps it non-extractable), never as bytes. See
 // docs/decisions/0227-device-keys-in-indexeddb.md.
 
+import { isSignerKey, quoteInput, signerKeyMisuse, WebtesseraError } from "../safe/errors.ts";
 import {
 	checkOrigin,
 	cryptoKeyOf,
@@ -71,7 +72,8 @@ const schemaVersion = 1;
  * and worker of the page's origin gets the same key, and it survives reloads.
  *
  * It throws where WebCrypto cannot hold an Ed25519 key, rather than fall back to a key
- * that could be read: see webCryptoEd25519.
+ * that could be read: see webCryptoEd25519. On a page that is not a secure context (plain
+ * HTTP, other than localhost), where browsers withhold WebCrypto, it says so first.
  *
  * ```ts
  * const key = await openDeviceKey("device.example/7f3a");
@@ -80,12 +82,15 @@ const schemaVersion = 1;
  */
 export async function openDeviceKey(origin: string, options: DeviceKeyOptions = {}): Promise<LogKey> {
 	checkOrigin(origin, "openDeviceKey");
+	checkOptions(options, "openDeviceKey");
+	checkSecureContext("openDeviceKey");
 	const loaded = await loadDeviceKey(origin, options);
 	if (loaded !== undefined) {
 		return loaded;
 	}
 	if (!(await webCryptoEd25519())) {
-		throw new Error(
+		throw new WebtesseraError(
+			"UNSUPPORTED_RUNTIME",
 			"openDeviceKey: this browser's WebCrypto API cannot hold an Ed25519 key (it needs Chrome or Edge 137, " +
 				"Firefox 129 or Safari 17, on an HTTPS or localhost page), so a key that cannot be exfiltrated is " +
 				'impossible here. generateLogKey(origin, { fallback: "noble" }) makes a key that lasts as long as the page.',
@@ -99,7 +104,10 @@ export async function openDeviceKey(origin: string, options: DeviceKeyOptions = 
 	// Another tab or worker created the key first; use the one it stored.
 	const winner = await loadDeviceKey(origin, options);
 	if (winner === undefined) {
-		throw new Error(`openDeviceKey: the device key ${JSON.stringify(idOf(origin, options))} vanished while opening it`);
+		throw new WebtesseraError(
+			"STORAGE_DAMAGED",
+			`openDeviceKey: the device key ${quoteInput(idOf(origin, options))} vanished while opening it`,
+		);
 	}
 	return winner;
 }
@@ -118,6 +126,8 @@ export async function openDeviceKey(origin: string, options: DeviceKeyOptions = 
  */
 export async function loadDeviceKey(origin: string, options: DeviceKeyOptions = {}): Promise<LogKey | undefined> {
 	checkOrigin(origin, "loadDeviceKey");
+	checkSecureContext("loadDeviceKey");
+	checkOptions(options, "loadDeviceKey");
 	const id = idOf(origin, options);
 	const record = await request<unknown>(options, "readonly", (store, done) => {
 		const got = store.get(id);
@@ -127,12 +137,16 @@ export async function loadDeviceKey(origin: string, options: DeviceKeyOptions = 
 		return undefined;
 	}
 	if (!isRecord(record)) {
-		throw new Error(`loadDeviceKey: the device key ${JSON.stringify(id)} is not a key this library stored`);
+		throw new WebtesseraError(
+			"STORAGE_DAMAGED",
+			`loadDeviceKey: the device key ${quoteInput(id)} is not a key this library stored`,
+		);
 	}
 	if (record.origin !== origin) {
-		throw new Error(
-			`loadDeviceKey: the device key ${JSON.stringify(id)} belongs to the log ${JSON.stringify(record.origin)}, ` +
-				`not ${JSON.stringify(origin)}`,
+		throw new WebtesseraError(
+			"KEY_MISMATCH",
+			`loadDeviceKey: the device key ${quoteInput(id)} belongs to the log ${quoteInput(record.origin)}, ` +
+				`not ${quoteInput(origin)}`,
 		);
 	}
 	return restoreCryptoKey(origin, record.privateKey, record.publicKey);
@@ -150,15 +164,18 @@ export async function loadDeviceKey(origin: string, options: DeviceKeyOptions = 
  * ```
  */
 export async function saveDeviceKey(key: LogKey, options: DeviceKeyOptions = {}): Promise<void> {
+	checkOptions(options, "saveDeviceKey");
 	if (cryptoKeyOf(key) === undefined) {
-		throw new TypeError(
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
 			"saveDeviceKey: only a key held by WebCrypto can be saved; a key held by @noble/curves would be stored as " +
 				"bytes that any script on the page could read",
 		);
 	}
 	if (!(await addRecord(options, recordOf(key)))) {
-		throw new Error(
-			`saveDeviceKey: a device key ${JSON.stringify(idOf(key.origin, options))} already exists; a log cannot change ` +
+		throw new WebtesseraError(
+			"KEY_EXISTS",
+			`saveDeviceKey: a device key ${quoteInput(idOf(key.origin, options))} already exists; a log cannot change ` +
 				"its key, so delete the old one with deleteDeviceKey only if its log is gone too",
 		);
 	}
@@ -175,6 +192,7 @@ export async function saveDeviceKey(key: LogKey, options: DeviceKeyOptions = {})
  */
 export async function deleteDeviceKey(origin: string, options: DeviceKeyOptions = {}): Promise<boolean> {
 	checkOrigin(origin, "deleteDeviceKey");
+	checkOptions(options, "deleteDeviceKey");
 	const id = idOf(origin, options);
 	return request<boolean>(options, "readwrite", (store, done) => {
 		const counted = store.count(id);
@@ -188,7 +206,7 @@ export async function deleteDeviceKey(origin: string, options: DeviceKeyOptions 
 function recordOf(key: LogKey): deviceKeyRecord {
 	const ck = cryptoKeyOf(key);
 	if (ck === undefined) {
-		throw new TypeError("internal error: not a WebCrypto key");
+		throw new WebtesseraError("INVALID_ARGUMENT", "internal error: not a WebCrypto key");
 	}
 	return { version: 1, origin: key.origin, privateKey: ck.privateKey, publicKey: ck.publicKey };
 }
@@ -212,6 +230,39 @@ async function addRecord(options: DeviceKeyOptions, record: deviceKeyRecord): Pr
 
 function idOf(origin: string, options: DeviceKeyOptions): string {
 	return options.id ?? origin;
+}
+
+/**
+ * checkOptions refuses an id or database name that is a signer key, before anything could
+ * quote it in an error.
+ */
+function checkOptions(options: DeviceKeyOptions, where: string): void {
+	if (typeof options !== "object" || options === null) {
+		throw new WebtesseraError("INVALID_ARGUMENT", `${where}: options must be an object: { id?, database? }`);
+	}
+	if (isSignerKey(options.id)) {
+		throw signerKeyMisuse(where, "options.id");
+	}
+	if (isSignerKey(options.database)) {
+		throw signerKeyMisuse(where, "options.database");
+	}
+}
+
+/**
+ * checkSecureContext throws where the page is not a secure context, which is the usual
+ * reason a browser has no WebCrypto (crypto.subtle is exposed only on HTTPS and localhost
+ * pages), and so no way to hold or use a device key. Runtimes without the notion (servers)
+ * pass.
+ */
+function checkSecureContext(where: string): void {
+	if ((globalThis as { isSecureContext?: unknown }).isSecureContext === false) {
+		throw new WebtesseraError(
+			"INSECURE_CONTEXT",
+			`${where}: this page is not a secure context (it was loaded over plain HTTP from a host other than ` +
+				"localhost), and browsers give WebCrypto, which holds device keys, only to secure contexts. Serve the page " +
+				"over HTTPS, or from localhost while developing.",
+		);
+	}
 }
 
 function isRecord(v: unknown): v is deviceKeyRecord {
@@ -265,7 +316,10 @@ function openDatabase(name: string): Promise<IDBDatabase> {
 	const factory = (globalThis as { indexedDB?: IDBFactory }).indexedDB;
 	if (factory === undefined) {
 		return Promise.reject(
-			new Error("device keys are kept in IndexedDB, which this runtime does not have; use a browser window or worker"),
+			new WebtesseraError(
+				"UNSUPPORTED_RUNTIME",
+				"device keys are kept in IndexedDB, which this runtime does not have; use a browser window or worker",
+			),
 		);
 	}
 	return new Promise<IDBDatabase>((resolve, reject) => {
@@ -279,13 +333,18 @@ function openDatabase(name: string): Promise<IDBDatabase> {
 			const db = req.result;
 			if (!db.objectStoreNames.contains(storeName)) {
 				db.close();
-				reject(new Error(`IndexedDB database ${JSON.stringify(name)} exists but does not hold device keys`));
+				reject(
+					new WebtesseraError(
+						"INVALID_ARGUMENT",
+						`IndexedDB database ${quoteInput(name)} exists but does not hold device keys`,
+					),
+				);
 				return;
 			}
 			db.onversionchange = () => db.close();
 			resolve(db);
 		};
-		req.onerror = () => reject(req.error ?? new Error(`cannot open IndexedDB database ${JSON.stringify(name)}`));
+		req.onerror = () => reject(req.error ?? new Error(`cannot open IndexedDB database ${quoteInput(name)}`));
 		req.onblocked = () => {
 			// Another connection still has an older version open; open resolves once it closes.
 		};

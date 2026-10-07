@@ -32,6 +32,7 @@ import {
 	type Signer,
 	type Verifier,
 } from "../vendor/note/note.ts";
+import { isSignerKey, quoteInput, WebtesseraError } from "./errors.ts";
 
 /**
  * KeyBackend says what holds a {@link LogKey}'s secret: the platform's WebCrypto API, as a
@@ -210,7 +211,7 @@ const probes = new WeakMap<SubtleCrypto, Promise<boolean>>();
  * hold and use Ed25519 keys, and signs exactly as RFC 8032 specifies. The answer is
  * computed once, by signing RFC 8032's first test vector, and cached.
  *
- * Node.js 22 and later, Deno, Bun, workerd and current browsers (Chrome and Edge 137,
+ * Node.js 22.18 and later, Deno, Bun, workerd and current browsers (Chrome and Edge 137,
  * Firefox 129, Safari 17) support it; browsers expose `crypto.subtle` only in secure
  * contexts (HTTPS and localhost).
  *
@@ -290,11 +291,22 @@ export async function generateLogKey(origin: string, options: GenerateLogKeyOpti
  * @internal Exported to webtessera/server as importLogKey, which checks the runtime first.
  */
 export async function importSignerKey(
-	skey: string,
+	skey: string | undefined,
 	options: { readonly fallback?: "noble" | "error" } = {},
 ): Promise<LogKey> {
+	if (skey === undefined || skey === "") {
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`importLogKey: no key (${skey === undefined ? "undefined" : "an empty string"}); pass the log's signer key, ` +
+				"PRIVATE+KEY+<name>+<hash>+<key>, from your secret store. If the environment variable that should hold " +
+				"it is not set, create a key pair with `npx webtessera keygen <origin>`",
+		);
+	}
 	if (typeof skey !== "string") {
-		throw new TypeError(`importLogKey takes a note signer key string (PRIVATE+KEY+…), got ${typeName(skey)}`);
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`importLogKey takes a note signer key string (PRIVATE+KEY+…), got ${typeName(skey)}`,
+		);
 	}
 	const fallback = checkFallback(options.fallback, "importLogKey");
 	let signer: Signer;
@@ -302,10 +314,15 @@ export async function importSignerKey(
 		signer = newSigner(skey);
 	} catch (err) {
 		// The note package's errors are fixed strings ("malformed verifier id", ...) that
-		// never quote the key; nothing else from the key may reach this message.
-		throw new Error(
+		// never quote the key; nothing else from the key may reach this message. A verifier
+		// key is public, so saying that is what was passed reveals nothing.
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
 			`importLogKey: not a valid note signer key (${err instanceof Error ? err.message : "unknown error"}); ` +
-				"expected PRIVATE+KEY+<name>+<hash>+<key>, as generateKey from webtessera/note produces",
+				(isVerifierKey(skey)
+					? "this is a verifier (public) key, the half to publish. importLogKey takes the log's signer key, " +
+						"PRIVATE+KEY+<name>+<hash>+<key>, from your secret store"
+					: "expected PRIVATE+KEY+<name>+<hash>+<key>, as generateLogKeyPair from webtessera/server produces"),
 		);
 	}
 	const origin = signer.name();
@@ -344,13 +361,19 @@ export async function fromCryptoKeyPair(origin: string, pair: CryptoKeyPair): Pr
 	checkOrigin(origin, "fromCryptoKey");
 	const { privateKey, publicKey } = pair ?? {};
 	if (!isCryptoKey(privateKey) || !isCryptoKey(publicKey)) {
-		throw new TypeError("fromCryptoKey takes a CryptoKeyPair, such as crypto.subtle.generateKey returns for Ed25519");
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			"fromCryptoKey takes a CryptoKeyPair, such as crypto.subtle.generateKey returns for Ed25519",
+		);
 	}
 	if (privateKey.algorithm.name !== "Ed25519" || publicKey.algorithm.name !== "Ed25519") {
-		throw new TypeError(`fromCryptoKey needs an Ed25519 key pair, got ${privateKey.algorithm.name}`);
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`fromCryptoKey needs an Ed25519 key pair, got ${quoteInput(privateKey.algorithm.name)}`,
+		);
 	}
 	if (privateKey.type !== "private" || !privateKey.usages.includes("sign")) {
-		throw new TypeError('fromCryptoKey needs a private key with the "sign" usage');
+		throw new WebtesseraError("INVALID_ARGUMENT", 'fromCryptoKey needs a private key with the "sign" usage');
 	}
 	const subtle = subtleCrypto();
 	if (subtle === undefined) {
@@ -409,20 +432,22 @@ export function isDurable(key: LogKey): boolean {
 }
 
 /**
- * assertLogKey throws a TypeError, saying what to pass instead, unless key is a LogKey
- * made by this module.
+ * assertLogKey throws a WebtesseraError, saying what to pass instead, unless key is a
+ * LogKey made by this module.
  *
  * @internal For the log factories.
  */
 export function assertLogKey(key: unknown, where: string): asserts key is LogKey {
 	if (typeof key === "string") {
-		throw new TypeError(
+		throw new WebtesseraError(
+			isSignerKey(key) ? "SIGNER_KEY_MISUSE" : "INVALID_ARGUMENT",
 			`${where}: key must be a LogKey, not a string. On a server, import a signer key string with ` +
 				"importLogKey(skey) from webtessera/server; browsers never handle private key strings.",
 		);
 	}
 	if (typeof key !== "object" || key === null || !issued.has(key as LogKey)) {
-		throw new TypeError(
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
 			`${where}: key must be a LogKey made by generateLogKey, importLogKey or openDeviceKey, got ${typeName(key)}`,
 		);
 	}
@@ -436,17 +461,22 @@ export function assertLogKey(key: unknown, where: string): asserts key is LogKey
  */
 export function checkOrigin(origin: unknown, where: string): asserts origin is string {
 	if (typeof origin !== "string") {
-		throw new TypeError(`${where}: the origin must be a string, such as "example.com/log", got ${typeName(origin)}`);
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`${where}: the origin must be a string, such as "example.com/log", got ${typeName(origin)}`,
+		);
 	}
-	if (origin.startsWith("PRIVATE+KEY+")) {
-		throw new TypeError(
+	if (isSignerKey(origin)) {
+		throw new WebtesseraError(
+			"SIGNER_KEY_MISUSE",
 			`${where}: the first argument is the log's origin (such as "example.com/log"), and this looks like a ` +
 				"private signer key. Do not put signer keys in source code or logs.",
 		);
 	}
 	if (origin === "" || !validUTF8String(origin) || origin.includes("+") || [...origin].some(isSpaceChar)) {
-		throw new TypeError(
-			`${where}: ${JSON.stringify(origin)} cannot be a log origin: an origin is a non-empty name without spaces ` +
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`${where}: ${quoteInput(origin)} cannot be a log origin: an origin is a non-empty name without spaces ` +
 				'or "+", conventionally the log\'s URL without its scheme, such as "example.com/log"',
 		);
 	}
@@ -481,7 +511,7 @@ async function checkKeyPair(key: LogKey): Promise<void> {
 		ok = false;
 	}
 	if (!ok) {
-		throw new Error(`the private and public keys of ${key.origin} do not belong together`);
+		throw new WebtesseraError("KEY_MISMATCH", `the private and public keys of ${key.origin} do not belong together`);
 	}
 }
 
@@ -528,15 +558,32 @@ function checkFallback(fallback: unknown, where: string): "noble" | "error" {
 	if (fallback === undefined || fallback === "noble" || fallback === "error") {
 		return fallback ?? "noble";
 	}
-	throw new TypeError(`${where}: fallback must be "noble" or "error", got ${JSON.stringify(fallback)}`);
+	throw new WebtesseraError(
+		"INVALID_ARGUMENT",
+		`${where}: fallback must be "noble" or "error", got ${quoteInput(fallback)}`,
+	);
 }
 
 function unsupported(where: string): Error {
-	return new Error(
-		`${where}: this runtime's WebCrypto API cannot hold an Ed25519 key (it needs Node.js 22, Deno, Bun, workerd, ` +
-			"or Chrome 137, Firefox 129 or Safari 17 on an HTTPS or localhost page), so a non-extractable key is " +
-			'impossible here. Pass fallback: "noble" to accept a key held in memory.',
+	return new WebtesseraError(
+		"UNSUPPORTED_RUNTIME",
+		`${where}: this runtime's WebCrypto API cannot hold an Ed25519 key (it needs Node.js 22.18, Deno, Bun, ` +
+			"workerd, or Chrome 137, Firefox 129 or Safari 17 on an HTTPS or localhost page), so a non-extractable " +
+			'key is impossible here. Pass fallback: "noble" to accept a key held in memory.',
 	);
+}
+
+/**
+ * isVerifierKey reports whether s parses as a note verifier key, for telling someone who
+ * passed one where a signer key belongs that they have the public half.
+ */
+function isVerifierKey(s: string): boolean {
+	try {
+		newVerifier(s);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function typeName(v: unknown): string {

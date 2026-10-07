@@ -16,27 +16,32 @@
 // openServerLog with every guardrail it promises. The browser half of the guard is tested
 // in Chromium by guard_browser_test.ts, and the workerd half by server_workers_test.ts.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execPath } from "node:process";
 import { DatabaseSync } from "node:sqlite";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, expectTypeOf, it } from "vitest";
 import { newWitness, newWitnessGroup } from "webtessera";
 import {
+	generateLogKeyPair,
 	importLogKey,
 	MaxExtraDataBytes,
 	openServerLog,
 	parseReceipt,
+	ReceiptError,
+	type ReceiptJSON,
 	type ServerLog,
 	verifyReceipt,
+	WebtesseraError,
 } from "webtessera/server";
-import { fromSqliteSync, type SqlDatabase } from "webtessera/storage/sqlite";
+import { ErrWriterConflict, fromSqliteSync, type SqlDatabase } from "webtessera/storage/sqlite";
 import { newSignerForCosignatureV1, newWitnessServer, vKeyToCosignatureV1 } from "webtessera/witness";
 import type { FetchFn } from "../client/fetcher.ts";
 import { newEntry } from "../entry.ts";
+import { errorIs } from "../internal/gostd/errors.ts";
 import { newVerifiedMirror } from "../mirror/verify.ts";
 import { generateLogKey } from "../safe/keys.ts";
 import { ServerOnlyMessage } from "../safe/runtime.ts";
@@ -116,11 +121,14 @@ describe("webtessera/server", () => {
 		expect(Object.keys(mod).sort()).toEqual(
 			[
 				"DefaultCheckpointIntervalMs",
+				"DefaultFsckWorkers",
 				"DefaultPublishTimeoutMs",
 				"MaxExtraDataBytes",
 				"ReceiptError",
+				"WebtesseraError",
 				"detectRuntime",
 				"generateLogKey",
+				"generateLogKeyPair",
 				"importLogKey",
 				"openServerLog",
 				"parseReceipt",
@@ -131,9 +139,14 @@ describe("webtessera/server", () => {
 	});
 
 	it("resolves to a module that fails under the browser condition, whose message is the runtime check's", async () => {
-		await expect(import("./browser_guard.ts")).rejects.toThrow(ServerOnlyMessage);
-		const source = readFileSync(new URL("./browser_guard.ts", import.meta.url), "utf8");
-		expect(source).toContain(`throw new Error(${JSON.stringify(ServerOnlyMessage)});`);
+		await expect(import("./NOT-FOR-BROWSERS--use-webtessera-browser.ts")).rejects.toThrow(
+			expect.objectContaining({ code: "WRONG_ENVIRONMENT", message: ServerOnlyMessage }),
+		);
+		const source = readFileSync(new URL("./NOT-FOR-BROWSERS--use-webtessera-browser.ts", import.meta.url), "utf8");
+		expect(source).toContain(`"WRONG_ENVIRONMENT",\n\t${JSON.stringify(ServerOnlyMessage)},`);
+		// The explicit empty export list is what makes esbuild fail a named import from it,
+		// rather than warn; the bundling tests below give their stand-in the same shape.
+		expect(source).toMatch(/\nexport \{\};\n$/);
 	});
 
 	describe("package.json export conditions", () => {
@@ -163,7 +176,10 @@ describe("webtessera/server", () => {
 			join(root, "dist/server/index.js"),
 			'export function openServerLog() {}\nexport const marker = "server";\n',
 		);
-		writeFileSync(join(root, "dist/server/browser_guard.js"), 'throw new Error("guard");\nexport {};\n');
+		writeFileSync(
+			join(root, "dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js"),
+			'throw new Error("guard");\nexport {};\n',
+		);
 		writeFileSync(join(root, "dist/browser/index.js"), "export function openBrowserLog() {}\n");
 
 		function resolve(conditions: string[], specifier = "webtessera/server"): string {
@@ -185,14 +201,18 @@ describe("webtessera/server", () => {
 			{
 				toolchain: "a browser bundle (Vite, esbuild, Rollup, Parcel)",
 				conditions: ["browser"],
-				want: "dist/server/browser_guard.js",
+				want: "dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js",
 			},
 			{
 				toolchain: "webpack's webworker target",
 				conditions: ["worker", "browser"],
-				want: "dist/server/browser_guard.js",
+				want: "dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js",
 			},
-			{ toolchain: "React Native", conditions: ["react-native"], want: "dist/server/browser_guard.js" },
+			{
+				toolchain: "React Native",
+				conditions: ["react-native"],
+				want: "dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js",
+			},
 			{
 				toolchain: "wrangler (Cloudflare Workers)",
 				conditions: ["workerd", "worker", "browser"],
@@ -240,7 +260,9 @@ describe("webtessera/server", () => {
 				).rejects.toMatchObject({
 					errors: [
 						expect.objectContaining({
-							text: expect.stringMatching(/No matching export in .*browser_guard\.js.* "openServerLog"/),
+							text: expect.stringMatching(
+								/No matching export in .*webtessera\/dist\/server\/NOT-FOR-BROWSERS--use-webtessera-browser\.js.* "openServerLog"/,
+							),
 						}),
 					],
 				});
@@ -506,7 +528,7 @@ describe("openServerLog", () => {
 				await store.put("tile/entries/000.p/10", bundle);
 				expect((await log.entry(8)).data).toEqual(data[8]);
 				await expect(log.entry(9)).rejects.toThrow(
-					/entry: entry 9 in the log's storage is not the entry its tiles commit to; .*check it with fsck/,
+					/entry: entry 9 in the log's storage is not the entry its tiles commit to; .*check it with log\.fsck\(\)/,
 				);
 				await expect(collect(log.entries())).rejects.toThrow(/entries: entry 9 in the log's storage/);
 			} finally {
@@ -640,9 +662,13 @@ describe("openServerLog", () => {
 			const { log, cutOff } = await setup("session.example/user-2", { witnessTimeoutMs: 100 });
 			cutOff();
 			try {
-				await expect(log.append(enc.encode("x"), { timeoutMs: 1_500 })).rejects.toThrow(
+				const timedOut = (await log
+					.append(enc.encode("x"), { timeoutMs: 1_500 })
+					.catch((e: unknown) => e)) as WebtesseraError;
+				expect(timedOut.message).toMatch(
 					/durably sequenced at index 0, but no checkpoint covering it was published within 1500 ms\. If the log has witnesses, check that they are reachable, and that none has cosigned a larger or different tree than this storage holds; call prove\(0n\)/,
 				);
+				expect([timedOut.code, timedOut.index]).toEqual(["PUBLISH_TIMEOUT", 0n]);
 				const ac = new AbortController();
 				const pending = log.append(enc.encode("y"), { signal: ac.signal });
 				ac.abort(new Error("user went away"));
@@ -714,3 +740,377 @@ describe("openServerLog", () => {
 		}
 	});
 });
+
+describe("errors you can handle in code", () => {
+	it("gives every refusal a stable code, keeping its message", async () => {
+		const key = await generateLogKey("example.com/log");
+		const codeOf = async (p: Promise<unknown> | (() => unknown)): Promise<string | undefined> => {
+			try {
+				await (typeof p === "function" ? p() : p);
+			} catch (err) {
+				expect(err).toBeInstanceOf(WebtesseraError);
+				return (err as WebtesseraError).code;
+			}
+			return undefined;
+		};
+		const log = await openServerLog({ key, storage: { memory: true } });
+		expect(await codeOf(log.append(new Uint8Array(65536)))).toBe("ENTRY_TOO_LARGE");
+		expect(await codeOf(log.append("text" as never))).toBe("INVALID_ARGUMENT");
+		expect(await codeOf(log.append(enc.encode("x"), { extraData: new Uint8Array(MaxExtraDataBytes + 1) }))).toBe(
+			"EXTRA_DATA_TOO_LARGE",
+		);
+		expect(await codeOf(log.prove(5))).toBe("NOT_COVERED");
+		const notCovered = (await log.prove(5).catch((e: unknown) => e)) as WebtesseraError;
+		expect(notCovered.index).toBe(5n);
+		await log.append(enc.encode("x"));
+		await log.close();
+		expect(await codeOf(log.append(enc.encode("late")))).toBe("LOG_CLOSED");
+		expect(await codeOf(() => log.entries())).toBe("LOG_CLOSED");
+
+		const db = fromSqliteSync(new DatabaseSync(":memory:"));
+		await (await openServerLog({ key, storage: { sqlite: db } })).close();
+		expect(await codeOf(openServerLog({ key: await generateLogKey("example.com/log"), storage: { sqlite: db } }))).toBe(
+			"KEY_MISMATCH",
+		);
+		expect(await codeOf(openServerLog({ key, storage: { memory: false } } as never))).toBe("INVALID_ARGUMENT");
+	});
+
+	it("says a log could not start, with OPEN_FAILED and the reason as its cause", async () => {
+		const key = await generateLogKey("session.example/timeout");
+		const log = await openServerLog({
+			key,
+			storage: { memory: true },
+			witnesses: newWitnessGroup(
+				1,
+				newWitness(vKeyToCosignatureV1(generateKey(undefined, "w.example").vkey), new URL("https://w.example/")),
+			),
+			witnessTimeoutMs: 100,
+			fetch: async () => {
+				throw new TypeError("fetch failed");
+			},
+		}).catch((e: unknown) => e as WebtesseraError);
+		// A new witnessed log cannot even open while its witness is away.
+		expect(log).toMatchObject({ code: "OPEN_FAILED" });
+	});
+});
+
+describe("generateLogKeyPair", () => {
+	it("makes a key pair as note strings, for a secret store, that importLogKey opens", async () => {
+		const { skey, vkey } = generateLogKeyPair("example.com/log");
+		expect(skey).toMatch(/^PRIVATE\+KEY\+example\.com\/log\+[0-9a-f]{8}\+/);
+		expect(vkey).toMatch(/^example\.com\/log\+[0-9a-f]{8}\+/);
+		const key = await importLogKey(skey);
+		expect(key.vkey).toBe(vkey);
+		expect(generateLogKeyPair("example.com/log").skey).not.toBe(skey);
+	});
+
+	it("refuses an origin that cannot be one, or a signer key in its place", () => {
+		expect(() => generateLogKeyPair("bad origin")).toThrow(
+			expect.objectContaining({ code: "INVALID_ARGUMENT", message: expect.stringMatching(/cannot be a log origin/) }),
+		);
+		const { skey } = generateKey(undefined, "example.com/log");
+		expect(() => generateLogKeyPair(skey)).toThrow(expect.objectContaining({ code: "SIGNER_KEY_MISUSE" }));
+	});
+
+	it("tells importLogKey's caller that a verifier key is the public half", async () => {
+		const { vkey } = generateLogKeyPair("example.com/log");
+		await expect(importLogKey(vkey)).rejects.toThrow(
+			/importLogKey: not a valid note signer key \(malformed verifier id\); this is a verifier \(public\) key, the half to publish/,
+		);
+	});
+});
+
+describe("openServerLog, the developer experience", () => {
+	it("serves itself as a fetch handler, answering 404 for what is not the log's", async () => {
+		const log = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { memory: true } });
+		try {
+			await log.append(enc.encode("x"));
+			const { fetch } = log;
+			const cp = await fetch(new Request("https://log.example/checkpoint"));
+			expect(cp.status).toBe(200);
+			expect(new Uint8Array(await cp.arrayBuffer())).toEqual((await log.latestCheckpoint()).signed);
+			const other = await fetch(new Request("https://log.example/add", { method: "POST", body: "x" }));
+			expect(other.status).toBe(404);
+			expect((await log.latestCheckpoint()).size).toBe(1n);
+		} finally {
+			await log.close();
+		}
+	});
+
+	it("serialises receipts and checkpoints to JSON, with decimal indices and the receipt's text", async () => {
+		const log = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { memory: true } });
+		try {
+			const data = enc.encode("x");
+			const r = await log.append(data);
+			expect(JSON.parse(JSON.stringify(r))).toEqual({ index: "0", text: r.text });
+			expect(await Response.json(r).json()).toEqual({ index: "0", text: r.text });
+			expect(verifyReceipt(JSON.parse(JSON.stringify(r)) as ReceiptJSON, { vkey: log.vkey, data }).index).toBe(0n);
+			expect(log.verify(r.toJSON(), data).index).toBe(0n);
+			const cp = JSON.parse(JSON.stringify(await log.latestCheckpoint())) as Record<string, string>;
+			expect(cp).toMatchObject({
+				origin: "example.com/log",
+				size: "1",
+				signed: r.proof.checkpoint && new TextDecoder().decode(r.proof.checkpoint),
+			});
+			// Spreading a receipt copies its data, and nothing else.
+			expect(Object.keys({ ...r }).sort()).toEqual(["checkpoint", "index", "proof", "text"]);
+		} finally {
+			await log.close();
+		}
+	});
+
+	it("appends a batch for the cost of one checkpoint, in order, refusing it whole if one entry is too large", async () => {
+		const log = await openServerLog({
+			key: await generateLogKey("example.com/log"),
+			storage: { memory: true },
+			checkpointIntervalMs: 500,
+		});
+		try {
+			const data = Array.from({ length: 50 }, (_, i) => enc.encode(`entry ${i}`));
+			const started = Date.now();
+			const receipts = await log.appendMany(data);
+			const took = Date.now() - started;
+			expect(receipts.map((r) => r.index)).toEqual(data.map((_, i) => BigInt(i)));
+			for (const [i, r] of receipts.entries()) {
+				expect(verifyReceipt(r.text, { vkey: log.vkey, data: data[i] as Uint8Array }).index).toBe(BigInt(i));
+			}
+			// One checkpoint commits to the whole batch, where 50 awaited appends would take 50.
+			expect(new Set(receipts.map((r) => r.checkpoint.size)).size).toBe(1);
+			expect(took).toBeLessThan(5 * 500);
+
+			await expect(log.appendMany([enc.encode("fits"), new Uint8Array(65536)])).rejects.toThrow(
+				expect.objectContaining({
+					code: "ENTRY_TOO_LARGE",
+					message: expect.stringMatching(/^appendMany: entry 1: an entry holds at most 65535 bytes/),
+				}),
+			);
+			await expect(log.appendMany("text" as never)).rejects.toThrow(/appendMany takes the entries as an array/);
+			expect(await log.appendMany([])).toEqual([]);
+			expect((await log.latestCheckpoint()).size).toBe(50n);
+		} finally {
+			await log.close();
+		}
+	});
+
+	it("verifies the whole log with fsck, and says when storage holds what its tiles contradict", async () => {
+		const store = new RecordingStore();
+		const log = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { objectStore: store } });
+		try {
+			await log.appendMany(Array.from({ length: 300 }, (_, i) => enc.encode(`entry ${i}`)));
+			const { checkpoint, resourcesFetched } = await log.fsck();
+			expect(checkpoint.size).toBe(300n);
+			expect(resourcesFetched).toBeGreaterThan(0n);
+			await expect(log.fsck({ workers: 0 })).rejects.toThrow(/fsck: workers must be a positive integer/);
+
+			const tile = (await store.get("tile/0/000")) as Uint8Array;
+			tile.set([(tile[0] as number) ^ 1], 0);
+			await store.put("tile/0/000", tile);
+			const err = (await log.fsck().catch((e: unknown) => e)) as WebtesseraError;
+			expect(err.code).toBe("STORAGE_DAMAGED");
+			expect(err.message).toMatch(
+				/^fsck: the log's storage does not verify against its checkpoint at size 300: failed: tile\/0\/000/,
+			);
+		} finally {
+			await log.close();
+		}
+	});
+
+	it("closes when an `await using` scope ends, through Symbol.asyncDispose", async () => {
+		expectTypeOf<ServerLog>().toExtend<AsyncDisposable>();
+		const log = await openServerLog({ key: await generateLogKey("example.com/log"), storage: { memory: true } });
+		await log.append(enc.encode("x"));
+		await log[Symbol.asyncDispose]();
+		await expect(log.append(enc.encode("late"))).rejects.toThrow("append: this log is closed");
+	});
+
+	it("names the adapter for a database connection passed without one", async () => {
+		const key = await generateLogKey("example.com/log");
+		const raw = new DatabaseSync(":memory:");
+		await expect(openServerLog({ key, storage: { sqlite: raw as never } })).rejects.toThrow(
+			"openServerLog: storage.sqlite is a database connection, not a SqlDatabase: wrap it with fromSqliteSync(db) " +
+				"(node:sqlite, bun:sqlite and better-sqlite3) from webtessera/storage/sqlite",
+		);
+		const shapes: [string, object][] = [
+			["fromD1(env.DB)", { prepare() {}, batch() {}, exec() {} }],
+			["fromLibsql(client)", { execute() {}, batch() {} }],
+			["fromDurableObjectStorage(ctx.storage)", { sql: { exec() {} } }],
+			["fromSqliteWasm(db)", { exec() {}, selectValue() {}, prepare() {} }],
+		];
+		for (const [adapter, db] of shapes) {
+			await expect(openServerLog({ key, storage: { sqlite: db as never } }), adapter).rejects.toThrow(
+				`wrap it with ${adapter}`,
+			);
+		}
+		await expect(openServerLog({ key, storage: { sqlite: {} as never } })).rejects.toThrow(
+			/storage\.sqlite must be a SqlDatabase/,
+		);
+	});
+
+	it('takes locking: "single-writer", keeps "local" as its alias, and refuses anything else', async () => {
+		const key = await generateLogKey("example.com/log");
+		for (const locking of ["single-writer", "local"] as const) {
+			const rec = recording(fromSqliteSync(new DatabaseSync(join(tempDir(), "log.db"))));
+			const log = await openServerLog({
+				key: await generateLogKey("example.com/log"),
+				storage: { sqlite: rec.db, locking },
+			});
+			await log.append(enc.encode("x"));
+			await log.close();
+			expect(
+				rec.sql.some((s) => s.includes("INTO webtessera_locks")),
+				locking,
+			).toBe(false);
+			expect(
+				rec.sql.some((s) => s.includes("local_writer")),
+				locking,
+			).toBe(true);
+		}
+		await expect(
+			openServerLog({
+				key,
+				storage: { sqlite: fromSqliteSync(new DatabaseSync(":memory:")), locking: "global" as never },
+			}),
+		).rejects.toThrow(/storage\.locking must be "lease" .* or "single-writer" \(its alias "local"\).*; got "global"/);
+	});
+
+	it("says, in append's terms, that storage changed under it, without the ported check's byte dumps", async () => {
+		const key = await generateLogKey("example.com/log");
+		// Another writer's log under the same key, whose entry 0 is not ours.
+		const theirs = new MemoryObjectStore();
+		const other = await openServerLog({ key, storage: { objectStore: new ForwardingStore(theirs) } });
+		await other.append(enc.encode("theirs"));
+		await other.close();
+
+		// Ours, whose reads of the checkpoint and tiles meet that other log: a fork, as two
+		// processes appending to one storage without shared locks make one.
+		const ours = new ForwardingStore(new MemoryObjectStore());
+		const log = await openServerLog({ key, storage: { objectStore: ours } });
+		try {
+			ours.readsFrom = theirs;
+			const err = (await log.append(enc.encode("ours")).catch((e: unknown) => e)) as WebtesseraError;
+			expect(err).toBeInstanceOf(WebtesseraError);
+			expect([err.code, err.index]).toEqual(["STORAGE_DIVERGED", 0n]);
+			expect(err.message).toMatch(
+				/^append: the receipt for entry 0 does not verify against the log's own storage: its checkpoint at size 1 does not commit to the entry at index 0\. The log's storage changed under this process while it appended: most likely another process is appending to the same storage without shared locks/,
+			);
+			expect(err.message).toContain("log.fsck()");
+			expect(err.message).not.toMatch(/\[\d+ \d+/);
+			expect(err.cause).toBeInstanceOf(ReceiptError);
+		} finally {
+			ours.readsFrom = undefined;
+			await log.close(AbortSignal.timeout(2_000)).catch(() => {});
+		}
+	});
+
+	it("stops appending, saying why, once another process takes over a single-writer database", async () => {
+		const file = join(tempDir(), "log.db");
+		const db = new DatabaseSync(file);
+		const log = await openServerLog({
+			key: await generateLogKey("example.com/log"),
+			storage: { sqlite: fromSqliteSync(db), locking: "single-writer" },
+		});
+		try {
+			await log.append(enc.encode("before"));
+			// What a second process's openServerLog with the same declaration records.
+			db.exec("UPDATE webtessera_meta SET value = value + 1 WHERE name = 'local_writer'");
+			const err = (await log.append(enc.encode("after")).catch((e: unknown) => e)) as WebtesseraError;
+			expect(err.code).toBe("WRITER_CONFLICT");
+			expect(err.message).toMatch(
+				/^append: another process has started writing this log's SQLite database, which this process opened with locking: "single-writer"/,
+			);
+			expect(errorIs(err, ErrWriterConflict)).toBe(true);
+			expect((await log.latestCheckpoint()).size).toBe(1n);
+		} finally {
+			await log.close(AbortSignal.timeout(2_000)).catch(() => {});
+			db.close();
+		}
+	});
+
+	it("keeps two processes that both declare themselves the only writer from forking the log", async () => {
+		const file = join(tempDir(), "log.db");
+		const { skey, vkey } = generateLogKeyPair("example.com/two-writers");
+		const script = decodeURIComponent(new URL("./testing/single_writer_process.ts", import.meta.url).pathname);
+		const start = String(Date.now() + 2_500);
+		const run = (
+			tag: string,
+			locking: string,
+		): Promise<{ receipts: { index: string; text: string; data: string }[]; errors: string[] }> =>
+			new Promise((resolve, reject) => {
+				const child = spawn(execPath, ["--no-warnings", script, file, tag, "30", start, locking, skey], {
+					stdio: ["ignore", "pipe", "pipe"],
+				});
+				let out = "";
+				let err = "";
+				child.stdout.on("data", (d) => {
+					out += String(d);
+				});
+				child.stderr.on("data", (d) => {
+					err += String(d);
+				});
+				child.on("error", reject);
+				child.on("close", (code) =>
+					code === 0 ? resolve(JSON.parse(out)) : reject(new Error(`${tag} exited ${code}: ${err}`)),
+				);
+			});
+		const [a, b] = await Promise.all([run("a", "single-writer"), run("b", "local")]);
+		const receipts = [...a.receipts, ...b.receipts];
+		const errors = [...a.errors, ...b.errors];
+		// The writer that claimed the database first was stopped before it wrote an entry.
+		expect(errors.length).toBeGreaterThan(0);
+		expect(new Set(errors)).toEqual(new Set(["WRITER_CONFLICT"]));
+		expect(receipts.length + errors.length).toBe(60);
+
+		// Every receipt either process handed out is a receipt for the log the file holds.
+		const log = await openServerLog({
+			key: await importLogKey(skey),
+			storage: { sqlite: fromSqliteSync(new DatabaseSync(file)) },
+		});
+		try {
+			expect(log.vkey).toBe(vkey);
+			const { checkpoint } = await log.fsck();
+			expect(checkpoint.size).toBe(BigInt(receipts.length));
+			for (const r of receipts) {
+				expect(verifyReceipt(r.text, { vkey, data: enc.encode(r.data) }).index).toBe(BigInt(r.index));
+				expect(new TextDecoder().decode((await log.entry(BigInt(r.index))).data)).toBe(r.data);
+			}
+		} finally {
+			await log.close();
+		}
+	}, 30_000);
+});
+
+/**
+ * ForwardingStore is an ObjectStore over another one, with its own locks; while readsFrom is
+ * set, its reads of the checkpoint and tiles go there instead, as if another writer had
+ * replaced them.
+ */
+class ForwardingStore implements ObjectStore {
+	readsFrom: ObjectStore | undefined;
+	readonly #store: MemoryObjectStore;
+	readonly #locks = new MemoryObjectStore();
+
+	constructor(store: MemoryObjectStore) {
+		this.#store = store;
+	}
+
+	get(key: string): Promise<Uint8Array | undefined> {
+		const from =
+			this.readsFrom !== undefined && (key === "checkpoint" || key.startsWith("tile/")) ? this.readsFrom : this.#store;
+		return from.get(key);
+	}
+	stat(key: string): Promise<ObjectInfo | undefined> {
+		return this.#store.stat(key);
+	}
+	put(key: string, data: Uint8Array): Promise<void> {
+		return this.#store.put(key, data);
+	}
+	create(key: string, data: Uint8Array): Promise<boolean> {
+		return this.#store.create(key, data);
+	}
+	deletePrefix(prefix: string): Promise<void> {
+		return this.#store.deletePrefix(prefix);
+	}
+	lock<T>(name: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+		return this.#locks.lock(name, fn, signal);
+	}
+}

@@ -38,6 +38,7 @@ import { asUint64 } from "../internal/gostd/bits.ts";
 import { bytesEqual, toHex } from "../internal/gostd/bytes.ts";
 import { throwIfAborted } from "../internal/gostd/errors.ts";
 import { ErrGroup } from "../internal/gostd/sync.ts";
+import { defaultMerkleLeafHasher } from "../lifecycle.ts";
 import { type Range as CompactRange, type NodeID, RangeFactory, type VisitFn } from "../vendor/merkle/compact/index.ts";
 import { DefaultHasher } from "../vendor/merkle/rfc6962/rfc6962.ts";
 import type { Verifier } from "../vendor/note/note.ts";
@@ -308,13 +309,23 @@ export interface Opts {
  * Port note: Go's `N` is a `uint` whose zero value means 1; here an unset or zero `n`
  * means 1, and an `n` that is negative, fractional or NaN — which a `uint` cannot hold —
  * throws a RangeError. See docs/decisions/0192-numworkers-below-one-is-rejected.md.
+ *
+ * Port note: an addition. Go's New takes bundleHasher and opts with no defaults; here
+ * bundleHasher defaults to defaultMerkleLeafHasher, the hasher of Tessera's root package
+ * for C2SP tlog-tiles entry bundles, a copy of which every upstream caller of fsck.New
+ * passes, and opts to `{}`. A call that passes both behaves exactly as Go's. See
+ * docs/decisions/0244-fsck-default-bundle-hasher-and-log-fsck.md.
+ *
+ * ```ts
+ * await newFsck(origin, verifier, reader).check(); // every resource, against the checkpoint
+ * ```
  */
 export function newFsck(
 	origin: string,
 	verifier: Verifier,
 	f: Fetcher,
-	bundleHasher: (bundle: Uint8Array) => Uint8Array[],
-	opts: Opts,
+	bundleHasher: (bundle: Uint8Array) => Uint8Array[] = defaultMerkleLeafHasher,
+	opts: Opts = {},
 ): Fsck {
 	const n = opts.n === undefined || opts.n === 0 ? 1 : opts.n;
 	if (!Number.isInteger(n) || n < 1) {

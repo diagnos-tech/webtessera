@@ -37,19 +37,19 @@ import { type Element, type List, newList } from "../internal/gostd/list.ts";
 // "uint8 stays number" rule.
 export type State = number;
 
-// Unchecked represents the state of resources which hasn't yet been checked.
+/** Unchecked represents the state of resources which hasn't yet been checked. */
 export const Unchecked: State = 0;
-// Fetching is the state of a resource being retrieved from the target log.
+/** Fetching is the state of a resource being retrieved from the target log. */
 export const Fetching: State = 1;
-// FetchError is the state of a failed fetch.
+/** FetchError is the state of a failed fetch. */
 export const FetchError: State = 2;
-// Fetched represents a resource which has been fetched, but not yet processed.
+/** Fetched represents a resource which has been fetched, but not yet processed. */
 export const Fetched: State = 3;
-// Calculating represents a resource being used to calculate hashes.
+/** Calculating represents a resource being used to calculate hashes. */
 export const Calculating: State = 4;
-// OK represents a resource which was successfully verified.
+/** OK represents a resource which was successfully verified. */
 export const OK: State = 5;
-// Invalid represents a resource which was determined to be incorrect or invalid somehow.
+/** Invalid represents a resource which was determined to be incorrect or invalid somehow. */
 export const Invalid: State = 6;
 
 /**

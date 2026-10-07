@@ -17,6 +17,8 @@
 // that webtessera/server can refuse to run where its keys would be public. See
 // docs/decisions/0221-guard-the-server-entry-point.md.
 
+import { WebtesseraError } from "./errors.ts";
+
 /**
  * RuntimeKind names the kind of JavaScript runtime the code is running in.
  *
@@ -128,8 +130,9 @@ export const ServerOnlyMessage =
 	"webtessera/server holds signing keys and must not be bundled for the browser; use webtessera/browser";
 
 /**
- * assertServerRuntime throws unless the current runtime is a private one: a server, an edge
- * runtime, or an unrecognised runtime that does not look like a browser.
+ * assertServerRuntime throws a WebtesseraError with the code `WRONG_ENVIRONMENT` unless the
+ * current runtime is a private one: a server, an edge runtime, or an unrecognised runtime
+ * that does not look like a browser.
  *
  * @internal Called by webtessera/server at import and by each of its key-holding
  * functions, which a bundler that skips the entry module cannot bypass.
@@ -137,7 +140,8 @@ export const ServerOnlyMessage =
 export function assertServerRuntime(g: object = globalThis): void {
 	const kind = detectRuntime(g);
 	if (isPublicRuntime(kind)) {
-		throw new Error(
+		throw new WebtesseraError(
+			"WRONG_ENVIRONMENT",
 			`${ServerOnlyMessage}. This code is running in a ${describe(kind)}, where a signing key is readable by ` +
 				"anyone who loads the page. Keep the log's key on your server, and in the browser either verify " +
 				"receipts with webtessera/browser or keep a log of the device's own with openBrowserLog and openDeviceKey.",

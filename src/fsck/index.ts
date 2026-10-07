@@ -22,7 +22,13 @@
 // counterpart at all) and `rangeTracker`/`newRangeTracker` (status.go, also unexported).
 // All are reachable only by importing `./fsck` / `./status` directly, which is what the
 // ported `fsck_test.ts` / `status_test.ts` do, per docs/decisions/0010-package-private-members.md.
+//
+// Added: `defaultMerkleLeafHasher`, from Tessera's root package (lifecycle.go), where Go
+// leaves it unexported. It is the bundleHasher every upstream caller of fsck.New passes a
+// copy of, and newFsck's default; exporting it here lets a caller pass it explicitly or wrap
+// it. See docs/decisions/0244-fsck-default-bundle-hasher-and-log-fsck.md.
 
+export { defaultMerkleLeafHasher } from "../lifecycle.ts";
 export { type Fetcher, Fsck, newFsck, type Opts, Status } from "./fsck.ts";
 export {
 	Calculating,

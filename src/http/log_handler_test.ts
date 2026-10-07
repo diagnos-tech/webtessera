@@ -17,13 +17,14 @@ import {
 	addErrorResponse,
 	addResponse,
 	combineHandlers,
+	ErrMethodNotAllowed,
 	MaxEntryBytes,
 	newLogHandler,
 	readEntryBody,
 } from "webtessera/http";
 import { fetchCheckpoint, newHTTPFetcher, newProofBuilder } from "../client/index.ts";
 import { newFsck } from "../fsck/index.ts";
-import { ErrNotExist, wrapError } from "../internal/gostd/errors.ts";
+import { ErrNotExist, errorIs, wrapError } from "../internal/gostd/errors.ts";
 import { defaultMerkleLeafHasher } from "../lifecycle.ts";
 import { ErrPushback } from "../log.ts";
 import { verifyInclusion } from "../vendor/merkle/proof/index.ts";
@@ -334,6 +335,23 @@ describe("POST /add answers", () => {
 		});
 		expect(await readEntryBody(post(endless))).toBeUndefined();
 		expect(pulled).toBeLessThan(40);
+	});
+
+	it("refuses a request that is not a POST, which addErrorResponse answers with 405", async () => {
+		for (const method of ["GET", "HEAD", "OPTIONS", "PUT", "DELETE"]) {
+			const err = (await readEntryBody(new Request("https://log.example/add", { method })).catch(
+				(e: unknown) => e,
+			)) as Error;
+			expect(errorIs(err, ErrMethodNotAllowed), method).toBe(true);
+			expect(err.message, method).toBe(
+				"readEntryBody: only a POST request carries an entry, as its body; answer other methods with 405 Method " +
+					"Not Allowed",
+			);
+			const r = addErrorResponse(err);
+			expect([r.status, r.headers.get("Allow")], method).toEqual([405, "POST"]);
+		}
+		// A GET with a query string, as a link preview might send, is refused the same way.
+		await expect(readEntryBody(new Request("https://log.example/add?x=1"))).rejects.toThrow(/only a POST request/);
 	});
 
 	it("refuses a size limit that is not a positive integer", async () => {

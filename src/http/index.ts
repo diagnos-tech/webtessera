@@ -90,12 +90,38 @@
  * {@link addResponse} and {@link addErrorResponse} produce those answers (a 500 carries the
  * error's text only when asked to, since it can describe the server's internals), and
  * {@link readEntryBody} reads the entry while capping it at the 65535 bytes an entry bundle
- * can hold, so that an oversized upload is refused while it streams rather than buffered.
+ * can hold, so that an oversized upload is refused while it streams rather than buffered. It
+ * refuses a request that is not a POST, which addErrorResponse answers with 405, so that a
+ * crawler's GET never adds an empty entry:
+ *
+ * ```ts
+ * async function add(request: Request): Promise<Response> {
+ *   if (request.method !== "POST") {
+ *     return new Response("method not allowed\n", { status: 405, headers: { Allow: "POST" } });
+ *   }
+ *   try {
+ *     const entry = await readEntryBody(request);
+ *     if (entry === undefined) {
+ *       return new Response("entry too large\n", { status: 413 });
+ *     }
+ *     return addResponse(await appender.add(newEntry(entry))());
+ *   } catch (err) {
+ *     return addErrorResponse(err);
+ *   }
+ * }
+ * ```
  *
  * @module
  */
 
-export { type AddErrorResponseOptions, addErrorResponse, addResponse, MaxEntryBytes, readEntryBody } from "./add.ts";
+export {
+	type AddErrorResponseOptions,
+	addErrorResponse,
+	addResponse,
+	ErrMethodNotAllowed,
+	MaxEntryBytes,
+	readEntryBody,
+} from "./add.ts";
 export type { CorsOptions } from "./cors.ts";
 export { combineHandlers, type Handler } from "./handler.ts";
 export { type LogHandlerOptions, type LogResourceReader, newLogHandler } from "./log_handler.ts";

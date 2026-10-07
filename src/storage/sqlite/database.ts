@@ -61,8 +61,22 @@ export type SqlRow = Readonly<Record<string, SqlValue>>;
  *
  * Every store over one database must use the same locking: local locks and leases do not
  * see each other.
+ *
+ * A store whose caller chose "local" (as "single-writer" or "local", see
+ * SqliteLockingOption) also keeps a tripwire: it claims the database in its meta table when
+ * it first takes a lock, and refuses to write, with an error caused by ErrWriterConflict,
+ * once another realm has claimed it since. That detects the declaration being wrong before
+ * the log forks; it does not make it right. A database the adapter showed to be private
+ * gets "local" without the tripwire, which could never fire there.
  */
 export type SqliteLocking = "local" | "lease";
+
+/**
+ * SqliteLockingOption is what a store's options accept for its locking: a SqliteLocking,
+ * or "single-writer", the same as "local" under a name that says what choosing it
+ * promises: that this realm is the database's only writer.
+ */
+export type SqliteLockingOption = SqliteLocking | "single-writer";
 
 /**
  * SqlDatabase is the minimal, engine-neutral interface the SQLite ObjectStore needs from a

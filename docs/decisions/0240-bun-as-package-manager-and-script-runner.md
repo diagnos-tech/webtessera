@@ -267,3 +267,46 @@ linked by `scripts/prepare.mjs`. The evidence for it was wrong, and is corrected
   - Figures. The full unit suite on Node at HEAD: 123 files, 3480 tests, all pass (I ran `bun run test:unit`). Six examples plus `site`, each declaring the optional peer `webtessera`: checked in the seven manifests. The tarball count I could not reproduce as 527: a clean `tsc -p tsconfig.build.json` into a scratch directory plus the `files` entries gives 523 files with `bun pm pack --dry-run`, while the working tree's `dist/` holds 8 stale `storage/durableobject/*` files from the removed backend, which gives 531; 527 presumably came from a dist with stale output. Non-blocking, since the Update labels these as measured at the review, but a clean build packs 523.
   - Global bunfig. Reproduced: `[run] bun = true` in a project `bunfig.toml` moves a `#!/usr/bin/env node` binary onto Bun; the same setting in `$HOME/.bunfig.toml` or under `XDG_CONFIG_HOME` does not; a project `bun = false` keeps Node. The Update's "unverified" is accurate; the `bunfig.toml` comment it refers to is unchanged and still makes the claim.
   - Not re-verified here, as in the earlier Review: the GitHub issue and pull request numbers, the `setup-bun` SHA, GitHub Actions and Dependabot behaviour, the hoisted-linker and empty-`trustedDependencies` runs.
+
+## Update (2026-10-07): examples copied out of the repository
+
+The fresh-eyes audit of the 0.1.0 tarball copied the notary and log-server examples out of the repository and
+installed them with npm 10.9.4, Node.js 22's bundled npm: `npm install <tgz>` crashed (`Cannot read properties
+of undefined (reading 'spec')`), and so did a plain `npm install` (`… (reading 'edgesOut')`). Once worked around,
+both examples ran exactly as their READMEs say. The question was whether one declaration of `webtessera` in each
+example's manifest can satisfy Bun inside this workspace and npm outside it. It cannot, on Bun 1.3.14 and npm 10
+and 11; what was tried, in a minimal workspace whose root package is not on the registry (as `webtessera` is not
+yet) and on copies of the real examples:
+
+- **A real dependency, `"webtessera": "^0.1.0"`.** Bun resolves it against the registry: `GET …/webtessera - 404`,
+  and the install fails. Once the package is published, Bun would install the registry copy into each example and
+  shadow the link to the checkout, so the examples would test the last release instead of the code beside them.
+- **The same with a root `overrides` or `resolutions` entry** (`file:.`, `link:.`). Bun installs
+  `node_modules/.bun/webtessera@root/`, a hard-linked snapshot of the whole root taken at install time: a rebuilt
+  `dist/` with new files does not appear in it.
+- **A non-optional peer with `install.peer = false` in `bunfig.toml`.** Bun still resolves the peer, and fails on
+  the 404.
+- **The optional peer, with `"^0.1.0"` instead of `"*"`.** Bun is content (it never fetches an optional peer), but
+  npm never installs an optional peer by itself, and npm 10 crashes when a declared optional peer is installed
+  explicitly with `--legacy-peer-deps` (the `spec` crash above).
+- **`.npmrc` with `legacy-peer-deps=true`** in each example, for the other crash. It leads to the `spec` crash
+  whenever the optional peer is installed explicitly.
+
+The `edgesOut` crash is npm 10's, with Vitest 4.1.11's peer set, and needs no webtessera at all: a project whose
+only dependency is `vitest@4.1.11` crashes the same way; `--legacy-peer-deps` and npm 11 (11.21.0) install it.
+
+**Decision.** The manifests keep the optional peer, which is what Bun's workspace needs, and every example's README
+gains an "Outside this repository" section with the one change to make in a copy:
+
+```sh
+npm pkg delete peerDependencies peerDependenciesMeta && npm install --legacy-peer-deps webtessera@^0.1.0
+```
+
+with the reason for `--legacy-peer-deps`, the tarball alternative for unreleased builds, and, for the edge
+example, the `file:../log-server` dependency that replaces its `workspace:*` one. Verified on copies outside the
+repository, against a local registry serving the packed tarball as `webtessera@0.1.0`: notary with npm 10 (`ci`:
+`tsc` and 10 tests pass; `node scripts/keygen.ts` and `npx webtessera keygen` run), log-server with npm 11 and the
+tarball path (`ci`: 4 tests pass), edge with npm 10, the tarball and the log-server copy (`tsc` clean, 5 workerd
+tests pass).
+
+*Review of this update: pending.*

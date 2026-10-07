@@ -37,7 +37,8 @@ export {
 export { fromRqlite, type RqliteOptions, type RqliteReadLevel } from "./adapters/rqlite.ts";
 export { fromSqliteSync, type SqliteSyncDatabase, type SqliteSyncStatement } from "./adapters/sync.ts";
 export { fromSqliteWasm, type SqliteWasmDatabaseLike, type SqliteWasmExecOptions } from "./adapters/wasm.ts";
-export type { SqlDatabase, SqliteLocking, SqlRow, SqlStatement, SqlValue } from "./database.ts";
+export { ErrWriterConflict } from "./claim.ts";
+export type { SqlDatabase, SqliteLocking, SqliteLockingOption, SqlRow, SqlStatement, SqlValue } from "./database.ts";
 export { ErrLeaseLost } from "./lease.ts";
 export { SchemaVersion } from "./schema.ts";
 export {

@@ -18,8 +18,17 @@
 // docs/decisions/0226-the-high-level-log.md.
 
 import type { FetchFn } from "../client/fetcher.ts";
+import { isSignerKey, quoteInput, signerKeyMisuse, WebtesseraError } from "../safe/errors.ts";
 import { assertLogKey, isDurable } from "../safe/keys.ts";
-import { LogBase, type LogOptions, type LogParts, openLog, type TransparencyLog } from "../safe/log.ts";
+import {
+	type AsyncDisposableLog,
+	disposable,
+	LogBase,
+	type LogOptions,
+	type LogParts,
+	openLog,
+	type TransparencyLog,
+} from "../safe/log.ts";
 import { openIndexedDBObjectStore } from "../storage/indexeddb/indexeddb.ts";
 import type { LockScope } from "../storage/indexeddb/locks.ts";
 import { MemoryObjectStore } from "../storage/memory/memory.ts";
@@ -101,10 +110,11 @@ const defaultDatabasePrefix = "webtessera-log:";
 export async function openBrowserLog(options: BrowserLogOptions): Promise<BrowserLog> {
 	const where = "openBrowserLog";
 	if (typeof options !== "object" || options === null) {
-		throw new TypeError(`${where} takes an options object: { key }`);
+		throw new WebtesseraError("INVALID_ARGUMENT", `${where} takes an options object: { key }`);
 	}
 	if (typeof options.key === "string") {
-		throw new TypeError(
+		throw new WebtesseraError(
+			isSignerKey(options.key) ? "SIGNER_KEY_MISUSE" : "INVALID_ARGUMENT",
 			`${where}: webtessera/browser refuses private key strings: anything a page holds is readable by whoever ` +
 				"loads it. Use openDeviceKey(origin), whose key is generated on this device and cannot be exported.",
 		);
@@ -112,7 +122,8 @@ export async function openBrowserLog(options: BrowserLogOptions): Promise<Browse
 	assertLogKey(options.key, where);
 	const storage = checkStorage(options.storage ?? { indexedDB: defaultDatabasePrefix + options.key.origin }, where);
 	if ("indexedDB" in storage && !isDurable(options.key)) {
-		throw new TypeError(
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
 			`${where}: the log is kept in IndexedDB and outlives this page, but its key does not, so after a reload ` +
 				"nothing could sign it again. Use openDeviceKey(origin), which keeps the key on the device; or " +
 				"storage: { memory: true } for a log that lasts as long as the page.",
@@ -121,11 +132,12 @@ export async function openBrowserLog(options: BrowserLogOptions): Promise<Browse
 	if ("indexedDB" in storage && storage.singleWriter !== true && !webLocksAvailable()) {
 		// The IndexedDB store refuses this too, but in terms of its own options (opts.locks,
 		// singleWriter); this says it in the terms the caller of openBrowserLog uses.
-		throw new Error(
+		throw new WebtesseraError(
+			"NO_WEB_LOCKS",
 			`${where}: the Web Locks API (navigator.locks) is not available in this context (it requires a secure ` +
 				"context: HTTPS or localhost), so the log's locks could not exclude other tabs and workers writing it. " +
 				"Serve the page from a secure context; or, if this is the only tab or worker that will ever write the " +
-				`log, pass storage: { indexedDB: ${JSON.stringify(storage.indexedDB)}, singleWriter: true }.`,
+				`log, pass storage: { indexedDB: ${quoteInput(storage.indexedDB)}, singleWriter: true }.`,
 		);
 	}
 	const opened = await openStorage(storage);
@@ -139,11 +151,11 @@ export async function openBrowserLog(options: BrowserLogOptions): Promise<Browse
 		opened.close();
 		throw err;
 	}
-	return new browserLog(parts, opened.kind, opened.lockScope);
+	return disposable(new browserLog(parts, opened.kind, opened.lockScope));
 }
 
 /** browserLog implements BrowserLog. */
-class browserLog extends LogBase implements BrowserLog {
+class browserLog extends LogBase implements Omit<BrowserLog, keyof AsyncDisposableLog> {
 	readonly storage: BrowserLog["storage"];
 	readonly lockScope: LockScope;
 
@@ -167,15 +179,21 @@ function webLocksAvailable(): boolean {
 function checkStorage(storage: unknown, where: string): BrowserStorage {
 	if (typeof storage === "object" && storage !== null && "indexedDB" in storage) {
 		const { indexedDB } = storage as { indexedDB: unknown };
+		if (isSignerKey(indexedDB)) {
+			throw signerKeyMisuse(where, "storage.indexedDB");
+		}
 		if (typeof indexedDB !== "string" || indexedDB === "") {
-			throw new TypeError(`${where}: storage.indexedDB is the name of the IndexedDB database to keep the log in`);
+			throw new WebtesseraError(
+				"INVALID_ARGUMENT",
+				`${where}: storage.indexedDB is the name of the IndexedDB database to keep the log in`,
+			);
 		}
 		return storage as BrowserStorage;
 	}
 	if (typeof storage === "object" && storage !== null && "memory" in storage && storage.memory === true) {
 		return storage as BrowserStorage;
 	}
-	throw new TypeError(`${where}: storage must be { indexedDB: name } or { memory: true }`);
+	throw new WebtesseraError("INVALID_ARGUMENT", `${where}: storage must be { indexedDB: name } or { memory: true }`);
 }
 
 async function openStorage(

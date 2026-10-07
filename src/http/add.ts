@@ -19,9 +19,9 @@
 // which is why this module offers the answer and not the endpoint.
 // See docs/decisions/0170-http-log-handler.md.
 
-import { errorIs } from "../internal/gostd/errors.ts";
+import { errorIs, SentinelError } from "../internal/gostd/errors.ts";
 import { ErrPushback } from "../log.ts";
-import { errorText, positiveInteger, readBodyCapped, textResponse } from "./handler.ts";
+import { errorText, methodNotAllowed, positiveInteger, readBodyCapped, textResponse } from "./handler.ts";
 
 /**
  * MaxEntryBytes is the largest entry a tlog-tiles log can hold: entry bundles prefix each
@@ -30,20 +30,39 @@ import { errorText, positiveInteger, readBodyCapped, textResponse } from "./hand
 export const MaxEntryBytes = 0xffff;
 
 /**
+ * ErrMethodNotAllowed is the cause of the error readEntryBody throws for a request that is
+ * not a POST. addErrorResponse answers it with 405 Method Not Allowed and `Allow: POST`.
+ *
+ * ```ts
+ * if (errorIs(err, ErrMethodNotAllowed)) { … }
+ * ```
+ */
+export const ErrMethodNotAllowed = new SentinelError("method not allowed");
+
+/**
  * readEntryBody reads the entry a `POST /add` request carries, streaming it and giving up as
  * soon as it exceeds maxBytes (MaxEntryBytes by default, and never more), so that an
  * oversized upload is never buffered. It resolves to undefined when the entry is too large;
  * answer that with 413. It throws a RangeError if maxBytes is not a positive integer.
  *
+ * It refuses any request that is not a POST, throwing an error caused by
+ * ErrMethodNotAllowed, which addErrorResponse answers with 405: a GET, HEAD or OPTIONS
+ * request carries no entry, and treating one as an empty entry would let crawlers, link
+ * previews and prefetchers write to the log. Answer a CORS preflight (OPTIONS) before
+ * calling it.
+ *
  * ```ts
- * const entry = await readEntryBody(request);
- * if (entry === undefined) {
- *   return new Response("entry too large\n", { status: 413 });
+ * if (request.method !== "POST") {
+ *   return new Response("method not allowed\n", { status: 405, headers: { Allow: "POST" } });
  * }
  * try {
+ *   const entry = await readEntryBody(request);
+ *   if (entry === undefined) {
+ *     return new Response("entry too large\n", { status: 413 });
+ *   }
  *   return addResponse(await appender.add(newEntry(entry))());
  * } catch (err) {
- *   return addErrorResponse(err);
+ *   return addErrorResponse(err); // 405 for a method readEntryBody refused, 503 for pushback
  * }
  * ```
  */
@@ -51,7 +70,15 @@ export async function readEntryBody(
 	request: Request,
 	maxBytes: number = MaxEntryBytes,
 ): Promise<Uint8Array | undefined> {
-	return readBodyCapped(request, Math.min(positiveInteger("readEntryBody: maxBytes", maxBytes), MaxEntryBytes));
+	const max = Math.min(positiveInteger("readEntryBody: maxBytes", maxBytes), MaxEntryBytes);
+	if (request.method !== "POST") {
+		throw new Error(
+			"readEntryBody: only a POST request carries an entry, as its body; answer other methods with 405 Method " +
+				"Not Allowed",
+			{ cause: ErrMethodNotAllowed },
+		);
+	}
+	return readBodyCapped(request, max);
 }
 
 /**
@@ -84,7 +111,8 @@ export interface AddErrorResponseOptions {
  * addErrorResponse is the conventional failed answer to `POST /add`: 503 Service
  * Unavailable with `Retry-After: 1` when the appender pushes back (`ErrPushback`, which
  * tells the client to slow down rather than give up), as upstream's personalities answer,
- * and 500 otherwise.
+ * 405 Method Not Allowed with `Allow: POST` when readEntryBody refused a request that was
+ * not a POST (`ErrMethodNotAllowed`), and 500 otherwise.
  *
  * The body of a 500 says only that the log failed, unless options.detail is set, in which
  * case it is the error's text, as upstream sends it. The error itself is the caller's to
@@ -100,6 +128,9 @@ export interface AddErrorResponseOptions {
 export function addErrorResponse(err: unknown, options: AddErrorResponseOptions = {}): Response {
 	if (errorIs(err, ErrPushback)) {
 		return textResponse(503, "the log is overloaded; retry later", { "Retry-After": "1" });
+	}
+	if (errorIs(err, ErrMethodNotAllowed)) {
+		return methodNotAllowed("POST");
 	}
 	if (options.detail === true) {
 		return new Response(errorText(err), { status: 500, headers: { "Content-Type": "text/plain; charset=utf-8" } });

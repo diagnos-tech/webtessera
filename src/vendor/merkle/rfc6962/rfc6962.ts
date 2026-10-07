@@ -24,8 +24,9 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import type { CHash } from "@noble/hashes/utils.js";
 import type { LogHasher } from "../hasher.ts";
 
-// Domain separation prefixes
+/** Domain separation prefixes */
 export const RFC6962LeafHashPrefix = 0;
+/** Domain separation prefixes */
 export const RFC6962NodeHashPrefix = 1;
 
 /**

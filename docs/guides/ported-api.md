@@ -11,8 +11,10 @@ API and drop down only where you need to.
 
 Names follow Go's, with functions in camelCase: `NewAppender` is `newAppender`. Go's `uint64` is
 `bigint`, durations are milliseconds, errors are thrown with Go's message text, and `context.Context`
-is an optional trailing `AbortSignal`. [PORTING.md §3](../../PORTING.md#3-fidelity-rules) has the full
-mapping, so Tessera's own documentation applies to this API once you translate the names.
+is an optional trailing `AbortSignal`. Test for Go's sentinels with `errorIs(err, ErrPushback)`, never
+`===`, and find an error class anywhere in a cause chain with `errorAs(err, ErrInconsistency)`, both from
+`webtessera`. [PORTING.md §3](../../PORTING.md#3-fidelity-rules) has the full mapping, so Tessera's own
+documentation applies to this API once you translate the names.
 
 ## Write to a log
 
@@ -149,7 +151,7 @@ the HTTP fetcher. To follow a log over time and prove that each checkpoint exten
 | Static CT logs | `newCertificateTransparencyAppender` and `withCTLayout` (`webtessera`), with entries from `webtessera/ctonly` |
 | Import an existing tlog-tiles or Static CT log | `newMigrationTarget` and `newMigrationOptions` (`webtessera`) |
 | Witness policies | `newWitnessGroupFromPolicy` (`webtessera`), passed to `withWitnesses` |
-| Whole-log audits | `newFsck` (`webtessera/fsck`) |
+| Whole-log audits | `newFsck` (`webtessera/fsck`), whose bundle hasher defaults to `defaultMerkleLeafHasher` |
 | Tests of your own code | `newTestLog` (`webtessera/testonly`), an in-memory log |
 
 ## Packages

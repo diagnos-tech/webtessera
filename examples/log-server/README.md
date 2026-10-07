@@ -126,6 +126,23 @@ $ cd go && go run . -log http://127.0.0.1:8082/ -vkey "$LOG_VKEY"
 verify-go: OK: checkpoint of 5 entries signed by localhost/my-log; every entry proven with Tessera's Go client
 ```
 
+## Outside this repository
+
+Inside the repository this example uses the library it sits in: it declares `webtessera` as an
+optional peer dependency, which Bun's workspace never installs, and `bun install` links the
+repository root in its place. Copied out on its own, it needs a real dependency instead. Make the
+change once, in the copy:
+
+```sh
+npm pkg delete peerDependencies peerDependenciesMeta && npm install --legacy-peer-deps webtessera@^0.1.0
+```
+
+`--legacy-peer-deps` works around npm 10, the npm bundled with Node.js 22, which fails to install
+Vitest 4.1 with `Cannot read properties of null (reading 'edgesOut')`; npm 11, Bun and pnpm do not
+need it. To try a build that is not released yet, run `bun pm pack` at the repository root and give
+`npm install` the tarball's path in place of `webtessera@^0.1.0`. Everything above then works as
+written, `bun run build` aside.
+
 ## Trust model
 
 - **The log's key** is the one secret. Whoever holds `LOG_SKEY` can sign checkpoints; clients trust

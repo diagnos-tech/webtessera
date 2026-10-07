@@ -142,3 +142,22 @@ lifetime is the same, so nothing in the decision changes, but the string is not 
 `entriesPath(2^64-1, 255)` and `tilePath(63, 2^64-1, 255)` from `src/api/layout`: `tile/entries/x018/x446/x744/x073/x709/x551/615.p/255` is 52
 characters and the level-63 tile path 47; both parse with `parseLogPath`, and `MaxResourcePathLength` is 96. `resources.ts` says so in its comment and
 `resources_test.ts` ("accepts the longest resource paths") asserts both lengths; 39 tests passed.
+
+## Update (2026-10-07): `readEntryBody` reads only a POST
+
+The audit served the log-server guide's snippet and ran `curl localhost:8788/add`, a GET: it appended an empty
+entry and answered `1`. The examples check the method before reading the body; the guide's snippet and
+`readEntryBody`'s TSDoc example did not, and crawlers, link previews and prefetchers send GETs.
+
+`readEntryBody` now throws, for any request whose method is not `POST`, an error caused by the new sentinel
+`ErrMethodNotAllowed` (exported from `webtessera/http`): "readEntryBody: only a POST request carries an entry, as
+its body; answer other methods with 405 Method Not Allowed". It quotes nothing from the request. `addErrorResponse`
+answers that error with 405 Method Not Allowed and `Allow: POST`. The size limit is still checked first, so a bad
+`maxBytes` is still a `RangeError`. The TSDoc examples, here and in the module documentation, check the method
+before reading and call `readEntryBody` inside the `try` whose `catch` answers with `addErrorResponse`. A CORS
+preflight (OPTIONS) must be answered before calling it, as its TSDoc says.
+
+Tests: `log_handler_test.ts` ("refuses a request that is not a POST, which addErrorResponse answers with 405":
+GET, HEAD, OPTIONS, PUT and DELETE, and a GET with a query string).
+
+*Review of this update: pending.*

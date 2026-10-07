@@ -88,3 +88,16 @@ this library included; in a browser it can be stored in IndexedDB as the CryptoK
   - Probed "no secret in any output": own property names are exactly `origin`, `vkey`, `backend`, `extractable`; `String(key)`, `JSON.stringify`, `util.inspect` with `showHidden` and the property list contain no part of the seed or the key string; six malformed key strings (truncated, wrong prefix, trailing junk, bad key field, space in name) each give the fixed text "malformed verifier id" with none of the input in the message. The `WeakSet` refuses a look-alike object, `Object.create(key)` and `Object.assign({}, key)`.
   - Challenge, answered by the ADR's own Consequences: a seed copy lives in `newSigner`'s closure (not wiped) for the duration of the call, and `importSignerKey` decodes the seed a second time itself (`seedOf`); only the second copy is wiped. "Decoded once" is true of this module, and the best-effort wording covers the rest.
   - Not verified: Deno (not installed); Chrome and Edge 137, Firefox 129 and Safari 17 support for Ed25519 (only the Playwright Chromium ran); the effect of the zero-fills on an engine that copies buffers.
+
+## Update (2026-10-07): a signer key is refused wherever a public string is taken
+
+The audit found that `verifyReceipt(text, { vkey: skey, … })` printed the signer key in its error, against this
+ADR's "not in an error message". The rule is now enforced where strings enter the safe API rather than per
+function: `isSignerKey` (`src/safe/errors.ts`) recognises `PRIVATE+KEY+` anywhere in a string, in any case, and every
+input that should be public (a vkey, a witness key, an origin, a receipt, a name or an option) refuses one with
+the code `SIGNER_KEY_MISUSE`, naming what was expected and never the key; every error that quotes a caller's
+string goes through `quoteInput`, which shows a placeholder for one. `importLogKey`, which does take a signer key,
+now says so when given the verifier key. ADR-0243 lists the inputs and has the tests; `src/safe/secrets_test.ts`
+feeds a signer key to all of them, in five forms, and checks every error, cause and stack.
+
+*Review of this update: pending.*

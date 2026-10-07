@@ -18,6 +18,11 @@
 // Node built-ins. Test-only, and excluded from the published build.
 
 declare module "node:child_process" {
+	export function spawnSync(
+		file: string,
+		args: readonly string[],
+		options: { encoding: "utf8"; cwd?: string; env?: Record<string, string | undefined> },
+	): { readonly status: number | null; readonly stdout: string; readonly stderr: string };
 	export function execFileSync(
 		file: string,
 		args: readonly string[],

@@ -19,6 +19,7 @@ import { inspect } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fromBase64, fromUTF8, toBase64, toUTF8 } from "../internal/gostd/bytes.ts";
 import { generateKey, newSigner, newVerifier, open, sign, signAsync, verifierList } from "../vendor/note/note.ts";
+import { WebtesseraError } from "./errors.ts";
 import {
 	assertLogKey,
 	checkOrigin,
@@ -187,6 +188,16 @@ describe("importSignerKey", () => {
 			}
 		});
 	}
+
+	it("refuses a missing key, naming how to make one", async () => {
+		for (const skey of [undefined, ""]) {
+			const err = await importSignerKey(skey).catch((e: unknown) => e);
+			expect(err).toBeInstanceOf(WebtesseraError);
+			expect((err as WebtesseraError).code).toBe("INVALID_ARGUMENT");
+			expect((err as Error).message).toMatch(/^importLogKey: no key \((undefined|an empty string)\)/);
+			expect((err as Error).message).toContain("npx webtessera keygen");
+		}
+	});
 
 	it("refuses anything but a string", async () => {
 		await expect(importSignerKey(new Uint8Array(33) as unknown as string)).rejects.toThrow(

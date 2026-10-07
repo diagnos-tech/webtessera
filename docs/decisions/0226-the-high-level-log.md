@@ -157,3 +157,46 @@ entries from IndexedDB, and the witness refusal after the log's database was del
 survived).
 
 **Review of this update:** ADR reviewer (independent), 2026-10-04. Verdict: approved. `entries`/`entry`: Go's `client.EntryBundles` does pass `fromEntry+N` to `layout.Range` as its count (`stream.go` line 93), so the port streams to the tree size and `log.ts` answers the read-ahead past `to` with an empty bundle that is never parsed, as written; bounds (4 in flight, copies, clamp, `from == size` yields nothing, refusals) and the per-bundle leaf-hash check are in `#entries`. Extra data: see ADR-0225's update. The witness conflict message is built from Tessera's own client text by `witnessConflict`. The Web Locks check uses the store's own predicate. Locking: ADR-0210 does make every adapter fail closed (file-backed node:sqlite, D1, rqlite and remote libSQL lease; in-memory and Durable Object local), `openServerLog` passes `locking` only when given, and the server test asserts all five cases. Every test the update names exists (`server_test.ts`, `server_workers_test.ts`, `browser_test.ts`) and passes in Node, workerd and Chromium.
+
+## Update (2026-10-07): what a receipt that does not verify means, single-writer conflicts, and adapters
+
+The fresh-eyes audit of the 0.1.0 tarball ran two processes appending to one SQLite file under
+`locking: "local"`. The losing process got forty errors like `openServerLog: the receipt for entry 32 does not
+verify (… calculated root:\n[72 167 158 …] does not match expected root: …)`: labelled with the factory although
+`append` raised it, carrying Go's byte-slice formatting from the ported check, and saying nothing of the cause.
+
+- **A receipt that fails its self-check** is a `WebtesseraError` with the code `STORAGE_DIVERGED` and the entry's
+  `index`, labelled with the method that built it, and the `ReceiptError` as its cause (so the ported detail is
+  kept, but out of the message). For `append`: "append: the receipt for entry 32 does not verify against the
+  log's own storage: its checkpoint at size 40 does not commit to the entry at index 32. The log's storage changed
+  under this process while it appended: most likely another process is appending to the same storage without
+  shared locks (two processes opening one SQLite database with locking: "single-writer", or a store whose lock
+  does not reach the other process), and the log may have forked. Stop every writer but one, …, and check the log
+  with log.fsck()." For `prove`: damaged storage, or a writer without shared locks. The other reasons a self-check
+  could fail (the witness policy) say which.
+- **A single-writer conflict** (ADR-0210's update) reaches the log as the storage driver's error; `openServerLog`
+  gives `openLog` an `explain` hook that recognises `ErrWriterConflict` in it and answers `WRITER_CONFLICT`, naming
+  the method ("append: another process has started writing this log's SQLite database, which this process opened
+  with locking: "single-writer" …; the entry was not added. …"), with the driver's error as its cause, so
+  `errorIs(err, ErrWriterConflict)` holds too. `openLog` asks the same hook first when the appender fails to start.
+- **`storage.locking: "single-writer"`** is `openServerLog`'s documented spelling of the single-writer declaration;
+  `"local"` stays as its alias; any other value is refused, quoted (never a signer key).
+- **A database connection passed without an adapter** used to fail with `db.query is not a function` (in
+  JavaScript; TypeScript caught it). `openServerLog` now recognises the common engines by shape and names the
+  adapter: `fromSqliteSync(db)` (node:sqlite, bun:sqlite, better-sqlite3: `prepare` without `batch`), `fromD1`
+  (`prepare` and `batch`), `fromLibsql` (`execute` and `batch`), `fromDurableObjectStorage` (`sql.exec`) and
+  `fromSqliteWasm` (`exec` and `selectValue`), and otherwise says that a `SqlDatabase` from an adapter is needed.
+- **Every refusal has a code** (ADR-0243): timeouts are `SEQUENCE_TIMEOUT` and `PUBLISH_TIMEOUT` (with `index`),
+  pushback `OVERLOADED`, the key check `KEY_MISMATCH`, the witness conflict `WITNESS_CONFLICT`, a failed start
+  `OPEN_FAILED`, a closed log `LOG_CLOSED`. "check it with fsck from webtessera/fsck" is now "check it with
+  log.fsck()" (ADR-0244). `append` and `appendMany` stay `async`, so every refusal is a rejection, never a throw.
+- New API on the log is in ADR-0244 (`fsck`) and ADR-0246 (`fetch`, `appendMany`, JSON, `Symbol.asyncDispose`).
+
+Tests: `server_test.ts` ("says, in append's terms, that storage changed under it": a store whose checkpoint and
+tile reads meet another writer's log under the same key, deterministic; `STORAGE_DIVERGED` with index 0, the
+message, no `[n n …]` dump, `ReceiptError` cause; "stops appending … once another process takes over a
+single-writer database": `WRITER_CONFLICT` from `append`, `errorIs(err, ErrWriterConflict)`; the two-process test;
+"takes locking: "single-writer" …"; "names the adapter for a database connection passed without one"; "errors you
+can handle in code").
+
+*Review of this update: pending.*
