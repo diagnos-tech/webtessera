@@ -1117,7 +1117,6 @@ function nonNegative(v: number | undefined, def: number, name: string, where: st
 	return v;
 }
 
-/** quoteOption renders an option's value for an error message: numbers as they are, strings quoted (and never a signer key). */
 function messageOf(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }

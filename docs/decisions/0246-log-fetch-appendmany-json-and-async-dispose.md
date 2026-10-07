@@ -1,6 +1,6 @@
 # ADR-0246: Add `log.fetch`, `appendMany`, JSON forms of receipts and checkpoints, and `Symbol.asyncDispose` to the safe API's logs
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-10-07
 - **Author:** Gustavo Simões (DX audit fixes)
 - **Upstream reference:** n/a (the safe API, ADR-0220 and ADR-0226); tessera `append_lifecycle.go` (batching) for
@@ -94,12 +94,13 @@ whole, an empty batch; `await using` through `Symbol.asyncDispose`, and
 ## Review
 
 - **Reviewer:** DX reviewer (independent), 2026-10-07
-- **Verdict:** approved with notes
+- **Verdict:** approved
 - **Notes:**
   - Checked: `log.fetch` is `combineHandlers(handler)` held in a property, so it is bound. `appendMany` validates every entry before adding any, and `#append` adds its entry synchronously before its first `await`; `Promise.all` keeps the order. Also checked the receipt, checkpoint and verified-receipt classes with `toJSON`, `ReceiptJSON` accepted by `verifyReceipt`, `parseReceipt` and `log.verify`, `Symbol.asyncDispose` on `LogBase.prototype`, and `AsyncDisposableLog`. `server_test.ts`, `receipt_test.ts` and `browser_test.ts` pass.
   - Type-checked a consumer against the packed tarball with `skipLibCheck: false`. `lib: [es2022, dom]` compiles `verifyReceipt(receipt.toJSON(), …)` and rejects `verifyReceipt(t, { vkey })`. Adding `esnext.disposable` compiles `await using`; without it, only the consumer's own `await using` fails. The ADR's `lib: ["es2022"]` alone fails on `AbortSignal` (pre-existing): say es2022 with DOM.
   - `verifyReceipt` ignores `ReceiptJSON.index`: `{ index: "<anything>", text }` verifies and returns the text's index (probe). Check it against `proof.index` when present, or document that it is informational.
   - `docs/guides/safe-api.md`'s member table lists `fetch` and `handler` among the members of the log both factories return. `BrowserLog` has neither: mark the row as server-only.
+  - Re-review of a2bd7a2. A receipt object whose `index` disagrees with its text is now refused as `malformed` (`withIndexOf`; probe and `receipt_test.ts`). `safe-api.md` marks `fetch` and `handler` as server only, and the lib text says es2022 with DOM. Nit: a numeric `index` that matches is refused with "its index field, 0, is not the index its text proves, 0", which reads as a contradiction. Saying that the field must be a decimal string would be clearer.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

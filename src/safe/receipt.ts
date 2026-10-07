@@ -271,6 +271,11 @@ export function parseReceipt(receipt: string | Uint8Array | ReceiptJSON): TLogPr
 	try {
 		p.unmarshal(typeof receipt === "string" ? toUTF8(receipt) : receipt);
 	} catch (err) {
+		// The ported parser quotes the line it stopped at, so text that is no receipt but has a
+		// signer key inside a line would have it repeated; a valid receipt never gets here.
+		if (isSignerKey(typeof receipt === "string" ? receipt : fromUTF8(receipt))) {
+			throw signerKeyMisuse("parseReceipt", "the receipt");
+		}
 		throw new ReceiptError("malformed", `receipt: not a c2sp.org/tlog-proof@v1 proof: ${messageOf(err)}`, {
 			cause: err,
 		});
@@ -548,9 +553,13 @@ function withIndexOf(receipt: object, p: TLogProof): TLogProof {
 	if (index === undefined) {
 		return p;
 	}
-	const agrees =
-		(typeof index === "bigint" && index === p.index) || (typeof index === "string" && index === p.index.toString());
-	if (!agrees) {
+	if (typeof index !== "string" && typeof index !== "bigint") {
+		throw new ReceiptError(
+			"malformed",
+			`receipt: its index field must be the index as a decimal string, as toJSON writes it, got ${quoteInput(index)}`,
+		);
+	}
+	if (index !== (typeof index === "string" ? p.index.toString() : p.index)) {
 		throw new ReceiptError(
 			"malformed",
 			`receipt: its index field, ${quoteInput(index)}, is not the index its text proves, ${p.index}; ` +
