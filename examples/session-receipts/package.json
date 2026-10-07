@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Session receipts: the browser logs every exchange with the server, the server witnesses the log and commits it to S3-compatible storage, and neither can rewrite it alone.",
+  "description": "The browser logs every exchange with the server; the server witnesses the log and commits it to S3-compatible storage.",
   "engines": {
     "node": ">=22.18"
   },

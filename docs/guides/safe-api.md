@@ -1,7 +1,8 @@
 # The safe API: `webtessera/server` and `webtessera/browser`
 
-Read this guide before you open your first log: it covers the safe API's environment model, key custody, log
-object and receipts, and when to drop down to the ported API.
+Read this guide before you open your first log: it covers the safe API's environment model, key custody, the log
+object and its errors, and when to drop down to the ported API. [Receipts](receipts.md) covers what `append`
+returns and how anyone verifies it.
 
 webtessera's ported API is Go's, translated, which makes it reviewable against the original but easy to
 misuse. The safe API is a small layer on top of it that makes the common mistakes impossible. It has no
@@ -14,7 +15,7 @@ Code that uses the safe API declares where it runs by what it imports:
 
 | Import | Runs in | Can it hold a log's private key? |
 | --- | --- | --- |
-| `webtessera/server` | your server's private environment: Node.js 22+, Deno, Bun, Cloudflare Workers, Vercel Edge and other edge runtimes | yes: imported from your secret store, held by WebCrypto |
+| `webtessera/server` | your server's private environment: Node.js 22.18+, Deno, Bun, Cloudflare Workers, Vercel Edge and other edge runtimes | yes: imported from your secret store, held by WebCrypto |
 | `webtessera/browser` | the browser's public environment: windows, workers, service workers | only a device key generated in that browser, which cannot be exported |
 
 Everything a page holds can be read by whoever loads it, so `webtessera/server` refuses to end up there, twice
@@ -43,7 +44,7 @@ A log is identified by its key: every checkpoint is signed with it, and every cl
 half, the **vkey** (`example.com/log+1a2b3c4d+AQ…`). The safe API holds keys as `LogKey`s
 ([ADR-0222](../decisions/0222-key-custody.md)):
 
-- **Non-extractable WebCrypto keys where the runtime supports Ed25519**: Node.js 22+, Deno, Bun, workerd, Chrome
+- **Non-extractable WebCrypto keys where the runtime supports Ed25519**: Node.js 22.18+, Deno, Bun, workerd, Chrome
   and Edge 137+, Firefox 129+, Safari 17+ (browsers only on HTTPS or `localhost`). Such a key can sign, but no
   code, this library included, can export it. `webCryptoEd25519()` says whether the runtime qualifies; it checks
   that WebCrypto signs RFC 8032's test vector exactly, since a WebCrypto signature must be byte-for-byte the one
@@ -60,12 +61,12 @@ const key = await generateLogKey("example.com/log"); // an ephemeral key, for te
 
 **On a server**, generate the key once, offline, and keep the private key string in your secret store:
 
-```ts
-import { generateKey } from "webtessera/note";
-const { skey, vkey } = generateKey(undefined, "example.com/log"); // store skey as a secret; publish vkey
+```sh
+npx webtessera keygen example.com/log >> .env   # LOG_SKEY (secret), LOG_VKEY (publish)
 ```
 
-At run time, `importLogKey(env.LOG_SKEY)` validates it exactly as Go's `note.NewSigner` does and imports it into a
+or, in a deploy script, `generateLogKeyPair("example.com/log")` from `webtessera/server`, which returns
+`{ skey, vkey }`. At run time, `importLogKey(process.env.LOG_SKEY)` validates it exactly as Go's `note.NewSigner` does and imports it into a
 non-extractable WebCrypto key, wiping the bytes it decoded. The string itself is immutable, so keep it out of
 logs and source code; that, and the copy your environment holds, is beyond what any library can protect.
 
@@ -91,12 +92,15 @@ the safe API.
 | Member | What it does |
 | --- | --- |
 | `append(data, { signal?, timeoutMs?, extraData? })` | adds one entry (up to 65535 bytes) and resolves, once a published checkpoint commits to it, to a verified `Receipt`, carrying `extraData` in its `extra` line if given |
+| `appendMany(entries, { signal?, timeoutMs? })` | adds entries in order, for the cost of one checkpoint wait; refuses the whole batch if one entry is too large |
 | `prove(index, { extraData? })` | a receipt for an existing entry, relative to the latest checkpoint |
 | `entries(from?, to?)` | the log's entries, in order, as `{ index, data }`: an async iterator up to `to` or the latest checkpoint's size |
 | `entry(index)` | one entry, as `entries` reads it |
 | `latestCheckpoint()` | the latest published checkpoint, verified |
 | `verify(receipt, data)` | checks a receipt against this log's key and witness policy |
-| `close()` | waits for every appended entry to be published, then stops |
+| `fsck({ signal?, workers? })` | verifies every entry bundle, tile and the root hash against the latest checkpoint; reads the whole log |
+| `fetch`, `handler` | the tlog-tiles read API: `fetch` answers 404 for what is not the log's, `handler` returns `undefined` so `combineHandlers` can try your routes |
+| `close()` | waits for every appended entry to be published, then stops; `await using` does the same |
 | `origin`, `vkey`, `verifier` | the log's identity |
 | `reader`, `appender` | the ported `LogReader` and `Appender`, the way down to the rest of the API |
 
@@ -105,7 +109,7 @@ The defaults are chosen so that the obvious call is the safe one:
 | Default | Why |
 | --- | --- |
 | Storage is required on a server; memory must be asked for as `{ memory: true }` | a log in memory loses its tree on restart while its checkpoints live on in clients |
-| SQLite locking is the adapter's, which fails closed: lease locking for every database another process could reach, local only for one that is private (in memory, a Durable Object) | two processes appending to one database under local locks fork the log |
+| SQLite locking is the adapter's, which fails closed: lease locking for every database another process could reach, local only for one that is private (in memory, a Durable Object) | two processes appending to one database under local locks fork the log; `locking: "single-writer"` declares that there is only one, and stops a second that makes the same claim |
 | A browser log is kept in IndexedDB (`webtessera-log:<origin>`) with Web Locks, and needs a persistent key; without Web Locks it refuses to open, naming `storage: { indexedDB, singleWriter: true }` | a log that outlives the page with a key that does not cannot be signed again, and two tabs without locks fork it |
 | A checkpoint is published every second while the log grows (`checkpointIntervalMs`) | `append` waits for one, so the interval is its latency |
 | `append` gives up after 30 s (`publishTimeoutMs`), saying whether and where the entry was sequenced | a receipt that cannot arrive should fail loudly |
@@ -119,24 +123,25 @@ installed after it.
 
 ```ts
 import { DatabaseSync } from "node:sqlite";
-import { combineHandlers, toNodeListener } from "webtessera/http";
+import { toNodeListener } from "webtessera/http";
 import { importLogKey, openServerLog } from "webtessera/server";
 import { fromSqliteSync } from "webtessera/storage/sqlite";
 import { createServer } from "node:http";
 
 const log = await openServerLog({
-  key: await importLogKey(process.env.LOG_SKEY ?? ""),
+  key: await importLogKey(process.env.LOG_SKEY),
   storage: { sqlite: fromSqliteSync(new DatabaseSync("log.db")) },
   http: { cors: true },
 });
-createServer(toNodeListener(combineHandlers(log.handler))).listen(8080);
+createServer(toNodeListener(log.fetch)).listen(8080);
 ```
 
 `storage` is `{ sqlite, namespace?, locking?, lease? }` with any adapter from `webtessera/storage/sqlite`,
 `{ objectStore }` for a durable store of your own, or `{ memory: true }`;
-[choosing storage](choosing-storage.md) covers each, and the locking each adapter defaults to. `log.handler`
-serves the tlog-tiles read API; on Deno it is `Deno.serve(combineHandlers(log.handler))`, on Workers
-`export default { fetch: … }`. [Serve a log](serve-witness-mirror.md#serve-a-log) covers the handler.
+[choosing storage](choosing-storage.md) covers each, and the locking each adapter defaults to. On Deno, serve
+with `Deno.serve(log.fetch)`; on Bun, `Bun.serve({ fetch: log.fetch })`; on Workers,
+`export default { fetch: log.fetch }`. [Serve a log](serve-witness-mirror.md#serve-a-log) adds routes of your
+own.
 
 ### In a browser
 
@@ -151,58 +156,34 @@ const receipt = await log.append(new TextEncoder().encode("signed the form"));
 Both functions come from `webtessera/browser`. [A client-only log](client-only-log.md) covers the choices to
 make.
 
-## Receipts
+## Batches, errors and checks
 
-A receipt is a [C2SP tlog-proof](https://c2sp.org/tlog-proof) ([ADR-0225](../decisions/0225-receipts-are-tlog-proofs.md)):
-the entry's index, its inclusion proof, and the log's signed checkpoint with any witness cosignatures. Store
-`receipt.text` as is, conventionally in a `.tlog-proof` file:
+`append` waits for the next checkpoint, about `checkpointIntervalMs` (1 s). Appends started together share
+it, so `await log.appendMany(entries)` (or `Promise.all` over `append`) costs one wait, where a loop of
+awaited appends costs one each.
 
-```text
-c2sp.org/tlog-proof@v1
-index 0
-rqPLszb01JTYtaFXrt/EgKRabefAlo4IVDOyFPm0Hvc=
+Every error the safe API raises itself is a `WebtesseraError` with a stable `code` to branch on; the TSDoc
+of `WebtesseraErrorCode` lists them. `PUBLISH_TIMEOUT` and `NOT_COVERED` carry the entry's `index`, and a
+failed receipt is the subclass `ReceiptError`. A signer key passed where a verifier key, an origin or a name
+belongs is refused with `SIGNER_KEY_MISUSE` and is never repeated in an error
+([ADR-0243](../decisions/0243-one-error-class-for-the-safe-api.md)).
 
-example.com/log
-2
-JCMzOarc7fKH0mJBPwPAKOuNs5ft0yooeAkRUbmb8g8=
+`await log.fsck()` checks the whole log against its latest checkpoint and throws `STORAGE_DAMAGED` if
+anything does not match. It reads every tile and bundle: run it after an incident or on a schedule.
 
-— example.com/log Jb1BsEv3/w9bI0H3Gl/pRDxTUJhhRdecWoVgxutGU/6cc46BXi6x0pcO78xtvdZoyfNtc3d3Dpx6I3c/L0c1DvqWQAo=
-```
+## Troubleshooting
 
-`verifyReceipt(receipt, options)` checks one offline, with nothing but its arguments, following the spec's
-verification steps on the ported code: the RFC 6962 leaf hash of `data` (or a given `leafHash`); the log's
-signature and origin; every cosignature by a policy witness, and the policy; and the inclusion proof.
+**`"openServerLog" is not exported by ".../NOT-FOR-BROWSERS--use-webtessera-browser.js"`** (Vite), or
+`No matching export in "…/NOT-FOR-BROWSERS--use-webtessera-browser.js"` (esbuild, `bun build`): a browser
+bundle imported `webtessera/server`. Import from `webtessera/browser` there, and keep `webtessera/server` in
+server and edge code.
 
-```ts
-const { index, checkpoint, cosignedBy } = verifyReceipt(text, {
-  vkey: logVkey,                                    // the log's published vkey
-  data: entry,                                      // the exact bytes that were logged
-  witnesses: { threshold: 1, witnesses: [witnessVkey] }, // optional
-});
-```
+**`WRITER_CONFLICT`**: two processes opened one SQLite file with `locking: "single-writer"`, and this one
+stopped writing so that the log does not fork. Use the adapter's default, lease locking, to share a file
+between processes.
 
-`witnesses` may also be a `WitnessGroup` from `newWitnessGroupFromPolicy` (package `webtessera`), so a log's own
-witness policy file verifies its receipts. A failure is a `ReceiptError` whose `reason` is `malformed`,
-`signature`, `witnesses`, `inclusion` or `extra`, with a message that says what it usually means.
-
-### Extra data
-
-A tlog-proof may carry application data on its `extra` line: `append(data, { extraData })` (or
-`prove(index, { extraData })`) puts it there, up to `MaxExtraDataBytes`. The spec is explicit that "Applications
-MUST NOT implicitly trust the extra data, as it is not authenticated", so `verifyReceipt` returns it as
-`extraData`, unchecked, unless you ask for more. The common case is a receipt that carries its own entry, so that
-one file holds everything a verifier needs:
-
-```ts
-const receipt = await log.append(entry, { extraData: entry });
-// later, anywhere, with nothing but the receipt and the vkey:
-const { data } = verifyReceipt(receipt.text, { vkey: logVkey, dataInExtra: true });
-```
-
-`dataInExtra: true` takes the entry from the extra line and returns it as `data` only once the inclusion proof
-has bound it to the signed checkpoint: this is the extra line as the spec's "additional data necessary to
-reconstruct the record hash". With `data` or `leafHash` as well, it also checks that the extra line holds that
-entry. A missing or different extra line fails with reason `extra`; altered extra data fails with `inclusion`.
+**`STORAGE_DIVERGED`**: storage changed under this process, usually because another writer used it without
+shared locks. Run `log.fsck()`.
 
 ## Use cases
 

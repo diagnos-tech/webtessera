@@ -121,3 +121,31 @@ guard module throws, that the real entry point refuses to load in a window and i
   - Reproduced two claims the tests do not pin. (1) With `sideEffects: false`, esbuild drops a bare `import "webtessera/server"` from a browser bundle (empty output); with the two-module list it keeps the guard's `throw`. (2) A TypeScript project with `customConditions: ["browser"]` (`moduleResolution: bundler`) importing `openServerLog` from `webtessera/server` fails with TS2305 (no exported member), and the same project without the condition type-checks.
   - `detectRuntime` checks in the order the ADR lists (Deno, Bun, workerd by `navigator.userAgent` or `WebSocketPair`, `EdgeRuntime`, Node by `process.versions.node` with `release.name`, React Native, window and document, worker scope with `importScripts`, unknown), and `assertServerRuntime` runs at the top of `src/server/index.ts`, in `openServerLog` and in `importLogKey`. Ran `detectRuntime` for real on Node 22.22 (`node`) and Bun 1.3.14 (`bun`); `scripts/smoke-runtimes.mjs` passes on both against `dist/`. `guard_browser_test.ts` and the Chromium run pass (the guard throws in a window and a module worker; direct imports of `importLogKey` and `openServerLog` refuse); workerd detects `workerd`.
   - Not verified: Vite, webpack, Parcel, Metro (React Native) and Next.js themselves. The tests prove the resolution algorithm under each tool's documented condition names, and the esbuild behaviour, not those tools; the `react-native` row in particular rests on Metro applying that condition. Deno is not installed here. The Consequences already say that an unlisted server toolchain must add a condition.
+
+## Update (2026-10-07): the guard's file name is its explanation
+
+The audit found the build-time guard working in Vite, esbuild and `bun build --target browser`, and its message
+useless: each said `"openServerLog" is not exported by ".../webtessera/dist/server/browser_guard.js"`, and the
+explanation lived only in a comment and in the runtime throw. A bundler runs no code at build time, so the guard
+cannot add words to that message; it can choose the file name the message prints.
+
+- `src/server/browser_guard.ts` is now `src/server/NOT-FOR-BROWSERS--use-webtessera-browser.ts`, and `exports`
+  and `sideEffects` name `./dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js`. The three bundlers now stop
+  with, verified on the packed tarball with the audit's `vite-wrongenv` project:
+  - Vite 8.3.3: `[MISSING_EXPORT] "openServerLog" is not exported by
+    "node_modules/webtessera/dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js"`;
+  - `bun build --target browser` (1.3.14): `error: No matching export in
+    "node_modules/webtessera/dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js" for import "openServerLog"`;
+  - esbuild 0.28.1, `--platform=browser`, for a JavaScript and a TypeScript importer alike: `✘ [ERROR] No matching
+    export in "node_modules/webtessera/dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js" for import
+    "openServerLog"`. That needs the guard's explicit `export {};`: without it (a module whose only statements are
+    an import and a throw) esbuild only warns that the import "will always be undefined" and builds. The guard
+    keeps the line with a comment saying why, and `server_test.ts` asserts it is there.
+- Exporting stub names that throw was rejected: a build would then succeed and fail only at run time, losing the
+  build-time failure that is this ADR's first guard.
+- The guard throws a `WebtesseraError` with the code `WRONG_ENVIRONMENT` (ADR-0243), as `assertServerRuntime`
+  does, with the same message; it imports `src/safe/errors.ts`, which imports nothing, instead of nothing at all.
+  The test that keeps its message equal to `ServerOnlyMessage` reads the new file.
+- Everything else stands: the conditions, the runtime check, the tests (renamed paths), and the Consequences.
+
+*Review of this update: pending.*

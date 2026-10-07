@@ -173,7 +173,9 @@ export function defaultIDHasher(bundle: Uint8Array): Uint8Array[] {
 /**
  * defaultMerkleLeafHasher parses a C2SP tlog-tile bundle and returns the Merkle leaf hashes of each entry it contains.
  *
- * @internal See defaultIDHasher above: exported for the same reason.
+ * Port note: unexported in Go. It is not exported from the root barrel, as defaultIDHasher
+ * is not; webtessera/fsck exports it as newFsck's default bundleHasher. See
+ * docs/decisions/0244-fsck-default-bundle-hasher-and-log-fsck.md.
  */
 export function defaultMerkleLeafHasher(bundle: Uint8Array): Uint8Array[] {
 	const eb = new EntryBundle();

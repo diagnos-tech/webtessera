@@ -59,6 +59,7 @@ describe("package root exports", () => {
 			"Witness",
 			"WitnessGroup",
 			"WitnessOptions",
+			"errorAs",
 			"errorIs",
 			"newAppendOptions",
 			"newAppender",
@@ -87,6 +88,16 @@ describe("package root exports", () => {
 		expectTypeOf<AppendLifecycle>().toHaveProperty("appender");
 		expectTypeOf<AppenderInit>().toHaveProperty("reader");
 		expectTypeOf<NewAppenderResult>().toHaveProperty("shutdown");
+	});
+
+	it("exports errorAs next to errorIs, for errors that carry data, as Go's errors.As finds them (ADR-0243)", () => {
+		class sizeError extends Error {
+			readonly size = 7n;
+		}
+		const err = new Error("outer", { cause: new sizeError("inner", { cause: webtessera.ErrPushback }) });
+		expect(webtessera.errorIs(err, webtessera.ErrPushback)).toBe(true);
+		expect(webtessera.errorAs(err, sizeError)?.size).toBe(7n);
+		expect(webtessera.errorAs(new Error("plain"), sizeError)).toBeUndefined();
 	});
 
 	it("does not export helpers that exist only for tests", () => {

@@ -32,26 +32,27 @@
  *
  * The log is tamper-evident: once a checkpoint is published, the device cannot rewrite
  * what came before without every holder of a receipt noticing. Witnessing makes that
- * visible to others: pass `witnesses` (a WitnessGroup from `webtessera`) and every
- * checkpoint is cosigned, for example by your server's webtessera/witness, before the
+ * visible to others: pass `witnesses` (a `WitnessGroup` from `webtessera`) and every
+ * checkpoint is cosigned, for example by your server's `webtessera/witness`, before the
  * log publishes it.
  *
  * # Verifying receipts
  *
- * verifyReceipt checks a receipt from any log, offline, against the log's vkey and the
+ * `verifyReceipt` checks a receipt from any log, offline, against the log's vkey and the
  * entry: the browser is where most receipts are verified.
  *
  * # What it will not let you do
  *
  *   - Hand it a private key string: a browser log's key is generated on the device with
- *     openDeviceKey, or imported as a CryptoKey with fromCryptoKey.
+ *     `openDeviceKey`, or imported as a `CryptoKey` with `fromCryptoKey`.
  *   - Keep a persistent log with a key that does not persist with it.
  *   - Change a log's key, or open a log another key created.
- *   - Lose track of publication: append resolves with a receipt it has verified.
+ *   - Lose track of publication: `append` resolves with a receipt it has verified.
  *
  * @module
  */
 
+export { WebtesseraError, type WebtesseraErrorCode } from "../safe/errors.ts";
 export {
 	type GenerateLogKeyOptions,
 	generateLogKey,
@@ -61,8 +62,13 @@ export {
 } from "../safe/keys.ts";
 export {
 	type AppendCallOptions,
+	type AppendManyOptions,
+	type AsyncDisposableLog,
 	DefaultCheckpointIntervalMs,
+	DefaultFsckWorkers,
 	DefaultPublishTimeoutMs,
+	type FsckOptions,
+	type FsckResult,
 	type LogEntry,
 	type LogOptions,
 	MaxExtraDataBytes,
@@ -71,10 +77,15 @@ export {
 } from "../safe/log.ts";
 export {
 	type LogCheckpoint,
+	type LogCheckpointJSON,
 	parseReceipt,
 	type Receipt,
 	ReceiptError,
+	type ReceiptJSON,
 	type VerifiedReceipt,
+	type VerifiedReceiptJSON,
+	type VerifyReceiptEntry,
+	type VerifyReceiptKey,
 	type VerifyReceiptOptions,
 	verifyReceipt,
 	type WitnessPolicy,

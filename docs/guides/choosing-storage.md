@@ -79,7 +79,7 @@ JavaScript realm can reach the database, and a custom `SqlDatabase` that does no
 too ([ADR-0210](../decisions/0210-sqlite-locking-fails-closed.md)). Both APIs keep the adapter's
 default unless you pass `locking`.
 
-### Lease or local?
+### Lease or single writer?
 
 - **`"lease"`** locks are rows in the database, held for a bounded time (`lease.ttlMs`, 30 s by
   default) and renewed while held, and every write made under a lease is fenced on it in the same
@@ -87,15 +87,18 @@ default unless you pass `locking`.
   and a writer that stalls past its lease can never overwrite what the next holder wrote. They are
   correct for every database. They cost the lease's own writes: about a third of append throughput on
   a file at the default batch size.
-- **`"local"`** locks are held in memory and exclude only the stores of this JavaScript realm.
-  Choosing them declares that this realm is the database's only writer, as IndexedDB's `singleWriter`
-  does. They suit a database that is private by construction: in memory, a Durable Object's, a
+- **`"single-writer"`** locks (also accepted as `"local"`, their older name) are held in memory and
+  exclude only the stores of this JavaScript realm. Choosing them declares that this realm is the
+  database's only writer, as IndexedDB's `singleWriter` does. They suit a database that is private by construction: in memory, a Durable Object's, a
   WebAssembly SQLite in a private VFS.
 
-Two rules follow. **Declare a single writer only where there is one**: `locking: "local"` over a
-database that another process can open forks the log the first time two of them append; the
-adapter's default never does. And **every store over one database must use the same locking**: local
-locks and leases do not see each other.
+Two rules follow. **Declare a single writer only where there is one**: the adapter's default never
+makes that mistake. If you make it, a tripwire catches it: a store declared a single writer claims the
+database, checks the claim at the start of each critical section and fences every write on it. When a
+second process starts writing under the same declaration, the first stops, with the code
+`WRITER_CONFLICT` (`ErrWriterConflict` in the ported API), before the two can fork the log. The
+tripwire detects the mistake; only lease locking makes several writers correct. And **every store
+over one database must use the same locking**: in-memory locks and leases do not see each other.
 
 A libSQL embedded replica, or any setup that serves reads from a replica, is not safe for a log that
 several clients write, with either locking.
@@ -129,8 +132,14 @@ Implement `ObjectStore`: `get`, `stat`, `put`, `create`, `deletePrefix` and `loc
 [`src/storage/objectstore/objectstore.ts`](../../src/storage/objectstore/objectstore.ts), is the whole
 specification: every operation atomic per key and durable when it resolves, and **`lock` excluding
 every holder that can reach the same data**, which is the part that keeps the log from forking.
-`NamedLocks`, from the same package, implements the in-process half of `lock`. The conformance suites
-in `src/storage/objectstore/testing/` show what a backend must pass.
+`NamedLocks`, from the same package, implements the in-process half of `lock`.
+
+The conformance suites are in the repository, not the package, since they need Vitest and the golden
+fixtures. Clone it, and in a test of your backend call `describeObjectStoreConformance` from
+`src/storage/objectstore/testing/conformance.ts`, `describeDriverConformance` from
+`testing/driver_conformance.ts`, and `describeGoldenCompatibility` from `testing/golden.ts`, which proves
+that your backend stores byte for byte what Tessera's POSIX driver stores. AGENTS.md §8 lists the steps;
+`src/storage/sqlite/sqlite_test.ts` is a worked example.
 
 ObjectStores also hold other state that needs the same guarantees: the witness server keeps its
 latest cosigned checkpoints in one, and its check-then-write is atomic only because `lock` excludes

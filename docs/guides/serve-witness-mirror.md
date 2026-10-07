@@ -27,7 +27,8 @@ export default { fetch: serve };                     // Cloudflare Workers, and 
 createServer(toNodeListener(serve)).listen(8080);    // Node, with node:http's createServer
 ```
 
-A log from the safe API's `openServerLog` carries the same handler as `log.handler`.
+A log from the safe API's `openServerLog` carries the same handler as `log.handler`, and as
+`log.fetch`, which answers 404 for the rest.
 
 - **What it serves.** `GET` and `HEAD` on the checkpoint, tiles and entry bundles, under an optional
   `prefix`, with the content types and cache headers the specification gives, an `ETag`, and CORS
@@ -45,7 +46,8 @@ A log from the safe API's `openServerLog` carries the same handler as `log.handl
 
 tlog-tiles specifies no write API, so adding entries stays your application's job, as in Tessera.
 `readEntryBody`, `addResponse` and `addErrorResponse` give a `POST /add` route the conventions
-Tessera's own personalities follow; [a log server](log-server.md) shows the route.
+Tessera's own personalities follow. `readEntryBody` refuses anything but a POST, which
+`addErrorResponse` answers with 405; [a log server](log-server.md) shows the route.
 
 ### On Deno
 

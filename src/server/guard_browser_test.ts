@@ -43,7 +43,7 @@ describe("webtessera/server in a browser", () => {
 	});
 
 	it("resolves, under the browser condition, to a module that throws at import", async () => {
-		await expect(import("./browser_guard.ts")).rejects.toThrow(ServerOnlyMessage);
+		await expect(import("./NOT-FOR-BROWSERS--use-webtessera-browser.ts")).rejects.toThrow(ServerOnlyMessage);
 	});
 
 	it("refuses to load in a window", async () => {

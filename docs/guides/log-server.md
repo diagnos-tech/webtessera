@@ -18,16 +18,17 @@ const log = await openServerLog({
 
 const serve = combineHandlers(async (request) => {
   if (new URL(request.url).pathname !== "/add") return undefined;
-  const entry = await readEntryBody(request);                   // capped while it streams
-  if (entry === undefined) return new Response("too large\n", { status: 413 });
   try {
-    return addResponse((await log.append(entry)).index);         // the bare index, as Tessera answers
+    const entry = await readEntryBody(request);                 // POST only, capped while it streams
+    if (entry === undefined) return new Response("too large\n", { status: 413 });
+    return addResponse((await log.append(entry)).index);       // the bare index, as Tessera answers
   } catch (err) {
-    return addErrorResponse(err);                               // 503 + Retry-After on pushback
+    return addErrorResponse(err);                             // 405 if not a POST, 503 on pushback
   }
 }, log.handler);
 ```
 
+`readEntryBody` refuses anything but a POST, since crawlers, link previews and prefetchers send GETs.
 To give writers their receipts instead of the bare index, answer with `receipt.text`.
 
 Then `Deno.serve(serve)`, `Bun.serve({ fetch: serve })`, or `createServer(toNodeListener(serve))` on
@@ -39,8 +40,9 @@ reads `request.signal` prints a harmless warning; see [On Deno](serve-witness-mi
 
 For a SQLite file, the adapter's default is lease locking, which lets any number of processes, on any
 mix of runtimes, append to one file; the example's README shows Node, Bun and Deno doing it at once.
-Pass `locking: "local"` only to declare that this process is the file's only writer.
-[Choosing storage](choosing-storage.md#lease-or-local) explains both.
+Pass `locking: "single-writer"` only to declare that this process is the file's only writer; if a
+second process makes the same claim, the first stops writing (`WRITER_CONFLICT`) before the log can
+fork. [Choosing storage](choosing-storage.md#lease-or-single-writer) explains both.
 
 ## Verifying it
 

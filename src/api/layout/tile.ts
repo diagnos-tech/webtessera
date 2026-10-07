@@ -17,13 +17,17 @@
 
 import { asUint64, shiftRight64 } from "../../internal/gostd/bits.ts";
 
-// TileHeight is the maximum number of levels Merkle tree levels a tile represents.
-// This is fixed at 8 by tlog-tile spec.
+/**
+ * TileHeight is the maximum number of levels Merkle tree levels a tile represents.
+ * This is fixed at 8 by tlog-tile spec.
+ */
 export const TileHeight = 8;
-// TileWidth is the maximum number of hashes which can be present in the bottom row of a tile.
+/** TileWidth is the maximum number of hashes which can be present in the bottom row of a tile. */
 export const TileWidth = 1 << TileHeight;
-// EntryBundleWidth is the maximum number of entries which can be present in an EntryBundle.
-// This is defined to be the same as the width of the node tiles by tlog-tile spec.
+/**
+ * EntryBundleWidth is the maximum number of entries which can be present in an EntryBundle.
+ * This is defined to be the same as the width of the node tiles by tlog-tile spec.
+ */
 export const EntryBundleWidth = TileWidth;
 
 // Port note: the constants above are untyped in Go, so each use site adopts whichever
@@ -52,11 +56,13 @@ export interface TileAddress {
 	readonly nodeIndex: bigint;
 }
 
-// PartialTileSize returns the expected number of leaves in a tile at the given tile level and index
-// within a tree of the specified logSize, or 0 if the tile is expected to be fully populated.
-//
-// Port note: `level * TileHeight` wraps, and the shift saturates at 64, as Go's uint64
-// arithmetic does. See docs/decisions/0014-uint64-wrapping-made-explicit.md.
+/**
+ * PartialTileSize returns the expected number of leaves in a tile at the given tile level and index
+ * within a tree of the specified logSize, or 0 if the tile is expected to be fully populated.
+ *
+ * Port note: `level * TileHeight` wraps, and the shift saturates at 64, as Go's uint64
+ * arithmetic does. See docs/decisions/0014-uint64-wrapping-made-explicit.md.
+ */
 export function partialTileSize(level: bigint, index: bigint, logSize: bigint): number {
 	const sizeAtLevel = shiftRight64(logSize, Number(asUint64(level * tileHeight64)));
 	const fullTiles = sizeAtLevel / tileWidth64;
@@ -66,8 +72,10 @@ export function partialTileSize(level: bigint, index: bigint, logSize: bigint): 
 	return Number(sizeAtLevel % tileWidth64);
 }
 
-// NodeCoordsToTileAddress returns the (TileLevel, TileIndex) in tile-space, and the
-// (NodeLevel, NodeIndex) address within that tile of the specified tree node co-ordinates.
+/**
+ * NodeCoordsToTileAddress returns the (TileLevel, TileIndex) in tile-space, and the
+ * (NodeLevel, NodeIndex) address within that tile of the specified tree node co-ordinates.
+ */
 export function nodeCoordsToTileAddress(treeLevel: bigint, treeIndex: bigint): TileAddress {
 	const tileRowWidth = 1n << (tileHeight64 - (treeLevel % tileHeight64));
 	const tileLevel = treeLevel / tileHeight64;

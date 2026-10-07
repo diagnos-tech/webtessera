@@ -19,6 +19,7 @@
 // it has an equivalent. See docs/decisions/0171-witness-server.md.
 
 import { SentinelError } from "../internal/gostd/errors.ts";
+import { isSignerKey } from "../safe/errors.ts";
 
 /**
  * ErrMalformedRequest is the cause of every rejection the spec answers with "400 Bad
@@ -88,12 +89,18 @@ export const ErrInvalidProof = new SentinelError("invalid consistency proof");
 const maxEchoChars = 96;
 
 /**
- * echo quotes a piece of a request for an error message, cut down to a bounded length, so
- * that a refusal never reflects more than a few dozen characters of attacker input.
+ * echo quotes a piece of a request or of the witness's configuration for an error message,
+ * cut down to a bounded length, so that a refusal never reflects more than a few dozen
+ * characters of attacker input; and, for a string that holds a note signer key (a witness's
+ * own key pasted where a log's origin or key belongs, say), a placeholder instead, so that
+ * no error repeats a secret (docs/decisions/0243-one-error-class-for-the-safe-api.md).
  *
  * @internal
  */
 export function echo(s: string): string {
+	if (isSignerKey(s)) {
+		return "<a signer (private) key, not shown>";
+	}
 	const clipped = s.length > maxEchoChars ? `${s.slice(0, maxEchoChars)}...` : s;
 	return JSON.stringify(clipped);
 }

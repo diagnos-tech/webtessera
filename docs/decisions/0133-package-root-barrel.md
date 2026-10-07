@@ -122,3 +122,13 @@ ADR-0181), and the leak test in `src/index_test.ts` ("does not export helpers th
 `Copier` nor `progress`, as the Update says. The class is `copier` (`src/migrate.ts`, lowercase as Go's unexported type), so the
 Context's capitalised `Copier` names that type loosely. The exact-set test (the sorted list of runtime exports, written out in full) is what catches a
 leak independent of the name list. I ran `index_test.ts`: 33 passed. This restates, in an Update, what the Review's nit already found, and adds nothing wrong.
+
+## Update (2026-10-07): `errorAs` next to `errorIs`
+
+The root barrel also exports `errorAs`, the stand-in for Go's `errors.As`, for the reason `errorIs` is there: Go's
+API is specified in terms of `errors.Is` and `errors.As`, and errors that carry data (`ErrInconsistency` from
+webtessera/client, `OldSizeMismatchError` from webtessera/witness) can only be found in a wrapped error with it.
+The root module's documentation now says how to test for a sentinel and for an error class. ADR-0243 has the
+decision; `index_test.ts` lists the export and exercises it.
+
+*Review of this update: pending.*

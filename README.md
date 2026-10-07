@@ -22,8 +22,8 @@ npm install webtessera
 # or: bun add webtessera / pnpm add webtessera / yarn add webtessera
 ```
 
-webtessera runs on Node.js 22 or later, Deno 2, Bun, current browsers, and edge runtimes built on web
-standards.
+webtessera runs on Node.js 22.18 or later, Deno 2, Bun, current browsers, and edge runtimes built on
+web standards.
 
 ## Quick start
 
@@ -38,8 +38,8 @@ import { fromSqliteSync } from "webtessera/storage/sqlite";
 ```ts file=src/README_test.ts region=safe_server_example
 // The key comes from your secret store, never from source code.
 const log = await openServerLog({
-  key: await importLogKey(env.LOG_SKEY),
-  storage: { sqlite: fromSqliteSync(new DatabaseSync(file)) },
+  key: await importLogKey(process.env.LOG_SKEY),
+  storage: { sqlite: fromSqliteSync(new DatabaseSync("log.db")) },
 });
 
 // append resolves once a published checkpoint covers the entry, with a verified receipt.
@@ -50,8 +50,9 @@ const receipt = await log.append(entry);
 const { index, checkpoint } = verifyReceipt(receipt.text, { vkey: log.vkey, data: entry });
 ```
 
-To create `LOG_SKEY`, call `generateKey(undefined, "example.com/log")` from `webtessera/note` once:
-keep the returned `skey` in your secret store, and publish `vkey`.
+To create the key, run `npx webtessera keygen example.com/log >> .env` once (or `bunx`, or
+`generateLogKeyPair` from `webtessera/server` in a script). Keep `LOG_SKEY` in your secret store, and
+publish `LOG_VKEY`.
 
 In a browser, `openDeviceKey` and `openBrowserLog` from `webtessera/browser` keep the log in IndexedDB:
 
@@ -65,7 +66,8 @@ const receipt = await log.append(new TextEncoder().encode("signed the form"));
 
 This is the safe API. `webtessera/server` refuses to run in a browser, storage is durable unless you
 ask for memory by name, SQLite is locked so that several processes cannot fork the log, and every
-receipt is verified before it is returned. The [safe API guide](docs/guides/safe-api.md) explains
+receipt is verified before it is returned. Serve the log with `log.fetch`, append in batches with
+`appendMany`, and branch on an error's `code`. The [safe API guide](docs/guides/safe-api.md) explains
 each default.
 
 ## The ported API

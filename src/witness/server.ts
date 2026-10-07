@@ -22,6 +22,7 @@ import type { CorsOptions } from "../http/cors.ts";
 import { type Handler, positiveInteger } from "../http/handler.ts";
 import { bytesEqual, fromUTF8, indexByte } from "../internal/gostd/bytes.ts";
 import { throwIfAborted } from "../internal/gostd/errors.ts";
+import { isSignerKey } from "../safe/errors.ts";
 import { verifyConsistency } from "../vendor/merkle/proof/verify.ts";
 import { DefaultHasher } from "../vendor/merkle/rfc6962/rfc6962.ts";
 import {
@@ -414,7 +415,7 @@ export class WitnessServer {
 			vs.push(v);
 		}
 		for (const k of keys.verifierKeys ?? []) {
-			const v = this.#lookedUpVerifier(k);
+			const v = this.#lookedUpVerifier(origin, k);
 			shared ||= v === undefined;
 			if (v !== undefined) {
 				vs.push(v);
@@ -435,7 +436,7 @@ export class WitnessServer {
 	 * lookedUpVerifier returns the verifier for a verifier key lookupLog returned, or
 	 * undefined if it is a witness key, from the cache of recent keys if it is there.
 	 */
-	#lookedUpVerifier(key: string): Verifier | undefined {
+	#lookedUpVerifier(origin: string, key: string): Verifier | undefined {
 		if (this.#lookedUp.has(key)) {
 			const v = this.#lookedUp.get(key);
 			// Most recently used last, so that the oldest is the first to go.
@@ -443,7 +444,7 @@ export class WitnessServer {
 			this.#lookedUp.set(key, v);
 			return v;
 		}
-		const v = newVerifier(key);
+		const v = logVerifier(origin, key);
 		const kept = this.#keySeparation.sharesKey([v]) ? undefined : v;
 		if (this.#lookedUp.size >= maxLookedUpKeys) {
 			const oldest = this.#lookedUp.keys().next();
@@ -474,11 +475,25 @@ export class WitnessServer {
 
 /** verifiersOf builds the verifiers for a log's keys, which must name at least one. */
 function verifiersOf(origin: string, keys: LogKeys): readonly Verifier[] {
-	const vs = [...(keys.verifiers ?? []), ...(keys.verifierKeys ?? []).map((k) => newVerifier(k))];
+	const vs = [...(keys.verifiers ?? []), ...(keys.verifierKeys ?? []).map((k) => logVerifier(origin, k))];
 	if (vs.length === 0) {
 		throw new Error(`log ${echo(origin)} has no verifier keys`);
 	}
 	return vs;
+}
+
+/**
+ * logVerifier builds the verifier for one of a log's verifier keys with the ported
+ * newVerifier, refusing first, without repeating it, a signer key configured in its place.
+ */
+function logVerifier(origin: string, key: string): Verifier {
+	if (isSignerKey(key)) {
+		throw new Error(
+			`log ${echo(origin)}: one of its verifier keys is a signer (private) key; configure the log's verifier key ` +
+				"(vkey), which its operator publishes, and treat the signer key as exposed",
+		);
+	}
+	return newVerifier(key);
 }
 
 // hashSize is the size of a Merkle tree hash: tlog-witness logs use SHA-256 (RFC 6962).

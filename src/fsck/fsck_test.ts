@@ -43,6 +43,7 @@ import {
 	type resource,
 	resourceBackpressureThreshold,
 } from "./fsck.ts";
+import * as exported from "./index.ts";
 import { newRangeTracker, OK } from "./status.ts";
 
 describe("TestTrimFullToPartial", () => {
@@ -227,6 +228,25 @@ it("check() rejects a log with a corrupted tile (not part of upstream fsck_test.
 
 	const f = newFsck(fixture.origin, verifier, new fixtureFetcher(resources), defaultMerkleLeafHasher, { n: 2 });
 	await expect(f.check()).rejects.toThrow(/^failed: tile\/0\/000\.p\/15: log has:/);
+});
+
+it("newFsck defaults its bundleHasher to defaultMerkleLeafHasher, and its opts to one worker (ADR-0244, not part of upstream fsck_test.go)", async () => {
+	const { fixture, resources } = await loadClientLogResources();
+	const verifier = newVerifier(fixture.logVkey);
+	expect(exported.defaultMerkleLeafHasher).toBe(defaultMerkleLeafHasher);
+
+	// A good log verifies with the defaults, exactly as with the hasher passed explicitly.
+	await newFsck(fixture.origin, verifier, new fixtureFetcher(resources)).check();
+	await newFsck(fixture.origin, verifier, new fixtureFetcher(resources), undefined, { n: 3 }).check();
+
+	// And the default hasher is the one that catches a tile its entries do not produce.
+	const corruptPath = tilePath(0n, 0n, 15);
+	const corrupted = (resources.get(corruptPath) as Uint8Array).slice();
+	corrupted[0] = (corrupted[0] as number) ^ 0xff;
+	resources.set(corruptPath, corrupted);
+	await expect(newFsck(fixture.origin, verifier, new fixtureFetcher(resources)).check()).rejects.toThrow(
+		/^failed: tile\/0\/000\.p\/15: log has:/,
+	);
 });
 
 interface LogFixture {

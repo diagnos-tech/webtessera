@@ -15,7 +15,7 @@
 // Tests for offline receipt verification: one test per step of tlog-proof's verification
 // procedure, each with the receipt that passes it and the ones that must not.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { fromUTF8, toUTF8 } from "../internal/gostd/bytes.ts";
 import { Checkpoint } from "../vendor/formats/log/index.ts";
 import { newSignerForCosignatureV1, vKeyToCosignatureV1 } from "../vendor/formats/note/note_cosigv1.ts";
@@ -24,7 +24,8 @@ import { DefaultHasher } from "../vendor/merkle/rfc6962/rfc6962.ts";
 import { Tree } from "../vendor/merkle/testonly/tree.ts";
 import { generateKey, newSigner, newVerifier, open, sign, verifierList } from "../vendor/note/note.ts";
 import { newWitness, newWitnessGroup, newWitnessGroupFromPolicy } from "../witness.ts";
-import { parseReceipt, ReceiptError, verifyReceipt } from "./receipt.ts";
+import { WebtesseraError } from "./errors.ts";
+import { parseReceipt, ReceiptError, type VerifyReceiptOptions, verifyReceipt } from "./receipt.ts";
 
 const origin = "example.com/log";
 const log = generateKey(undefined, origin);
@@ -108,12 +109,33 @@ describe("verifyReceipt", () => {
 	describe("step 1: the leaf hash", () => {
 		it("needs exactly one of data and leafHash", () => {
 			const proof = proofFor(0n, cp);
-			expect(() => verifyReceipt(proof, { vkey: log.vkey })).toThrow(TypeError);
+			// The types refuse each of these calls (see "requires the entry in its types"); a caller
+			// in JavaScript, or one that casts, meets the same refusal at run time.
+			expect(() => verifyReceipt(proof, { vkey: log.vkey } as never)).toThrow(
+				expect.objectContaining({ name: "WebtesseraError", code: "INVALID_ARGUMENT" }),
+			);
 			expect(() =>
-				verifyReceipt(proof, { vkey: log.vkey, data: entries[0] as Uint8Array, leafHash: tree.leafHash(0n) }),
+				verifyReceipt(proof, {
+					vkey: log.vkey,
+					data: entries[0] as Uint8Array,
+					leafHash: tree.leafHash(0n),
+				} as never),
 			).toThrow("exactly one of data");
 			expect(() => verifyReceipt(proof, { vkey: log.vkey, leafHash: new Uint8Array(31) })).toThrow("32-byte");
-			expect(() => verifyReceipt(proof, { vkey: log.vkey, dataInExtra: false })).toThrow(/or dataInExtra: true/);
+			expect(() => verifyReceipt(proof, { vkey: log.vkey, dataInExtra: false } as never)).toThrow(
+				/or dataInExtra: true/,
+			);
+		});
+
+		it("requires the entry in its types: one of data, leafHash and dataInExtra: true", () => {
+			expectTypeOf<{ vkey: string }>().not.toExtend<VerifyReceiptOptions>();
+			expectTypeOf<{ vkey: string; dataInExtra: false }>().not.toExtend<VerifyReceiptOptions>();
+			expectTypeOf<{ vkey: string; data: Uint8Array; leafHash: Uint8Array }>().not.toExtend<VerifyReceiptOptions>();
+			expectTypeOf<{ vkey: string; data: Uint8Array }>().toExtend<VerifyReceiptOptions>();
+			expectTypeOf<{ vkey: string; leafHash: Uint8Array }>().toExtend<VerifyReceiptOptions>();
+			expectTypeOf<{ vkey: string; dataInExtra: true }>().toExtend<VerifyReceiptOptions>();
+			expectTypeOf<{ vkey: string; data: Uint8Array; dataInExtra: true }>().toExtend<VerifyReceiptOptions>();
+			expectTypeOf<{ vkey: string; leafHash: Uint8Array; dataInExtra: boolean }>().toExtend<VerifyReceiptOptions>();
 		});
 
 		describe("with dataInExtra, from the extra line", () => {
@@ -147,7 +169,12 @@ describe("verifyReceipt", () => {
 				expect(otherHash.reason).toBe("extra");
 				expect(otherHash.message).toMatch(/does not have the leaf hash it is checked against/);
 				expect(() =>
-					verifyReceipt(carrying, { vkey: log.vkey, data: entry, leafHash: tree.leafHash(6n), dataInExtra: true }),
+					verifyReceipt(carrying, {
+						vkey: log.vkey,
+						data: entry,
+						leafHash: tree.leafHash(6n),
+						dataInExtra: true,
+					} as never),
 				).toThrow(/at most one of data and leafHash/);
 			});
 
@@ -344,5 +371,92 @@ describe("parseReceipt", () => {
 	it("rejects non-canonical base64, as tlog-proof requires", () => {
 		const text = fromUTF8(proofFor(2n, checkpointOf(log.skey)).marshal()).replace(/=\n\n/, "=\n\n");
 		expect(() => parseReceipt(text.replace(/^(c2sp\.org\/tlog-proof@v1\n)/, "$1extra YR==\n"))).toThrow(ReceiptError);
+	});
+});
+
+describe("errors", () => {
+	const cp = checkpointOf(log.skey);
+	const proof = proofFor(1n, cp);
+	const data = entries[1] as Uint8Array;
+
+	it("makes ReceiptError a WebtesseraError with the code INVALID_RECEIPT, keeping its reason", () => {
+		const err = failure(() => verifyReceipt(proof, { vkey: otherLog.vkey, data }));
+		expect(err).toBeInstanceOf(WebtesseraError);
+		expect([err.name, err.code, err.reason]).toEqual(["ReceiptError", "INVALID_RECEIPT", "signature"]);
+	});
+
+	it("refuses a signer key where the vkey, a witness key, the origin or the receipt belongs, without repeating it", () => {
+		const secret = log.skey.split("+").slice(4).join("+"); // the base64 seed, which may contain "+"
+		const variants = [
+			log.skey,
+			` ${log.skey}\n`,
+			`LOG_SKEY=${log.skey}`,
+			JSON.stringify(log.skey),
+			log.skey.toLowerCase(),
+		];
+		for (const skey of variants) {
+			const cases: [string, () => unknown, RegExp][] = [
+				[
+					"vkey",
+					() => verifyReceipt(proof, { vkey: skey, data }),
+					/verifyReceipt: vkey is a signer \(private\) key; pass the log's verifier key \(vkey\)/,
+				],
+				[
+					"a witness key",
+					() => verifyReceipt(proof, { vkey: log.vkey, data, witnesses: { threshold: 1, witnesses: [w1.vkey, skey] } }),
+					/witnesses: a witness key is a signer \(private\) key/,
+				],
+				["the origin", () => verifyReceipt(proof, { vkey: log.vkey, data, origin: skey }), /the origin is a signer/],
+				["the receipt", () => verifyReceipt(skey, { vkey: log.vkey, data }), /the receipt is a signer/],
+				["the receipt's bytes", () => verifyReceipt(toUTF8(skey), { vkey: log.vkey, data }), /the receipt is a signer/],
+				["parseReceipt", () => parseReceipt(skey), /parseReceipt: the receipt is a signer/],
+			];
+			for (const [name, fn, want] of cases) {
+				let err: unknown;
+				try {
+					fn();
+				} catch (e) {
+					err = e;
+				}
+				expect(err, name).toBeInstanceOf(WebtesseraError);
+				expect((err as WebtesseraError).code, name).toBe("SIGNER_KEY_MISUSE");
+				expect((err as Error).message, name).toMatch(want);
+				for (let e: unknown = err; e instanceof Error; e = e.cause) {
+					expect(`${e.message}\n${e.stack}`, name).not.toContain(secret);
+				}
+			}
+		}
+	});
+
+	it("quotes a vkey that does not parse, cut short", () => {
+		expect(() => verifyReceipt(proof, { vkey: "x".repeat(500), data })).toThrow(
+			/verifyReceipt: "x{96}\.\.\." is not a note verifier key/,
+		);
+	});
+});
+
+describe("JSON", () => {
+	const cp = checkpointOf(log.skey, w1.skey);
+	const proof = proofFor(4n, cp, toUTF8("context"));
+	const data = entries[4] as Uint8Array;
+
+	it("writes a verified receipt with decimal indices and base64 bytes, and checkpoints with their note text", () => {
+		const v = verifyReceipt(proof, { vkey: log.vkey, data, witnesses: { threshold: 1, witnesses: [w1.vkey] } });
+		const json = JSON.parse(JSON.stringify(v)) as Record<string, unknown>;
+		expect(json).toEqual({
+			index: "4",
+			checkpoint: { origin, size: "13", hash: btoa(String.fromCharCode(...tree.hash())), signed: fromUTF8(cp) },
+			cosignedBy: ["witness1.example"],
+			extraData: btoa("context"),
+		});
+	});
+
+	it("takes a receipt back from its JSON form, which carries the text", () => {
+		const json = JSON.parse(JSON.stringify({ index: "4", text: fromUTF8(proof.marshal()) })) as {
+			index: string;
+			text: string;
+		};
+		expect(verifyReceipt(json, { vkey: log.vkey, data }).index).toBe(4n);
+		expect(parseReceipt(json).index).toBe(4n);
 	});
 });

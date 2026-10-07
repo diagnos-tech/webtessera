@@ -67,3 +67,20 @@ keeping it non-extractable; no other browser storage can.
   - Read `src/browser/device_key.ts` against each bullet: database `webtessera-keys`, store `keys`, record `{ version: 1, origin, privateKey: CryptoKey, publicKey }`; `openDeviceKey` loads or creates (no fallback, error names `generateLogKey(origin, { fallback: "noble" })`) and writes with `add`, with a `ConstraintError` meaning another tab won and its key is loaded and returned, so no tab signs with a key another replaces; `loadDeviceKey` checks record shape and origin and, through `restoreCryptoKey`, signs and verifies a probe so a swapped record is refused; `saveDeviceKey` refuses a noble key and never overwrites; `deleteDeviceKey` reports whether there was a key; every transaction is `durability: "strict"` on its own connection that closes on `versionchange`; loaded or saved keys are marked durable, which `openBrowserLog` requires.
   - Ran the tests the Consequences cite: Chromium (`log_browser_test.ts`) shows the stored record's private key is a non-extractable `CryptoKey` and `exportKey` rejects for both `pkcs8` and `jwk`, a reopened key's vkey verifies what the original signs, a module worker gets the same key, and five simultaneous opens return one key; `browser_test.ts` (fake-indexeddb) covers races, ids, swapped halves and refusals. 8 files / 265 tests in Chromium and the unit suite pass.
   - Not verified: persistence and eviction behaviour (`navigator.storage.persist()`) and structured clone of `CryptoKey` in Firefox and Safari; only the Playwright Chromium and fake-indexeddb over Node's WebCrypto ran. The Consequences' warning that clearing site data deletes the key is a statement about browsers, not code.
+
+## Update (2026-10-07): an insecure page is told so first
+
+On a page served over plain HTTP from a host other than localhost, browsers expose neither `crypto.subtle` nor
+Web Locks, and `openDeviceKey` failed with the message about browser versions ("it needs Chrome or Edge 137, …"),
+which sent the audit looking at the wrong thing. `openDeviceKey` and `loadDeviceKey` now check
+`globalThis.isSecureContext` first, and where it is `false` throw a `WebtesseraError` with the code
+`INSECURE_CONTEXT`: "this page is not a secure context (it was loaded over plain HTTP from a host other than
+localhost), and browsers give WebCrypto, which holds device keys, only to secure contexts. Serve the page over
+HTTPS, or from localhost while developing." Runtimes without the notion (`isSecureContext` undefined) pass. The
+other errors of the device key store have codes too (ADR-0243): `UNSUPPORTED_RUNTIME`, `KEY_EXISTS`,
+`KEY_MISMATCH`, `STORAGE_DAMAGED`; an `id` or `database` option that is a signer key is refused unquoted.
+
+Tests: `browser_test.ts` ("says, before anything else, that a page that is not a secure context cannot hold a
+device key").
+
+*Review of this update: pending.*

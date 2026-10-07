@@ -128,3 +128,24 @@ and invalid options); `server_test.ts` (receipts from `append` and `prove` with 
 empty extra data, the largest extra data read back, and the refusals).
 
 **Review of this update:** ADR review agent (independent), 2026-10-04. Verdict: approved. `MaxExtraDataBytes` is `floor((65536 - 1 - 6) / 4) * 3` = 49,146, and that is exactly the limit of Go v0.1.1's reader: with the port's `marshal`, extra data of 49,145 and 49,146 bytes is read by Go's `Unmarshal` and by the port, 49,147 to 49,150 bytes fail in both. `dataInExtra` behaves as written (entry from the extra line alone; checked against `data` or `leafHash`, at most one; the leaf hash is the extra data's, so step 4 binds it; `data` is undefined without it; `extra` as a fifth reason; the TypeScript overload). The spec sentence the update quotes ("additional data necessary to reconstruct the record hash" and the extra line as input to step 1) is in the current text. Tests named in the update exist in `receipt_test.ts` and `server_test.ts` and pass.
+
+## Update (2026-10-07): the entry is required by the types, `ReceiptError` is a `WebtesseraError`, and JSON
+
+Three changes from the fresh-eyes audit of the 0.1.0 tarball; the verification procedure is unchanged.
+
+- **`verifyReceipt(t, { vkey })` no longer type-checks.** It always threw at run time ("needs exactly one of data
+  … or dataInExtra: true"). `VerifyReceiptOptions` is now `VerifyReceiptKey & VerifyReceiptEntry`, where the entry
+  is one of `{ data }`, `{ leafHash }` (each with an optional `dataInExtra`) or `{ dataInExtra: true }`, and `data`
+  with `leafHash` together is refused by the types too, as it is at run time. The run-time checks stay, for
+  JavaScript callers. `VerifyReceiptOptions` was an interface and is now a type alias; an interface that extended
+  it must use an intersection instead.
+- **`ReceiptError` extends `WebtesseraError`** (ADR-0243) with the code `INVALID_RECEIPT`, keeping its name,
+  `reason` and constructor. Argument errors that were `TypeError`s are `INVALID_ARGUMENT`; a signer key given as
+  the vkey, the origin, a policy witness or the receipt is `SIGNER_KEY_MISUSE` and is never quoted.
+- **JSON.** `Receipt`, `LogCheckpoint` and `VerifiedReceipt` have `toJSON()` (ADR-0246); `text` is documented as
+  the wire format; `verifyReceipt` and `parseReceipt` take a `ReceiptJSON` (`{ index, text }`) back.
+
+Tests: `receipt_test.ts` ("requires the entry in its types", with `expectTypeOf(...).not.toExtend`; the cast
+calls still refused at run time; "errors"; "JSON").
+
+*Review of this update: pending.*

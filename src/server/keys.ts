@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file has no upstream counterpart. It is the only way into the safe API for a private
-// key string, and it exists only in webtessera/server. See docs/decisions/0222-key-custody.md.
+// This file has no upstream counterpart. It is the only way into, and out of, the safe API
+// for a private key string, and it exists only in webtessera/server. See
+// docs/decisions/0222-key-custody.md and docs/decisions/0245-key-generation-for-secret-stores.md.
 
-import { importSignerKey, type LogKey } from "../safe/keys.ts";
+import { checkOrigin, importSignerKey, type LogKey } from "../safe/keys.ts";
 import { assertServerRuntime } from "../safe/runtime.ts";
+import { generateKey } from "../vendor/note/note.ts";
 
 /**
  * ImportLogKeyOptions configures importLogKey.
@@ -35,7 +37,7 @@ export interface ImportLogKeyOptions {
 
 /**
  * importLogKey imports a log's signer key, in the note format
- * (`PRIVATE+KEY+<origin>+<hash>+<key>`, as `generateKey` from webtessera/note makes it),
+ * (`PRIVATE+KEY+<origin>+<hash>+<key>`, as generateLogKeyPair makes it),
  * into a non-extractable WebCrypto key where the runtime supports Ed25519, and otherwise
  * into a key @noble/curves holds in memory.
  *
@@ -43,13 +45,56 @@ export interface ImportLogKeyOptions {
  * bytes decoded from it are wiped once imported, and no error, toString or JSON ever
  * contains them. It refuses to run in a browser.
  *
+ * `skey` may be `undefined`, so that an environment variable can be passed as it is: an
+ * unset or empty key is refused with the code `INVALID_ARGUMENT`, at startup rather than at
+ * the first append.
+ *
  * ```ts
- * const key = await importLogKey(env.LOG_SKEY);
+ * const key = await importLogKey(process.env.LOG_SKEY);
  * key.origin; // "example.com/log"
  * key.vkey;   // publish this
  * ```
  */
-export async function importLogKey(skey: string, options?: ImportLogKeyOptions): Promise<LogKey> {
+export async function importLogKey(skey: string | undefined, options?: ImportLogKeyOptions): Promise<LogKey> {
 	assertServerRuntime();
 	return importSignerKey(skey, options);
+}
+
+/**
+ * LogKeyPair is a new log key as the two note-format strings a deployment keeps: `skey`,
+ * the signer key, for a secret store, and `vkey`, the verifier key, to publish.
+ *
+ * ```ts
+ * const { skey, vkey } = generateLogKeyPair("example.com/log");
+ * ```
+ */
+export interface LogKeyPair {
+	/** skey is the signer key, `PRIVATE+KEY+<origin>+<hash>+<key>`: keep it secret, and pass it to importLogKey. */
+	readonly skey: string;
+	/** vkey is the verifier key, `<origin>+<hash>+<key>`: publish it, for whoever verifies the log. */
+	readonly vkey: string;
+}
+
+/**
+ * generateLogKeyPair generates a new Ed25519 key for the log with the given origin, as the
+ * note-format strings to keep: the signer key for your secret store (open the log with
+ * `importLogKey(skey)`), and the verifier key to publish. The key is made exactly as Go's
+ * note.GenerateKey makes one, by its port, from the runtime's cryptographic random source.
+ *
+ * Run it once per log, where the secret store is: a deploy script, a one-off command
+ * (`npx webtessera keygen <origin>` does it from a terminal), never in request handling, and
+ * never in a browser, which it refuses. For a key that never leaves the process, use
+ * generateLogKey instead.
+ *
+ * ```ts
+ * const { skey, vkey } = generateLogKeyPair("example.com/log");
+ * await secrets.put("LOG_SKEY", skey);
+ * await publish("LOG_VKEY", vkey);
+ * ```
+ */
+export function generateLogKeyPair(origin: string): LogKeyPair {
+	assertServerRuntime();
+	checkOrigin(origin, "generateLogKeyPair");
+	const { skey, vkey } = generateKey(undefined, origin);
+	return { skey, vkey };
 }

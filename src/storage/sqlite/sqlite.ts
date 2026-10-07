@@ -23,7 +23,8 @@ import { wrapError } from "../../internal/gostd/errors.ts";
 import { newObjectStoreDriver, type ObjectStoreDriver } from "../objectstore/driver.ts";
 import { NamedLocks } from "../objectstore/namedlocks.ts";
 import type { ObjectInfo, ObjectStore } from "../objectstore/objectstore.ts";
-import type { SqlDatabase, SqliteLocking, SqlRow, SqlStatement } from "./database.ts";
+import { WriterClaim, writerConflictError } from "./claim.ts";
+import type { SqlDatabase, SqliteLocking, SqliteLockingOption, SqlRow, SqlStatement } from "./database.ts";
 import { encodeKey, prefixRange } from "./keys.ts";
 import { type Fence, isLeaseLost, LeaseLocks, type LeaseTimings, leaseLostError } from "./lease.ts";
 import { blobParam, checkTextEncoding, textParam } from "./params.ts";
@@ -79,11 +80,14 @@ export interface SqliteObjectStoreOptions {
 	 * private VFS. Every SQLite file, libSQL embedded replica, D1, rqlite and remote libSQL
 	 * database therefore gets "lease".
 	 *
-	 * Choosing "local" is the caller's declaration that this realm is the database's only
-	 * writer, like IndexedDB's `singleWriter`. If another process, or a connection that is
-	 * not a store of this realm, writes the database too, the log forks.
+	 * Choosing "single-writer" (or its older name, "local") is the caller's declaration that
+	 * this realm is the database's only writer, like IndexedDB's `singleWriter`. If another
+	 * process, or a connection that is not a store of this realm, writes the database too,
+	 * the log forks. The store keeps a tripwire for that mistake (see SqliteLocking): once
+	 * another realm starts writing under the same declaration, this one stops writing, with
+	 * an error caused by ErrWriterConflict, before the two can fork the log.
 	 */
-	readonly locking?: SqliteLocking;
+	readonly locking?: SqliteLockingOption;
 
 	/**
 	 * maxChunkBytes is the most of an object's bytes kept in one row. Larger objects span
@@ -158,11 +162,12 @@ export async function openSqliteObjectStore(
 	if (!Number.isSafeInteger(maxChunkBytes) || maxChunkBytes < 1) {
 		throw new RangeError(`sqlite: maxChunkBytes must be a positive integer, got ${maxChunkBytes}`);
 	}
-	const locking = opts.locking ?? (await defaultLockingOf(db, signal));
+	const chosen = opts.locking === "single-writer" ? "local" : opts.locking;
+	const locking = chosen ?? (await defaultLockingOf(db, signal));
 	if (locking !== "local" && locking !== "lease") {
 		throw new RangeError(
-			'sqlite: locking must be "lease", or "local" to declare that this realm is the only writer of the ' +
-				`database; got ${JSON.stringify(locking)}`,
+			'sqlite: locking must be "lease", or "single-writer" (or "local") to declare that this realm is the only ' +
+				`writer of the database; got ${JSON.stringify(locking)}`,
 		);
 	}
 	const clock = opts.clock ?? Date.now;
@@ -172,7 +177,10 @@ export async function openSqliteObjectStore(
 	await checkTextEncoding(db);
 	await ensureSchema(db, t, signal);
 	const local = leases === undefined ? localLocksFor(`${await databaseInstance(db, t)}/${t.objects}`) : queueFor(db, t);
-	return new sqliteObjectStore(db, opts.namespace, t, maxChunkBytes, clock, local, leases);
+	// The tripwire guards the caller's declaration, so it is kept only where the caller made
+	// one: a database the adapter showed to be private needs none, and lease mode is exact.
+	const claim = chosen === "local" ? new WriterClaim(db, t) : undefined;
+	return new sqliteObjectStore(db, opts.namespace, t, maxChunkBytes, clock, local, leases, claim);
 }
 
 /**
@@ -285,6 +293,7 @@ class sqliteObjectStore implements SqliteObjectStore {
 	readonly #clock: () => number;
 	readonly #local: NamedLocks;
 	readonly #leases: LeaseLocks | undefined;
+	readonly #claim: WriterClaim | undefined;
 
 	constructor(
 		db: SqlDatabase,
@@ -294,6 +303,7 @@ class sqliteObjectStore implements SqliteObjectStore {
 		clock: () => number,
 		local: NamedLocks,
 		leases: LeaseLocks | undefined,
+		claim: WriterClaim | undefined,
 	) {
 		this.locking = leases === undefined ? "local" : "lease";
 		this.namespace = namespace;
@@ -303,6 +313,7 @@ class sqliteObjectStore implements SqliteObjectStore {
 		this.#clock = clock;
 		this.#local = local;
 		this.#leases = leases;
+		this.#claim = claim;
 	}
 
 	async get(key: string): Promise<Uint8Array | undefined> {
@@ -391,7 +402,18 @@ class sqliteObjectStore implements SqliteObjectStore {
 	lock<T>(name: string, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		const leases = this.#leases;
 		if (leases === undefined) {
-			return this.#local.run(name, fn, signal);
+			const claim = this.#claim;
+			if (claim === undefined) {
+				return this.#local.run(name, fn, signal);
+			}
+			return this.#local.run(
+				name,
+				async () => {
+					await claim.check();
+					return fn();
+				},
+				signal,
+			);
 		}
 		// Waiting in process first means at most one caller per lock and realm polls the
 		// database for its lease.
@@ -432,17 +454,27 @@ class sqliteObjectStore implements SqliteObjectStore {
 
 	/**
 	 * write runs statements as one batch, preceded by the lease fence if this store holds
-	 * leases, and resolves to the rows each of statements returned.
+	 * leases, or by the single-writer fence once it has claimed the database, and resolves to
+	 * the rows each of statements returned. A store has one or the other, never both.
 	 */
 	async #write(op: string, key: string, statements: SqlStatement[]): Promise<SqlRow[][]> {
 		let fence: Fence | undefined;
+		let claimed: SqlStatement | undefined;
 		try {
 			fence = this.#leases?.fence();
-			if (fence === undefined) {
+			claimed = fence === undefined ? this.#claim?.fence() : undefined;
+			const guard = fence?.statement ?? claimed;
+			if (guard === undefined) {
 				return await this.#db.batch(statements);
 			}
-			return (await this.#db.batch([fence.statement, ...statements])).slice(1);
+			return (await this.#db.batch([guard, ...statements])).slice(1);
 		} catch (err) {
+			// Both fences fail a batch on the same NOT NULL column; which one a store has says
+			// which failed.
+			if (claimed !== undefined && isLeaseLost(err)) {
+				this.#claim?.lost();
+				throw wrapError(`sqlite: ${op} ${JSON.stringify(key)}`, writerConflictError());
+			}
 			throw wrapError(`sqlite: ${op} ${JSON.stringify(key)}`, isLeaseLost(err) ? leaseLostError() : err);
 		} finally {
 			fence?.done();

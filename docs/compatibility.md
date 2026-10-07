@@ -230,7 +230,7 @@ go run ./produce -dir /tmp/log -skey "$SKEY" -seed 1 -from 0 -ends 1,256,1000 -h
 
 ## Runtime support
 
-webtessera runs on Node.js 22 or later, Deno 2, Bun, current browsers (the IndexedDB driver needs IndexedDB and
+webtessera runs on Node.js 22.18 or later, Deno 2, Bun, current browsers (the IndexedDB driver needs IndexedDB and
 Web Locks), and edge runtimes built on web standards. The published build is ES2022.
 
 CI runs the test suites on Node 22 and 24, in Chromium and in workerd, and against live rqlite and S3-compatible

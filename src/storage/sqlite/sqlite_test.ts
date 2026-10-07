@@ -22,6 +22,7 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, describe, expect, it } from "vitest";
 import { bytesEqual, toBase64 } from "../../internal/gostd/bytes.ts";
+import { errorIs } from "../../internal/gostd/errors.ts";
 import { checkpointUnsafe } from "../../internal/parse/parse.ts";
 import { newSignerForCosignatureV1 } from "../../vendor/formats/note/note_cosigv1.ts";
 import { generateKey, newSigner, sign } from "../../vendor/note/note.ts";
@@ -30,7 +31,7 @@ import { describeObjectStoreConformance } from "../objectstore/testing/conforman
 import { describeDriverConformance } from "../objectstore/testing/driver_conformance.ts";
 import { fromSqliteSync } from "./adapters/sync.ts";
 import type { SqlDatabase } from "./database.ts";
-import { DefaultMaxChunkBytes, newSqliteDriver, openSqliteObjectStore } from "./index.ts";
+import { DefaultMaxChunkBytes, ErrWriterConflict, newSqliteDriver, openSqliteObjectStore } from "./index.ts";
 import { describeSqliteBehaviour } from "./testing/behaviour.ts";
 import { appendConcurrently } from "./testing/concurrent.ts";
 import { appendFromProcesses } from "./testing/processes.ts";
@@ -98,6 +99,12 @@ const variants: readonly {
 	{
 		name: "node:sqlite file, default options, second store on a second connection",
 		target: fileTarget,
+		reopenDatabase: secondConnection,
+	},
+	{
+		name: "node:sqlite file, single-writer locking, second store on a second connection",
+		target: fileTarget,
+		options: { locking: "single-writer" },
 		reopenDatabase: secondConnection,
 	},
 	{
@@ -287,5 +294,121 @@ describe("SqliteObjectStore on node:sqlite", () => {
 		await expect(newSqliteDriver({ database: fromSqliteSync(connect(":memory:")) }, ac.signal)).rejects.toThrow(
 			"gave up",
 		);
+	});
+});
+
+describe("the single-writer tripwire", () => {
+	/** recording wraps db and records the SQL of every statement it runs. */
+	function recording(db: SqlDatabase): { db: SqlDatabase; sql: string[] } {
+		const sql: string[] = [];
+		return {
+			sql,
+			db: {
+				query: (st) => {
+					sql.push(st.sql);
+					return db.query(st);
+				},
+				batch: (sts) => {
+					sql.push(...sts.map((st) => st.sql));
+					return db.batch(sts);
+				},
+				defaultLocking: db.defaultLocking,
+			},
+		};
+	}
+
+	/** takeOver records another realm's claim on db, as a second process under the same declaration would. */
+	async function takeOver(db: SqlDatabase): Promise<void> {
+		await db.query({ sql: "UPDATE webtessera_meta SET value = value + 1 WHERE name = 'local_writer'", params: [] });
+	}
+
+	it('takes "single-writer" as the name of local locking', async () => {
+		const s = await openSqliteObjectStore({ database: fromSqliteSync(connect(newFile())), locking: "single-writer" });
+		expect(s.locking).toBe("local");
+		await expect(
+			openSqliteObjectStore({ database: fromSqliteSync(connect(newFile())), locking: "global" as never }),
+		).rejects.toThrow(/locking must be "lease", or "single-writer" \(or "local"\)/);
+	});
+
+	it("claims the database at the first lock, and only then, fencing every write after it", async () => {
+		const rec = recording(fromSqliteSync(connect(newFile())));
+		const s = await openSqliteObjectStore({ database: rec.db, locking: "single-writer" });
+		await s.put("before", new Uint8Array([1]));
+		expect(rec.sql.some((q) => q.includes("local_writer"))).toBe(false);
+		await s.lock("treeState.lock", async () => {
+			await s.put("inside", new Uint8Array([2]));
+		});
+		await s.put("after", new Uint8Array([3]));
+		const claims = rec.sql.filter((q) => q.includes("INSERT OR REPLACE INTO webtessera_meta"));
+		const fences = rec.sql.filter((q) => q.includes("WHERE name = 'local_writer' AND value = ?"));
+		expect([claims.length, fences.length]).toEqual([1, 2]);
+	});
+
+	it("stops a writer for good once another realm claims the database, before it writes anything", async () => {
+		const path = newFile();
+		const db = fromSqliteSync(connect(path));
+		const s = await openSqliteObjectStore({ database: db, locking: "single-writer" });
+		await s.lock("treeState.lock", async () => s.put("mine", new Uint8Array([1])));
+
+		// A write already under way when the other realm claims fails in its own transaction.
+		await takeOver(db);
+		const err = (await s.put("stale", new Uint8Array([2])).catch((e: unknown) => e)) as Error;
+		expect(errorIs(err, ErrWriterConflict)).toBe(true);
+		expect(err.message).toMatch(
+			/^sqlite: put "stale": sqlite: another writer took over this single-writer database: another process opened it with single-writer locking too/,
+		);
+		expect(await s.get("stale")).toBeUndefined();
+
+		// And from then on every lock and write is refused, even were the claim to come back.
+		await expect(s.lock("treeState.lock", async () => "ran")).rejects.toThrow(ErrWriterConflict.message);
+		await db.query({ sql: "UPDATE webtessera_meta SET value = value - 1 WHERE name = 'local_writer'", params: [] });
+		await expect(s.put("later", new Uint8Array([3]))).rejects.toThrow(ErrWriterConflict.message);
+		expect(await s.get("mine")).toEqual(new Uint8Array([1]));
+
+		// A store that starts writing afterwards claims the database itself, as a restarted
+		// process would, and writes.
+		const next = await openSqliteObjectStore({ database: fromSqliteSync(connect(path)), locking: "single-writer" });
+		await takeOver(db);
+		await next.lock("treeState.lock", async () => next.put("next", new Uint8Array([4])));
+		expect(await next.get("next")).toEqual(new Uint8Array([4]));
+	});
+
+	it("checks the claim at the start of every critical section, so a stale writer runs none", async () => {
+		const db = fromSqliteSync(connect(newFile()));
+		const s = await openSqliteObjectStore({ database: db, locking: "local" });
+		await s.lock("publish.lock", async () => {});
+		await takeOver(db);
+		let ran = false;
+		await expect(
+			s.lock("publish.lock", async () => {
+				ran = true;
+			}),
+		).rejects.toThrow(ErrWriterConflict.message);
+		expect(ran).toBe(false);
+	});
+
+	it("never trips over the stores of its own realm", async () => {
+		const path = newFile();
+		const a = await openSqliteObjectStore({ database: fromSqliteSync(connect(path)), locking: "single-writer" });
+		const b = await openSqliteObjectStore({ database: fromSqliteSync(connect(path)), locking: "single-writer" });
+		await a.lock("treeState.lock", async () => a.put("a", new Uint8Array([1])));
+		await b.lock("treeState.lock", async () => b.put("b", new Uint8Array([2])));
+		await a.lock("treeState.lock", async () => a.put("a2", new Uint8Array([3])));
+		expect(await b.get("a2")).toEqual(new Uint8Array([3]));
+	});
+
+	it("costs nothing with lease locking, or where the adapter showed the database to be private", async () => {
+		for (const [name, open] of [
+			["lease", (db: SqlDatabase) => openSqliteObjectStore({ database: db, locking: "lease" })],
+			["the adapter's local", (db: SqlDatabase) => openSqliteObjectStore({ database: db })],
+		] as const) {
+			const rec = recording(fromSqliteSync(connect(":memory:")));
+			const s = await open(rec.db);
+			await s.lock("treeState.lock", async () => s.put("k", new Uint8Array([1])));
+			expect(
+				rec.sql.some((q) => q.includes("local_writer")),
+				name,
+			).toBe(false);
+		}
 	});
 });

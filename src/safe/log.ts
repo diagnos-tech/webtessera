@@ -33,11 +33,12 @@ import { newPublicationAwaiter, type PublicationAwaiter } from "../await.ts";
 import { fetchLeafHashes, newProofBuilder, type TileFetcherFunc } from "../client/client.ts";
 import { entryBundles, entries as streamEntries } from "../client/stream.ts";
 import { newEntry } from "../entry.ts";
+import { newFsck } from "../fsck/fsck.ts";
 import { MaxEntryBytes } from "../http/add.ts";
 import { MaxScanTokenSize } from "../internal/gostd/bufio.ts";
 import { bytesEqual } from "../internal/gostd/bytes.ts";
-import { errorIs, wrapError } from "../internal/gostd/errors.ts";
-import type { LogReader } from "../lifecycle.ts";
+import { errorIs } from "../internal/gostd/errors.ts";
+import { defaultMerkleLeafHasher, type LogReader } from "../lifecycle.ts";
 import { type Driver, ErrPushback } from "../log.ts";
 import type { ObjectStore } from "../storage/objectstore/objectstore.ts";
 import { type ParsedCheckpoint, parseCheckpoint } from "../vendor/formats/log/index.ts";
@@ -45,6 +46,7 @@ import { TLogProof } from "../vendor/formats/proof/tlog_proof.ts";
 import { DefaultHasher } from "../vendor/merkle/rfc6962/rfc6962.ts";
 import type { Verifier } from "../vendor/note/note.ts";
 import type { WitnessGroup } from "../witness.ts";
+import { quoteInput, WebtesseraError } from "./errors.ts";
 import type { LogKey } from "./keys.ts";
 import {
 	type LogCheckpoint,
@@ -53,6 +55,7 @@ import {
 	policyVerifiers,
 	type Receipt,
 	ReceiptError,
+	type ReceiptJSON,
 	type VerifiedReceipt,
 	verifyReceipt,
 } from "./receipt.ts";
@@ -84,6 +87,15 @@ const awaiterPollMs = 100;
 export const DefaultPublishTimeoutMs = 30_000;
 
 /**
+ * DefaultFsckWorkers is how many log resources fsck compares at once, unless told otherwise.
+ *
+ * ```ts
+ * await log.fsck({ workers: 2 * DefaultFsckWorkers });
+ * ```
+ */
+export const DefaultFsckWorkers = 4;
+
+/**
  * AppendCallOptions bounds one append, and says what its receipt carries besides the proof.
  *
  * ```ts
@@ -107,6 +119,20 @@ export interface AppendCallOptions {
 }
 
 /**
+ * AppendManyOptions bounds one appendMany.
+ *
+ * ```ts
+ * await log.appendMany(entries, { signal: request.signal, timeoutMs: 10_000 });
+ * ```
+ */
+export interface AppendManyOptions {
+	/** signal abandons the wait for the receipts; the entries may still be added. */
+	readonly signal?: AbortSignal;
+	/** timeoutMs overrides the log's publishTimeoutMs for this call. */
+	readonly timeoutMs?: number;
+}
+
+/**
  * ProveOptions bounds one prove, and says what its receipt carries besides the proof.
  *
  * ```ts
@@ -118,6 +144,37 @@ export interface ProveOptions {
 	readonly signal?: AbortSignal;
 	/** extraData is put in the receipt's `extra` line, as {@link AppendCallOptions.extraData} is. */
 	readonly extraData?: Uint8Array;
+}
+
+/**
+ * FsckOptions bounds one fsck.
+ *
+ * ```ts
+ * await log.fsck({ signal: AbortSignal.timeout(60_000) });
+ * ```
+ */
+export interface FsckOptions {
+	/** signal abandons the check. */
+	readonly signal?: AbortSignal;
+	/** workers is how many resources are compared at once. Defaults to {@link DefaultFsckWorkers}. */
+	readonly workers?: number;
+}
+
+/**
+ * FsckResult is what fsck reports once the whole log has verified.
+ *
+ * ```ts
+ * const { checkpoint, resourcesFetched } = await log.fsck();
+ * console.log(`all ${checkpoint.size} entries verified, from ${resourcesFetched} resources`);
+ * ```
+ */
+export interface FsckResult {
+	/** checkpoint is the verified checkpoint the log was checked against. */
+	readonly checkpoint: LogCheckpoint;
+	/** resourcesFetched is how many tiles, entry bundles and checkpoints the check read. */
+	readonly resourcesFetched: bigint;
+	/** bytesFetched is how many bytes the check read. */
+	readonly bytesFetched: bigint;
 }
 
 /**
@@ -179,6 +236,24 @@ export interface LogOptions {
 }
 
 /**
+ * AsyncDisposeKey is the type of `Symbol.asyncDispose` where the TypeScript lib in use
+ * declares it (TypeScript 5.2 and later, with `esnext.disposable` or `esnext` in `lib`), and
+ * never where it does not, so that these declarations type-check under any lib.
+ */
+type AsyncDisposeKey = SymbolConstructor extends { readonly asyncDispose: infer K extends symbol } ? K : never;
+
+/**
+ * AsyncDisposableLog is what lets `await using log = await openServerLog(…)` close the log
+ * when the scope ends: TypeScript's `AsyncDisposable` where the lib in use declares it, and
+ * nothing where it does not.
+ *
+ * ```ts
+ * await using log = await openServerLog({ key, storage });
+ * ```
+ */
+export type AsyncDisposableLog = { readonly [K in AsyncDisposeKey]: () => Promise<void> };
+
+/**
  * TransparencyLog is a tamper-evident, append-only log whose every append hands back a
  * receipt that proves offline that the entry is in it. openServerLog and openBrowserLog
  * return one.
@@ -188,8 +263,11 @@ export interface LogOptions {
  * verifyReceipt(receipt.text, { vkey: log.vkey, data: new TextEncoder().encode("hello") });
  * await log.close();
  * ```
+ *
+ * Where the runtime has `Symbol.asyncDispose`, the log is also async-disposable, and
+ * `await using log = …` closes it as close() does when the scope ends.
  */
-export interface TransparencyLog {
+export interface TransparencyLog extends AsyncDisposableLog {
 	/** origin is the log's checkpoint origin. */
 	readonly origin: string;
 	/** vkey is the log's note verifier key: give it to whoever verifies the log's receipts. */
@@ -209,8 +287,33 @@ export interface TransparencyLog {
 	 * append adds data to the log as one entry and resolves, once a published checkpoint
 	 * commits to it, to a receipt that has already been verified against the log's key
 	 * and the entry.
+	 *
+	 * It takes about as long as the log's checkpoint interval (1 s by default), because it
+	 * waits for the next checkpoint; entries appended at the same time share that
+	 * checkpoint. So appends awaited one after another cost an interval each: start them
+	 * together (`Promise.all`), or use appendMany, for a batch at the cost of one. Code
+	 * that wants an index sooner and its receipt later can use `log.appender` and prove.
 	 */
 	append(data: Uint8Array, options?: AppendCallOptions): Promise<Receipt>;
+
+	/**
+	 * appendMany adds every entry of datas, in order, as consecutive entries, and resolves
+	 * to their receipts in the same order, each verified as append verifies it. Every entry
+	 * is checked before any is added, so one that the log cannot hold refuses the whole
+	 * batch.
+	 *
+	 * The entries share one checkpoint, so the call takes about one checkpoint interval
+	 * however many entries it carries, where a loop of awaited appends takes one per entry.
+	 * The price is all or nothing: the receipts arrive together, and if appendMany rejects
+	 * (a timeout, pushback, the log closing), some entries may already be in the log; prove
+	 * fetches their receipts. Very large batches meet the log's pushback limit
+	 * (`DefaultPushbackMaxOutstanding`); split them.
+	 *
+	 * ```ts
+	 * const receipts = await log.appendMany(records.map((r) => new TextEncoder().encode(r)));
+	 * ```
+	 */
+	appendMany(datas: Iterable<Uint8Array>, options?: AppendManyOptions): Promise<Receipt[]>;
 
 	/** latestCheckpoint returns the latest published checkpoint, verified. */
 	latestCheckpoint(signal?: AbortSignal): Promise<LogCheckpoint>;
@@ -247,7 +350,23 @@ export interface TransparencyLog {
 	entry(index: bigint | number, signal?: AbortSignal): Promise<LogEntry>;
 
 	/** verify checks a receipt for data against this log's key and witness policy. */
-	verify(receipt: Receipt | string | Uint8Array, data: Uint8Array): VerifiedReceipt;
+	verify(receipt: Receipt | ReceiptJSON | string | Uint8Array, data: Uint8Array): VerifiedReceipt;
+
+	/**
+	 * fsck verifies the whole log as Tessera's fsck does: it reads every entry bundle,
+	 * recomputes every tile and the root hash from the entries, and checks them against
+	 * the log's storage and its latest checkpoint (verified with the log's key and
+	 * witnesses first). It resolves once all of it verifies, and otherwise throws a
+	 * WebtesseraError with the code `STORAGE_DAMAGED`, the fsck error as its cause.
+	 *
+	 * It reads the whole log, so it costs a pass over the log's storage: run it after an
+	 * incident, a restore or a migration, or from a scheduled job, not per request.
+	 *
+	 * ```ts
+	 * const { checkpoint } = await log.fsck();
+	 * ```
+	 */
+	fsck(options?: FsckOptions): Promise<FsckResult>;
 
 	/**
 	 * close waits until every entry appended so far is covered by a published checkpoint,
@@ -257,6 +376,15 @@ export interface TransparencyLog {
 	 */
 	close(signal?: AbortSignal): Promise<void>;
 }
+
+/**
+ * Explain turns an error from the storage driver into one that says, in the safe API's
+ * terms, what it means; it returns undefined for errors it has nothing to add to. method
+ * names the TransparencyLog method (or the factory) that met the error.
+ *
+ * @internal Supplied by openServerLog, whose SQLite storage has failures of its own.
+ */
+export type Explain = (err: unknown, method: string) => Error | undefined;
 
 /**
  * LogParts is what openLog builds: everything a TransparencyLog needs to run.
@@ -274,6 +402,7 @@ export interface LogParts {
 	readonly lifetime: AbortController;
 	readonly publishTimeoutMs: number;
 	readonly onClose: (() => void | Promise<void>) | undefined;
+	readonly explain: Explain | undefined;
 }
 
 /**
@@ -285,7 +414,12 @@ export interface LogParts {
 export async function openLog(
 	where: string,
 	options: LogOptions,
-	storage: { readonly driver: Driver; readonly store: ObjectStore; readonly onClose?: () => void | Promise<void> },
+	storage: {
+		readonly driver: Driver;
+		readonly store: ObjectStore;
+		readonly onClose?: () => void | Promise<void>;
+		readonly explain?: Explain;
+	},
 ): Promise<LogParts> {
 	const { key } = options;
 	const checkpointIntervalMs = positive(
@@ -295,7 +429,8 @@ export async function openLog(
 		where,
 	);
 	if (checkpointIntervalMs < MinCheckpointIntervalMs) {
-		throw new RangeError(
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
 			`${where}: checkpointIntervalMs must be at least ${MinCheckpointIntervalMs}, the storage driver's minimum, got ${checkpointIntervalMs}`,
 		);
 	}
@@ -310,7 +445,8 @@ export async function openLog(
 		try {
 			parseCheckpoint(existing, key.origin, key.verifier());
 		} catch (err) {
-			throw new Error(
+			throw new WebtesseraError(
+				"KEY_MISMATCH",
 				`${where}: this storage holds a log that was not created with this key: its published checkpoint does not ` +
 					`verify with ${key.vkey} (${messageOf(err)}). A log keeps one key for its whole life; open it with the ` +
 					"key that created it, or give a new log storage of its own.",
@@ -334,12 +470,17 @@ export async function openLog(
 		started = await newAppender(storage.driver, opts, lifetime.signal);
 	} catch (err) {
 		lifetime.abort();
+		const explained = storage.explain?.(err, where);
+		if (explained !== undefined) {
+			throw explained;
+		}
 		if (options.witnesses === undefined) {
-			throw new Error(`${where}: could not start the log: ${messageOf(err)}`, { cause: err });
+			throw new WebtesseraError("OPEN_FAILED", `${where}: could not start the log: ${messageOf(err)}`, { cause: err });
 		}
 		const conflict = witnessConflict(messageOf(err));
 		if (conflict !== undefined) {
-			throw new Error(
+			throw new WebtesseraError(
+				"WITNESS_CONFLICT",
 				`${where}: this storage holds an older or different log than its witnesses cosigned: ${conflict}. A ` +
 					"witness never cosigns a tree that does not extend the one it cosigned last, so the log cannot publish " +
 					"from this storage. Open the storage that holds the log the witnesses saw, or start a new log under " +
@@ -347,7 +488,8 @@ export async function openLog(
 				{ cause: err },
 			);
 		}
-		throw new Error(
+		throw new WebtesseraError(
+			"OPEN_FAILED",
 			`${where}: could not start the log: ${messageOf(err)} (a new log publishes its first checkpoint as it ` +
 				"opens, so its witnesses must be reachable then)",
 			{ cause: err },
@@ -366,6 +508,7 @@ export async function openLog(
 		lifetime,
 		publishTimeoutMs,
 		onClose: storage.onClose,
+		explain: storage.explain,
 	};
 }
 
@@ -395,12 +538,19 @@ function witnessConflict(message: string): string | undefined {
 	return undefined;
 }
 
+// asyncDispose is Symbol.asyncDispose where the runtime has it (Node.js, Deno, Bun, workerd
+// and current browsers), for `await using`. Where it is missing, `await using` is too.
+const asyncDispose = (Symbol as { readonly asyncDispose?: symbol }).asyncDispose;
+
 /**
- * LogBase implements TransparencyLog over the parts openLog built.
+ * LogBase implements TransparencyLog over the parts openLog built. Its async-dispose
+ * method is installed on the prototype under the runtime's Symbol.asyncDispose, so that no
+ * declaration names a symbol the consumer's TypeScript lib may lack; {@link disposable}
+ * types it.
  *
  * @internal Extended by the server and browser logs.
  */
-export class LogBase implements TransparencyLog {
+export class LogBase implements Omit<TransparencyLog, keyof AsyncDisposableLog> {
 	readonly origin: string;
 	readonly vkey: string;
 	readonly verifier: Verifier;
@@ -410,6 +560,18 @@ export class LogBase implements TransparencyLog {
 	readonly #witnessVerifiers: Verifier[];
 	readonly #tiles: TileFetcherFunc;
 	#closing: Promise<void> | undefined;
+
+	static {
+		if (asyncDispose !== undefined) {
+			Object.defineProperty(LogBase.prototype, asyncDispose, {
+				value(this: LogBase): Promise<void> {
+					return this.close();
+				},
+				writable: true,
+				configurable: true,
+			});
+		}
+	}
 
 	constructor(parts: LogParts) {
 		this.#parts = parts;
@@ -424,55 +586,30 @@ export class LogBase implements TransparencyLog {
 
 	async append(data: Uint8Array, options: AppendCallOptions = {}): Promise<Receipt> {
 		this.#checkOpen("append");
-		if (!(data instanceof Uint8Array)) {
-			throw new TypeError("append takes the entry as a Uint8Array; encode text with new TextEncoder().encode(text)");
-		}
-		if (data.length > MaxEntryBytes) {
-			throw new RangeError(
-				`append: an entry holds at most ${MaxEntryBytes} bytes, and this one is ${data.length}; log a SHA-256 ` +
-					"digest of large data instead, and keep the data elsewhere",
-			);
-		}
+		checkEntry(data, "append");
 		const timeoutMs = nonNegative(options.timeoutMs, this.#parts.publishTimeoutMs, "timeoutMs", "append");
 		const extraData = checkExtraData(options.extraData, "append");
-		const future = this.appender.add(newEntry(data));
-		let sequenced: bigint | undefined;
-		// The future is memoized, so the awaiter's call to it shares this one's result.
-		future().then(
-			(i) => {
-				sequenced = i.index;
-			},
-			() => {},
-		);
+		return this.#append("append", data, timeoutMs, extraData, options.signal);
+	}
 
-		// The caller's signal is raced here rather than passed to PublicationAwaiter.await,
-		// which (as Go's Await does with its context) records one caller's cancellation as the
-		// error every waiter of the shared awaiter sees until its next poll.
-		let index: bigint;
-		let checkpoint: Uint8Array;
-		try {
-			const [i, cp] = await within(this.#parts.awaiter.await(future), options.signal, timeoutMs, () =>
-				sequenced === undefined
-					? new Error(
-							`append: the entry was not sequenced within ${timeoutMs} ms; the log may be overloaded, and the entry ` +
-								"may still be added",
-						)
-					: new Error(
-							`append: the entry was durably sequenced at index ${sequenced}, but no checkpoint covering it was ` +
-								`published within ${timeoutMs} ms. If the log has witnesses, check that they are reachable, and ` +
-								"that none has cosigned a larger or different tree than this storage holds; call " +
-								`prove(${sequenced}n) later for its receipt.`,
-						),
+	async appendMany(datas: Iterable<Uint8Array>, options: AppendManyOptions = {}): Promise<Receipt[]> {
+		this.#checkOpen("appendMany");
+		if (typeof datas !== "object" || datas === null || typeof datas[Symbol.iterator] !== "function") {
+			throw new WebtesseraError(
+				"INVALID_ARGUMENT",
+				"appendMany takes the entries as an array (or another iterable) of Uint8Arrays",
 			);
-			index = i.index;
-			checkpoint = cp;
-		} catch (err) {
-			if (errorIs(err, ErrPushback)) {
-				throw wrapError("append: the log is overloaded and refused the entry; retry later", err);
-			}
-			throw err;
 		}
-		return this.#receipt(index, checkpoint, DefaultHasher.hashLeaf(data), extraData, options.signal);
+		const list = Array.from(datas);
+		for (const [i, data] of list.entries()) {
+			checkEntry(data, `appendMany: entry ${i}`);
+		}
+		const timeoutMs = nonNegative(options.timeoutMs, this.#parts.publishTimeoutMs, "timeoutMs", "appendMany");
+		// Nothing above awaits, and each #append adds its entry before its first await, so the
+		// entries reach the appender in order, in one batch, and share one checkpoint.
+		return await Promise.all(
+			list.map((data) => this.#append("appendMany", data, timeoutMs, undefined, options.signal)),
+		);
 	}
 
 	async latestCheckpoint(signal?: AbortSignal): Promise<LogCheckpoint> {
@@ -495,9 +632,9 @@ export class LogBase implements TransparencyLog {
 		}
 		const [leafHash] = await fetchLeafHashes(this.#tiles, i, 1n, size, signal);
 		if (leafHash === undefined) {
-			throw new Error(`prove: no leaf hash for entry ${i}`);
+			throw new WebtesseraError("STORAGE_DAMAGED", `prove: no leaf hash for entry ${i}`, { index: i });
 		}
-		return this.#receipt(i, raw, leafHash, extraData, signal);
+		return this.#receipt("prove", i, raw, leafHash, extraData, signal);
 	}
 
 	entries(from?: bigint | number, to?: bigint | number, signal?: AbortSignal): AsyncGenerator<LogEntry> {
@@ -505,7 +642,10 @@ export class LogBase implements TransparencyLog {
 		const start = from === undefined ? 0n : toIndex(from, "entries", "from");
 		const end = to === undefined ? undefined : toIndex(to, "entries", "to");
 		if (end !== undefined && start > end) {
-			throw new RangeError(`entries: from must not be greater than to, got from ${start} and to ${end}`);
+			throw new WebtesseraError(
+				"INVALID_ARGUMENT",
+				`entries: from must not be greater than to, got from ${start} and to ${end}`,
+			);
 		}
 		return this.#entries("entries", start, end, signal);
 	}
@@ -518,10 +658,10 @@ export class LogBase implements TransparencyLog {
 		}
 		// Unreachable: #entries refuses an index the checkpoint does not cover, and yields
 		// every one it does.
-		throw new Error(`entry: no entry ${i}`);
+		throw new WebtesseraError("STORAGE_DAMAGED", `entry: no entry ${i}`, { index: i });
 	}
 
-	verify(receipt: Receipt | string | Uint8Array, data: Uint8Array): VerifiedReceipt {
+	verify(receipt: Receipt | ReceiptJSON | string | Uint8Array, data: Uint8Array): VerifiedReceipt {
 		return verifyReceipt(
 			receipt,
 			this.#parts.witnesses === undefined
@@ -530,16 +670,119 @@ export class LogBase implements TransparencyLog {
 		);
 	}
 
+	async fsck(options: FsckOptions = {}): Promise<FsckResult> {
+		this.#checkOpen("fsck");
+		const { signal } = options;
+		const workers = options.workers ?? DefaultFsckWorkers;
+		if (!Number.isSafeInteger(workers) || workers < 1) {
+			throw new WebtesseraError(
+				"INVALID_ARGUMENT",
+				`fsck: workers must be a positive integer, got ${quoteOption(workers)}`,
+			);
+		}
+		// The checkpoint is read and verified, witnesses included, once; fsck then checks the
+		// log against exactly that checkpoint, however much the log grows meanwhile.
+		const raw = await this.reader.readCheckpoint(signal);
+		const checkpoint = logCheckpointOf(this.#parse(raw).checkpoint, raw);
+		const reader = this.reader;
+		const f = newFsck(
+			this.origin,
+			this.verifier,
+			{
+				readCheckpoint: () => Promise.resolve(raw),
+				readTile: (l, i, p, s) => reader.readTile(l, i, p, s),
+				readEntryBundle: (i, p, s) => reader.readEntryBundle(i, p, s),
+			},
+			defaultMerkleLeafHasher,
+			{ n: workers },
+		);
+		try {
+			await f.check(signal);
+		} catch (err) {
+			if (signal?.aborted === true) {
+				throw err;
+			}
+			throw new WebtesseraError(
+				"STORAGE_DAMAGED",
+				`fsck: the log's storage does not verify against its checkpoint at size ${checkpoint.size}: ` +
+					`${messageOf(err)}. Restore the storage from a backup or a mirror; until then, receipts for the ` +
+					"damaged entries cannot be built.",
+				{ cause: err },
+			);
+		}
+		const { resourcesFetched, bytesFetched } = f.status();
+		return { checkpoint, resourcesFetched, bytesFetched };
+	}
+
 	close(signal?: AbortSignal): Promise<void> {
 		this.#closing ??= (async (): Promise<void> => {
 			try {
 				await this.#parts.shutdown(signal);
 			} finally {
-				this.#parts.lifetime.abort(new Error(`${this.#parts.where}: the log was closed`));
+				this.#parts.lifetime.abort(new WebtesseraError("LOG_CLOSED", `${this.#parts.where}: the log was closed`));
 				await this.#parts.onClose?.();
 			}
 		})();
 		return this.#closing;
+	}
+
+	/**
+	 * #append adds data, which its caller has checked, waits for a checkpoint that commits to
+	 * it, and returns its verified receipt. It adds the entry before its first await.
+	 */
+	async #append(
+		method: string,
+		data: Uint8Array,
+		timeoutMs: number,
+		extraData: Uint8Array | undefined,
+		signal: AbortSignal | undefined,
+	): Promise<Receipt> {
+		const future = this.appender.add(newEntry(data));
+		let sequenced: bigint | undefined;
+		// The future is memoized, so the awaiter's call to it shares this one's result.
+		future().then(
+			(i) => {
+				sequenced = i.index;
+			},
+			() => {},
+		);
+
+		// The caller's signal is raced here rather than passed to PublicationAwaiter.await,
+		// which (as Go's Await does with its context) records one caller's cancellation as the
+		// error every waiter of the shared awaiter sees until its next poll.
+		let index: bigint;
+		let checkpoint: Uint8Array;
+		try {
+			const [i, cp] = await within(this.#parts.awaiter.await(future), signal, timeoutMs, () =>
+				sequenced === undefined
+					? new WebtesseraError(
+							"SEQUENCE_TIMEOUT",
+							`${method}: the entry was not sequenced within ${timeoutMs} ms; the log may be overloaded, and the ` +
+								"entry may still be added",
+						)
+					: new WebtesseraError(
+							"PUBLISH_TIMEOUT",
+							`${method}: the entry was durably sequenced at index ${sequenced}, but no checkpoint covering it was ` +
+								`published within ${timeoutMs} ms. If the log has witnesses, check that they are reachable, and ` +
+								"that none has cosigned a larger or different tree than this storage holds; call " +
+								`prove(${sequenced}n) later for its receipt.`,
+							{ index: sequenced },
+						),
+			);
+			index = i.index;
+			checkpoint = cp;
+		} catch (err) {
+			if (err instanceof WebtesseraError || err === signal?.reason) {
+				throw err;
+			}
+			if (errorIs(err, ErrPushback)) {
+				throw new WebtesseraError("OVERLOADED", `${method}: the log is overloaded and refused the entry; retry later`, {
+					cause: err,
+				});
+			}
+			throw this.#parts.explain?.(err, method) ?? err;
+		}
+		return this.#receipt(method, index, checkpoint, DefaultHasher.hashLeaf(data), extraData, signal);
 	}
 
 	/**
@@ -575,7 +818,7 @@ export class LogBase implements TransparencyLog {
 			async () => size,
 			(i, p, s) => {
 				if (this.#closing !== undefined) {
-					return Promise.reject(new Error(`${method}: this log is closed`));
+					return Promise.reject(closed(method));
 				}
 				return i > lastBundle ? Promise.resolve(new Uint8Array(0)) : this.reader.readEntryBundle(i, p, s);
 			},
@@ -602,9 +845,11 @@ export class LogBase implements TransparencyLog {
 			}
 			const want = leafHashes[Number(e.index - first)];
 			if (want === undefined || !bytesEqual(DefaultHasher.hashLeaf(e.entry), want)) {
-				throw new Error(
+				throw new WebtesseraError(
+					"STORAGE_DAMAGED",
 					`${method}: entry ${e.index} in the log's storage is not the entry its tiles commit to; the log's ` +
-						"storage may be damaged: check it with fsck from webtessera/fsck",
+						"storage may be damaged: check it with log.fsck()",
+					{ index: e.index },
 				);
 			}
 			// A copy, so that keeping one entry does not keep its whole bundle in memory.
@@ -615,8 +860,14 @@ export class LogBase implements TransparencyLog {
 		}
 	}
 
-	/** #receipt builds the receipt for the entry at index, and verifies it before handing it back. */
+	/**
+	 * #receipt builds the receipt for the entry at index, and verifies it before handing it
+	 * back. A receipt that does not verify means that what the log's storage holds is not
+	 * the log this process has been writing: method's error says so, without the ported
+	 * check's byte dumps, which stay in its cause.
+	 */
 	async #receipt(
+		method: string,
 		index: bigint,
 		cp: Uint8Array,
 		leafHash: Uint8Array,
@@ -642,11 +893,7 @@ export class LogBase implements TransparencyLog {
 			if (!(err instanceof ReceiptError)) {
 				throw err;
 			}
-			throw new Error(
-				`${this.#parts.where}: the receipt for entry ${index} does not verify (${err.message}); the log's storage ` +
-					"may be damaged: check it with fsck from webtessera/fsck",
-				{ cause: err },
-			);
+			throw diverged(method, index, parsed.checkpoint.size, err);
 		}
 		return newReceipt(proof, logCheckpointOf(parsed.checkpoint, cp));
 	}
@@ -657,9 +904,46 @@ export class LogBase implements TransparencyLog {
 
 	#checkOpen(method: string): void {
 		if (this.#closing !== undefined) {
-			throw new Error(`${method}: this log is closed`);
+			throw closed(method);
 		}
 	}
+}
+
+/**
+ * disposable types a log as the async-disposable object it is: LogBase installs the method
+ * on its prototype under the runtime's Symbol.asyncDispose, which its declaration cannot
+ * name without requiring that every consumer's TypeScript lib declare the symbol.
+ *
+ * @internal For the log factories.
+ */
+export function disposable<T extends LogBase>(log: T): T & AsyncDisposableLog {
+	return log as T & AsyncDisposableLog;
+}
+
+/**
+ * diverged is the error for a receipt the log built for the entry at index, against its
+ * checkpoint of the given size, that failed verification.
+ */
+function diverged(method: string, index: bigint, size: bigint, err: ReceiptError): WebtesseraError {
+	const what =
+		err.reason === "inclusion"
+			? `its checkpoint at size ${size} does not commit to the entry at index ${index}`
+			: err.reason === "witnesses"
+				? `its checkpoint at size ${size} does not satisfy the log's witness policy`
+				: `its checkpoint at size ${size} does not verify (${err.reason})`;
+	const why =
+		method === "append"
+			? "The log's storage changed under this process while it appended: most likely another process is " +
+				"appending to the same storage without shared locks (two processes opening one SQLite database with " +
+				'locking: "single-writer", or a store whose lock does not reach the other process), and the log may ' +
+				"have forked. Stop every writer but one, give every process that can reach the storage the default " +
+				'locking ("lease" for a SQLite file), and check the log with log.fsck().'
+			: "The log's storage is damaged, or another process wrote it without shared locks; check it with log.fsck().";
+	return new WebtesseraError(
+		"STORAGE_DIVERGED",
+		`${method}: the receipt for entry ${index} does not verify against the log's own storage: ${what}. ${why}`,
+		{ cause: err, index },
+	);
 }
 
 /**
@@ -725,6 +1009,23 @@ function unbundle(data: Uint8Array): Uint8Array[] {
 	return b.entries;
 }
 
+/** checkEntry throws unless data is an entry a log can hold. */
+function checkEntry(data: unknown, method: string): asserts data is Uint8Array {
+	if (!(data instanceof Uint8Array)) {
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`${method} takes the entry as a Uint8Array; encode text with new TextEncoder().encode(text)`,
+		);
+	}
+	if (data.length > MaxEntryBytes) {
+		throw new WebtesseraError(
+			"ENTRY_TOO_LARGE",
+			`${method}: an entry holds at most ${MaxEntryBytes} bytes, and this one is ${data.length}; log a SHA-256 ` +
+				"digest of large data instead, and keep the data elsewhere",
+		);
+	}
+}
+
 function toIndex(index: bigint | number, method: string, name = "index"): bigint {
 	if (typeof index === "bigint" && index >= 0n) {
 		return index;
@@ -732,15 +1033,25 @@ function toIndex(index: bigint | number, method: string, name = "index"): bigint
 	if (typeof index === "number" && Number.isSafeInteger(index) && index >= 0) {
 		return BigInt(index);
 	}
-	throw new TypeError(`${method}: the ${name} must be a non-negative integer, got ${String(index)}`);
+	throw new WebtesseraError(
+		"INVALID_ARGUMENT",
+		`${method}: the ${name} must be a non-negative integer, got ${quoteOption(index)}`,
+	);
 }
 
 /** notCovered is the error for an index the latest checkpoint, of size, does not cover. */
-function notCovered(method: string, index: bigint, size: bigint): RangeError {
-	return new RangeError(
+function notCovered(method: string, index: bigint, size: bigint): WebtesseraError {
+	return new WebtesseraError(
+		"NOT_COVERED",
 		`${method}: the latest checkpoint covers ${size === 0n ? "no entries" : `entries 0 to ${size - 1n}`}, not ${index}: ` +
 			"the entry does not exist yet, or was appended moments ago (append resolves once its entry is covered)",
+		{ index },
 	);
+}
+
+/** closed is the error for a method called on a closed log. */
+function closed(method: string): WebtesseraError {
+	return new WebtesseraError("LOG_CLOSED", `${method}: this log is closed`);
 }
 
 /** checkExtraData returns extraData if a receipt can carry it, and throws otherwise. */
@@ -749,10 +1060,11 @@ function checkExtraData(extraData: unknown, method: string): Uint8Array | undefi
 		return undefined;
 	}
 	if (!(extraData instanceof Uint8Array)) {
-		throw new TypeError(`${method}: extraData must be a Uint8Array`);
+		throw new WebtesseraError("INVALID_ARGUMENT", `${method}: extraData must be a Uint8Array`);
 	}
 	if (extraData.length > MaxExtraDataBytes) {
-		throw new RangeError(
+		throw new WebtesseraError(
+			"EXTRA_DATA_TOO_LARGE",
 			`${method}: a receipt carries at most ${MaxExtraDataBytes} bytes of extra data, and this is ${extraData.length}; ` +
 				"longer, its extra line could not be read back",
 		);
@@ -779,7 +1091,10 @@ function positive(v: number | undefined, def: number, name: string, where: strin
 		return def;
 	}
 	if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) {
-		throw new RangeError(`${where}: ${name} must be a positive number of milliseconds, got ${String(v)}`);
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`${where}: ${name} must be a positive number of milliseconds, got ${quoteOption(v)}`,
+		);
 	}
 	return v;
 }
@@ -789,9 +1104,17 @@ function nonNegative(v: number | undefined, def: number, name: string, where: st
 		return def;
 	}
 	if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
-		throw new RangeError(`${where}: ${name} must be zero or a positive number of milliseconds, got ${String(v)}`);
+		throw new WebtesseraError(
+			"INVALID_ARGUMENT",
+			`${where}: ${name} must be zero or a positive number of milliseconds, got ${quoteOption(v)}`,
+		);
 	}
 	return v;
+}
+
+/** quoteOption renders an option's value for an error message: numbers as they are, strings quoted (and never a signer key). */
+function quoteOption(v: unknown): string {
+	return typeof v === "string" ? quoteInput(v) : String(v);
 }
 
 function messageOf(err: unknown): string {

@@ -202,16 +202,27 @@ async function useSqlite(): Promise<void> {
 // The safe API (webtessera/server and webtessera/browser) has no upstream counterpart; its
 // snippets document the README's quick start and docs/guides/safe-api.md.
 
+// process is the part of Node's global that the quick start reads; the repository has no
+// @types/node, and env's type is @types/node's, so the snippet type-checks as it would there.
+declare const process: {
+	readonly env: Record<string, string | undefined>;
+	cwd(): string;
+	chdir(directory: string): void;
+};
+
 async function safeServerLog(): Promise<void> {
+	// The snippet reads its key from the environment and opens log.db in the working
+	// directory, as an application would; the test gives it both, and puts them back.
 	const dir = mkdtempSync(`${tmpdir()}/webtessera-readme-`);
-	const file = `${dir}/log.db`;
-	const env = { LOG_SKEY: generateKey(undefined, "example.com/my-log").skey };
+	const cwd = process.cwd();
+	process.chdir(dir);
+	vi.stubEnv("LOG_SKEY", generateKey(undefined, "example.com/my-log").skey);
 
 	// #region safe_server_example
 	// The key comes from your secret store, never from source code.
 	const log = await openServerLog({
-		key: await importLogKey(env.LOG_SKEY),
-		storage: { sqlite: fromSqliteSync(new DatabaseSync(file)) },
+		key: await importLogKey(process.env.LOG_SKEY),
+		storage: { sqlite: fromSqliteSync(new DatabaseSync("log.db")) },
 	});
 
 	// append resolves once a published checkpoint covers the entry, with a verified receipt.
@@ -242,6 +253,8 @@ async function safeServerLog(): Promise<void> {
 		expect(read).toEqual([entry, entry]);
 	} finally {
 		await log.close();
+		vi.unstubAllEnvs();
+		process.chdir(cwd);
 		rmSync(dir, { recursive: true, force: true });
 	}
 }

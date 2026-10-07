@@ -28,6 +28,7 @@ import {
 	openDeviceKey,
 	saveDeviceKey,
 	verifyReceipt,
+	WebtesseraError,
 } from "webtessera/browser";
 import { openIndexedDBObjectStore } from "../storage/indexeddb/indexeddb.ts";
 import { newInProcessLockManager } from "../storage/indexeddb/testing/locks.ts";
@@ -201,8 +202,9 @@ describe("openBrowserLog", () => {
 
 	it("refuses private key strings outright, saying what to use", async () => {
 		const { skey } = generateKey(undefined, "device.example");
-		const err = (await openBrowserLog({ key: skey as never }).catch((e: unknown) => e)) as Error;
-		expect(err).toBeInstanceOf(TypeError);
+		const err = (await openBrowserLog({ key: skey as never }).catch((e: unknown) => e)) as WebtesseraError;
+		expect(err).toBeInstanceOf(WebtesseraError);
+		expect(err.code).toBe("SIGNER_KEY_MISUSE");
 		expect(err.message).toMatch(/refuses private key strings.*openDeviceKey\(origin\)/);
 		expect(err.message).not.toContain(skey.slice(-20));
 	});
@@ -243,7 +245,10 @@ describe("openBrowserLog", () => {
 		vi.stubGlobal("navigator", {});
 		const key = await openDeviceKey(`device.example/${fresh("d")}`, { database: fresh("keys") });
 		const name = fresh("log");
-		const named = (await openBrowserLog({ key, storage: { indexedDB: name } }).catch((e: unknown) => e)) as Error;
+		const named = (await openBrowserLog({ key, storage: { indexedDB: name } }).catch(
+			(e: unknown) => e,
+		)) as WebtesseraError;
+		expect(named.code).toBe("NO_WEB_LOCKS");
 		expect(named.message).toMatch(/^openBrowserLog: the Web Locks API \(navigator\.locks\) is not available/);
 		expect(named.message).toContain(`pass storage: { indexedDB: "${name}", singleWriter: true }`);
 		// Not the IndexedDB store's own options, which openBrowserLog does not take.
@@ -262,6 +267,28 @@ describe("openBrowserLog", () => {
 		const memory = await openBrowserLog({ key, storage: { memory: true } });
 		expect(memory.lockScope).toBe("realm");
 		await memory.close();
+	});
+
+	it("says, before anything else, that a page that is not a secure context cannot hold a device key", async () => {
+		vi.stubGlobal("isSecureContext", false);
+		for (const call of [() => openDeviceKey(`device.example/${fresh("d")}`), () => loadDeviceKey("device.example/x")]) {
+			const err = (await call().catch((e: unknown) => e)) as WebtesseraError;
+			expect(err).toBeInstanceOf(WebtesseraError);
+			expect(err.code).toBe("INSECURE_CONTEXT");
+			expect(err.message).toMatch(
+				/: this page is not a secure context \(it was loaded over plain HTTP from a host other than localhost\), and browsers give WebCrypto, which holds device keys, only to secure contexts/,
+			);
+		}
+		vi.stubGlobal("isSecureContext", true);
+		expect(await loadDeviceKey(`device.example/${fresh("d")}`)).toBeUndefined();
+	});
+
+	it("closes through Symbol.asyncDispose, for `await using`", async () => {
+		const key = await openDeviceKey(`device.example/${fresh("d")}`, { database: fresh("keys") });
+		const log = await openBrowserLog({ key, storage: { memory: true } });
+		await log.append(enc.encode("x"));
+		await log[Symbol.asyncDispose]();
+		await expect(log.append(enc.encode("late"))).rejects.toThrow(expect.objectContaining({ code: "LOG_CLOSED" }));
 	});
 
 	it("keeps the IndexedDB store's own message, in its own terms, for its direct callers", async () => {
