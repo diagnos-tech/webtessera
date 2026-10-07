@@ -459,4 +459,31 @@ describe("JSON", () => {
 		expect(verifyReceipt(json, { vkey: log.vkey, data }).index).toBe(4n);
 		expect(parseReceipt(json).index).toBe(4n);
 	});
+
+	it("refuses a JSON form whose index is not the one its text proves", () => {
+		const text = fromUTF8(proof.marshal());
+		for (const index of ["5", "04", "", 4] as unknown as string[]) {
+			const err = failure(() => verifyReceipt({ index, text }, { vkey: log.vkey, data }));
+			expect([err.code, err.reason]).toEqual(["INVALID_RECEIPT", "malformed"]);
+			expect(err.message).toContain("is not the index its text proves, 4");
+			expect(() => parseReceipt({ index, text })).toThrow(ReceiptError);
+		}
+	});
+});
+
+describe("a receipt whose base64 spells PRIVATE+KEY+", () => {
+	// Letters and "+" are base64 digits, so whoever chooses a receipt's extra data can make a
+	// line of it read PRIVATE+KEY+; that is not a signer key, and the receipt must verify.
+	const extraData = Uint8Array.from(atob("PRIVATE+KEY+"), (c) => c.charCodeAt(0));
+	const proof = proofFor(4n, checkpointOf(log.skey), extraData);
+	const text = fromUTF8(proof.marshal());
+	const data = entries[4] as Uint8Array;
+
+	it("verifies, as text, bytes and JSON", () => {
+		expect(text).toContain("extra PRIVATE+KEY+");
+		for (const receipt of [text, toUTF8(text), { index: "4", text }]) {
+			expect(verifyReceipt(receipt, { vkey: log.vkey, data }).extraData).toEqual(extraData);
+			expect(parseReceipt(receipt).index).toBe(4n);
+		}
+	});
 });

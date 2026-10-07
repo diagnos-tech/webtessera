@@ -92,7 +92,7 @@ Run every script from the repository root.
 | `bun run upstream` | Checks out Tessera at the pinned commit into `.upstream/tessera` | Once, and after the pin moves; idempotent |
 | `bun run fixtures` | Runs `bun run upstream`, then regenerates `fixtures/data/` with the Go generator | When you add or change a generator case |
 | `bun run interop` | Builds the package, then has Tessera's Go code verify and extend logs written by webtessera, and the other way round, on every Node backend | When you touch the storage engine, a backend or a wire format |
-| `bun run smoke` | Builds the package and runs an end-to-end smoke test of `dist/`, the SQLite driver included | Before touching `package.json` exports |
+| `bun run smoke` | Builds the package and runs an end-to-end smoke test of `dist/`, the SQLite driver included, and loads every entry point at a Worker's global scope in workerd | Before touching `package.json` exports, or code that runs when a module loads |
 | `bun run clean` | Removes `dist/` | Rarely; `prepack` does it |
 
 To run one test file: `bunx vitest run --config vitest.config.ts src/api/layout/paths_test.ts`. Add
@@ -229,7 +229,7 @@ only that check, so adding or renaming a job never needs a settings change.
 | Workflow | What it checks | Reproduce locally |
 | --- | --- | --- |
 | `_quality.yml` | Biome, types, Go formatting and `go vet`, and the workflow files themselves (actionlint) | `bun run lint`, `bun run typecheck`, `gofmt -l fixtures/gen interop` (must print nothing), `go vet ./...` in each Go module |
-| `_test.yml` | Unit tests on Node 22 and 24; the browser, workerd and services suites | `bun run test:unit`, `bun run test:browser`, `bun run test:workers`, `bun run test:services` |
+| `_test.yml` | Unit tests on Node 22 and 24; the browser, workerd and services suites; every entry point loaded at a Worker's global scope | `bun run test:unit`, `bun run test:browser`, `bun run test:workers`, `bun run test:services`, `node scripts/smoke-workerd.mjs` |
 | `_compat.yml` | Fixtures regenerate unchanged from the pinned Go source; Go and TypeScript read each other's logs | `bun run fixtures`, `bun run interop` |
 | `_package.yml` | One job packs the tarball (and its GitHub Packages variant) from the lockfile; another tests it: smoke test, publint, Are the Types Wrong? | `bun pm pack`, then `node scripts/smoke-pack.mjs <tarball>` |
 | `_runtimes.yml` | The built package on Node, Bun and Deno | `bun run build`, then `node scripts/smoke-runtimes.mjs` (or `bun`, or `deno run --allow-read`) |

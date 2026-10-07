@@ -212,12 +212,22 @@ declare const process: {
 
 async function safeServerLog(): Promise<void> {
 	// The snippet reads its key from the environment and opens log.db in the working
-	// directory, as an application would; the test gives it both, and puts them back.
+	// directory, as an application would; the test gives it both, and puts them back
+	// whatever happens.
 	const dir = mkdtempSync(`${tmpdir()}/webtessera-readme-`);
 	const cwd = process.cwd();
 	process.chdir(dir);
 	vi.stubEnv("LOG_SKEY", generateKey(undefined, "example.com/my-log").skey);
+	try {
+		await safeServerSnippets();
+	} finally {
+		vi.unstubAllEnvs();
+		process.chdir(cwd);
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
 
+async function safeServerSnippets(): Promise<void> {
 	// #region safe_server_example
 	// The key comes from your secret store, never from source code.
 	const log = await openServerLog({
@@ -253,9 +263,6 @@ async function safeServerLog(): Promise<void> {
 		expect(read).toEqual([entry, entry]);
 	} finally {
 		await log.close();
-		vi.unstubAllEnvs();
-		process.chdir(cwd);
-		rmSync(dir, { recursive: true, force: true });
 	}
 }
 

@@ -100,4 +100,4 @@ string goes through `quoteInput`, which shows a placeholder for one. `importLogK
 now says so when given the verifier key. ADR-0243 lists the inputs and has the tests; `src/safe/secrets_test.ts`
 feeds a signer key to all of them, in five forms, and checks every error, cause and stack.
 
-*Review of this update: pending.*
+**Review of this update:** DX review agent (independent), 2026-10-07. Verdict: approved with notes. The rule is enforced at the listed inputs, and `importLogKey` still never quotes the key (it says when it was given a vkey; `secrets_test.ts` and `keys_test.ts` pass). It has one gap, recorded in ADR-0243's review: `quoteInput` and `quoteOption` print a non-string that holds the key (seven probed paths, e.g. `log.prove([skey])`). The update's claim that every quoting error goes through a placeholder holds only once that is fixed.

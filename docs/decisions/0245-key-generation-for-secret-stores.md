@@ -38,8 +38,8 @@ The command is two modules: `src/cli/cli.ts`, `run(args) → { code, stdout, std
 is tested as a function; and `src/cli/webtessera.ts`, the executable (`#!/usr/bin/env node`), which passes it
 `process.argv` and writes its result. The executable is the one shipped module that uses `process`, which Node,
 Bun and Deno all give npm packages; it imports no Node built-in, and nothing imports it, so no browser or edge
-bundle can contain it. `biome.jsonc`'s shipped-code override excludes that one file from `noProcessGlobal`, and
-says why.
+bundle can contain it. It declares the part of `process` it uses (`declare const process`), so the shipped-code
+lint passes with no exception in `biome.jsonc`; AGENTS.md §7 names this file as the one exception to its rule.
 
 The examples' `scripts/keygen.ts` (log-server, notary, edge) call `generateLogKeyPair`. The session-receipts
 example's makes a witness key, which is not a log key, and keeps the ported calls.
@@ -64,13 +64,19 @@ example's makes a witness key, which is not a log key, and keeps the ported call
 Tests: `src/server/server_test.ts` ("generateLogKeyPair": the pair opens with `importLogKey` to the same vkey,
 pairs differ, bad and signer-key origins refused); `src/cli/cli_test.ts` (output and prefixes, `--json`, every
 usage error with status 2, a signer key as origin not repeated, and the executable run by Node);
-`scripts/smoke-runtimes.mjs` runs the built executable on Node, Bun and Deno.
+`scripts/smoke-runtimes.mjs` runs the command's `run` function from the build on Node, Bun and Deno.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** DX review agent (independent), 2026-10-07
+- **Verdict:** approved with notes
 - **Notes:**
+  - `generateLogKeyPair` checks the runtime and the origin, then calls the ported `generateKey`. `server_test.ts` and `cli_test.ts` pass. Built this tree and packed it outside the repository with `npm pack`. `dist/cli/webtessera.js` starts with `#!/usr/bin/env node` and has mode 0644 in the tarball, 0755 after `npm install <tgz>` (npm 10.9.4). `npx webtessera keygen example.com/log` writes only the two lines to stdout and exits 0; with no origin it exits 2. Bun runs it too. No `exports` entry reaches `src/cli`.
+  - The `biome.jsonc` exclusion of `src/cli/webtessera.ts` is unnecessary and too broad. The file's own `declare const process` already satisfies `noProcessGlobal`: linting the file alone with `noProcessGlobal` and `noNodejsModules` on is clean, while a bare `process.argv` is flagged. The exclusion also turns off `noNodejsModules` and the `Buffer` ban for the file, which the ADR does not say ("excludes that one file from `noProcessGlobal`"). Remove `"!src/cli/webtessera.ts"`. The same `declare const` would let any shipped file use `process` past the lint, which is worth a sentence in AGENTS.md §7.
+  - "`scripts/smoke-runtimes.mjs` runs the built executable on Node, Bun and Deno" is not so: the script imports `run` from `dist/cli/cli.js` and calls it in-process, so the shebang and `process` on Deno are not exercised. Correct the sentence, or spawn the executable.
+  - The CLI repeats an unknown command or option verbatim (see ADR-0243's review): use `quoteInput`.
+  - AGENTS.md: §7 lets an ADR record any exception, so this ADR is formally enough. AGENTS.md is still the contract readers start from: its §2 tree should list `src/cli/`, and §7's "No `process`" should name this exception. The maintainers should make that edit; I have not changed AGENTS.md.
+  - Not verified: Deno (not installed), and pnpm or yarn setting the bin's mode.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

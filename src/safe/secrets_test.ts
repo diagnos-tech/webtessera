@@ -165,7 +165,7 @@ describe("a signer key where a public string belongs", () => {
 	}
 
 	// Inputs that are no place for a key either, whose errors quote what they were given.
-	const quoted: [string, (s: string) => unknown][] = [
+	const quoted: [string, (s: unknown) => unknown][] = [
 		["prove index", (s) => log.prove(s as never)],
 		["entries from", (s) => log.entries(s as never)],
 		["entry index", (s) => log.entry(s as never)],
@@ -182,15 +182,53 @@ describe("a signer key where a public string belongs", () => {
 					checkpointIntervalMs: s as never,
 				}),
 		],
+		[
+			"storage.locking",
+			async (s) =>
+				openServerLog({
+					key: await generateLogKey(origin),
+					storage: { sqlite: fromSqliteSync(new DatabaseSync(":memory:")), locking: s as never },
+				}),
+		],
 	];
+
+	// A key can also arrive inside a value that is not a string, which converting to a string
+	// would print: in an array, an object with a toString, a symbol's description.
+	const wrapped = [...forms, ...forms.map((f) => [f]), { toString: () => skey }, Symbol(skey)];
 
 	for (const [name, fn] of quoted) {
 		it(`is not repeated by ${name}`, async () => {
-			for (const s of forms) {
-				expectNoSecret(await errorOf(() => fn(s)), name);
+			for (const s of wrapped) {
+				const err = await errorOf(() => fn(s));
+				expectNoSecret(err, name);
+				expect(err, name).toBeInstanceOf(WebtesseraError);
 			}
 		});
 	}
+
+	it("refuses a namespace the SQLite store would refuse, with a code", async () => {
+		for (const namespace of ["Bad-Name", "", "x".repeat(65), 7]) {
+			const err = await errorOf(async () =>
+				openServerLog({
+					key: await generateLogKey(origin),
+					storage: { sqlite: fromSqliteSync(new DatabaseSync(":memory:")), namespace: namespace as never },
+				}),
+			);
+			expect(err, String(namespace)).toBeInstanceOf(WebtesseraError);
+			expect((err as WebtesseraError).code, String(namespace)).toBe("INVALID_ARGUMENT");
+		}
+	});
+
+	it("is not repeated, and no TypeError escapes, for an option that cannot become a string", async () => {
+		const err = await errorOf(async () =>
+			openServerLog({
+				key: await generateLogKey(origin),
+				storage: { sqlite: fromSqliteSync(new DatabaseSync(":memory:")), locking: Object.create(null) as never },
+			}),
+		);
+		expect(err).toBeInstanceOf(WebtesseraError);
+		expect((err as WebtesseraError).code).toBe("INVALID_ARGUMENT");
+	});
 
 	it("is not repeated by importLogKey, whichever way the key is malformed", async () => {
 		for (const s of [

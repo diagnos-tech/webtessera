@@ -131,4 +131,4 @@ webtessera/client, `OldSizeMismatchError` from webtessera/witness) can only be f
 The root module's documentation now says how to test for a sentinel and for an error class. ADR-0243 has the
 decision; `index_test.ts` lists the export and exercises it.
 
-*Review of this update: pending.*
+**Review of this update:** DX review agent (independent), 2026-10-07. Verdict: approved. `errorAs` is exported from `src/index.ts` next to `errorIs`; the exact export list in `index_test.ts` includes it and the new case exercises a class found through a wrapped chain; the module documentation section is accurate. Ran `index_test.ts`: passes.

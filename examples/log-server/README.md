@@ -79,8 +79,9 @@ localhost/my-log
 Each process holds the log's lock as a lease row in the database while it writes, and every write
 is fenced on that lease in the same transaction, so a process that stalls past its lease can never
 overwrite what the next holder wrote. Leases are what the SQLite adapter chooses for a file, so the
-server asks for nothing; `LOG_LOCKING=local` drops them, and is only correct when one process is
-certainly the file's only writer.
+server asks for nothing; `LOG_LOCKING=single-writer` drops them, and is only correct when one
+process is certainly the file's only writer (a second process that makes the same claim stops the
+first, before the two can fork the log).
 
 **Verify it** as a client, trusting only the log's verifier key (`LOG_VKEY` in `.env`):
 

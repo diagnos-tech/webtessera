@@ -298,8 +298,9 @@ export async function importSignerKey(
 		throw new WebtesseraError(
 			"INVALID_ARGUMENT",
 			`importLogKey: no key (${skey === undefined ? "undefined" : "an empty string"}); pass the log's signer key, ` +
-				"PRIVATE+KEY+<name>+<hash>+<key>, from your secret store. If the environment variable that should hold " +
-				"it is not set, create a key pair with `npx webtessera keygen <origin>`",
+				"PRIVATE+KEY+<name>+<hash>+<key>, from your secret store. If an environment variable should hold it, " +
+				"check that it is set (Node and Deno read a .env file only with --env-file=.env). For a new log, create " +
+				"a key pair with `npx webtessera keygen <origin>`",
 		);
 	}
 	if (typeof skey !== "string") {

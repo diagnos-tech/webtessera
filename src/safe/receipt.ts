@@ -34,7 +34,7 @@ import { verifyInclusion } from "../vendor/merkle/proof/verify.ts";
 import { DefaultHasher } from "../vendor/merkle/rfc6962/rfc6962.ts";
 import { newVerifier, type Verifier } from "../vendor/note/note.ts";
 import { newWitnessGroup, Witness, WitnessGroup } from "../witness.ts";
-import { isSignerKey, quoteInput, signerKeyMisuse, WebtesseraError } from "./errors.ts";
+import { holdsSignerKeyLine, isSignerKey, quoteInput, signerKeyMisuse, WebtesseraError } from "./errors.ts";
 
 /**
  * Receipt proves, offline, that an entry is in a log: it is a C2SP tlog-proof
@@ -69,7 +69,8 @@ export interface Receipt {
 /**
  * ReceiptJSON is a receipt as JSON.stringify writes it: the index as a decimal string, since
  * JSON has no 64-bit integers, and the tlog-proof text, which carries everything else.
- * verifyReceipt and parseReceipt take it back as it is.
+ * verifyReceipt and parseReceipt take it back as it is, and refuse it as malformed if its
+ * `index` is not the one its text proves.
  *
  * ```ts
  * const { text } = (await response.json()) as ReceiptJSON;
@@ -261,9 +262,9 @@ export class ReceiptError extends WebtesseraError {
  */
 export function parseReceipt(receipt: string | Uint8Array | ReceiptJSON): TLogProof {
 	if (typeof receipt === "object" && receipt !== null && !(receipt instanceof Uint8Array)) {
-		return parseReceipt(textOf(receipt, "parseReceipt"));
+		return withIndexOf(receipt, parseReceipt(textOf(receipt, "parseReceipt")));
 	}
-	if (isSignerKey(typeof receipt === "string" ? receipt : fromUTF8(receipt))) {
+	if (holdsSignerKeyLine(typeof receipt === "string" ? receipt : fromUTF8(receipt))) {
 		throw signerKeyMisuse("parseReceipt", "the receipt");
 	}
 	const p = new TLogProof();
@@ -521,7 +522,7 @@ class verifiedReceipt implements VerifiedReceipt {
 
 function toProof(receipt: Receipt | ReceiptJSON | TLogProof | string | Uint8Array): TLogProof {
 	if (typeof receipt === "string" || receipt instanceof Uint8Array) {
-		if (isSignerKey(typeof receipt === "string" ? receipt : fromUTF8(receipt))) {
+		if (holdsSignerKeyLine(typeof receipt === "string" ? receipt : fromUTF8(receipt))) {
 			throw signerKeyMisuse("verifyReceipt", "the receipt");
 		}
 		return parseReceipt(receipt);
@@ -534,7 +535,29 @@ function toProof(receipt: Receipt | ReceiptJSON | TLogProof | string | Uint8Arra
 	}
 	// A Receipt from another copy of this library (two versions in one bundle, say) has
 	// another TLogProof class, but the same text; and a ReceiptJSON is the text.
-	return parseReceipt(textOf(receipt, "verifyReceipt"));
+	return withIndexOf(receipt, parseReceipt(textOf(receipt, "verifyReceipt")));
+}
+
+/**
+ * withIndexOf returns p, the proof parsed from a receipt object's text, once the object's own
+ * `index`, if it has one, agrees with it: the text is what is verified, so an `index` beside
+ * it that says otherwise is refused rather than silently ignored.
+ */
+function withIndexOf(receipt: object, p: TLogProof): TLogProof {
+	const index = (receipt as { index?: unknown }).index;
+	if (index === undefined) {
+		return p;
+	}
+	const agrees =
+		(typeof index === "bigint" && index === p.index) || (typeof index === "string" && index === p.index.toString());
+	if (!agrees) {
+		throw new ReceiptError(
+			"malformed",
+			`receipt: its index field, ${quoteInput(index)}, is not the index its text proves, ${p.index}; ` +
+				"the text is the receipt, so pass it as the log handed it out",
+		);
+	}
+	return p;
 }
 
 /** textOf returns the tlog-proof text of a Receipt or ReceiptJSON. */

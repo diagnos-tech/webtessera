@@ -41,8 +41,8 @@ evaluation order is unchanged, since every imported module is evaluated before t
 sources can only point at files that are not there (debuggers show nothing, and Vite warns about each); carrying
 the sources (`inlineSources`) would add the 1.2 MB of `src/` to every install to restore what the JavaScript
 already shows: it is the TypeScript with its types erased (`erasableSyntaxOnly`), comments and line structure
-kept, so a stack trace into `dist/` reads as the source does. The tarball goes from 523 files, 2.28 MB unpacked and
-541 KB packed to 275 files, 1.63 MB and 380 KB.
+kept, so a stack trace into `dist/` reads as the source does. The tarball goes from 523 files and 2.28 MB unpacked to
+275 files and 1.63 MB (472 KB packed, by `npm pack`).
 
 **Node.js 22.18.** `engines.node` is `>=22.18`, as the examples' already were, and the error that names the
 runtimes WebCrypto Ed25519 needs says 22.18. It is the first 22.x that runs everything the documentation shows
@@ -77,9 +77,13 @@ tarball.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** DX review agent (independent), 2026-10-07
+- **Verdict:** approved with notes
 - **Notes:**
+  - Compared the converted comments mechanically, removed `//` text against added `/** */` text per file. They are identical in `api/layout/paths.ts`, `api/layout/tile.ts` and `fsck/status.ts`. `rfc6962.ts` repeats Go's single group comment ("Domain separation prefixes", over the const block in merkle@v0.0.2 `rfc6962.go`) on both constants. The ADR says so, which makes it acceptable, but keeping it once, on the first constant, is closer to Go. The JSDoc still attaches across the `biome-ignore` line (checked `nWithSuffix` in `paths.d.ts`).
+  - Built this tree into a scratch directory and ran `link-decisions.mjs` twice: 52 files, then 0, so the step is idempotent. No `docs/decisions` path is left without a URL, and every linked file exists. Pack: 275 files, 1.63 MB unpacked, no `.map` and no `*_test` files, as stated. The packed size is 471,798 bytes with `npm pack`, not 380 KB: name the tool behind the figure, or correct it.
+  - Moving `assertServerRuntime()` to the end of `server/index.ts` keeps evaluation order. `>=22.18` is consistent across `engines`, README, the guides, `compatibility.md` and the `unsupported()` message.
+  - Not verified: the `docscan.mjs` counts (227 values, none undocumented), since the script is not in the repository.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.

@@ -138,6 +138,26 @@ export function isSignerKey(v: unknown): boolean {
 }
 
 /**
+ * holdsSignerKeyLine reports whether text has a line that is a note signer key, in the forms
+ * isSignerKey accepts: with surrounding whitespace, quoted, after a `NAME=` prefix, in any
+ * case. It is isSignerKey for multi-line text whose lines may carry base64 (a receipt), where
+ * `PRIVATE+KEY+` can appear inside a line by chance or by design: letters and `+` are base64
+ * digits, so extra data of nine chosen bytes spells it.
+ *
+ * @internal Shared by the safe API.
+ */
+export function holdsSignerKeyLine(text: string): boolean {
+	return text.split("\n").some((line) =>
+		line
+			.trim()
+			.replace(/^[A-Za-z_][A-Za-z0-9_]*\s*=\s*/, "")
+			.replace(/^["'`]+/, "")
+			.toUpperCase()
+			.startsWith(signerKeyPrefix),
+	);
+}
+
+/**
  * signerKeyMisuse is the error for a signer key passed where `what` belongs. It names what
  * was expected and never the key.
  *
@@ -170,17 +190,31 @@ function expected(what: string): string {
 const maxQuotedChars = 96;
 
 /**
- * quoteInput renders a string the caller supplied for an error message: JSON-quoted and cut
- * to a bounded length, or, if it holds a signer key, a placeholder that says so instead.
+ * quoteInput renders a value the caller supplied for an error message: a string JSON-quoted
+ * and cut to a bounded length, or, if it holds a signer key, a placeholder that says so
+ * instead; a number, bigint, boolean, null or undefined as it prints; anything else by its
+ * kind alone, since an array, an object or a symbol can carry a key that converting it to a
+ * string would print (and converting some objects throws).
  *
- * @internal Shared by the safe API.
+ * @internal Shared by the safe API and the webtessera command.
  */
 export function quoteInput(s: unknown): string {
 	if (isSignerKey(s)) {
 		return "<a signer (private) key, not shown>";
 	}
-	if (typeof s !== "string") {
-		return typeof s === "symbol" ? s.toString() : String(s);
+	switch (typeof s) {
+		case "string":
+			return JSON.stringify(s.length > maxQuotedChars ? `${s.slice(0, maxQuotedChars)}...` : s);
+		case "number":
+		case "bigint":
+		case "boolean":
+		case "undefined":
+			return String(s);
+		case "symbol":
+			return "a symbol";
+		case "function":
+			return "a function";
+		default:
+			return s === null ? "null" : Array.isArray(s) ? "an array" : "an object";
 	}
-	return JSON.stringify(s.length > maxQuotedChars ? `${s.slice(0, maxQuotedChars)}...` : s);
 }

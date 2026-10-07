@@ -148,4 +148,4 @@ cannot add words to that message; it can choose the file name the message prints
   The test that keeps its message equal to `ServerOnlyMessage` reads the new file.
 - Everything else stands: the conditions, the runtime check, the tests (renamed paths), and the Consequences.
 
-*Review of this update: pending.*
+**Review of this update:** DX review agent (independent), 2026-10-07. Verdict: approved. `exports` (`browser`, `react-native`) and `sideEffects` name `./dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js`; the guard imports only `src/safe/errors.ts`, which imports nothing, throws `WRONG_ENVIRONMENT` with `ServerOnlyMessage`'s text, and keeps `export {}`. On the packed tarball, esbuild 0.28.1 `--platform=browser` and `bun build --target browser` both stop with `No matching export in "node_modules/webtessera/dist/server/NOT-FOR-BROWSERS--use-webtessera-browser.js" for import "openServerLog"`. Not verified: Vite (not run).

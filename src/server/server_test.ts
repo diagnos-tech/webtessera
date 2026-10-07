@@ -1030,13 +1030,15 @@ describe("openServerLog, the developer experience", () => {
 		const file = join(tempDir(), "log.db");
 		const { skey, vkey } = generateLogKeyPair("example.com/two-writers");
 		const script = decodeURIComponent(new URL("./testing/single_writer_process.ts", import.meta.url).pathname);
-		const start = String(Date.now() + 2_500);
+		// Both processes open the log, then append once both have: the go file says when.
+		const go = `${file}.go`;
+		let ready = 0;
 		const run = (
 			tag: string,
 			locking: string,
 		): Promise<{ receipts: { index: string; text: string; data: string }[]; errors: string[] }> =>
 			new Promise((resolve, reject) => {
-				const child = spawn(execPath, ["--no-warnings", script, file, tag, "30", start, locking, skey], {
+				const child = spawn(execPath, ["--no-warnings", script, file, tag, "30", go, locking, skey], {
 					stdio: ["ignore", "pipe", "pipe"],
 				});
 				let out = "";
@@ -1045,7 +1047,11 @@ describe("openServerLog, the developer experience", () => {
 					out += String(d);
 				});
 				child.stderr.on("data", (d) => {
+					const before = err.includes("ready\n");
 					err += String(d);
+					if (!before && err.includes("ready\n") && ++ready === 2) {
+						writeFileSync(go, "");
+					}
 				});
 				child.on("error", reject);
 				child.on("close", (code) =>

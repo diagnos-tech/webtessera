@@ -16,7 +16,7 @@
 // handler from log_server.ts.
 
 import { importLogKey, openServerLog, type ServerLog } from "webtessera/server";
-import type { SqlDatabase, SqliteLocking } from "webtessera/storage/sqlite";
+import type { SqlDatabase, SqliteLockingOption } from "webtessera/storage/sqlite";
 import { newLogServer } from "./log_server.ts";
 import type { Runtime } from "./runtime/runtime.ts";
 
@@ -28,10 +28,11 @@ export interface LogServerConfig {
 	readonly database: string;
 	/**
 	 * locking overrides the SQLite adapter's default, which is "lease" for a file, correct
-	 * however many processes share it, and "local" only for a private in-memory database.
-	 * "local" on a file declares that this process is its only writer.
+	 * however many processes share it, and local locks only for a private in-memory database.
+	 * "single-writer" (or its older name "local") on a file declares that this process is its
+	 * only writer.
 	 */
-	readonly locking?: SqliteLocking | undefined;
+	readonly locking?: SqliteLockingOption | undefined;
 	readonly port: number;
 	readonly hostname: string;
 }

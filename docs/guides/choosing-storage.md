@@ -97,7 +97,8 @@ makes that mistake. If you make it, a tripwire catches it: a store declared a si
 database, checks the claim at the start of each critical section and fences every write on it. When a
 second process starts writing under the same declaration, the first stops, with the code
 `WRITER_CONFLICT` (`ErrWriterConflict` in the ported API), before the two can fork the log. The
-tripwire detects the mistake; only lease locking makes several writers correct. And **every store
+tripwire detects the mistake; only lease locking makes several writers correct. Every process that
+opens the log counts, even one that only means to read or check it, since opening starts an appender. And **every store
 over one database must use the same locking**: in-memory locks and leases do not see each other.
 
 A libSQL embedded replica, or any setup that serves reads from a replica, is not safe for a log that

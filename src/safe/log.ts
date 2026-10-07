@@ -360,7 +360,12 @@ export interface TransparencyLog extends AsyncDisposableLog {
 	 * WebtesseraError with the code `STORAGE_DAMAGED`, the fsck error as its cause.
 	 *
 	 * It reads the whole log, so it costs a pass over the log's storage: run it after an
-	 * incident, a restore or a migration, or from a scheduled job, not per request.
+	 * incident, a restore or a migration, or on a schedule, not per request. Run it in the
+	 * process that writes the log. Opening the log starts an appender, so a second process
+	 * that opens it only to check it is a second writer: under `locking: "single-writer"`
+	 * the tripwire then stops the first. To check a log from another process, give `newFsck`
+	 * (webtessera/fsck) an HTTP fetcher (`newHTTPFetcher` from webtessera/client) for the
+	 * log's read API, which writes nothing.
 	 *
 	 * ```ts
 	 * const { checkpoint } = await log.fsck();
@@ -677,7 +682,7 @@ export class LogBase implements Omit<TransparencyLog, keyof AsyncDisposableLog> 
 		if (!Number.isSafeInteger(workers) || workers < 1) {
 			throw new WebtesseraError(
 				"INVALID_ARGUMENT",
-				`fsck: workers must be a positive integer, got ${quoteOption(workers)}`,
+				`fsck: workers must be a positive integer, got ${quoteInput(workers)}`,
 			);
 		}
 		// The checkpoint is read and verified, witnesses included, once; fsck then checks the
@@ -1035,7 +1040,7 @@ function toIndex(index: bigint | number, method: string, name = "index"): bigint
 	}
 	throw new WebtesseraError(
 		"INVALID_ARGUMENT",
-		`${method}: the ${name} must be a non-negative integer, got ${quoteOption(index)}`,
+		`${method}: the ${name} must be a non-negative integer, got ${quoteInput(index)}`,
 	);
 }
 
@@ -1093,7 +1098,7 @@ function positive(v: number | undefined, def: number, name: string, where: strin
 	if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) {
 		throw new WebtesseraError(
 			"INVALID_ARGUMENT",
-			`${where}: ${name} must be a positive number of milliseconds, got ${quoteOption(v)}`,
+			`${where}: ${name} must be a positive number of milliseconds, got ${quoteInput(v)}`,
 		);
 	}
 	return v;
@@ -1106,17 +1111,13 @@ function nonNegative(v: number | undefined, def: number, name: string, where: st
 	if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
 		throw new WebtesseraError(
 			"INVALID_ARGUMENT",
-			`${where}: ${name} must be zero or a positive number of milliseconds, got ${quoteOption(v)}`,
+			`${where}: ${name} must be zero or a positive number of milliseconds, got ${quoteInput(v)}`,
 		);
 	}
 	return v;
 }
 
 /** quoteOption renders an option's value for an error message: numbers as they are, strings quoted (and never a signer key). */
-function quoteOption(v: unknown): string {
-	return typeof v === "string" ? quoteInput(v) : String(v);
-}
-
 function messageOf(err: unknown): string {
 	return err instanceof Error ? err.message : String(err);
 }

@@ -83,4 +83,4 @@ other errors of the device key store have codes too (ADR-0243): `UNSUPPORTED_RUN
 Tests: `browser_test.ts` ("says, before anything else, that a page that is not a secure context cannot hold a
 device key").
 
-*Review of this update: pending.*
+**Review of this update:** DX review agent (independent), 2026-10-07. Verdict: approved. `checkSecureContext` throws `INSECURE_CONTEXT` only where `globalThis.isSecureContext === false`, before anything else in `openDeviceKey` and `loadDeviceKey` (`deleteDeviceKey` needs no WebCrypto and does not check); `checkOptions` refuses a signer-key `id` or `database` unquoted; the other codes are as listed. `browser_test.ts` passes on Node with fake-indexeddb. Not verified: real Chromium on plain HTTP.

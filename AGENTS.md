@@ -116,6 +116,7 @@ webtessera/
     ├── safe/                  ← NEW (safe API): runtime detection, key custody, receipts, the log
     ├── server/                ← NEW (safe API): `webtessera/server`; refuses browsers
     ├── browser/               ← NEW (safe API): `webtessera/browser`; device keys, no key strings
+    ├── cli/                   ← NEW: the `webtessera keygen` command (ADR-0245)
     ├── http/                  ← NEW: serves a log over the tlog-tiles HTTP API
     ├── witness/               ← NEW: a tlog-witness server (the root package holds the client)
     ├── mirror/                ← mirrors tessera/cmd/experimental/mirror, plus S3-compatible sinks
@@ -368,7 +369,10 @@ identically in Node, browsers, and workerd.
 
 - No Node built-ins (`node:crypto`, `node:buffer`, `node:fs`) in code under `src/` that ships. This
   code runs on the edge and in a browser tab.
-- No `Buffer`. No `process`. No `setTimeout`-based control flow that assumes Node timers.
+- No `Buffer`. No `process`, with one recorded exception: `src/cli/webtessera.ts`, the `webtessera`
+  command's executable, which nothing imports (ADR-0245). It declares the `process` it uses, which is
+  also how any other file could slip past the lint, so reviewers check for `declare const process`.
+  No `setTimeout`-based control flow that assumes Node timers.
 - Anything else requires an ADR, and the bar is "there is no other way".
 - No `any` anywhere in library code (§3.8, §10). Go's `any` becomes a type parameter or `unknown`.
 - Test-only code (`*_test.ts`, `testing/`, `src/testonly/`) is excluded from the published build and

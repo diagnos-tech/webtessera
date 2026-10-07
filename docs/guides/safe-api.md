@@ -99,7 +99,7 @@ the safe API.
 | `latestCheckpoint()` | the latest published checkpoint, verified |
 | `verify(receipt, data)` | checks a receipt against this log's key and witness policy |
 | `fsck({ signal?, workers? })` | verifies every entry bundle, tile and the root hash against the latest checkpoint; reads the whole log |
-| `fetch`, `handler` | the tlog-tiles read API: `fetch` answers 404 for what is not the log's, `handler` returns `undefined` so `combineHandlers` can try your routes |
+| `fetch`, `handler` (server only) | the tlog-tiles read API: `fetch` answers 404 for what is not the log's, `handler` returns `undefined` so `combineHandlers` can try your routes |
 | `close()` | waits for every appended entry to be published, then stops; `await using` does the same |
 | `origin`, `vkey`, `verifier` | the log's identity |
 | `reader`, `appender` | the ported `LogReader` and `Appender`, the way down to the rest of the API |
@@ -169,7 +169,10 @@ belongs is refused with `SIGNER_KEY_MISUSE` and is never repeated in an error
 ([ADR-0243](../decisions/0243-one-error-class-for-the-safe-api.md)).
 
 `await log.fsck()` checks the whole log against its latest checkpoint and throws `STORAGE_DAMAGED` if
-anything does not match. It reads every tile and bundle: run it after an incident or on a schedule.
+anything does not match. It reads every tile and bundle: run it after an incident or on a schedule, in
+the process that writes the log. A second process that opens the log is a second writer, which a
+single-writer declaration does not allow; to check a log from elsewhere, give `newFsck`
+(`webtessera/fsck`) a `newHTTPFetcher` (`webtessera/client`) for its read API.
 
 ## Troubleshooting
 

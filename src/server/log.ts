@@ -38,6 +38,7 @@ import { newObjectStoreDriver } from "../storage/objectstore/driver.ts";
 import type { ObjectStore } from "../storage/objectstore/objectstore.ts";
 import { isWriterConflict } from "../storage/sqlite/claim.ts";
 import type { SqlDatabase, SqliteLockingOption } from "../storage/sqlite/database.ts";
+import { namespacePattern } from "../storage/sqlite/schema.ts";
 import { openSqliteObjectStore, type SqliteLeaseOptions } from "../storage/sqlite/sqlite.ts";
 
 /**
@@ -200,6 +201,16 @@ async function openStorage(
 		const locking = checkLocking(storage.locking, where);
 		if (isSignerKey(storage.namespace)) {
 			throw signerKeyMisuse(where, "storage.namespace");
+		}
+		if (
+			storage.namespace !== undefined &&
+			(typeof storage.namespace !== "string" || !namespacePattern.test(storage.namespace))
+		) {
+			throw new WebtesseraError(
+				"INVALID_ARGUMENT",
+				`${where}: storage.namespace must be 1 to 64 lowercase letters, digits and underscores, got ` +
+					quoteInput(storage.namespace),
+			);
 		}
 		// Lease locking excludes every process that reaches the database; local locking
 		// excludes only this realm, and two processes appending under it fork the log. The

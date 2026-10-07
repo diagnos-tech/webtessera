@@ -199,4 +199,7 @@ single-writer database": `WRITER_CONFLICT` from `append`, `errorIs(err, ErrWrite
 "takes locking: "single-writer" …"; "names the adapter for a database connection passed without one"; "errors you
 can handle in code").
 
-*Review of this update: pending.*
+**Changes after review (2026-10-07).** A bad `storage.namespace` is refused by `openServerLog` with
+`INVALID_ARGUMENT` before the SQLite module sees it, so every refusal has a code.
+
+**Review of this update:** DX review agent (independent), 2026-10-07. Verdict: approved with notes. `diverged()` gives `STORAGE_DIVERGED` with `index` and the `ReceiptError` as cause, without the byte dumps. `explainStorage` and `isWriterConflict` give `WRITER_CONFLICT`, and `errorIs(err, ErrWriterConflict)` still holds through the cause. `checkLocking` and `checkSqlDatabase` match each engine by shape: bun:sqlite has `query` but no `batch` and correctly gets `fromSqliteSync`. The timeouts, `OVERLOADED`, `KEY_MISMATCH`, `WITNESS_CONFLICT`, `OPEN_FAILED` and `LOG_CLOSED` codes are in place. `server_test.ts` passes. "Every refusal has a code" has one exception: a bad `storage.namespace` is still the SQLite module's `RangeError`. All of this also depends on ADR-0210's blocking fix for Workers.

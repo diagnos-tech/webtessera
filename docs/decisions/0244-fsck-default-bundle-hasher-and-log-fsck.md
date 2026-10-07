@@ -52,6 +52,10 @@ Every hint that sent users to webtessera/fsck now says "check it with log.fsck()
 - `log.fsck()` reads the whole log: it is for incidents, restores, migrations and scheduled audits, as its TSDoc
   says, not for request paths. It checks against the checkpoint it read first, so it is safe on a log that keeps
   growing; resources the log has since replaced (a partial tile grown full) are handled by fsck as upstream does.
+- Run `log.fsck()` in the process that writes the log. Opening a log starts an appender, so a second process that
+  opens it only to check it is a second writer; under `locking: "single-writer"` the tripwire then stops the first
+  (ADR-0210's update). To check a log from another process, give `newFsck` an `HTTPFetcher` for its read API
+  (`newHTTPFetcher` from `webtessera/client`), which writes nothing. The TSDoc and the guides say so.
 - `src/safe/log.ts` now imports `src/fsck/fsck.ts`; a browser bundle that uses `openBrowserLog` carries fsck's
   code. A verify-only bundle (`verifyReceipt`) does not import `log.ts` and is unaffected.
 
@@ -72,9 +76,13 @@ file both processes wrote.
 
 ## Review
 
-- **Reviewer:** pending
-- **Verdict:** pending
+- **Reviewer:** DX review agent (independent), 2026-10-07
+- **Verdict:** approved with notes
 - **Notes:**
+  - Compared `newFsck` with Go's `fsck.New` @ 4a6d9f9: the only difference is the two default values; a call passing both is unchanged, and no error text changed. `fsck.ts` now imports `src/lifecycle.ts` (whose imports are `api/state`, `rfc6962` and a type), with no cycle. `defaultMerkleLeafHasher` loses `@internal` and is exported from `webtessera/fsck` only; the root barrel is unchanged (`index_test.ts`). The PORTING-MAP row records the addition. `fsck_test.ts` and the fsck cases of `server_test.ts` pass.
+  - `log.fsck()` reads and verifies the checkpoint once (key and witnesses, through `#parse`), runs fsck against a fetcher pinned to it, rethrows an abort, and otherwise answers `STORAGE_DAMAGED` with the fsck error as cause, as written.
+  - Required note. The Context and the TSDoc recommend running `log.fsck()` from a scheduled job. A job that opens the log with `openServerLog` is a writer (its appender locks on open and publishes), so on a database opened with `locking: "single-writer"` it takes the claim and stops the server's writes for good. Probe: one process appending every 200 ms under `"single-writer"`, a second opening the same file the same way and running `log.fsck()`. The fsck verified 5 entries, and the server's next 15 appends all failed with `WRITER_CONFLICT`. With lease locking all 20 succeeded. Say this in `log.fsck`'s TSDoc, in `safe-api.md` and here: run fsck in the writing process, or use lease locking everywhere. A read-only open (no appender) would remove the trap.
+  - Not verified: the audit anecdote in the Context.
 
 > An ADR without a signed review is not in force. If author and reviewer disagree, record both
 > positions here and escalate to the maintainers — do not silently settle it.
