@@ -1,0 +1,103 @@
+---
+// Copyright 2026 MedDeck. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// One page per entry point, as pkg.go.dev shows a Go package: what it is, the Go package it
+// ports, and each export with the first sentence of its doc comment, read from the sources by
+// the TypeScript compiler (src/data/entrypoints.ts).
+
+import type { ExportedName } from "../../../data/entrypoints.ts";
+import Doc from "../../../layouts/Doc.astro";
+import { inline } from "../../../lib/markdown.ts";
+import { meta, neighbours, referenceMeta, referenceSlug } from "../../../lib/pages.ts";
+import { getSiteData } from "../../../lib/site.ts";
+
+export async function getStaticPaths() {
+	const { entryPoints } = await getSiteData();
+	return entryPoints.map((entry) => ({ params: { entry: referenceSlug(entry.specifier) }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { site, porting, entryPoints } = await getSiteData();
+const { title, description } = referenceMeta(entry);
+const sequence = entryPoints.map((e) => ({
+	path: `docs/reference/${referenceSlug(e.specifier)}/`,
+	title: e.specifier,
+}));
+const { prev, next } = neighbours(sequence, `docs/reference/${referenceSlug(entry.specifier)}/`);
+
+/** goUrl links a Go package: Tessera's at the pinned commit, any other on pkg.go.dev. */
+function goUrl(go: string): string {
+	if (go === "tessera" || go.startsWith("tessera/")) {
+		return `${porting.upstream}/tree/${porting.commit}/${go.replace(/^tessera\/?/, "")}`;
+	}
+	return `https://pkg.go.dev/${go.startsWith("transparency-dev/") ? `github.com/${go}` : go}`;
+}
+
+const kinds: readonly [ExportedName["kind"], string][] = [
+	["function", "Functions"],
+	["class", "Classes"],
+	["interface", "Interfaces"],
+	["type", "Types"],
+	["const", "Constants and variables"],
+	["enum", "Enums"],
+	["namespace", "Namespaces"],
+];
+const groups = kinds
+	.map(([kind, heading]) => ({ heading, names: entry.names.filter((n) => n.kind === kind) }))
+	.filter((g) => g.names.length > 0);
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z]+/g, "-");
+---
+
+<Doc
+	title={title}
+	code
+	description={description}
+	headings={groups.map((g) => ({ depth: 2, slug: slug(g.heading), text: g.heading }))}
+	trail={[
+		{ path: "docs/", title: meta.docs.title },
+		{ path: "docs/reference/", title: meta.reference.title },
+	]}
+	prev={prev}
+	next={next}
+>
+	<p class="lead" slot="lead" set:html={inline(entry.summary.replace(/([^.])$/, "$1."))} />
+	<p slot="lead">
+		{
+			entry.go === "" ? (
+				"It has no Go counterpart: it is an addition of webtessera’s."
+			) : (
+				<>
+					It ports the Go package <a href={goUrl(entry.go)}><code>{entry.go}</code></a>.
+				</>
+			)
+		}
+		Its source is <a href={`${site.repo}/blob/${site.commit}/${entry.source}`}><code>{entry.source}</code></a>.
+	</p>
+	{
+		groups.map((g) => (
+			<>
+				<h2 id={slug(g.heading)}>{g.heading}</h2>
+				<dl class="index api">
+					{g.names.map((n) => (
+						<>
+							<dt id={n.name}><code>{n.name}</code></dt>
+							<dd set:html={n.summary === "" ? "No doc comment." : inline(n.summary)} />
+						</>
+					))}
+				</dl>
+			</>
+		))
+	}
+</Doc>

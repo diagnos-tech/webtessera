@@ -1,0 +1,116 @@
+---
+// Copyright 2026 MedDeck. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Every page: the head, the wordmark and five links, the page itself, and a three-line footer:
+// the licence and the independence note, the project's links, and the build's provenance.
+
+import "../styles/tokens.css";
+import "../styles/base.css";
+import Seo from "../components/Seo.astro";
+import { getSiteData } from "../lib/site.ts";
+import { href } from "../lib/url.ts";
+
+interface Props {
+	title: string;
+	description: string;
+	jsonLd: readonly Record<string, unknown>[];
+	type?: "website" | "article" | undefined;
+}
+
+const { title, description, jsonLd, type } = Astro.props;
+const { site, pkg, licensing, porting } = await getSiteData();
+const path = Astro.url.pathname;
+const sections = [
+	["Docs", "docs/"],
+	["Examples", "examples/"],
+	["Compatibility", "compatibility/"],
+	["Security", "security/"],
+] as const;
+const current = (to: string) => (path === href(to) ? "page" : path.startsWith(href(to)) ? "true" : undefined);
+const names: Record<string, string> = { "Apache-2.0": "Apache License 2.0", "BSD-3-Clause": "BSD 3-Clause" };
+const [own, ...others] = pkg.licenses.map((id) => names[id] ?? id);
+const links = [
+	["GitHub", site.repo],
+	["npm", site.npm],
+	["Changelog", `${site.repo}/blob/main/CHANGELOG.md`],
+	["Contributing", `${site.repo}/blob/main/CONTRIBUTING.md`],
+	["NOTICE", `${site.repo}/blob/main/NOTICE`],
+] as const;
+const short = (sha: string) => (/^[0-9a-f]{40}$/.test(sha) ? sha.slice(0, 7) : sha);
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link
+			rel="preload"
+			href={href("fonts/source-serif-4-latin-opsz-normal.woff2")}
+			as="font"
+			type="font/woff2"
+			crossorigin
+		/>
+		<Seo title={title} description={description} jsonLd={jsonLd} type={type} />
+		<slot name="head" />
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<div class="wrap">
+			<header class="site-header">
+				<a class="wordmark" href={href()} aria-current={path === href() ? "page" : undefined}>webtessera</a>
+				<nav aria-label="Site">
+					<ul>
+						{
+							sections.map(([label, to]) => (
+								<li>
+									<a href={href(to)} aria-current={current(to)}>
+										{label}
+									</a>
+								</li>
+							))
+						}
+						<li><a href={site.repo}>GitHub</a></li>
+					</ul>
+				</nav>
+			</header>
+			<main id="main">
+				<slot />
+			</main>
+			<footer class="site-footer">
+				<p>
+					{licensing.holder.replace(/^Copyright/, "©")}. {own}{
+						others.length > 0 && `, with ${others.join(" and ")} for the files translated from Go`
+					}. webtessera is an independent project, not an official Google or transparency-dev project.
+				</p>
+				<nav aria-label="Project"><ul>
+					{
+						links.map(([label, to]) => (
+							<li>
+								<a href={to}>{label}</a>
+							</li>
+						))
+					}
+				</ul></nav>
+				<p>
+					Built from <a href={`${site.repo}/tree/${site.commit}`}><code>{short(site.commit)}</code></a>{
+						site.date !== undefined && ` of ${site.date}`
+					}. Ported from <a href={`${porting.upstream}/tree/${porting.commit}`}>Tessera at <code>{short(porting.commit)}</code></a>,
+					to whose authors webtessera owes its design, its comments and its tests.
+				</p>
+			</footer>
+		</div>
+	</body>
+</html>

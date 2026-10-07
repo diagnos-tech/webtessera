@@ -3,22 +3,25 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The webtessera landing page, generated from the library's own sources at build time and published to GitHub Pages.",
+  "description": "The webtessera website, generated from the library's own sources at build time and published to GitHub Pages.",
   "scripts": {
     "prebuild": "bun run --cwd .. build",
-    "build": "vite build",
+    "build": "astro build",
     "predev": "bun run --cwd .. build",
-    "dev": "vite",
-    "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "dev": "astro dev",
+    "preview": "node scripts/serve.ts",
+    "typecheck": "astro check",
     "smoke": "node scripts/smoke.ts",
-    "og": "node scripts/og.ts",
     "ci": "bun run build && bun run typecheck && bun run smoke"
   },
   "devDependencies": {
-    "shiki": "4.5.0",
-    "typescript": "5.9.3",
-    "vite": "8.3.2"
+    "@astrojs/check": "0.9.10",
+    "@astrojs/sitemap": "3.7.4",
+    "@types/node": "22.20.5",
+    "astro": "7.3.6",
+    "astro-og-canvas": "0.13.2",
+    "canvaskit-wasm": "0.42.0",
+    "typescript": "5.9.3"
   },
   "peerDependencies": {
     "webtessera": "*"

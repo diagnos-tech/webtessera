@@ -17,7 +17,8 @@
 // the log after every append, with the renderers the build used.
 
 import { renderNoteBody } from "../shared/note.ts";
-import { renderEntries, renderFiles, renderInclusion, renderTiles } from "../shared/panels.ts";
+import { renderEntries, renderInclusion, renderTiles } from "../shared/panels.ts";
+import { listed } from "./listed.ts";
 import { DemoLog, type Snapshot } from "./log.ts";
 import { randomEntries } from "./random.ts";
 
@@ -39,7 +40,6 @@ export async function start(root: HTMLElement): Promise<void> {
 		input: el(root, "#demo-entry", HTMLInputElement),
 		status: el(root, "[data-demo-status]", HTMLElement),
 		entries: el(root, "[data-demo-entries]", HTMLOListElement),
-		files: el(root, "[data-demo-files]", HTMLUListElement),
 		note: el(root, "[data-demo-note]", HTMLElement),
 		noteMeta: el(root, "[data-demo-note-meta]", HTMLElement),
 		tiles: el(root, "[data-demo-tiles]", HTMLElement),
@@ -97,14 +97,13 @@ export async function start(root: HTMLElement): Promise<void> {
 
 	const refresh = async () => {
 		const before = shown?.checkpoint.checkpoint.size ?? 0n;
-		shown = await log.snapshot(8);
-		const { checkpoint, tiles, latest, files } = shown;
+		shown = await log.snapshot(listed);
+		const { checkpoint, tiles, latest } = shown;
 		const size = checkpoint.checkpoint.size;
 		ui.note.innerHTML = renderNoteBody({ text: checkpoint.note.text, sigs: checkpoint.note.sigs ?? [] }).value;
 		ui.noteMeta.textContent = "signed in this tab, just now";
 		ui.tiles.innerHTML = renderTiles(tiles, selected).value;
 		ui.entries.innerHTML = renderEntries(latest, selected).value;
-		ui.files.innerHTML = renderFiles(files).value;
 		for (const c of ui.tiles.querySelectorAll<HTMLElement>(".c[data-i]")) {
 			if (before > 0n && c.closest("[data-level='0']") !== null && BigInt(c.dataset.i ?? "0") >= before) {
 				c.classList.add("new");

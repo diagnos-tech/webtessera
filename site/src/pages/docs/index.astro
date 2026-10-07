@@ -1,0 +1,119 @@
+---
+// Copyright 2026 MedDeck. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The docs' front page: start here (the safe API's two entry points and the quick start's
+// tested code), then every guide, the concepts and the reference. The entry points, the guides
+// and their order are read from docs/guides; only the linking sentences are hand-written.
+
+import { getCollection } from "astro:content";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import CodeSample from "../../components/CodeSample.astro";
+import { guidesIndex } from "../../data/examples.ts";
+import { snippet } from "../../data/index.ts";
+import { requireTable } from "../../data/tables.ts";
+import Doc from "../../layouts/Doc.astro";
+import { inline, plainText } from "../../lib/markdown.ts";
+import { guideOrder, meta } from "../../lib/pages.ts";
+import { resolver } from "../../lib/routes.ts";
+import { getSiteData } from "../../lib/site.ts";
+import { href } from "../../lib/url.ts";
+
+const d = await getSiteData();
+const { site, root, safe } = d;
+const guides = await getCollection("guides");
+const byId = new Map(guides.map((g) => [g.id, g]));
+const resolve = resolver(site, root, href());
+// The use-case guides, from the first table of docs/guides/README.md: what each builds, and where it runs.
+const index = readFileSync(join(root, guidesIndex.file), "utf8");
+const useCases = requireTable(index, guidesIndex.file, guidesIndex.heading)
+	.map(([guide = "", what = "", runs = ""]) => ({ id: /\(([\w.-]+)\.md\)/.exec(guide)?.[1] ?? "", what, runs }))
+	.filter((r) => byId.has(r.id));
+const listed = new Set(useCases.map((r) => r.id));
+const topics = guideOrder(
+	root,
+	guides.map((g) => g.id),
+).filter((id) => !listed.has(id));
+const title = (id: string) => plainText(byId.get(id)?.data.title ?? id);
+---
+
+<Doc title={meta.docs.title} description={meta.docs.description}>
+	<p class="lead" slot="lead">
+		Start with the safe API, then follow the guide for your use case. Each guide has a runnable example with its own
+		tests.
+	</p>
+
+	<h2 id="start-here">Start here</h2>
+	<p>The safe API has two entry points. What you import says where your code runs, and what key it may hold:</p>
+	<div class="table-wrap" tabindex="0" role="region" aria-label="The safe API's entry points">
+		<table>
+			<thead><tr><th scope="col">Import</th><th scope="col">Runs in</th><th scope="col">Holds a log’s private key</th></tr></thead>
+			<tbody>
+				{
+					safe.entries.map((e) => (
+						<tr>
+							<th scope="row"><a href={href(`docs/reference/${e.specifier.replace(/^webtessera\//, "")}/`)}><code>{e.specifier}</code></a></th>
+							<td>{e.runsIn}</td>
+							<td>{e.holds}</td>
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+	</div>
+	<p>Open a log on a server, append an entry and verify its receipt:</p>
+	<CodeSample snippets={[snippet(d, "safe_imports"), snippet(d, "safe_server_example")]} site={site} root={root} />
+	<p>
+		To make the key, call <code>generateKey(undefined, "example.com/log")</code> from <code>webtessera/note</code> once.
+		Keep the <code>skey</code> it returns in your secret store, and publish the <code>vkey</code>.
+		<a href={href("docs/safe-api/")}>The safe API guide</a> explains each default, and what each entry point refuses.
+	</p>
+
+	<h2 id="guides">Guides</h2>
+	<p>One guide per use case, each walking through an example:</p>
+	<dl class="index">
+		{
+			useCases.map((r) => (
+				<>
+					<dt><a href={href(`docs/${r.id}/`)}>{title(r.id)}</a></dt>
+					<dd set:html={`${inline(r.what, guidesIndex.file, resolve)} Runs on ${inline(r.runs)}.`} />
+				</>
+			))
+		}
+	</dl>
+	<p>And one per topic:</p>
+	<dl class="index">
+		{
+			topics.map((id) => (
+				<>
+					<dt><a href={href(`docs/${id}/`)} set:html={inline(byId.get(id)?.data.title ?? id)} /></dt>
+					<dd set:html={byId.get(id)?.data.lead ?? ""} />
+				</>
+			))
+		}
+	</dl>
+
+	<h2 id="concepts">Concepts</h2>
+	<p>
+		<a href={href("docs/concepts/")}>{meta.concepts.title}</a> covers the design of a transparency log: Merkle trees,
+		tiles, checkpoints, proofs, receipts and witnesses, with the specifications they come from.
+	</p>
+
+	<h2 id="reference">Reference</h2>
+	<p>
+		<a href={href("docs/reference/")}>The API reference</a> has a page for each of the {d.entryPoints.length} entry points,
+		with its exports, its Go counterpart and its source.
+	</p>
+</Doc>

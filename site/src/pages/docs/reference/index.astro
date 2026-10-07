@@ -1,0 +1,61 @@
+---
+// Copyright 2026 MedDeck. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The package map: every entry point of package.json's exports map, its Go counterpart and its
+// one-line description, from docs/guides/ported-api.md and the entry points' own doc comments.
+
+import Doc from "../../../layouts/Doc.astro";
+import { inline } from "../../../lib/markdown.ts";
+import { docsSequence, meta, neighbours, referenceSlug } from "../../../lib/pages.ts";
+import { getSiteData } from "../../../lib/site.ts";
+import { href } from "../../../lib/url.ts";
+
+const { entryPoints } = await getSiteData();
+const { prev, next } = neighbours(await docsSequence(), "docs/reference/");
+---
+
+<Doc
+	title={meta.reference.title}
+	description={meta.reference.description}
+	trail={[{ path: "docs/", title: meta.docs.title }]}
+	prev={prev}
+	next={next}
+>
+	<p class="lead" slot="lead">
+		The package is split the way Tessera is split into Go packages, with names translated mechanically:
+		<code>NewAppender</code> is <code>newAppender</code>. Each page lists an entry point’s exports with the first
+		sentence of their doc comments, as pkg.go.dev does for Go.
+	</p>
+	<div class="table-wrap" tabindex="0" role="region" aria-label="Entry points">
+		<table>
+			<thead><tr><th scope="col">Import</th><th scope="col">Go counterpart</th><th scope="col">Contents</th></tr></thead>
+			<tbody>
+				{
+					entryPoints.map((e) => (
+						<tr>
+							<th scope="row"><a href={href(`docs/reference/${referenceSlug(e.specifier)}/`)}><code>{e.specifier}</code></a></th>
+							<td>{e.go === "" ? "none" : <code>{e.go}</code>}</td>
+							<td set:html={inline(e.summary)} />
+						</tr>
+					))
+				}
+			</tbody>
+		</table>
+	</div>
+	<p>
+		The same map, with the additions that have no Go counterpart marked, is part of
+		<a href={href("docs/ported-api/#packages")}>the ported API guide</a>.
+	</p>
+</Doc>

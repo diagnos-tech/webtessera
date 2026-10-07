@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// README.md: its embedded code blocks and its tables.
+// What the site reads from the README and the guides: the README's install command and its
+// embedded code blocks, the package map of docs/guides/ported-api.md and the safe API's
+// environment table in docs/guides/safe-api.md.
 //
-// The code blocks are tagged `file=<path> region=<name>`; each is the `// #region name`
+// The README's code blocks are tagged `file=<path> region=<name>`; each is the `// #region name`
 // block of a source file that the test suite runs (src/README_test.ts), and
-// src/README_sync_test.ts fails if README.md drifts from them. regions() and normalise()
-// below are that test's extraction and normalisation, so a snippet on the site is
-// byte-for-byte the tested code. A region that does not contain its own imports is shown
-// with the import declarations of the same test file that it uses (snippetImports), so
-// that every block on the page can be copied as it is.
+// src/README_sync_test.ts fails if README.md drifts from them. regions() and normalise() below
+// are that test's extraction and normalisation, so a snippet on the site is byte for byte the
+// tested code. A region that does not contain its own imports is shown with the import
+// declarations of the same test file that it uses (snippetImports), so that every block on the
+// site can be copied as it is.
 
 import type { Repo } from "./repo.ts";
-import { codeSpans, markdownTable, plain } from "./tables.ts";
+import { codeSpans, plain, requireTable } from "./tables.ts";
 
 /** Snippet is a tested code region, as README.md embeds it. */
 export interface Snippet {
@@ -32,21 +34,33 @@ export interface Snippet {
 	readonly code: string;
 	/** imports are the test file's import declarations of the names the region uses ("" if none). */
 	readonly imports: string;
+	/** lines are the first and last line numbers of the region's code in its file. */
+	readonly lines: readonly [number, number];
 }
 
-/** PackageRow is a row of README.md's package table. */
+/** PackageRow is a row of the package table in docs/guides/ported-api.md. */
 export interface PackageRow {
 	readonly imports: readonly string[];
+	/** go is the Go counterpart, or "" for an entry point with none. */
 	readonly go: string;
+	/** contents is the row's description, as inline Markdown. */
 	readonly contents: string;
 }
 
+/** Region is a `// #region` block: its normalised code and where it sits in its file. */
+interface Region {
+	readonly code: string;
+	readonly lines: readonly [number, number];
+}
+
 /** regions extracts every `// #region name` … `// #endregion` block from a source file. */
-export function regions(source: string): Map<string, string> {
-	const out = new Map<string, string>();
+export function regions(source: string): Map<string, Region> {
+	const out = new Map<string, Region>();
 	const re = /^[ \t]*\/\/ #region (\S+)\n([\s\S]*?)^[ \t]*\/\/ #endregion$/gm;
 	for (const m of source.matchAll(re)) {
-		out.set(m[1] ?? "", normalise(m[2] ?? ""));
+		const first = source.slice(0, m.index).split("\n").length + 1;
+		const body = (m[2] ?? "").replace(/\s+$/, "");
+		out.set(m[1] ?? "", { code: normalise(body), lines: [first, first + body.split("\n").length - 1] });
 	}
 	return out;
 }
@@ -106,10 +120,10 @@ export function snippetImports(source: string, code: string): string {
 }
 
 /**
- * loadSnippets returns README.md's embedded regions, keyed by region name. The code is
- * read from the source files, which are what the tests run, never from README.md's copy;
- * a region whose README copy differs is listed in `drift` (src/README_sync_test.ts fails
- * on it too). A region README.md names but no source has is an error.
+ * loadSnippets returns README.md's embedded regions, keyed by region name. The code is read
+ * from the source files, which are what the tests run, never from README.md's copy; a region
+ * whose README copy differs is listed in `drift` (src/README_sync_test.ts fails on it too). A
+ * region README.md names but no source has is an error.
  */
 export function loadSnippets(repo: Repo): { snippets: Map<string, Snippet>; drift: string[] } {
 	const readme = repo.text("README.md");
@@ -118,26 +132,36 @@ export function loadSnippets(repo: Repo): { snippets: Map<string, Snippet>; drif
 	for (const m of readme.matchAll(/^```ts file=(\S+) region=(\S+)\n([\s\S]*?)^```$/gm)) {
 		const [, file = "", region = "", body = ""] = m;
 		const source = repo.text(file);
-		const code = regions(source).get(region);
-		if (code === undefined) {
+		const found = regions(source).get(region);
+		if (found === undefined) {
 			throw new Error(`README.md embeds ${file}#${region}, which does not exist`);
 		}
-		if (code !== body.replace(/\s+$/, "")) {
+		if (found.code !== body.replace(/\s+$/, "")) {
 			drift.push(`${file}#${region}`);
 		}
-		out.set(region, { file, region, code, imports: snippetImports(source, code) });
+		out.set(region, {
+			file,
+			region,
+			code: found.code,
+			imports: snippetImports(source, found.code),
+			lines: found.lines,
+		});
 	}
 	return { snippets: out, drift };
 }
 
-/** loadPackageTable reads the table under README.md's "## Packages" heading. */
+/** packageTable is where the package map lives. */
+export const packageTable = { file: "docs/guides/ported-api.md", heading: "## Packages" } as const;
+
+/** loadPackageTable reads the package map of docs/guides/ported-api.md. */
 export function loadPackageTable(repo: Repo): PackageRow[] {
-	return markdownTable(repo.text("README.md"), "## Packages")
+	const { file, heading } = packageTable;
+	return requireTable(repo.text(file), file, heading)
 		.filter(([imports = ""]) => imports.startsWith("`"))
 		.map(([imports = "", go = "", contents = ""]) => ({
 			imports: codeSpans(imports),
-			go: go.replace(/`/g, ""),
-			contents,
+			go: go.startsWith("—") ? "" : go.replace(/`/g, ""),
+			contents: contents.trim(),
 		}));
 }
 
@@ -149,91 +173,45 @@ export function describe(rows: readonly PackageRow[], specifier: string): Packag
 	);
 }
 
-/** PackageManager is one way to install the package, named by its tool. */
-export interface PackageManager {
-	readonly name: string;
-	readonly command: string;
-}
-
-/** Install is README.md's install command and the alternatives it lists, one per package manager. */
+/** Install is README.md's install command, and its sentence on where webtessera runs. */
 export interface Install {
 	readonly command: string;
-	readonly managers: readonly PackageManager[];
+	readonly runs: string;
 }
 
-/** loadInstall reads the shell block under README.md's "## Install" heading. */
+/** loadInstall reads the shell block under README.md's "## Install" heading, and the sentence after it. */
 export function loadInstall(repo: Repo): Install {
 	const readme = repo.text("README.md");
-	const block = /^## Install\n[\s\S]*?^```sh\n([\s\S]*?)^```$/m.exec(readme)?.[1] ?? "";
-	const lines = block.split("\n").map((l) => l.trim());
-	const command = lines.find((l) => l !== "" && !l.startsWith("#")) ?? "npm install webtessera";
-	const alternatives = lines
-		.filter((l) => l.startsWith("#"))
-		.flatMap((l) => l.replace(/^#\s*(or:)?\s*/, "").split(/\s+\/\s+/))
-		.map((s) => s.trim())
-		.filter((s) => s !== "");
-	const managers = [command, ...alternatives].map((c) => ({ name: c.split(/\s+/)[0] ?? c, command: c }));
-	return { command, managers };
+	const m = /^## Install\n[\s\S]*?^```sh\n([\s\S]*?)^```\n+([^\n#][\s\S]*?)(?:\n\n|(?![\s\S]))/m.exec(readme);
+	if (m === null) {
+		throw new Error('README.md has no shell block under "## Install", which the site reads');
+	}
+	const command = (m[1] ?? "")
+		.split("\n")
+		.map((l) => l.trim())
+		.find((l) => l !== "" && !l.startsWith("#"));
+	if (command === undefined) {
+		throw new Error('README.md\'s shell block under "## Install" has no command');
+	}
+	return { command, runs: (m[2] ?? "").replace(/\s+/g, " ").trim() };
 }
 
-/** SafeRow is a row of README.md's safe API table: an entry point, where it runs and what key it holds. */
+/** SafeRow is a row of the safe API's environment table: an entry point, where it runs and what key it holds. */
 export interface SafeRow {
 	readonly specifier: string;
 	readonly runsIn: string;
 	readonly holds: string;
 }
 
-/** loadSafeTable reads the table under README.md's "## The safe API" heading. */
+/** safeTable is where the safe API's environment table lives. */
+export const safeTable = { file: "docs/guides/safe-api.md", heading: "## The environment model" } as const;
+
+/** loadSafeTable reads the environment table of docs/guides/safe-api.md. */
 export function loadSafeTable(repo: Repo): SafeRow[] {
-	return markdownTable(repo.text("README.md"), "## The safe API").map(([imp = "", runsIn = "", holds = ""]) => ({
+	const { file, heading } = safeTable;
+	return requireTable(repo.text(file), file, heading).map(([imp = "", runsIn = "", holds = ""]) => ({
 		specifier: codeSpans(imp)[0] ?? plain(imp),
 		runsIn: plain(runsIn),
 		holds: plain(holds),
 	}));
-}
-
-/** StorageRow is a row of README.md's storage driver table. */
-export interface StorageRow {
-	readonly name: string;
-	readonly specifier: string;
-	readonly runsIn: string;
-	readonly persistence: string;
-}
-
-/** loadStorageTable reads the table under README.md's "## Storage drivers" heading. */
-export function loadStorageTable(repo: Repo): StorageRow[] {
-	return markdownTable(repo.text("README.md"), "## Storage drivers").map(
-		([name = "", imp = "", runsIn = "", persistence = ""]) => ({
-			name: plain(name),
-			specifier: codeSpans(imp)[0] ?? "",
-			runsIn: plain(runsIn).replace(/\s*\(see below\)/, ""),
-			persistence: plain(persistence),
-		}),
-	);
-}
-
-/** EngineRow is a row of README.md's SQLite engine table: the adapter call and its default locking. */
-export interface EngineRow {
-	readonly engine: string;
-	/** adapter is the adapter function's name, e.g. fromSqliteSync. */
-	readonly adapter: string;
-	readonly locking: string;
-}
-
-/** loadEngineTable reads the table under README.md's "### On any SQLite" heading. */
-export function loadEngineTable(repo: Repo): EngineRow[] {
-	return markdownTable(repo.text("README.md"), "### On any SQLite").map(
-		([engine = "", adapter = "", locking = ""]) => ({
-			engine: plain(engine),
-			adapter: /`(\w+)\(/.exec(adapter)?.[1] ?? "",
-			locking: plain(locking),
-		}),
-	);
-}
-
-/** loadExampleOrder returns the example directories in the order README.md's "## Examples" table lists them. */
-export function loadExampleOrder(repo: Repo): string[] {
-	return markdownTable(repo.text("README.md"), "## Examples")
-		.map(([first = ""]) => /\(examples\/([\w.-]+)\)/.exec(first)?.[1] ?? "")
-		.filter((d) => d !== "");
 }

@@ -1,100 +1,93 @@
 /*
- * Design tokens. A paper-and-ink palette, a teal accent for what verifies (paths,
- * checkpoints, roots) and an amber one for proof material (sibling hashes). Every text
- * colour meets WCAG AA on every surface it is used on, in both schemes.
+ * The site's design tokens. Colour carries meaning and nothing
+ * else: ink for text, --verified for what checked out, --proof for proof material, --fail for
+ * tampering. Light is the identity; dark follows the reader's system setting.
  */
+
+@font-face {
+	font-family: "Source Serif 4";
+	font-style: normal;
+	font-weight: 200 900;
+	font-display: swap;
+	src: url("/fonts/source-serif-4-latin-opsz-normal.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+		U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Source Serif 4";
+	font-style: italic;
+	font-weight: 200 900;
+	font-display: swap;
+	src: url("/fonts/source-serif-4-latin-opsz-italic.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+		U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "Go Mono";
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url("/fonts/go-mono-latin.woff2") format("woff2");
+}
 
 :root {
 	color-scheme: light dark;
 
-	--sans:
-		system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif;
-	--mono:
-		ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Code", "JetBrains Mono", Menlo, Consolas, "Liberation Mono",
-		"DejaVu Sans Mono", monospace;
-
-	--bg: #fafaf7;
-	--band: #f3f3ee;
-	--surface: #ffffff;
-	--sunk: #f1f1ec;
-	--ink: #15171c;
-	--ink-2: #424852;
-	--ink-3: #5b616b;
-	--line: #e4e4dd;
-	--line-2: #d0d0c7;
-	--grid: rgb(21 23 28 / 5.5%);
-
-	--accent: #0b6b63;
-	--accent-hover: #08534d;
-	--accent-ink: #ffffff;
-	--accent-soft: #e2f1ed;
-	--accent-line: #99cfc5;
+	--paper: #ffffff;
+	--ink: #1d2330;
+	--ink-2: #4d5566;
+	--rule: #d6dae1;
+	--verified: #0b6b55;
 	--proof: #9a4708;
-	--proof-soft: #fcecdc;
-	--proof-line: #e3b48a;
-	--ok: #12733a;
-	--bad: #b3261e;
-	--bad-soft: #fde8e6;
-	--muted-cell: #c3c4bb;
+	--fail: #b3261e;
 
-	--code-bg: #ffffff;
-	--code-head: #f7f7f3;
+	--serif: "Source Serif 4", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+	--mono: "Go Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-	--s0: #d3ebe5;
-	--s1: #b5ded5;
-	--s2: #94cfc3;
-	--s3: #72c0b1;
-	--s4: #50ac9c;
-	--s5: #349586;
-	--s6: #207d71;
-	--s7: #12645a;
-	--empty: #ecece6;
+	/* Widths: the prose measure, the figure column beside it, and the gap between them. */
+	--prose: 38rem;
+	--figure: 34rem;
+	--gap: 3rem;
+	--wide: calc(var(--prose) + var(--gap) + var(--figure));
+	/* The page is set from a fixed left margin, like a printed page; it shrinks to 16px on phones. */
+	--margin: clamp(16px, 11vw - 56px, 10rem);
 
-	--radius: 14px;
-	--radius-sm: 10px;
-	--shadow: 0 1px 0 rgb(16 24 40 / 3%), 0 18px 40px -26px rgb(16 24 40 / 28%);
-	--header-h: 60px;
+	/* The eight tones of a tile's cells, from paper to --verified, picked by each hash's first byte. */
+	--t0: color-mix(in oklab, var(--verified) 18%, var(--paper));
+	--t1: color-mix(in oklab, var(--verified) 30%, var(--paper));
+	--t2: color-mix(in oklab, var(--verified) 42%, var(--paper));
+	--t3: color-mix(in oklab, var(--verified) 54%, var(--paper));
+	--t4: color-mix(in oklab, var(--verified) 66%, var(--paper));
+	--t5: color-mix(in oklab, var(--verified) 78%, var(--paper));
+	--t6: color-mix(in oklab, var(--verified) 89%, var(--paper));
+	--t7: var(--verified);
+
+	/* Shiki's css-variables theme: code is ink, comments are secondary. */
+	--astro-code-foreground: var(--ink);
+	--astro-code-background: transparent;
+	--astro-code-token-constant: var(--ink);
+	--astro-code-token-string: var(--ink);
+	--astro-code-token-comment: var(--ink-2);
+	--astro-code-token-keyword: var(--ink);
+	--astro-code-token-parameter: var(--ink);
+	--astro-code-token-function: var(--ink);
+	--astro-code-token-string-expression: var(--ink);
+	--astro-code-token-punctuation: var(--ink);
+	--astro-code-token-link: var(--ink);
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--bg: #0b0e12;
-		--band: #0f1318;
-		--surface: #13171d;
-		--sunk: #0e1216;
-		--ink: #e8eaed;
-		--ink-2: #b5bbc4;
-		--ink-3: #959daa;
-		--line: #222a33;
-		--line-2: #323b47;
-		--grid: rgb(232 234 237 / 4.5%);
-
-		--accent: #4fd1bd;
-		--accent-hover: #86e6d6;
-		--accent-ink: #04221e;
-		--accent-soft: #0f2b27;
-		--accent-line: #22625a;
-		--proof: #f2a65a;
-		--proof-soft: #33220f;
-		--proof-line: #7a4d1f;
-		--ok: #5ee08f;
-		--bad: #ff8f85;
-		--bad-soft: #3a1714;
-		--muted-cell: #3d4652;
-
-		--code-bg: #0f1318;
-		--code-head: #13181e;
-
-		--s0: #133632;
-		--s1: #174842;
-		--s2: #1b5c54;
-		--s3: #217268;
-		--s4: #28897c;
-		--s5: #31a192;
-		--s6: #40b8a7;
-		--s7: #60cfbe;
-		--empty: #1d242c;
-
-		--shadow: 0 1px 0 rgb(0 0 0 / 30%), 0 20px 44px -28px rgb(0 0 0 / 80%);
+		--paper: #15171b;
+		--ink: #e4e6ea;
+		--ink-2: #a9b0bc;
+		--rule: #2c3038;
+		--verified: #5fd0b0;
+		--proof: #f0a560;
+		--fail: #ff8f85;
 	}
 }

@@ -1,10 +1,10 @@
-# Publishes the landing page (site/) to GitHub Pages on every push to main, and on demand.
+# Publishes the website (site/) to GitHub Pages on every push to main, and on demand.
 #
 # One-time setup, by a repository admin: Settings → Pages → Build and deployment →
 # Source: "GitHub Actions". Until then configure-pages fails with "Get Pages site failed".
 #
-# The build job runs the site's own `ci` script, which builds the library and the page,
-# type-checks the site and smoke-tests the built page in Chromium; a page that fails its
+# The build job runs the site's own `ci` script, which builds the library and the site,
+# type-checks the site and smoke-tests every built page in Chromium; a site that fails its
 # smoke test is never deployed. Pull requests run the same script through ci.yml
 # (_site.yml), so this workflow only builds what main already passed.
 name: Pages
@@ -42,7 +42,7 @@ jobs:
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      # SITE_URL sets the canonical URL, the base path, the sitemap and the social cards.
+      # SITE_URL sets the canonical URLs, the base path, the sitemap and the social images.
       - name: Build and smoke-test the site
         env:
           SITE_URL: ${{ steps.pages.outputs.base_url }}

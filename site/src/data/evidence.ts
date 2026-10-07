@@ -24,6 +24,8 @@ import type { Repo } from "./repo.ts";
 export interface Corpus {
 	readonly file: string;
 	readonly records: number;
+	/** description is the corpus file's own description of what Go recorded. */
+	readonly description: string;
 }
 
 /** GoldenRow is one backend (or key custody) and the runtimes its golden suite runs in. */
@@ -96,7 +98,7 @@ export function loadEvidence(repo: Repo): Evidence {
 	let everyCodePoint = false;
 	for (const file of repo.list("fixtures/data", "file").filter((f) => /^differential_.+\.json$/.test(f))) {
 		const raw = repo.json<Record<string, unknown>>(`fixtures/data/${file}`);
-		corpora.push({ file, records: countRecords(raw) });
+		corpora.push({ file, records: countRecords(raw), description: String(raw.description ?? "") });
 		everyCodePoint ||= /every code point/i.test(String(raw.description ?? ""));
 	}
 

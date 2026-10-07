@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Markdown tables, as the repository's documents write them: the README's tables of
-// storage drivers, SQLite engines, examples and the safe API, CONTRIBUTING.md's command
-// table and the guides' index are all read through markdownTable.
+// Markdown tables, as the repository's documents write them: the safe API's environment
+// table, the package map and the guides' index are all read through requireTable.
 
 /** cells splits a Markdown table row into its trimmed cells. */
 export function cells(row: string): string[] {
@@ -34,7 +33,7 @@ function headingLevel(line: string): number {
  * markdownTable returns the rows (header excluded) of the first table under the heading
  * line `heading` (for example "## Storage drivers"), as raw Markdown cells. It stops at the
  * next heading of the same or a higher level, and returns [] if the heading or the table
- * is missing, so that a renamed section drops its part of the page instead of breaking it.
+ * is missing; requireTable turns that into a build error.
  */
 export function markdownTable(markdown: string, heading: string): string[][] {
 	const lines = markdown.split("\n");
@@ -57,6 +56,21 @@ export function markdownTable(markdown: string, heading: string): string[][] {
 	}
 	// The first row is the header, the second its separator.
 	return rows.slice(2).map(cells);
+}
+
+/**
+ * requireTable returns the rows of the first table under `heading` in a repository file, and
+ * fails the build if there are none: a renamed heading or a moved table must be followed by
+ * the extractor that reads it, not leave part of the site silently empty.
+ */
+export function requireTable(markdown: string, file: string, heading: string): string[][] {
+	const rows = markdownTable(markdown, heading);
+	if (rows.length === 0) {
+		throw new Error(
+			`${file} has no table under "${heading}", which the site reads; update site/src/data to where the table now is`,
+		);
+	}
+	return rows;
 }
 
 /** codeSpans returns the `code` spans of a Markdown cell, in order. */

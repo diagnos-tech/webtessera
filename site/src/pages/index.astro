@@ -1,0 +1,200 @@
+---
+// Copyright 2026 MedDeck. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The home page: what webtessera is and how to install it, how a log works in five steps, each
+// beside a real artefact of a log the build created, a log running in the reader's tab, three
+// tested code samples, and the evidence in one paragraph. Every number and artefact is the
+// build's; the copy around them is hand-written.
+
+import "../styles/demo.css";
+import CodeSample from "../components/CodeSample.astro";
+import Demo from "../components/Demo.astro";
+import Figure from "../components/Figure.astro";
+import { snippet } from "../data/index.ts";
+import Base from "../layouts/Base.astro";
+import { meta } from "../lib/pages.ts";
+import { renderReceipt } from "../lib/receipt.ts";
+import { getSiteData } from "../lib/site.ts";
+import { href } from "../lib/url.ts";
+import { count, list, num, short } from "../lib/words.ts";
+import { html } from "../shared/html.ts";
+import { renderNoteBody } from "../shared/note.ts";
+import { renderProof } from "../shared/proof.ts";
+import { renderTile, TileWidth } from "../shared/tiles.ts";
+
+const d = await getSiteData();
+const { site, pkg, install, sample, receipt, fixtures, evidence, tests, porting, root } = d;
+const tile = sample.tiles.find((t) => t.level === 0);
+const { leaf, inclusion } = sample;
+const proofLength = inclusion.proof.length;
+const { description } = meta.home;
+const jsonLd = [
+	{
+		"@type": "WebSite",
+		"@id": `${site.url}#website`,
+		name: pkg.name,
+		url: site.url,
+		description,
+		inLanguage: "en",
+		about: { "@id": `${site.url}#software` },
+	},
+	{
+		"@type": "SoftwareSourceCode",
+		"@id": `${site.url}#software`,
+		name: pkg.name,
+		description: pkg.description,
+		url: site.url,
+		codeRepository: site.repo,
+		programmingLanguage: { "@type": "ComputerLanguage", name: "TypeScript", url: "https://www.typescriptlang.org/" },
+		runtimePlatform: ["Node.js", "Deno", "Bun", "Web browsers", "Cloudflare Workers"],
+		license: pkg.licenses.map((id) => `https://spdx.org/licenses/${id}.html`),
+		version: pkg.version,
+		keywords: pkg.keywords.join(", "),
+		isAccessibleForFree: true,
+		author: { "@type": "Organization", name: pkg.author },
+		sameAs: [site.npm],
+		isBasedOn: {
+			"@type": "SoftwareSourceCode",
+			name: "Tessera",
+			url: `${porting.upstream}/tree/${porting.commit}`,
+			codeRepository: porting.upstream,
+			programmingLanguage: "Go",
+			version: porting.commit,
+			license: "https://spdx.org/licenses/Apache-2.0.html",
+		},
+		...(site.date === undefined ? {} : { dateModified: site.date }),
+	},
+];
+// The leaf figure: the entry's leaf hash, then the same entry with one byte changed, the changed
+// byte and its hash set as tampering. Hashes are shortened to their first 12 bytes.
+const leafLines = html`<span class="ln">hashLeaf("${leaf.text}")</span><span class="ln">  = ${leaf.hash.slice(0, 24)}…</span><span class="ln">hashLeaf("${leaf.altered.slice(0, leaf.at)}<span class="failed">${leaf.altered.slice(leaf.at)}</span>")</span><span class="ln">  = <span class="failed">${leaf.alteredHash.slice(0, 24)}…</span></span>`;
+const sentence = (s: string) => s.charAt(0).toLowerCase() + s.slice(1).replace(/\.?$/, ".");
+---
+
+<Base title={meta.home.title} description={description} jsonLd={jsonLd} type="website">
+	<noscript slot="head"><style>.js-only { display: none !important; }</style></noscript>
+
+	<section class="row hero" aria-labelledby="title">
+		<div>
+			<h1 id="title">{meta.home.headline}</h1>
+			<p class="lead">
+				webtessera is {sentence(pkg.description)} Append an entry and get a receipt that anyone can verify offline.
+				Its logs are byte for byte Tessera’s, so each side reads and extends the other’s.
+			</p>
+			<pre class="install"><code>{install.command}</code></pre>
+			<p class="small">{install.runs}</p>
+		</div>
+		<Figure caption="GET /checkpoint" note="signed while this page was built" class="hero-fig">
+			<pre class="note hero-note" translate="no" set:html={renderNoteBody(sample.note).value} />
+		</Figure>
+	</section>
+
+	<section aria-labelledby="how">
+		<h2 id="how">How a log works</h2>
+		<ol class="steps">
+			<li class="row step">
+				<p>
+					<strong>An entry becomes a leaf.</strong> The log hashes each entry into a Merkle tree. Change one byte and
+					every hash above it changes.
+				</p>
+				<Figure caption="rfc6962.DefaultHasher" note={`entry ${leaf.index}, then one byte changed`}>
+					<pre class="note leaf" translate="no" set:html={leafLines.value} />
+				</Figure>
+			</li>
+			<li class="row step">
+				<p>
+					<strong>Leaves fill tiles.</strong> The tree is stored in tiles of {TileWidth} hashes, which never change once full,
+					so any static host or CDN can serve them. This one holds the {count(sample.entries.length, "entry", "entries")}
+					of the log on this page.
+				</p>
+				{tile !== undefined && <Fragment set:html={renderTile(tile, inclusion.index).value} />}
+			</li>
+			<li class="row step">
+				<p>
+					<strong>A checkpoint commits.</strong> The log signs its size and root hash as a signed note, like the one at
+					the top of this page. The signature commits to every entry before it, and the log’s public key checks it.
+				</p>
+				<Figure caption="vkey" note="the log’s public key">
+					<pre class="note" translate="no"><span class="ln sig">{sample.vkey}</span></pre>
+				</Figure>
+			</li>
+			<li class="row step">
+				<p>
+					<strong>A proof replaces trust.</strong> Proving that entry {inclusion.index} is in a tree of {inclusion.size}
+					takes {num(proofLength)} hashes, not {inclusion.size} entries. A log of a billion entries needs about {
+						Math.ceil(Math.log2(1e9))
+					}.
+				</p>
+				<Figure caption={`inclusionProof(${inclusion.index})`} note={`tree of ${inclusion.size}`}>
+					<Fragment set:html={renderProof(inclusion).value} />
+				</Figure>
+			</li>
+			<li class="row step">
+				<p>
+					<strong>A receipt travels.</strong> <code>append()</code> returns the index, the proof and the checkpoint as
+					one C2SP tlog-proof. Anyone with the log’s public key and the entry can check it offline.
+				</p>
+				<Figure
+					caption={receipt.from === "append" ? "log.append(entry)" : `log.prove(${receipt.index})`}
+					note="a receipt, as returned"
+				>
+					<pre class="note" translate="no" set:html={renderReceipt(receipt.text).value} />
+					<p class="after">
+						<code>verifyReceipt</code>: <span class="verified">entry {receipt.index} is in the tree of {receipt.size}.</span>
+					</p>
+				</Figure>
+			</li>
+		</ol>
+		<p class="measure">
+			Witnesses cosign checkpoints they have checked, so a log cannot show different histories to different readers.
+			<a href={href("docs/concepts/")}>Transparency logs, explained</a> covers the design in full.
+		</p>
+	</section>
+
+	<section aria-labelledby="demo">
+		<h2 id="demo">A log in this tab</h2>
+		<p class="measure">
+			This is webtessera running in your browser: a log in memory, signed by a key generated in this tab and seeded with
+			the same {num(sample.entries.length)} entries. Append, fill the tile, then tamper with an entry and watch its proof
+			fail.
+		</p>
+		<Demo sample={sample} origin={site.origin} />
+	</section>
+
+	<section aria-labelledby="use">
+		<h2 id="use">Use it</h2>
+		<p class="measure">On a server, with any SQLite:</p>
+		<CodeSample snippets={[snippet(d, "safe_imports"), snippet(d, "safe_server_example")]} site={site} root={root} />
+		<p class="measure">In a browser, with IndexedDB and a key that never leaves the device:</p>
+		<CodeSample snippets={[snippet(d, "safe_browser_example")]} site={site} root={root} imports />
+		<p class="measure">
+			Both samples run in CI. <a href={href("docs/safe-api/")}>The safe API guide</a> explains each default;
+			<a href={href("docs/ported-api/")}>the ported API</a> is Tessera’s own, name for name.
+		</p>
+	</section>
+
+	<section aria-labelledby="evidence">
+		<h2 id="evidence">Proven against Tessera</h2>
+		<p class="measure">
+			webtessera is a translation of <a href={`${porting.upstream}/tree/${porting.commit}`}>Tessera at <code>{short(porting.commit)}</code></a>,
+			not a reimplementation. Its tests compare {count(fixtures.files.length, "golden fixture file")} recorded from
+			Tessera byte for byte{tests.fixturesReproduced && ", and CI regenerates them from Tessera on every change"}. The golden suite holds {count(evidence.golden.length, "storage backend")} to those bytes, Tessera’s Go code and
+			webtessera verify and extend each other’s logs on {num(evidence.interop.length)} of them, and {
+				evidence.differentialRecords.toLocaleString("en-GB")
+			} differential records replay Go’s verdicts in {list(evidence.differentialRuntimes)}.
+			<a href={href("compatibility/")}>How each claim is checked</a>.
+		</p>
+	</section>
+</Base>

@@ -22,15 +22,35 @@ import { newAppender, newAppendOptions, newEntry, newPublicationAwaiter } from "
 import { parseCheckpoint } from "webtessera/formats/log";
 import { DefaultHasher } from "webtessera/merkle/rfc6962";
 import { generateKey, newSigner, newVerifier } from "webtessera/note";
-import { MemoryObjectStore, newMemoryDriver } from "webtessera/storage/memory";
+import { newMemoryDriver } from "webtessera/storage/memory";
+import { toHex } from "../shared/bytes.ts";
 import { type Inclusion, proveInclusion, readTiles } from "../shared/inspect.ts";
 import type { NoteView } from "../shared/note.ts";
 import type { TileView } from "../shared/tiles.ts";
 
-/** StoredFile is one object of the log's store: a tlog-tiles resource. */
-export interface StoredFile {
-	readonly path: string;
-	readonly size: number;
+/** Leaf is an entry and its leaf hash, beside the same entry with one byte changed and its hash. */
+export interface Leaf {
+	readonly index: bigint;
+	readonly text: string;
+	readonly hash: string;
+	/** altered is the entry with the byte at `at` changed, and alteredHash its leaf hash. */
+	readonly altered: string;
+	readonly alteredHash: string;
+	readonly at: number;
+}
+
+/** leafOf hashes an entry as RFC 6962 hashes a leaf, and again with its last byte changed. */
+function leafOf(index: bigint, text: string): Leaf {
+	const at = text.length - 1;
+	const altered = text.slice(0, at) + String.fromCharCode(text.charCodeAt(at) + 1);
+	return {
+		index,
+		text,
+		hash: toHex(DefaultHasher.hashLeaf(enc.encode(text))),
+		altered,
+		alteredHash: toHex(DefaultHasher.hashLeaf(enc.encode(altered))),
+		at,
+	};
 }
 
 /** SampleLog is everything the page shows of the build-time log. */
@@ -41,8 +61,9 @@ export interface SampleLog {
 	readonly note: NoteView;
 	readonly size: bigint;
 	readonly tiles: readonly TileView[];
-	readonly files: readonly StoredFile[];
 	readonly inclusion: Inclusion;
+	/** leaf is the proven entry and its leaf hash. */
+	readonly leaf: Leaf;
 }
 
 const enc = new TextEncoder();
@@ -67,13 +88,12 @@ export function sampleKey(origin: string): { skey: string; vkey: string } {
 export async function buildSampleLog(origin: string, entries: readonly string[], prove: number): Promise<SampleLog> {
 	const { skey, vkey } = sampleKey(origin);
 	const verifier = newVerifier(vkey);
-	const store = new MemoryObjectStore();
 	const ac = new AbortController();
 	const opts = newAppendOptions()
 		.withCheckpointSigner(newSigner(skey))
 		.withBatching(256, 5)
 		.withCheckpointInterval(100);
-	const { appender, reader, shutdown } = await newAppender(newMemoryDriver({ store }), opts, ac.signal);
+	const { appender, reader, shutdown } = await newAppender(newMemoryDriver(), opts, ac.signal);
 	try {
 		const awaiter = newPublicationAwaiter((s) => reader.readCheckpoint(s), 10, ac.signal);
 		const added = await Promise.all(entries.map((e) => awaiter.await(appender.add(newEntry(enc.encode(e))))));
@@ -83,12 +103,6 @@ export async function buildSampleLog(origin: string, entries: readonly string[],
 			byIndex[Number(index)] = entries[i] ?? "";
 		});
 		const { checkpoint, note } = parseCheckpoint(await reader.readCheckpoint(), origin, verifier);
-		const files: StoredFile[] = [];
-		for (const path of store.keys()) {
-			if (!path.startsWith(".")) {
-				files.push({ path, size: (await store.stat(path))?.size ?? 0 });
-			}
-		}
 		const index = BigInt(Math.min(prove, byIndex.length - 1));
 		const data = byIndex[Number(index)] ?? "";
 		return {
@@ -98,8 +112,8 @@ export async function buildSampleLog(origin: string, entries: readonly string[],
 			note: { text: note.text, sigs: note.sigs ?? [] },
 			size: checkpoint.size,
 			tiles: await readTiles(reader, checkpoint.size),
-			files,
 			inclusion: await proveInclusion(reader, checkpoint.size, checkpoint.hash, index, enc.encode(data), data),
+			leaf: leafOf(index, data),
 		};
 	} finally {
 		await shutdown();
