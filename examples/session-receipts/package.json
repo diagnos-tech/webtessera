@@ -25,7 +25,7 @@
     "ci": "tsc --noEmit && vitest run && vitest run --config vitest.browser.config.ts && vite build"
   },
   "devDependencies": {
-    "@vitest/browser-playwright": "4.1.11",
+    "@vitest/browser-playwright": "5.0.2",
     "playwright": "1.56.1",
     "typescript": "5.9.3",
     "vite": "8.3.2",
