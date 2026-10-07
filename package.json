@@ -113,7 +113,7 @@
     "@libsql/client": "0.18.0",
     "@sqlite.org/sqlite-wasm": "3.53.4-build2",
     "@vitest/browser": "4.1.11",
-    "@vitest/browser-playwright": "4.1.11",
+    "@vitest/browser-playwright": "5.0.2",
     "aws4fetch": "1.0.20",
     "esbuild": "0.28.1",
     "fake-indexeddb": "6.2.5",
