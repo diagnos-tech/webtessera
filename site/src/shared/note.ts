@@ -14,7 +14,9 @@
 
 // Renders a checkpoint the way it travels: as a C2SP signed note, its body lines
 // followed by a blank line and one "— <name> <signature>" line per signature, one span
-// per line inside the <pre> that holds it, so that copying the note copies exactly the note.
+// per line inside the <pre> that holds it. A line may carry its name (origin, tree size,
+// root hash, signature) in a span that a selection skips (styles/base.css), so that
+// copying the note copies exactly the note.
 
 import { html, type SafeHtml } from "./html.ts";
 
@@ -34,13 +36,18 @@ export interface NoteView {
 // checkpointLabels names the body lines of a tlog checkpoint (C2SP tlog-checkpoint).
 const checkpointLabels = ["origin", "tree size", "root hash"];
 
-/** renderNoteBody renders the lines of a signed checkpoint note, for a <pre class="note">. */
-export function renderNoteBody(view: NoteView): SafeHtml {
+/**
+ * renderNoteBody renders the lines of a signed checkpoint note, for a <pre class="note">. With
+ * `labels`, each line starts with its name, for a <pre class="note labelled">.
+ */
+export function renderNoteBody(view: NoteView, labels = false): SafeHtml {
 	const lines = view.text.replace(/\n$/, "").split("\n");
-	return html`${lines.map(
-		(line, i) => html`<span class="ln" data-label="${checkpointLabels[i] ?? "extension"}"><span>${line}</span></span>`,
-	)}<span class="ln gap" aria-hidden="true"></span>${view.sigs.map(
+	const label = (name: string) => (labels ? html`<span class="lbl">${name} </span>` : "");
+	return html`${lines.map((line, i) => {
+		const name = checkpointLabels[i] ?? "extension";
+		return html`<span class="ln" data-label="${name}">${label(name)}<span class="v">${line}</span></span>`;
+	})}<span class="ln gap" aria-hidden="true"></span>${view.sigs.map(
 		(s) =>
-			html`<span class="ln sig" data-label="signature"><span>— ${s.name} <span class="sig-b64">${s.base64}</span></span></span>`,
+			html`<span class="ln sig" data-label="signature">${label("signature")}<span class="v">— ${s.name} <span class="sig-b64">${s.base64}</span></span></span>`,
 	)}`;
 }

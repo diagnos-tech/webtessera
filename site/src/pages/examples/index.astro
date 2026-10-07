@@ -25,7 +25,7 @@ import { list } from "../../lib/words.ts";
 const { examples, tests, site } = await getSiteData();
 ---
 
-<Doc title={meta.examples.title} description={meta.examples.description}>
+<Doc title={meta.examples.title} description={meta.examples.description} wide>
 	<p class="lead" slot="lead">
 		Each example is a small application with its own README, trust model and tests{
 			tests.examples && ", which CI runs on every change"
@@ -34,12 +34,12 @@ const { examples, tests, site } = await getSiteData();
 	<dl class="index">
 		{
 			examples.map((x) => (
-				<>
+				<div>
 					<dt><a href={href(`examples/${x.dir}/`)}>{x.title}</a></dt>
 					<dd>
 						{x.pitch} Runs on {list(x.runtimes.map((r) => (r === "Browsers" ? "browsers" : r)))}.
 					</dd>
-				</>
+				</div>
 			))
 		}
 	</dl>

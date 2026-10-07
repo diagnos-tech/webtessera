@@ -42,7 +42,7 @@ export function renderTile(t: TileView, hit?: bigint): SafeHtml {
 	});
 	const empty = Array.from({ length: TileWidth - t.hashes.length }, () => html`<i class="c e"></i>`);
 	const label = `${t.path}: ${t.hashes.length} of ${TileWidth} hashes at tile level ${t.level}`;
-	return html`<figure class="fig tile" data-level="${t.level}">
+	return html`<figure class="fig machine tile" data-level="${t.level}">
 <figcaption><code>${t.path}</code><span>${t.hashes.length} of ${TileWidth}</span></figcaption>
 <div class="tile-grid" role="img" aria-label="${label}">${cells}${empty}</div>
 </figure>`;

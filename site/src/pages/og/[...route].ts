@@ -19,7 +19,7 @@
 
 import { join } from "node:path";
 import { OGImageRoute } from "astro-og-canvas";
-import { ogBackground } from "../../lib/og.ts";
+import { ogBackground, ogColors, ogFonts } from "../../lib/og.ts";
 import { allPages, meta } from "../../lib/pages.ts";
 import { getSiteData } from "../../lib/site.ts";
 
@@ -40,10 +40,16 @@ export const { getStaticPaths, GET } = await OGImageRoute({
 		description: page.description,
 		bgImage: { path: background, fit: "none", position: "start" },
 		padding: 96,
-		fonts: [join(publicDir, "fonts/source-serif-4-latin-opsz-normal.woff2")],
+		fonts: [join(publicDir, ogFonts[0])],
 		font: {
-			title: { families: ["Source Serif 4"], weight: "SemiBold", size: 68, lineHeight: 1.1, color: [29, 35, 48] },
-			description: { families: ["Source Serif 4"], weight: "Normal", size: 32, lineHeight: 1.4, color: [77, 85, 102] },
+			title: { families: ["Inter"], weight: "Bold", size: 66, lineHeight: 1.08, color: [...ogColors.title] },
+			description: {
+				families: ["Inter"],
+				weight: "Normal",
+				size: 30,
+				lineHeight: 1.45,
+				color: [...ogColors.description],
+			},
 		},
 	}),
 });

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The receipt in the hero: a log opened with the safe API (webtessera/server) while the page
+// The receipt on the concepts page: a log opened with the safe API (webtessera/server) while the site
 // builds, an entry appended to it, and the receipt that append() returned, checked again
 // with verifyReceipt as any client would check it, offline. The key is the page's
 // demonstration key, imported the way a server imports its key from a secret store; the
@@ -24,7 +24,7 @@ import { readTiles } from "../shared/inspect.ts";
 import type { TileView } from "../shared/tiles.ts";
 import { sampleKey } from "./sample-log.ts";
 
-/** BuiltReceipt is the receipt the hero shows, and what the build learnt about it. */
+/** BuiltReceipt is the receipt the concepts page shows, and what the build learnt about it. */
 export interface BuiltReceipt {
 	/** text is the receipt as append() returned it: a C2SP tlog-proof. */
 	readonly text: string;
@@ -60,7 +60,7 @@ export async function buildReceipt(origin: string, entries: readonly string[], t
 		const entry = entries[i] ?? "";
 		const verified = verifyReceipt(receipt.text, { vkey: log.vkey, data: enc.encode(entry) });
 		if (verified.index !== index) {
-			throw new Error(`the hero receipt verified for entry ${verified.index}, not ${index}`);
+			throw new Error(`the receipt verified for entry ${verified.index}, not ${index}`);
 		}
 		const tiles = await readTiles(log.reader, receipt.checkpoint.size);
 		return {

@@ -109,7 +109,7 @@ const Reproducing = reproducing === undefined ? undefined : (await render(reprod
 					matrix.map((row) => (
 						<tr>
 							<th scope="row">{row.backend}</th>
-							{columns.map((c) => <td>{row.runtimes.includes(c) ? "yes" : ""}</td>)}
+							{columns.map((c) => <td>{row.runtimes.includes(c) && <span class="yes">yes</span>}</td>)}
 						</tr>
 					))
 				}
@@ -212,10 +212,10 @@ const Reproducing = reproducing === undefined ? undefined : (await render(reprod
 	<dl class="index ci">
 		{
 			tests.jobs.map((g) => (
-				<>
+				<div>
 					<dt><a href={blob(g.file)}>{g.name}</a></dt>
 					<dd>{list(g.jobs)}.</dd>
-				</>
+				</div>
 			))
 		}
 	</dl>
@@ -244,6 +244,17 @@ const Reproducing = reproducing === undefined ? undefined : (await render(reprod
 	}
 
 	.matrix td {
-		min-width: 6rem;
+		min-width: 5.5rem;
+	}
+
+	/* A backend that passes the golden suite in a runtime: the word, in the colour of what checked out. */
+	.yes {
+		display: inline-block;
+		padding: 0.05rem 0.55rem;
+		border-radius: 99rem;
+		background: color-mix(in oklab, var(--verified) 13%, transparent);
+		color: var(--verified);
+		font-size: var(--fs-xs);
+		font-weight: 650;
 	}
 </style>

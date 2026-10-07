@@ -1,93 +1,253 @@
 /*
- * The site's design tokens. Colour carries meaning and nothing
- * else: ink for text, --verified for what checked out, --proof for proof material, --fail for
- * tampering. Light is the identity; dark follows the reader's system setting.
+ * The site's design tokens: fonts, colour, type, space and shape. The palette is violet, pink
+ * and cyan on a faintly tinted page, light by default and dark with the reader's system. Three
+ * colours carry meaning and nothing else: --verified for what checked out, --proof for proof
+ * material, --fail for tampering. Machine text (code, checkpoints, tiles, proofs, the live
+ * demo) is always set on the Dracula palette, whatever the scheme: the .machine scope.
  */
 
+@layer reset, base, layout, components;
+
 @font-face {
-	font-family: "Source Serif 4";
+	font-family: "Inter";
 	font-style: normal;
-	font-weight: 200 900;
+	font-weight: 100 900;
 	font-display: swap;
-	src: url("/fonts/source-serif-4-latin-opsz-normal.woff2") format("woff2");
+	src: url("/fonts/inter-latin-opsz-normal.woff2") format("woff2");
 	unicode-range:
 		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
 		U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-	font-family: "Source Serif 4";
+	font-family: "Inter";
 	font-style: italic;
-	font-weight: 200 900;
+	font-weight: 100 900;
 	font-display: swap;
-	src: url("/fonts/source-serif-4-latin-opsz-italic.woff2") format("woff2");
+	src: url("/fonts/inter-latin-wght-italic.woff2") format("woff2");
 	unicode-range:
 		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
 		U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Arial, sized to Inter's metrics, holds the layout still until Inter has loaded. */
+@font-face {
+	font-family: "Inter Fallback";
+	src: local("Arial");
+	size-adjust: 107.06%;
+	ascent-override: 90.49%;
+	descent-override: 22.56%;
+	line-gap-override: 0%;
+}
+
+@font-face {
+	font-family: "JetBrains Mono";
+	font-style: normal;
+	font-weight: 100 800;
+	font-display: swap;
+	src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+		U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+	font-family: "JetBrains Mono";
+	font-style: italic;
+	font-weight: 100 800;
+	font-display: swap;
+	src: url("/fonts/jetbrains-mono-latin-wght-italic.woff2") format("woff2");
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+		U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Go Mono draws only what the Latin subset of JetBrains Mono lacks: arrows, a few mathematical
+   signs and the box drawing of the examples' diagrams. Both are 0.6 em wide, so columns hold. */
 @font-face {
 	font-family: "Go Mono";
 	font-style: normal;
 	font-weight: 400;
 	font-display: swap;
 	src: url("/fonts/go-mono-latin.woff2") format("woff2");
+	unicode-range: U+2190, U+2192, U+2194-2195, U+2248, U+2260, U+2264-2265, U+2500-257F, U+25A0-25FF;
 }
 
 :root {
 	color-scheme: light dark;
 
-	--paper: #ffffff;
-	--ink: #1d2330;
-	--ink-2: #4d5566;
-	--rule: #d6dae1;
-	--verified: #0b6b55;
-	--proof: #9a4708;
-	--fail: #b3261e;
+	/* The light set. */
+	--l-bg: #fbfaff;
+	--l-bg-2: #f3f0ff;
+	--l-surface: #ffffff;
+	--l-line: #e4def7;
+	--l-line-2: #cdc4ee;
+	--l-text: #17142b;
+	--l-text-2: #544e70;
+	--l-text-3: #6f6990;
+	--l-accent: #6a3de8;
+	--l-accent-ink: #ffffff;
+	--l-pink: #c2188f;
+	--l-cyan: #0a7592;
+	--l-verified: #08754f;
+	--l-proof: #a85209;
+	--l-fail: #c81e42;
 
-	--serif: "Source Serif 4", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
-	--mono: "Go Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	/* The dark set. */
+	--d-bg: #0f0e17;
+	--d-bg-2: #15131f;
+	--d-surface: #1b1928;
+	--d-line: #2c2940;
+	--d-line-2: #453f63;
+	--d-text: #f3f1fb;
+	--d-text-2: #b7b2cf;
+	--d-text-3: #938dae;
+	--d-accent: #bd93f9;
+	--d-accent-ink: #14111f;
+	--d-pink: #ff79c6;
+	--d-cyan: #8be9fd;
+	--d-verified: #50fa7b;
+	--d-proof: #ffb86c;
+	--d-fail: #ff6e6e;
 
-	/* Widths: the prose measure, the figure column beside it, and the gap between them. */
-	--prose: 38rem;
-	--figure: 34rem;
-	--gap: 3rem;
-	--wide: calc(var(--prose) + var(--gap) + var(--figure));
-	/* The page is set from a fixed left margin, like a printed page; it shrinks to 16px on phones. */
-	--margin: clamp(16px, 11vw - 56px, 10rem);
+	/* Dracula, for machine text. The comment colour is lifted from #6272a4 to reach 4.5:1. */
+	--dr-bg: #282a36;
+	--dr-bar: #21222c;
+	--dr-deep: #191a21;
+	--dr-line: #3b3e51;
+	--dr-line-2: #565a75;
+	--dr-edge: #7280b8;
+	--dr-fg: #f8f8f2;
+	--dr-muted: #a4abd1;
+	--dr-comment: #8b97cf;
+	--dr-purple: #bd93f9;
+	--dr-pink: #ff79c6;
+	--dr-cyan: #8be9fd;
+	--dr-green: #50fa7b;
+	--dr-yellow: #f1fa8c;
+	--dr-orange: #ffb86c;
+	--dr-red: #ff8585;
 
-	/* The eight tones of a tile's cells, from paper to --verified, picked by each hash's first byte. */
-	--t0: color-mix(in oklab, var(--verified) 18%, var(--paper));
-	--t1: color-mix(in oklab, var(--verified) 30%, var(--paper));
-	--t2: color-mix(in oklab, var(--verified) 42%, var(--paper));
-	--t3: color-mix(in oklab, var(--verified) 54%, var(--paper));
-	--t4: color-mix(in oklab, var(--verified) 66%, var(--paper));
-	--t5: color-mix(in oklab, var(--verified) 78%, var(--paper));
-	--t6: color-mix(in oklab, var(--verified) 89%, var(--paper));
-	--t7: var(--verified);
+	/* What the styles use: the light set here, the dark set under the media query below. */
+	--bg: var(--l-bg);
+	--bg-2: var(--l-bg-2);
+	--surface: var(--l-surface);
+	--line: var(--l-line);
+	--line-2: var(--l-line-2);
+	--text: var(--l-text);
+	--text-2: var(--l-text-2);
+	--text-3: var(--l-text-3);
+	--accent: var(--l-accent);
+	--accent-ink: var(--l-accent-ink);
+	--pink: var(--l-pink);
+	--cyan: var(--l-cyan);
+	--verified: var(--l-verified);
+	--proof: var(--l-proof);
+	--fail: var(--l-fail);
+	--shadow: 258 60% 30%;
+	--shadow-sm: 0 1px 2px hsl(var(--shadow) / 0.06), 0 1px 1px hsl(var(--shadow) / 0.04);
+	--shadow-md: 0 1px 2px hsl(var(--shadow) / 0.05), 0 6px 16px -4px hsl(var(--shadow) / 0.1);
+	--shadow-lg: 0 2px 4px hsl(var(--shadow) / 0.05), 0 18px 48px -12px hsl(var(--shadow) / 0.22);
+	--glow: 0.16;
 
-	/* Shiki's css-variables theme: code is ink, comments are secondary. */
-	--astro-code-foreground: var(--ink);
-	--astro-code-background: transparent;
-	--astro-code-token-constant: var(--ink);
-	--astro-code-token-string: var(--ink);
-	--astro-code-token-comment: var(--ink-2);
-	--astro-code-token-keyword: var(--ink);
-	--astro-code-token-parameter: var(--ink);
-	--astro-code-token-function: var(--ink);
-	--astro-code-token-string-expression: var(--ink);
-	--astro-code-token-punctuation: var(--ink);
-	--astro-code-token-link: var(--ink);
+	/* The brand gradient: violet, pink, cyan. Interpolated in oklab where that is supported. */
+	--in-oklab: ;
+	--brand: linear-gradient(100deg var(--in-oklab), var(--accent), var(--pink) 55%, var(--cyan));
+
+	--sans:
+		"Inter", "Inter Fallback", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+		sans-serif;
+	--mono: "JetBrains Mono", "Go Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+	--fs-xs: 0.78rem;
+	--fs-sm: 0.875rem;
+	--fs-md: 1rem;
+	--fs-lg: 1.125rem;
+	--fs-code: 0.84rem;
+
+	--r-sm: 0.375rem;
+	--r-md: 0.625rem;
+	--r-lg: 0.875rem;
+	--r-xl: 1.25rem;
+
+	/* Widths: the page, its gutter, the reading measure, the docs' side navigation and contents rail. */
+	--page: 78rem;
+	--gutter: clamp(1rem, 4vw, 2.5rem);
+	--measure: 44rem;
+	--side: 14.5rem;
+	--rail: 13rem;
+	--header: 3.75rem;
+}
+
+@supports (background: linear-gradient(in oklab, #000, #fff)) {
+	:root {
+		--in-oklab: in oklab;
+	}
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--paper: #15171b;
-		--ink: #e4e6ea;
-		--ink-2: #a9b0bc;
-		--rule: #2c3038;
-		--verified: #5fd0b0;
-		--proof: #f0a560;
-		--fail: #ff8f85;
+		--bg: var(--d-bg);
+		--bg-2: var(--d-bg-2);
+		--surface: var(--d-surface);
+		--line: var(--d-line);
+		--line-2: var(--d-line-2);
+		--text: var(--d-text);
+		--text-2: var(--d-text-2);
+		--text-3: var(--d-text-3);
+		--accent: var(--d-accent);
+		--accent-ink: var(--d-accent-ink);
+		--pink: var(--d-pink);
+		--cyan: var(--d-cyan);
+		--verified: var(--d-verified);
+		--proof: var(--d-proof);
+		--fail: var(--d-fail);
+		--shadow: 258 80% 2%;
+		--shadow-sm: 0 1px 2px hsl(var(--shadow) / 0.5);
+		--shadow-md: 0 1px 2px hsl(var(--shadow) / 0.5), 0 8px 20px -6px hsl(var(--shadow) / 0.7);
+		--shadow-lg: 0 2px 4px hsl(var(--shadow) / 0.5), 0 24px 56px -16px hsl(var(--shadow) / 0.9);
+		--glow: 0.2;
 	}
+}
+
+/*
+ * Machine text keeps its own dark surface in both schemes. The scope sets a background and a
+ * text colour with its tokens, so nothing inside inherits a colour resolved for the page.
+ */
+@layer base {
+	.machine,
+	pre {
+		color-scheme: dark;
+		--bg: var(--dr-bar);
+		--bg-2: var(--dr-bar);
+		--surface: var(--dr-bg);
+		--line: var(--dr-line);
+		--line-2: var(--dr-line-2);
+		--edge: var(--dr-edge);
+		--text: var(--dr-fg);
+		--text-2: var(--dr-muted);
+		--text-3: var(--dr-comment);
+		--accent: var(--dr-purple);
+		--accent-ink: var(--dr-deep);
+		--pink: var(--dr-pink);
+		--cyan: var(--dr-cyan);
+		--verified: var(--dr-green);
+		--proof: var(--dr-orange);
+		--fail: var(--dr-red);
+		background: var(--surface);
+		color: var(--text);
+		accent-color: var(--accent);
+	}
+}
+
+/* The eight tones of a tile's cells, picked by each hash's first byte: a ramp through the brand. */
+:root {
+	--t0: #4a4d68;
+	--t1: #6272a4;
+	--t2: #7c6fe0;
+	--t3: #9d7cf4;
+	--t4: #bd93f9;
+	--t5: #e08ff0;
+	--t6: #ff79c6;
+	--t7: #8be9fd;
 }

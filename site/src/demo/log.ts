@@ -43,24 +43,38 @@ export class DemoLog {
 	readonly #started: Started;
 	readonly #awaiter: ReturnType<typeof newPublicationAwaiter>;
 	readonly #verifier: ReturnType<typeof newVerifier>;
+	readonly #stop: AbortController;
 
-	private constructor(origin: string, started: Started, verifier: ReturnType<typeof newVerifier>, signal: AbortSignal) {
+	private constructor(
+		origin: string,
+		started: Started,
+		verifier: ReturnType<typeof newVerifier>,
+		stop: AbortController,
+	) {
 		this.origin = origin;
 		this.#started = started;
 		this.#verifier = verifier;
-		this.#awaiter = newPublicationAwaiter((s) => started.reader.readCheckpoint(s), 50, signal);
+		this.#stop = stop;
+		this.#awaiter = newPublicationAwaiter((s) => started.reader.readCheckpoint(s), 50, stop.signal);
 	}
 
 	/** open starts a new, empty log whose checkpoints carry the given origin. */
-	static async open(origin: string, signal: AbortSignal): Promise<DemoLog> {
+	static async open(origin: string): Promise<DemoLog> {
+		const stop = new AbortController();
 		const { skey, vkey } = generateKey(undefined, origin);
 		const opts = newAppendOptions()
 			.withCheckpointSigner(newSigner(skey))
 			// A demo wants its entries published at once; the defaults suit a busy log.
 			.withBatching(256, 25)
 			.withCheckpointInterval(100);
-		const started = await newAppender(newMemoryDriver(), opts, signal);
-		return new DemoLog(origin, started, newVerifier(vkey), signal);
+		const started = await newAppender(newMemoryDriver(), opts, stop.signal);
+		return new DemoLog(origin, started, newVerifier(vkey), stop);
+	}
+
+	/** close shuts the appender down and stops everything that polls the log; the log is not used again. */
+	async close(): Promise<void> {
+		await this.#started.shutdown();
+		this.#stop.abort();
 	}
 
 	/** append adds entries and resolves to their indices once a checkpoint commits to all of them. */
@@ -103,12 +117,15 @@ export class DemoLog {
 		};
 	}
 
-	/** prove builds entry index's inclusion proof and verifies it, optionally against altered data. */
-	async prove(cp: FetchedCheckpoint, index: bigint, tamper: boolean): Promise<Inclusion> {
+	/**
+	 * prove builds entry index's inclusion proof from the log's tiles and verifies it against the
+	 * checkpoint. The entry's contents are read back from the log, unless `claimed` gives other
+	 * contents to verify instead: what someone who altered the entry would present.
+	 */
+	async prove(cp: FetchedCheckpoint, index: bigint, claimed?: string): Promise<Inclusion> {
 		const size = cp.checkpoint.size;
 		const [entry] = await this.entries(index, index + 1n, size);
-		const text = entry?.text ?? "";
-		const data = tamper ? `${text} (altered)` : text;
+		const data = claimed ?? entry?.text ?? "";
 		return proveInclusion(this.#started.reader, size, cp.checkpoint.hash, index, enc.encode(data), data);
 	}
 }

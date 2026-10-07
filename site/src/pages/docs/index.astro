@@ -49,7 +49,16 @@ const topics = guideOrder(
 const title = (id: string) => plainText(byId.get(id)?.data.title ?? id);
 ---
 
-<Doc title={meta.docs.title} description={meta.docs.description}>
+<Doc
+	title={meta.docs.title}
+	description={meta.docs.description}
+	headings={[
+		{ depth: 2, slug: "start-here", text: "Start here" },
+		{ depth: 2, slug: "guides", text: "Guides" },
+		{ depth: 2, slug: "concepts", text: "Concepts" },
+		{ depth: 2, slug: "reference", text: "Reference" },
+	]}
+>
 	<p class="lead" slot="lead">
 		Start with the safe API, then follow the guide for your use case. Each guide has a runnable example with its own
 		tests.
@@ -86,10 +95,10 @@ const title = (id: string) => plainText(byId.get(id)?.data.title ?? id);
 	<dl class="index">
 		{
 			useCases.map((r) => (
-				<>
+				<div>
 					<dt><a href={href(`docs/${r.id}/`)}>{title(r.id)}</a></dt>
 					<dd set:html={`${inline(r.what, guidesIndex.file, resolve)} Runs on ${inline(r.runs)}.`} />
-				</>
+				</div>
 			))
 		}
 	</dl>
@@ -97,10 +106,10 @@ const title = (id: string) => plainText(byId.get(id)?.data.title ?? id);
 	<dl class="index">
 		{
 			topics.map((id) => (
-				<>
+				<div>
 					<dt><a href={href(`docs/${id}/`)} set:html={inline(byId.get(id)?.data.title ?? id)} /></dt>
 					<dd set:html={byId.get(id)?.data.lead ?? ""} />
-				</>
+				</div>
 			))
 		}
 	</dl>

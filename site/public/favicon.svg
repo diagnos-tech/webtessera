@@ -1,30 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>webtessera</title>
-  <!-- A partial tile: six hashes of sixteen, toned as the site's tiles are. -->
+  <!-- A partial tile: ten hashes of sixteen, in the three colours of the brand. -->
   <style>
-    .h { fill: #0b6b55; }
-    .l { fill: #6aa797; }
-    .e { fill: none; stroke: #9aa3b0; stroke-width: 1; }
+    .a { fill: #7c4dff; }
+    .p { fill: #e0409f; }
+    .c { fill: #12a5c4; }
+    .e { fill: none; stroke: #9a93b8; stroke-width: 1; }
     @media (prefers-color-scheme: dark) {
-      .h { fill: #5fd0b0; }
-      .l { fill: #3a7d6c; }
-      .e { stroke: #5b6270; }
+      .a { fill: #bd93f9; }
+      .p { fill: #ff79c6; }
+      .c { fill: #8be9fd; }
+      .e { stroke: #5d5780; }
     }
   </style>
-  <rect class="h" x="2" y="2" width="6" height="6"/>
-  <rect class="l" x="9.5" y="2" width="6" height="6"/>
-  <rect class="h" x="17" y="2" width="6" height="6"/>
-  <rect class="l" x="24.5" y="2" width="6" height="6"/>
-  <rect class="h" x="2" y="9.5" width="6" height="6"/>
-  <rect class="l" x="9.5" y="9.5" width="6" height="6"/>
-  <rect class="e" x="17.5" y="10" width="5" height="5"/>
-  <rect class="e" x="25" y="10" width="5" height="5"/>
-  <rect class="e" x="2.5" y="17.5" width="5" height="5"/>
-  <rect class="e" x="10" y="17.5" width="5" height="5"/>
-  <rect class="e" x="17.5" y="17.5" width="5" height="5"/>
-  <rect class="e" x="25" y="17.5" width="5" height="5"/>
-  <rect class="e" x="2.5" y="25" width="5" height="5"/>
-  <rect class="e" x="10" y="25" width="5" height="5"/>
-  <rect class="e" x="17.5" y="25" width="5" height="5"/>
-  <rect class="e" x="25" y="25" width="5" height="5"/>
+  <rect class="a" x="2" y="2" width="6" height="6" rx="1.5"/>
+  <rect class="a" x="9.5" y="2" width="6" height="6" rx="1.5"/>
+  <rect class="p" x="17" y="2" width="6" height="6" rx="1.5"/>
+  <rect class="c" x="24.5" y="2" width="6" height="6" rx="1.5"/>
+  <rect class="a" x="2" y="9.5" width="6" height="6" rx="1.5"/>
+  <rect class="p" x="9.5" y="9.5" width="6" height="6" rx="1.5"/>
+  <rect class="c" x="17" y="9.5" width="6" height="6" rx="1.5"/>
+  <rect class="e" x="25" y="10" width="5" height="5" rx="1"/>
+  <rect class="p" x="2" y="17" width="6" height="6" rx="1.5"/>
+  <rect class="c" x="9.5" y="17" width="6" height="6" rx="1.5"/>
+  <rect class="e" x="17.5" y="17.5" width="5" height="5" rx="1"/>
+  <rect class="e" x="25" y="17.5" width="5" height="5" rx="1"/>
+  <rect class="c" x="2" y="24.5" width="6" height="6" rx="1.5"/>
+  <rect class="e" x="10" y="25" width="5" height="5" rx="1"/>
+  <rect class="e" x="17.5" y="25" width="5" height="5" rx="1"/>
+  <rect class="e" x="25" y="25" width="5" height="5" rx="1"/>
 </svg>

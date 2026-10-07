@@ -62,6 +62,8 @@ export interface SampleLog {
 	readonly size: bigint;
 	readonly tiles: readonly TileView[];
 	readonly inclusion: Inclusion;
+	/** newest is the inclusion proof of the last entry, the one the demo starts on. */
+	readonly newest: Inclusion;
 	/** leaf is the proven entry and its leaf hash. */
 	readonly leaf: Leaf;
 }
@@ -105,6 +107,8 @@ export async function buildSampleLog(origin: string, entries: readonly string[],
 		const { checkpoint, note } = parseCheckpoint(await reader.readCheckpoint(), origin, verifier);
 		const index = BigInt(Math.min(prove, byIndex.length - 1));
 		const data = byIndex[Number(index)] ?? "";
+		const last = BigInt(byIndex.length - 1);
+		const lastData = byIndex[Number(last)] ?? "";
 		return {
 			origin,
 			vkey,
@@ -113,6 +117,7 @@ export async function buildSampleLog(origin: string, entries: readonly string[],
 			size: checkpoint.size,
 			tiles: await readTiles(reader, checkpoint.size),
 			inclusion: await proveInclusion(reader, checkpoint.size, checkpoint.hash, index, enc.encode(data), data),
+			newest: await proveInclusion(reader, checkpoint.size, checkpoint.hash, last, enc.encode(lastData), lastData),
 			leaf: leafOf(index, data),
 		};
 	} finally {

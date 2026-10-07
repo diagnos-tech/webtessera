@@ -13,19 +13,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// What a transparency log is, in six ideas and one figure: a Merkle tree hashed by webtessera
-// while the site builds, with one entry's inclusion proof marked. The prose is hand-written;
-// it states the design, and the guides and the reference say how to use it.
+// What a transparency log is, in six ideas, each beside an artefact that webtessera produced
+// while the site was built: a leaf hash, a tile, a signed checkpoint and its public key, an
+// inclusion proof (as a Merkle tree and as an audit path) and a receipt. The artefacts come
+// from two logs of the same entries under the same key (src/data/sample-log.ts,
+// src/data/receipt-log.ts). The prose is hand-written; it states the design, and the guides and
+// the reference say how to use it.
 
+import "../../styles/artefacts.css";
+import Figure from "../../components/Figure.astro";
 import Doc from "../../layouts/Doc.astro";
 import { docsSequence, meta, neighbours } from "../../lib/pages.ts";
+import { renderReceipt } from "../../lib/receipt.ts";
+import { getSiteData } from "../../lib/site.ts";
 import { merkleTree, treeLeaves } from "../../lib/tree.ts";
 import { href } from "../../lib/url.ts";
-import { num } from "../../lib/words.ts";
-import { TileWidth } from "../../shared/tiles.ts";
+import { count, num } from "../../lib/words.ts";
+import { html } from "../../shared/html.ts";
+import { renderNoteBody } from "../../shared/note.ts";
+import { renderProof } from "../../shared/proof.ts";
+import { renderTile, TileWidth } from "../../shared/tiles.ts";
 
 const target = 5;
 const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
+const { sample, receipt } = await getSiteData();
+const { leaf, inclusion } = sample;
+const tile = sample.tiles.find((t) => t.level === 0);
+// The leaf figure: the entry's leaf hash, then the same entry with one byte changed, the changed
+// byte and its hash set as tampering. Hashes are shortened to their first 12 bytes.
+const leafLines = html`<span class="ln">hashLeaf("${leaf.text}")</span><span class="ln">  = ${leaf.hash.slice(0, 24)}…</span><span class="ln">hashLeaf("${leaf.altered.slice(0, leaf.at)}<span class="failed">${leaf.altered.slice(leaf.at)}</span>")</span><span class="ln">  = <span class="failed">${leaf.alteredHash.slice(0, 24)}…</span></span>`;
 ---
 
 <Doc
@@ -50,6 +66,10 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 		extends yesterday’s. Certificate Transparency, the Go checksum database and Sigstore’s signature log all work this
 		way.
 	</p>
+	<p slot="lead">
+		The figures on this page are not drawings. webtessera made them while this site was built, from a log of
+		{count(sample.entries.length, "entry", "entries")}: the names of the package’s entry points.
+	</p>
 
 	<h2 id="entries-become-leaves">Entries become leaves</h2>
 	<p>
@@ -57,13 +77,22 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 		root hash. A leaf and a node are hashed with different prefixes, so one cannot pass for the other. Change one byte of
 		any entry and its leaf hash changes, then every hash on the way to the root.
 	</p>
+	<Figure caption="rfc6962.DefaultHasher" note={`entry ${leaf.index}, then one byte changed`}>
+		<pre class="note" translate="no" set:html={leafLines.value} />
+	</Figure>
 
 	<h2 id="leaves-fill-tiles">Leaves fill tiles</h2>
 	<p>
-		The tree is stored as tiles: each tile holds 256 hashes of one level of the tree. A full tile never changes, and the
-		tile at the log’s right edge is published as a partial tile, which is replaced by a longer one as entries arrive.
-		The entries themselves are stored in bundles of 256 beside the tiles. Every tile and bundle has a fixed path, so a
-		log is a directory of static files that any web server, bucket or CDN can serve, and caches can keep forever.
+		The tree is stored as tiles: each tile holds {TileWidth} hashes of one level of the tree. A full tile never changes,
+		and the tile at the log’s right edge is published as a partial tile, which is replaced by a longer one as entries
+		arrive. The entries themselves are stored in bundles of {TileWidth} beside the tiles. Every tile and bundle has a
+		fixed path, so a log is a directory of static files that any web server, bucket or CDN can serve, and caches can
+		keep forever.
+	</p>
+	{tile !== undefined && <Fragment set:html={renderTile(tile, inclusion.index).value} />}
+	<p>
+		This partial tile holds the {num(sample.entries.length)} leaf hashes of the log, one cell per hash, toned by the
+		hash; entry {inclusion.index} is outlined.
 	</p>
 
 	<h2 id="checkpoints-commit">Checkpoints commit</h2>
@@ -72,18 +101,32 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 		the number of entries, the root hash, then one signature line per signer. Because the root depends on every entry,
 		the signature commits the log to all of them, in order, for good.
 	</p>
+	<Figure caption="GET /checkpoint" note="signed while this page was built">
+		<pre class="note labelled" translate="no" set:html={renderNoteBody(sample.note, true).value} />
+	</Figure>
+	<p>Anyone holding the log’s public key, its verifier key, can check that signature:</p>
+	<Figure caption="vkey" note="the log’s public key">
+		<pre class="note" translate="no"><span class="ln sig">{sample.vkey}</span></pre>
+	</Figure>
 
 	<h2 id="proofs-replace-trust">Proofs replace trust</h2>
-	<figure class="fig tree-fig">
+	<p>
+		A reader does not need the whole log to check it. An inclusion proof shows that an entry is in the tree under a
+		checkpoint: it is the hashes of the subtrees beside the entry’s path to the root, and hashing them in order with the
+		entry must give the checkpoint’s root.
+	</p>
+	<figure class="fig machine tree-fig">
 		<figcaption><code>PATH({target}, D[{treeLeaves}])</code><span>RFC 6962, a tree of {num(treeLeaves)} entries</span></figcaption>
 		<div class="tree-scroll" tabindex="0" role="group" aria-label="Merkle tree diagram" set:html={merkleTree(target).value} />
 	</figure>
 	<p>
-		A reader does not need the whole log to check it. An inclusion proof shows that an entry is in the tree under a
-		checkpoint: it is the hashes of the subtrees beside the entry’s path to the root, and hashing them in order with the
-		entry must give the checkpoint’s root. In the figure, entry {target} needs {num(Math.log2(treeLeaves))} hashes, not
-		{num(treeLeaves)} entries; a log of a billion entries needs about {Math.ceil(Math.log2(1e9))}.
+		In the figure, entry {target} needs {num(Math.log2(treeLeaves))} hashes, not {num(treeLeaves)} entries. In the log
+		this site built, proving that entry {inclusion.index} is in the tree of {inclusion.size} takes
+		{count(inclusion.proof.length, "hash", "hashes")}; a log of a billion entries needs about {Math.ceil(Math.log2(1e9))}.
 	</p>
+	<Figure caption={`inclusionProof(${inclusion.index})`} note={`tree of ${inclusion.size}`}>
+		<Fragment set:html={renderProof(inclusion).value} />
+	</Figure>
 	<p>
 		A consistency proof shows that a newer checkpoint extends an older one, with nothing removed or changed. A client
 		that keeps the last checkpoint it saw, and checks each new one this way, knows the log has only grown.
@@ -95,6 +138,16 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 		the receipt, the entry and the log’s public key can check it offline, without asking the log anything. webtessera’s
 		<code>append()</code> returns one, verified, in the C2SP tlog-proof format.
 	</p>
+	<Figure
+		caption={receipt.from === "append" ? "log.append(entry)" : `log.prove(${receipt.index})`}
+		note="a receipt, as returned"
+		class="receipt"
+	>
+		<pre class="note" translate="no" set:html={renderReceipt(receipt.text).value} />
+		<p class="after">
+			<code>verifyReceipt</code>: <span class="verified">entry {receipt.index} is in the tree of {receipt.size}.</span>
+		</p>
+	</Figure>
 
 	<h2 id="witnesses-keep-it-honest">Witnesses keep it honest</h2>
 	<p>
@@ -114,33 +167,29 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 		<li><a href="https://research.swtch.com/tlog">Transparent Logs for Skeptical Clients</a>, by Russ Cox: the design, explained from first principles.</li>
 	</ul>
 	<p>
-		To see these pieces in a running log, <a href={href("#demo")}>append to the log on the home page</a>. To build one,
-		start with <a href={href("docs/safe-api/")}>the safe API</a>.
+		To see these pieces in a running log, <a href={href("#demo")}>append to the log on the home page</a>, then change an
+		entry and watch its proof fail. To build one, start with <a href={href("docs/safe-api/")}>the safe API</a>.
 	</p>
 </Doc>
 
 <style>
-	.tree-fig {
-		max-width: var(--prose);
-		margin: 8px 0 24px;
-	}
-
 	.tree-scroll {
+		padding: 1rem 1.15rem;
 		overflow-x: auto;
-		padding-top: 12px;
+		scrollbar-width: thin;
 	}
 
 	.tree-fig :global(svg) {
 		display: block;
 		width: 100%;
-		min-width: 520px;
+		min-width: 32.5rem;
 		height: auto;
 		font-family: var(--mono);
 		font-size: 13px;
 	}
 
 	.tree-fig :global(.edge) {
-		stroke: var(--rule);
+		stroke: var(--line-2);
 		stroke-width: 1.5;
 	}
 
@@ -149,8 +198,8 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 	}
 
 	.tree-fig :global(.n rect) {
-		fill: var(--paper);
-		stroke: var(--rule);
+		fill: var(--bg);
+		stroke: var(--line-2);
 	}
 
 	.tree-fig :global(.n.path rect) {
@@ -165,7 +214,7 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 
 	.tree-fig :global(.n text) {
 		text-anchor: middle;
-		fill: var(--ink);
+		fill: var(--text);
 	}
 
 	.tree-fig :global(.n.path text) {
@@ -178,16 +227,16 @@ const { prev, next } = neighbours(await docsSequence(), "docs/concepts/");
 
 	.tree-fig :global(.idx) {
 		text-anchor: middle;
-		fill: var(--ink-2);
+		fill: var(--text-2);
 	}
 
 	.tree-fig :global(.idx.on) {
-		fill: var(--ink);
+		fill: var(--text);
 		font-weight: 600;
 	}
 
 	.tree-fig :global(.cap) {
-		fill: var(--ink-2);
-		font-family: var(--serif);
+		fill: var(--text-2);
+		font-family: var(--sans);
 	}
 </style>

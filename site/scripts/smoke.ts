@@ -17,9 +17,10 @@
 // failed or third-party requests, with its own title, description, canonical URL, social image
 // and valid structured data, one h1 and headings in order, and no horizontal scrolling on a
 // phone. Every internal link and #fragment must resolve, and every link into this repository
-// must name a file that exists. The home page must keep to the length budget of
-// site design (section 6), show the facts the build derives from the
-// repository, read without JavaScript, and run the live demo. Run `bun run build` first;
+// must name a file that exists. The home page must keep to its length budget (a hero, the live
+// demo and one section of code), the pages must show the facts the build derives from the
+// repository, the home page must read without JavaScript, and the live demo must run: append
+// an entry, verify it, detect a changed entry, and start over. Run `bun run build` first;
 // `bun run ci` does both.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -36,8 +37,11 @@ const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
 	exports: Record<string, unknown>;
 };
 
-/** The home page's length budget (site design, section 6). */
-const budget = { words: 800, h2: 5, code: 3, codeLines: 12, tables: 1, nav: 5, js: 2048, h1440: 4500, h390: 9000 };
+/**
+ * The home page's length budget: a hero, the live demo and one section of code, and nothing
+ * else. Words are prose outside the demo and the code; heights are of the whole page.
+ */
+const budget = { words: 350, h2: 2, code: 3, codeLines: 12, tables: 0, nav: 4, js: 2048, h1440: 4500, h390: 7000 };
 
 let failures = 0;
 function check(ok: boolean, what: string, detail = ""): void {
@@ -256,16 +260,24 @@ async function crawl(browser: Browser, served: string): Promise<Map<string, Page
 async function facts(browser: Browser, served: string, pages: Map<string, PageReport>): Promise<void> {
 	heading("Facts from the repository");
 	const page = await browser.newPage();
-	await page.goto(served, { waitUntil: "networkidle" });
-	const receipt = await page.locator(".steps pre.note").last().locator(".ln").allTextContents();
+	// The artefacts of the build's logs are the concepts page's figures.
+	await page.goto(`${served}docs/concepts/`, { waitUntil: "networkidle" });
+	const receipt = await page.locator("figure.receipt pre.note .ln").allTextContents();
 	check(receipt[0] === "c2sp.org/tlog-proof@v1", "the receipt is a C2SP tlog-proof", receipt[0]);
 	check(receipt.includes(site.origin), "the receipt's checkpoint names the site's origin", site.origin);
-	const hero = await page.locator(".hero pre.note .ln").allTextContents();
-	check(hero[0] === site.origin, "the hero's checkpoint names the site's origin");
+	const origin = await page.locator('pre.note.labelled [data-label="origin"] .v').first().textContent();
+	check(origin === site.origin, "the concepts page's checkpoint names the site's origin", origin ?? "");
+	check(
+		(await page.locator("main .tile-grid .c[data-i]").count()) > 0 &&
+			(await page.locator("main ol.proof .row.sib").count()) > 0,
+		"the concepts page draws the build's tile and inclusion proof",
+	);
+
+	await page.goto(served, { waitUntil: "networkidle" });
 	const text = (await page.locator("main").textContent()) ?? "";
 	check(
 		text.includes(`${fixtureCount} golden fixture files`),
-		"the evidence counts the golden fixtures",
+		"the home page counts the golden fixtures",
 		String(fixtureCount),
 	);
 	const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}") as {
@@ -285,6 +297,11 @@ async function facts(browser: Browser, served: string, pages: Map<string, PageRe
 
 	await page.goto(`${served}compatibility/`);
 	const compat = (await page.locator("main").textContent()) ?? "";
+	check(
+		compat.includes(`${fixtureCount} golden fixture files`),
+		"the compatibility page counts the golden fixtures",
+		String(fixtureCount),
+	);
 	const absent = ciJobs.filter((j) => !compat.includes(j));
 	check(absent.length === 0, "the compatibility page lists every CI job", absent.join(", ") || `${ciJobs.length} jobs`);
 	const examples = pages.get("examples/")?.links ?? [];
@@ -318,12 +335,6 @@ async function home(browser: Browser, served: string): Promise<void> {
 		[390, 844, budget.h390],
 	] as const) {
 		const page = await browser.newPage({ viewport: { width, height } });
-		const scripts: number[] = [];
-		page.on("response", async (r) => {
-			if (r.request().resourceType() === "script") {
-				scripts.push(gzipSync(await r.body(), { level: 9 }).length);
-			}
-		});
 		await page.goto(served, { waitUntil: "networkidle" });
 		const m = await page.evaluate(() => {
 			const main = document.querySelector("main")?.cloneNode(true) as HTMLElement;
@@ -337,9 +348,6 @@ async function home(browser: Browser, served: string): Promise<void> {
 				code: [...document.querySelectorAll("main figure.code pre")].map(
 					(p) => (p.textContent ?? "").split("\n").length,
 				),
-				cards: [...document.querySelectorAll("main *")].filter((e) =>
-					/\b(card|pill|chip|badge)\b/.test(typeof e.className === "string" ? e.className : ""),
-				).length,
 				tables: document.querySelectorAll("main table").length,
 				nav: document.querySelectorAll("header nav a").length,
 			};
@@ -353,24 +361,35 @@ async function home(browser: Browser, served: string): Promise<void> {
 				"code blocks",
 				`${m.code.length} of ${budget.code}, lines ${m.code.join(", ")} of ${budget.codeLines} each`,
 			);
-			check(m.cards === 0, "no cards, pills, chips or badges", String(m.cards));
 			check(m.tables <= budget.tables, "tables", `${m.tables} of ${budget.tables}`);
 			check(m.nav <= budget.nav, "navigation links", `${m.nav} of ${budget.nav}`);
-			const js = scripts.reduce((a, b) => a + b, 0);
-			check(
-				scripts.length === 1 && js <= budget.js,
-				"JavaScript before the demo is near",
-				`${scripts.length} script, ${js} B gzipped`,
-			);
 		}
 		await page.close();
 	}
+
+	// The demo's script is fetched when the demo nears the viewport. In a window that the demo is
+	// far below, the page loads one small script; scrolling to the demo fetches the rest.
+	const low = await browser.newPage({ viewport: { width: 1440, height: 480 } });
+	const scripts: number[] = [];
+	low.on("response", async (r) => {
+		if (r.request().resourceType() === "script") {
+			scripts.push(gzipSync(await r.body(), { level: 9 }).length);
+		}
+	});
+	await low.goto(served, { waitUntil: "networkidle" });
+	const eager = scripts.length;
+	const js = scripts.reduce((a, b) => a + b, 0);
+	check(eager === 1 && js <= budget.js, "JavaScript before the demo is near", `${eager} script, ${js} B gzipped`);
+	await low.locator("[data-demo]").scrollIntoViewIfNeeded();
+	await low.waitForSelector('[data-demo][data-live="true"]', { timeout: 20_000 });
+	check(scripts.length > eager, "the demo's script is fetched when the demo is near", `${scripts.length - eager} more`);
+	await low.close();
 
 	heading("Look and behaviour");
 	const dark = await browser.newPage({ colorScheme: "dark" });
 	await dark.goto(served);
 	const bg = await dark.evaluate(() => getComputedStyle(document.body).backgroundColor);
-	check(bg === "rgb(21, 23, 27)", "dark scheme follows the system", bg);
+	check(bg === "rgb(15, 14, 23)", "dark scheme follows the system", bg);
 	await dark.close();
 	const still = await browser.newPage({ reducedMotion: "reduce" });
 	await still.goto(served);
@@ -403,7 +422,10 @@ async function home(browser: Browser, served: string): Promise<void> {
 	await shift.close();
 }
 
-/** demo appends an entry, verifies its proof, rejects a tampered one and fills a tile. */
+/**
+ * demo appends an entry and verifies its proof, changes an entry and sees the change detected,
+ * undoes it from the keyboard and with the button, fills a tile and starts over.
+ */
 async function demo(browser: Browser, served: string): Promise<void> {
 	heading("Live demo");
 	const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -412,32 +434,84 @@ async function demo(browser: Browser, served: string): Promise<void> {
 	await page.locator("[data-demo]").scrollIntoViewIfNeeded();
 	await page.waitForSelector('[data-demo][data-live="true"]', { timeout: 20_000 });
 	check(true, "the log starts in the tab");
-	const before = Number(await page.locator("[data-demo-note] .ln").nth(1).textContent());
+	const status = (state: string) => `[data-demo-status][data-state="${state}"]`;
+	const size = async () => Number(await page.locator('[data-demo-note] [data-label="tree size"] .v').textContent());
+	const waitForSize = (n: number, timeout: number) =>
+		page.waitForFunction(
+			(want) => Number(document.querySelector('[data-demo-note] [data-label="tree size"] .v')?.textContent) === want,
+			n,
+			{ timeout },
+		);
+	const roots = async () => ({
+		computed: await page.locator("[data-demo-proof] .roots .computed code").textContent(),
+		signed: await page.locator("[data-demo-proof] .roots .signed code").textContent(),
+		checkpoint: await page.locator('[data-demo-note] [data-label="root hash"] .v').textContent(),
+	});
+
+	// Append.
+	const seeded = await size();
 	const text = `smoke test ${Date.now()}`;
 	await page.fill("#demo-entry", text);
 	await page.click('[data-demo-form] button[type="submit"]');
-	await page.waitForFunction(
-		(n) => Number(document.querySelectorAll("[data-demo-note] .ln")[1]?.textContent) === n + 1,
-		before,
-		{ timeout: 20_000 },
-	);
-	check(true, "appending publishes a checkpoint one entry larger", `${before} -> ${before + 1}`);
-	check(
-		(await page.locator("[data-demo-entries] li .tx").first().textContent()) === text,
-		"the entry is read back from its bundle",
-	);
-	await page.waitForSelector("[data-demo-proof] .verdict-line.ok", { timeout: 10_000 });
+	await waitForSize(seeded + 1, 20_000);
+	check(true, "appending publishes a checkpoint one entry larger", `${seeded} -> ${seeded + 1}`);
+	const newest = page.locator("[data-demo-entries] li").first();
+	check((await newest.locator("input").inputValue()) === text, "the entry is read back from its bundle");
+	const leaf = (await newest.locator(".lh").textContent()) ?? "";
+	check(/^[0-9a-f]{16}$/.test(leaf), "the entry is listed with its leaf hash", leaf);
+	await page.waitForSelector(status("ok"), { timeout: 10_000 });
 	const verdict = (await page.locator("[data-demo-proof] .verdict-line").textContent()) ?? "";
 	check(
-		verdict.includes(`Entry ${before} is in the tree of ${before + 1}`),
+		verdict.includes(`Entry ${seeded} is in the tree of ${seeded + 1}`),
 		"its inclusion proof verifies",
 		verdict.trim(),
 	);
-	await page.check("[data-demo-tamper]");
-	await page.waitForSelector("[data-demo-proof] .verdict-line.bad", { timeout: 10_000 });
-	check(true, "a tampered entry's proof is rejected");
-	await page.uncheck("[data-demo-tamper]");
-	await page.waitForSelector("[data-demo-proof] .verdict-line.ok", { timeout: 10_000 });
+	const agreed = await roots();
+	check(
+		agreed.computed === agreed.signed && agreed.signed === agreed.checkpoint && (agreed.signed ?? "") !== "",
+		"the root recomputed from the proof is the checkpoint's",
+		agreed.signed ?? "",
+	);
+
+	// Change an entry: nothing changes in the log, and the verifier rejects the changed entry.
+	const victim = seeded - 1;
+	const field = page.locator(`[data-demo-entries] input[data-entry="${victim}"]`);
+	const row = page.locator(`[data-demo-entries] li[data-index="${victim}"]`);
+	const original = await field.inputValue();
+	const originalLeaf = await row.locator(".lh").textContent();
+	await field.focus();
+	await page.keyboard.press("End");
+	await page.keyboard.type("!");
+	await page.waitForSelector(status("bad"), { timeout: 10_000 });
+	const alarm = (await page.locator("[data-demo-status-title]").textContent()) ?? "";
+	check(alarm === "Tampering detected", "changing an entry is detected", alarm);
+	check(
+		(await page.locator("[data-demo-proof] .verdict-line.bad").count()) === 1 &&
+			(await page.locator(`[data-demo-tiles] .c.bad[data-i="${victim}"]`).count()) === 1,
+		"the changed entry's proof is rejected, and its cell is marked in the tile",
+	);
+	check((await row.locator(".lh").textContent()) !== originalLeaf, "the changed entry's leaf hash changes");
+	const differed = await roots();
+	check(
+		differed.computed !== differed.signed && differed.signed === agreed.signed,
+		"the recomputed root differs from the signed root, which did not move",
+	);
+	check((await size()) === seeded + 1, "the log itself did not change", String(await size()));
+
+	// Undo, from the keyboard and with the button.
+	await page.keyboard.press("Escape");
+	await page.waitForSelector(status("ok"), { timeout: 10_000 });
+	check(
+		(await field.inputValue()) === original && (await row.locator(".lh").textContent()) === originalLeaf,
+		"Escape puts the entry back, and it verifies again",
+	);
+	await field.fill(`${original} (altered)`);
+	await page.waitForSelector(status("bad"), { timeout: 10_000 });
+	await page.click(`[data-demo-entries] [data-restore="${victim}"]`);
+	await page.waitForSelector(status("ok"), { timeout: 10_000 });
+	check((await field.inputValue()) === original, "the Undo button puts the entry back");
+
+	// Fill the tile.
 	await page.click("[data-demo-fill]");
 	await page.waitForSelector('[data-demo-tiles] .tile[data-level="1"]', { timeout: 30_000 });
 	const tiles = await page.locator("[data-demo-tiles] figcaption code").allTextContents();
@@ -446,6 +520,18 @@ async function demo(browser: Browser, served: string): Promise<void> {
 		"filling the tile makes tile/0/000 and tile/1/000.p/1",
 		tiles.join(" "),
 	);
+
+	// Start over.
+	await page.waitForSelector("[data-demo-reset]:not(:disabled)", { timeout: 10_000 });
+	await page.click("[data-demo-reset]");
+	await waitForSize(seeded, 20_000);
+	await page.waitForSelector(status("ok"), { timeout: 10_000 });
+	const fresh = await roots();
+	check(
+		fresh.signed === fresh.checkpoint && fresh.computed === fresh.signed,
+		"Reset starts a new log with the page's entries",
+		`${seeded} entries`,
+	);
 	check(problems.length === 0, "the demo runs without console errors", problems.join("; "));
 	await page.close();
 
@@ -453,12 +539,30 @@ async function demo(browser: Browser, served: string): Promise<void> {
 	const context = await browser.newContext({ javaScriptEnabled: false });
 	const still = await context.newPage();
 	await still.goto(served);
-	check(await still.locator(".demo-form").isHidden(), "the demo's controls are hidden");
+	check(
+		(await still.locator("h1").isVisible()) &&
+			(await still.locator("main figure.code pre").count()) >= 2 &&
+			(await still.locator("main .onward a").count()) >= 3,
+		"the home page reads: its headline, its code samples and its ways onward",
+	);
+	check(
+		(await still.locator(".demo-form").isHidden()) && (await still.locator("[data-copy]").isHidden()),
+		"the controls that need a script are hidden",
+	);
+	check(
+		(await still.locator("[data-demo-entries] li .tx").count()) > 0 &&
+			(await still.locator("[data-demo-entries] input").count()) === 0,
+		"the build's entries are listed, as text",
+	);
+	check(
+		(await still.locator('[data-demo-note] [data-label="origin"] .v').textContent()) === site.origin,
+		"the build's checkpoint is shown, and names the site's origin",
+	);
 	check(
 		(await still.locator("[data-demo-proof] .verdict-line.ok").count()) === 1,
 		"the build's proof is shown, verified",
 	);
-	check((await still.locator(".steps .tile-grid .c[data-i]").count()) > 0, "the tile is drawn");
+	check((await still.locator("[data-demo-tiles] .tile-grid .c[data-i]").count()) > 0, "the tile is drawn");
 	await context.close();
 }
 

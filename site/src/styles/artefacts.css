@@ -1,0 +1,226 @@
+/*
+ * The log's artefacts as the site draws them, from src/shared: a tile as a mosaic of its hashes,
+ * and an inclusion proof as its audit path. They sit on the machine surface, in a figure on the
+ * concepts page and in a panel of the live demo.
+ */
+
+@layer reset, base, layout, components;
+
+@layer components {
+	/* A tile: 16 by 16 cells, one per hash, toned by the hash; empty cells are hashes still to come. */
+	.tile-grid {
+		--cell: 0.7rem;
+		display: grid;
+		grid-template-columns: repeat(16, var(--cell));
+		gap: 2px;
+		width: max-content;
+		max-width: 100%;
+		padding: 1rem 1.15rem;
+	}
+
+	.tile-grid .c {
+		width: var(--cell);
+		height: var(--cell);
+		border-radius: 2px;
+	}
+
+	.c.e {
+		background: color-mix(in oklab, var(--text) 7%, transparent);
+	}
+
+	.c.s0 {
+		background: var(--t0);
+	}
+
+	.c.s1 {
+		background: var(--t1);
+	}
+
+	.c.s2 {
+		background: var(--t2);
+	}
+
+	.c.s3 {
+		background: var(--t3);
+	}
+
+	.c.s4 {
+		background: var(--t4);
+	}
+
+	.c.s5 {
+		background: var(--t5);
+	}
+
+	.c.s6 {
+		background: var(--t6);
+	}
+
+	.c.s7 {
+		background: var(--t7);
+	}
+
+	.c.hit {
+		outline: 2px solid var(--text);
+		outline-offset: 1px;
+	}
+
+	.c.rng {
+		outline: 2px solid var(--proof);
+		outline-offset: 0;
+	}
+
+	.c.bad {
+		background: var(--fail);
+		outline: 2px solid var(--fail);
+		outline-offset: 1px;
+	}
+
+	.tile-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: 1rem;
+	}
+
+	.tile-row + .tile-row {
+		margin-top: 1rem;
+	}
+
+	.tile-row .tile {
+		margin: 0;
+	}
+
+	.tile-more {
+		margin: 0;
+		color: var(--text-2);
+		font-size: var(--fs-sm);
+	}
+
+	/* An audit path, from the recomputed root down to the entry: the root, the proof's hashes in
+	   the colour of proof material, each with the subtree it stands for, then the entry's leaf
+	   hash. */
+	.proof {
+		margin: 0;
+		padding: 0.85rem 1.15rem 1rem;
+		list-style: none;
+		font-size: var(--fs-sm);
+		line-height: 1.5;
+	}
+
+	.proof .row {
+		display: grid;
+		grid-template-columns: 7.5rem 5.5rem minmax(0, 1fr);
+		gap: 0 0.75rem;
+		align-items: baseline;
+		margin: 0;
+		padding: 0.18rem 0 0.18rem 0.75rem;
+		border-inline-start: 2px solid var(--line);
+	}
+
+	.proof :where(.row) code {
+		padding: 0;
+		background: none;
+		font-size: 0.95em;
+	}
+
+	.proof .k {
+		color: var(--text-2);
+	}
+
+	.proof .sib {
+		border-inline-start-color: color-mix(in oklab, var(--proof) 55%, transparent);
+	}
+
+	.proof .sib,
+	.proof .sib .k {
+		color: var(--proof);
+	}
+
+	.proof .top,
+	.proof .leaf {
+		border-inline-start-color: color-mix(in oklab, var(--text) 45%, transparent);
+	}
+
+	.proof .ok,
+	.proof .verdict.ok {
+		color: var(--verified);
+	}
+
+	.proof .bad,
+	.proof .verdict.bad {
+		color: var(--fail);
+	}
+
+	.proof .data {
+		font-family: var(--mono);
+		font-size: 0.9em;
+		overflow-wrap: anywhere;
+	}
+
+	/* The two roots a verifier compares, written as a checkpoint writes its root hash. */
+	.roots {
+		display: grid;
+		gap: 0.3rem;
+		margin: 0;
+		padding: 0.8rem 1.15rem 1rem;
+		border-top: 1px dashed var(--line);
+		font-size: var(--fs-sm);
+		line-height: 1.5;
+	}
+
+	.roots > div {
+		display: grid;
+		grid-template-columns: 8.5rem minmax(0, 1fr);
+		gap: 0 0.75rem;
+		align-items: baseline;
+	}
+
+	.roots dt {
+		color: var(--text-2);
+	}
+
+	.roots dd {
+		margin: 0;
+	}
+
+	.roots code {
+		padding: 0;
+		background: none;
+		font-size: 0.92em;
+		word-break: break-all;
+	}
+
+	.roots.ok code {
+		color: var(--verified);
+	}
+
+	.roots.bad .computed code {
+		color: var(--fail);
+	}
+
+	.roots.bad .signed code {
+		color: var(--cyan);
+	}
+
+	@container (max-width: 30rem) {
+		.proof .row {
+			grid-template-columns: 7rem minmax(0, 1fr);
+		}
+
+		.proof .verdict,
+		.proof .data {
+			grid-column: 1 / -1;
+		}
+
+		.roots > div {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.proof .row {
+			transition: color 150ms ease-out;
+		}
+	}
+}

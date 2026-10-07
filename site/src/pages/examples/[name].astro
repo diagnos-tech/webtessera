@@ -52,11 +52,7 @@ const { prev, next } = neighbours(sequence, `examples/${example.id}/`);
 		Source in <a href={`${site.repo}/tree/${site.commit}/examples/${example.id}`}><code>examples/{example.id}</code></a>{
 			info !== undefined && info.runtimes.length > 0 && `; runs on ${list(info.runtimes.map((r) => (r === "Browsers" ? "browsers" : r)))}`
 		}{
-			info?.guide !== undefined && (
-				<>
-					; its guide is <a href={href(`docs/${guideSlug(info.guide.path)}/`)}>{info.guide.title}</a>
-				</>
-			)
+			info?.guide !== undefined && <>; its guide is <a href={href(`docs/${guideSlug(info.guide.path)}/`)}>{info.guide.title}</a></>
 		}.
 	</p>
 	<div class="prose"><Content /></div>

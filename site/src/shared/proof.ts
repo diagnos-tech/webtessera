@@ -93,12 +93,14 @@ function range(lo: bigint, hi: bigint): string {
 /**
  * renderProof lists an audit path from the recomputed root down to the entry: the root, then
  * the proof's hashes, each the root of the subtree it stands for, then the entry's leaf hash.
+ * Under the path it sets the recomputed root beside the root the checkpoint signs, both as a
+ * checkpoint writes a root hash, so that a reader sees them agree or differ.
  */
 export function renderProof(v: ProofView): SafeHtml {
 	const computed = v.spine[v.spine.length - 1] ?? new Uint8Array(32);
 	const ok = fragment(computed, 32) === fragment(v.root, 32);
 	const rows: SafeHtml[] = [
-		html`<li class="row top"><span class="k">root</span><code class="${ok ? "ok" : "bad"}">${fragment(computed)}</code><span class="verdict ${ok ? "ok" : "bad"}">${ok ? `= the checkpoint’s root, ${toBase64(v.root).slice(0, 8)}…` : `≠ the checkpoint’s root, ${toBase64(v.root).slice(0, 8)}…`}</span></li>`,
+		html`<li class="row top"><span class="k">root</span><code class="${ok ? "ok" : "bad"}">${fragment(computed)}</code><span class="verdict ${ok ? "ok" : "bad"}">${ok ? "= the root the checkpoint signs" : "≠ the root the checkpoint signs"}</span></li>`,
 	];
 	for (let k = v.steps.length - 1; k >= 0; k--) {
 		const s = v.steps[k];
@@ -111,5 +113,5 @@ export function renderProof(v: ProofView): SafeHtml {
 	rows.push(
 		html`<li class="row leaf"><span class="k">entry ${v.index}</span><code>${fragment(v.spine[0] ?? computed)}</code><span class="data" translate="no">${v.entry}</span></li>`,
 	);
-	return html`<ol class="proof" aria-label="Audit path for entry ${v.index} in a tree of ${v.size}">${rows}</ol>`;
+	return html`<ol class="proof" aria-label="Audit path for entry ${v.index} in a tree of ${v.size}">${rows}</ol><dl class="roots ${ok ? "ok" : "bad"}"><div class="computed"><dt>Recomputed root</dt><dd><code translate="no">${toBase64(computed)}</code></dd></div><div class="signed"><dt>Signed root</dt><dd><code translate="no">${toBase64(v.root)}</code></dd></div></dl>`;
 }

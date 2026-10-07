@@ -22,13 +22,15 @@ import { href } from "../lib/url.ts";
 
 <Base title={`${meta.notFound.title} | webtessera`} description={meta.notFound.description} jsonLd={[]}>
 	<meta slot="head" name="robots" content="noindex" />
-	<article class="doc">
-		<h1>{meta.notFound.title}</h1>
-		<p class="lead">There is no page at this address. These are the places to start from:</p>
-		<ul>
-			<li><a href={href()}>The home page</a> explains how a transparency log works, with a live one.</li>
-			<li><a href={href("docs/")}>The documentation</a> has the guides, the concepts and the API reference.</li>
-			<li><a href={href("examples/")}>The examples</a> are runnable applications, one per use case.</li>
-		</ul>
-	</article>
+	<div class="wrap doc-layout">
+		<article class="doc">
+			<h1>{meta.notFound.title}</h1>
+			<p class="lead">There is no page at this address. These are the places to start from:</p>
+			<ul>
+				<li><a href={href()}>The home page</a> says what webtessera is, with a log running in your tab.</li>
+				<li><a href={href("docs/")}>The documentation</a> has the guides, the concepts and the API reference.</li>
+				<li><a href={href("examples/")}>The examples</a> are runnable applications, one per use case.</li>
+			</ul>
+		</article>
+	</div>
 </Base>

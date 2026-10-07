@@ -1,0 +1,35 @@
+---
+// Copyright 2026 MedDeck LTDA. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The site's mark: a partial tile, ten hashes of sixteen, in the three colours of the brand.
+// It is decoration beside the wordmark, so it is hidden from assistive technology
+// (public/favicon.svg is the same drawing with fixed colours).
+
+// One letter per cell, row by row: a, p and c are filled cells, e an empty one.
+const cells = "aapc" + "apce" + "pcee" + "ceee";
+const at = (i: number) => 1 + (i % 4) * 5.75;
+---
+
+<svg class="mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+	{
+		[...cells].map((kind, i) =>
+			kind === "e" ? (
+				<rect class="e" x={at(i) + 0.5} y={at(Math.floor(i / 4)) + 0.5} width="3.75" height="3.75" rx="1" />
+			) : (
+				<rect class={kind} x={at(i)} y={at(Math.floor(i / 4))} width="4.75" height="4.75" rx="1.2" />
+			),
+		)
+	}
+</svg>

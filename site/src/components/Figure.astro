@@ -13,8 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// A figure: an artefact of the log under a caption that names it as machine text (the resource
-// path, the call, the file), with a few words of prose on the right where they help.
+// A figure: an artefact of the log on the machine surface, under a bar that names it as machine
+// text (the resource path, the call, the file), with a few words of prose on the right where
+// they help.
 
 interface Props {
 	caption: string;
@@ -26,7 +27,7 @@ interface Props {
 const { caption, note, href, class: className } = Astro.props;
 ---
 
-<figure class:list={["fig", className]}>
+<figure class:list={["fig", "machine", className]}>
 	<figcaption>
 		{href === undefined ? <code>{caption}</code> : <a href={href}><code>{caption}</code></a>}
 		{note !== undefined && <span>{note}</span>}

@@ -171,20 +171,28 @@ translation keeps it:
 Website fonts
 --------------------------------------------------------------------------------
 
-The website in site/ serves two fonts from site/public/fonts/. They are not part of
+The website in site/ serves three fonts from site/public/fonts/. They are not part of
 the published package, and are redistributed under their own licences.
 
-Source Serif 4 - https://github.com/adobe-fonts/source-serif
-Copyright 2014 The Source Serif 4 Project Authors; the font files carry "(c) 2014 -
-2021 Adobe Systems Incorporated (http://www.adobe.com/), with Reserved Font Name
-'Source'".
+Inter - https://github.com/rsms/inter
+Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
 Licensed under the SIL Open Font License, Version 1.1, reproduced in
-LICENSES/OFL-1.1-Source-Serif-4.txt (google/fonts, ofl/sourceserif4/OFL.txt at commit
-7085eb89a950e85db5b166b7a58d414544b4140c).
-Google Fonts' Latin subsets of version 4.004, as packaged by
-@fontsource-variable/source-serif-4 5.3.0, unmodified:
-  site/public/fonts/source-serif-4-latin-opsz-normal.woff2
-  site/public/fonts/source-serif-4-latin-opsz-italic.woff2
+LICENSES/OFL-1.1-Inter.txt (the LICENSE file of @fontsource-variable/inter 5.3.0).
+Google Fonts' Latin subsets of version 4.001, as packaged by
+@fontsource-variable/inter 5.3.0, unmodified:
+  site/public/fonts/inter-latin-opsz-normal.woff2
+  site/public/fonts/inter-latin-wght-italic.woff2
+
+JetBrains Mono - https://github.com/JetBrains/JetBrainsMono
+Copyright 2020 The JetBrains Mono Project Authors
+(https://github.com/JetBrains/JetBrainsMono)
+Licensed under the SIL Open Font License, Version 1.1, reproduced in
+LICENSES/OFL-1.1-JetBrains-Mono.txt (the LICENSE file of
+@fontsource-variable/jetbrains-mono 5.3.0).
+Google Fonts' Latin subsets of version 2.211, as packaged by
+@fontsource-variable/jetbrains-mono 5.3.0, unmodified:
+  site/public/fonts/jetbrains-mono-latin-wght-normal.woff2
+  site/public/fonts/jetbrains-mono-latin-wght-italic.woff2
 
 Go Mono - https://go.dev/blog/go-fonts
 Copyright (c) 2016 Bigelow & Holmes Inc.
@@ -192,7 +200,9 @@ Licensed under the BSD 3-Clause licence that the Go fonts are distributed under,
 reproduced in LICENSES/BSD-3-Clause-Go-Fonts.txt (golang.org/x/image v0.46.0,
 font/gofont/ttfs/README).
 Go-Mono.ttf version 2.010 from golang.org/x/image v0.46.0, subset to Latin-1,
-general punctuation, arrows and box drawing and converted to WOFF2 with fontTools:
+general punctuation, arrows and box drawing and converted to WOFF2 with fontTools.
+The site uses it for the arrows, mathematical signs and box drawing that the Latin
+subset of JetBrains Mono lacks:
   site/public/fonts/go-mono-latin.woff2
 
 --------------------------------------------------------------------------------

@@ -32,6 +32,7 @@ const { prev, next } = neighbours(await docsSequence(), "docs/reference/");
 	trail={[{ path: "docs/", title: meta.docs.title }]}
 	prev={prev}
 	next={next}
+	wide
 >
 	<p class="lead" slot="lead">
 		The package is split the way Tessera is split into Go packages, with names translated mechanically:

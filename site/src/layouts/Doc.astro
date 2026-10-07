@@ -13,12 +13,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Every page but the home page: a document with one h1, a contents list when it has three
-// sections or more, the source file it is generated from, and the previous and next pages.
+// Every page but the home page: a document with the pages above it, one h1, a contents list
+// when it has three sections or more, the source file it is generated from, and the previous
+// and next pages. A page of the docs or of the examples also lists the pages of its section:
+// beside the text on a wide window, after it on a narrow one.
 
 import type { MarkdownHeading } from "astro";
+import { sectionNav } from "../lib/pages.ts";
 import { getSiteData } from "../lib/site.ts";
 import { href } from "../lib/url.ts";
+import { escapeHtml } from "../shared/html.ts";
 import Base from "./Base.astro";
 
 /** Link is a page to point to: its path under the base, and its title. */
@@ -38,17 +42,33 @@ interface Props {
 	headings?: readonly MarkdownHeading[];
 	/** source is the repository file the page is rendered from, for the edit link. */
 	source?: string;
-	/** trail are the pages above this one, after the home page, for the breadcrumb data. */
+	/** trail are the pages above this one, after the home page, for the breadcrumb. */
 	trail?: readonly Link[];
 	prev?: Link | undefined;
 	next?: Link | undefined;
+	/** wide lets the page use the whole column, for a page that is mostly a table. */
+	wide?: boolean;
 }
 
-const { title, description, code = false, heading, headings = [], source, trail = [], prev, next } = Astro.props;
+const {
+	title,
+	description,
+	code = false,
+	heading,
+	headings = [],
+	source,
+	trail = [],
+	prev,
+	next,
+	wide = false,
+} = Astro.props;
 const { site } = await getSiteData();
 const url = new URL(Astro.url.pathname, Astro.site ?? site.url).href;
+const here = Astro.url.pathname.slice(href().length);
 const sections = headings.filter((h) => h.depth === 2);
-const crumbs = [{ path: "", title: "webtessera" }, ...trail, { path: Astro.url.pathname.slice(href().length), title }];
+const toc = sections.length >= 3;
+const nav = await sectionNav(here);
+const crumbs = [{ path: "", title: "webtessera" }, ...trail, { path: here, title }];
 const jsonLd = [
 	{
 		"@type": "TechArticle",
@@ -74,48 +94,97 @@ const jsonLd = [
 ---
 
 <Base title={`${title} | webtessera`} description={description} jsonLd={jsonLd}>
-	<article class="doc">
-		{heading !== undefined ? <h1 set:html={heading} /> : <h1>{code ? <code>{title}</code> : title}</h1>}
-		<slot name="lead" />
-		{
-			sections.length >= 3 && (
-				<nav class="toc" aria-label="On this page">
-					<p>
-						On this page:{" "}
-						{sections.map((h, i) => <>{i > 0 && ", "}<a href={`#${h.slug}`}>{h.text}</a></>)}.
+	<div class:list={["wrap", "doc-layout", { "has-side": nav !== undefined, "has-toc": toc }]}>
+		<article class:list={["doc", { wide }]}>
+			{
+				trail.length > 0 && (
+					<nav aria-label="Breadcrumb">
+						<ol class="crumbs">
+							{trail.map((c, i) => (
+								<li>
+									{i > 0 && <span aria-hidden="true">/</span>}
+									<a href={href(c.path)}>{c.title}</a>
+								</li>
+							))}
+						</ol>
+					</nav>
+				)
+			}
+			{heading !== undefined ? <h1 set:html={heading} /> : <h1>{code ? <code>{title}</code> : title}</h1>}
+			<slot name="lead" />
+			{
+				toc && (
+					<nav class="toc" aria-label="On this page">
+						<div>
+							<p class="label">On this page</p>
+							<ol>
+								{sections.map((h) => (
+									<li>
+										<a href={`#${h.slug}`}>{h.text}</a>
+									</li>
+								))}
+							</ol>
+						</div>
+					</nav>
+				)
+			}
+			<slot />
+			{
+				source !== undefined && (
+					<p class="edit">
+						This page is generated from{" "}
+						<a href={`${site.repo}/blob/${site.commit}/${source}`}>
+							<code>{source}</code>
+						</a>
+						. <a href={`${site.repo}/edit/main/${source}`}>Edit it on GitHub</a>.
 					</p>
+				)
+			}
+			{
+				(prev !== undefined || next !== undefined) && (
+					<nav class="pager" aria-label="Previous and next">
+						{prev !== undefined && (
+							<a class="prev" href={href(prev.path)} rel="prev">
+								<span>Previous</span>
+								{prev.title}
+							</a>
+						)}
+						{next !== undefined && (
+							<a class="next" href={href(next.path)} rel="next">
+								<span>Next</span>
+								{next.title}
+							</a>
+						)}
+					</nav>
+				)
+			}
+		</article>
+		{
+			nav !== undefined && (
+				<nav class="side" aria-label={nav.label}>
+					<ul class="top">
+						<li>
+							<a href={href(nav.top.path)} aria-current={nav.top.path === here ? "page" : undefined}>
+								{nav.top.title}
+							</a>
+						</li>
+					</ul>
+					{nav.groups.map((g) => (
+						<>
+							<p class="label">{g.label}</p>
+							<ul>
+								{g.links.map((l) => (
+									<li>
+										<a href={href(l.path)} aria-current={l.path === here ? "page" : undefined}>
+											{g.code ? <code set:html={escapeHtml(l.title).replaceAll("/", "/<wbr>")} /> : l.title}
+										</a>
+									</li>
+								))}
+							</ul>
+						</>
+					))}
 				</nav>
 			)
 		}
-		<slot />
-		{
-			source !== undefined && (
-				<p class="edit">
-					This page is generated from{" "}
-					<a href={`${site.repo}/blob/${site.commit}/${source}`}>
-						<code>{source}</code>
-					</a>
-					. <a href={`${site.repo}/edit/main/${source}`}>Edit it on GitHub</a>.
-				</p>
-			)
-		}
-		{
-			(prev !== undefined || next !== undefined) && (
-				<nav class="pager" aria-label="Previous and next">
-					{prev !== undefined && (
-						<a class="prev" href={href(prev.path)} rel="prev">
-							<span>Previous</span>
-							{prev.title}
-						</a>
-					)}
-					{next !== undefined && (
-						<a class="next" href={href(next.path)} rel="next">
-							<span>Next</span>
-							{next.title}
-						</a>
-					)}
-				</nav>
-			)
-		}
-	</article>
+	</div>
 </Base>

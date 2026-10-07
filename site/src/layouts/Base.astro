@@ -13,11 +13,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Every page: the head, the wordmark and five links, the page itself, and a three-line footer:
-// the licence and the independence note, the project's links, and the build's provenance.
+// Every page: the head, a header with the wordmark, the four sections and the repository, the
+// page itself, and a footer with the licence and the independence note, the site's and the
+// project's links, and the build's provenance.
 
 import "../styles/tokens.css";
 import "../styles/base.css";
+import GitHubMark from "../components/GitHubMark.astro";
+import Mark from "../components/Mark.astro";
 import Seo from "../components/Seo.astro";
 import { getSiteData } from "../lib/site.ts";
 import { href } from "../lib/url.ts";
@@ -56,22 +59,19 @@ const short = (sha: string) => (/^[0-9a-f]{40}$/.test(sha) ? sha.slice(0, 7) : s
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<link
-			rel="preload"
-			href={href("fonts/source-serif-4-latin-opsz-normal.woff2")}
-			as="font"
-			type="font/woff2"
-			crossorigin
-		/>
+		<link rel="preload" href={href("fonts/inter-latin-opsz-normal.woff2")} as="font" type="font/woff2" crossorigin />
 		<Seo title={title} description={description} jsonLd={jsonLd} type={type} />
 		<slot name="head" />
 	</head>
 	<body>
 		<a class="skip" href="#main">Skip to content</a>
-		<div class="wrap">
-			<header class="site-header">
-				<a class="wordmark" href={href()} aria-current={path === href() ? "page" : undefined}>webtessera</a>
-				<nav aria-label="Site">
+		<header class="site-header">
+			<div class="wrap bar">
+				<a class="brand" href={href()} aria-current={path === href() ? "page" : undefined}>
+					<Mark />
+					<span>webtessera</span>
+				</a>
+				<nav class="site-nav" aria-label="Site">
 					<ul>
 						{
 							sections.map(([label, to]) => (
@@ -82,35 +82,63 @@ const short = (sha: string) => (/^[0-9a-f]{40}$/.test(sha) ? sha.slice(0, 7) : s
 								</li>
 							))
 						}
-						<li><a href={site.repo}>GitHub</a></li>
 					</ul>
 				</nav>
-			</header>
-			<main id="main">
-				<slot />
-			</main>
-			<footer class="site-footer">
-				<p>
-					{licensing.holder.replace(/^Copyright/, "©")}. {own}{
-						others.length > 0 && `, with ${others.join(" and ")} for the files translated from Go`
-					}. webtessera is an independent project, not an official Google or transparency-dev project.
-				</p>
-				<nav aria-label="Project"><ul>
-					{
-						links.map(([label, to]) => (
-							<li>
-								<a href={to}>{label}</a>
-							</li>
-						))
-					}
-				</ul></nav>
-				<p>
+				<a class="repo-link" href={site.repo}>
+					<GitHubMark />
+					<span>GitHub</span>
+				</a>
+			</div>
+		</header>
+		<main id="main">
+			<slot />
+		</main>
+		<footer class="site-footer">
+			<div class="wrap cols">
+				<div class="about">
+					<a class="brand" href={href()}>
+						<Mark />
+						<span>webtessera</span>
+					</a>
+					<p>
+						{licensing.holder.replace(/^Copyright/, "©")}. {own}{
+							others.length > 0 && `, with ${others.join(" and ")} for the files translated from Go`
+						}. webtessera is an independent project, not an official Google or transparency-dev project.
+					</p>
+				</div>
+				<nav aria-label="Pages">
+					<p class="label">Site</p>
+					<ul>
+						{
+							sections.map(([label, to]) => (
+								<li>
+									<a href={href(to)}>{label}</a>
+								</li>
+							))
+						}
+					</ul>
+				</nav>
+				<nav aria-label="Project">
+					<p class="label">Project</p>
+					<ul>
+						{
+							links.map(([label, to]) => (
+								<li>
+									<a href={to}>{label}</a>
+								</li>
+							))
+						}
+					</ul>
+				</nav>
+			</div>
+			<div class="wrap">
+				<p class="provenance">
 					Built from <a href={`${site.repo}/tree/${site.commit}`}><code>{short(site.commit)}</code></a>{
 						site.date !== undefined && ` of ${site.date}`
 					}. Ported from <a href={`${porting.upstream}/tree/${porting.commit}`}>Tessera at <code>{short(porting.commit)}</code></a>,
 					to whose authors webtessera owes its design, its comments and its tests.
 				</p>
-			</footer>
-		</div>
+			</div>
+		</footer>
 	</body>
 </html>

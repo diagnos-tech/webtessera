@@ -19,6 +19,7 @@
 
 import { Code } from "astro:components";
 import type { Snippet } from "../data/readme.ts";
+import { codeTheme, codeTransformers } from "../lib/code.ts";
 import { github, type SiteConfig } from "../lib/url.ts";
 import { list } from "../lib/words.ts";
 import Figure from "./Figure.astro";
@@ -46,5 +47,5 @@ const code = (s: Snippet) => (imports && s.imports !== "" ? `${s.imports}\n\n${s
 	note={`lines ${list(ranges)}`}
 	class="code"
 >
-	{snippets.map((s) => <Code code={code(s)} lang="ts" theme="css-variables" />)}
+	{snippets.map((s) => <Code code={code(s)} lang="ts" theme={codeTheme} transformers={codeTransformers} />)}
 </Figure>

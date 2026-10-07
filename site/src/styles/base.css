@@ -1,505 +1,1152 @@
 /*
- * Type, layout and the few shapes the site has. A page is one column of prose at reading measure,
- * set from a fixed left margin, with its figures beside it on wide screens and after their
- * paragraph on narrow ones. Machine text is Go Mono, in <pre> or <code>; a figure is that text on
- * paper, under a caption that names the resource and a 1px rule. Nothing else has a border.
+ * Type, layout and the shapes every page shares. A page is a centred column: the header and the
+ * footer span the window, and their contents, like the page's, sit in .wrap. Prose is Inter at a
+ * reading measure; machine text is JetBrains Mono, as a tinted pill in a sentence and on a
+ * Dracula surface in a block. Documents (.doc) get their section navigation on the left and
+ * their contents on the right when the window has room, and below or inline when it has not.
  */
 
-*,
-*::before,
-*::after {
-	box-sizing: border-box;
+@layer reset, base, layout, components;
+
+@layer reset {
+	*,
+	*::before,
+	*::after {
+		box-sizing: border-box;
+	}
+
+	html {
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
+	}
+
+	body,
+	h1,
+	h2,
+	h3,
+	h4,
+	p,
+	ul,
+	ol,
+	dl,
+	dd,
+	figure,
+	blockquote,
+	pre {
+		margin: 0;
+	}
+
+	button,
+	input {
+		font: inherit;
+		color: inherit;
+	}
 }
 
-html {
-	-webkit-text-size-adjust: 100%;
-	text-size-adjust: 100%;
+@layer base {
+	html {
+		/* Type grows a little with the window, so a wide screen gets a larger page, not a wider margin. */
+		font-size: clamp(100%, 0.84rem + 0.24vw, 125%);
+		scroll-padding-top: calc(var(--header) + 1.25rem);
+		accent-color: var(--accent);
+		scrollbar-color: var(--line-2) transparent;
+	}
+
+	body {
+		display: flex;
+		flex-direction: column;
+		min-height: 100dvh;
+		background:
+			radial-gradient(64rem 24rem at 50% -14rem, color-mix(in oklab, var(--accent) 14%, transparent), transparent 70%)
+			no-repeat,
+			var(--bg);
+		color: var(--text);
+		font: 400 var(--fs-md) / 1.65 var(--sans);
+		font-optical-sizing: auto;
+		font-kerning: normal;
+		text-rendering: optimizeLegibility;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	main {
+		display: block;
+		flex: 1;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4 {
+		font-weight: 650;
+		line-height: 1.2;
+		letter-spacing: -0.017em;
+		text-wrap: balance;
+	}
+
+	h1 {
+		overflow-wrap: anywhere;
+		font-size: clamp(2rem, 1.45rem + 2.2vw, 2.8rem);
+		font-weight: 720;
+		line-height: 1.1;
+		letter-spacing: -0.032em;
+		margin-bottom: 1rem;
+	}
+
+	h2 {
+		font-size: 1.55rem;
+		letter-spacing: -0.024em;
+		margin: 3rem 0 1rem;
+	}
+
+	h3 {
+		font-size: 1.18rem;
+		margin: 2.25rem 0 0.6rem;
+	}
+
+	h4 {
+		font-size: 1rem;
+		margin: 1.75rem 0 0.5rem;
+	}
+
+	p,
+	ul,
+	ol,
+	dl {
+		margin-bottom: 1rem;
+	}
+
+	p,
+	li,
+	dd {
+		text-wrap: pretty;
+	}
+
+	ul,
+	ol {
+		padding-inline-start: 1.35em;
+	}
+
+	li + li {
+		margin-top: 0.3rem;
+	}
+
+	li::marker {
+		color: var(--text-3);
+	}
+
+	strong {
+		font-weight: 650;
+	}
+
+	a {
+		color: var(--accent);
+		text-decoration-line: underline;
+		text-decoration-thickness: 1px;
+		text-underline-offset: 0.2em;
+		text-decoration-color: color-mix(in oklab, currentColor 38%, transparent);
+	}
+
+	a:hover {
+		text-decoration-color: currentColor;
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+		border-radius: 0.25rem;
+	}
+
+	::selection {
+		background: color-mix(in oklab, var(--accent) 30%, transparent);
+	}
+
+	.lead {
+		font-size: var(--fs-lg);
+		line-height: 1.6;
+		color: var(--text-2);
+	}
+
+	.small,
+	small {
+		font-size: var(--fs-sm);
+		color: var(--text-2);
+	}
+
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	/* Machine text ----------------------------------------------------------------------------- */
+
+	code,
+	pre,
+	kbd,
+	samp {
+		font-family: var(--mono);
+		font-size: 0.875em;
+		font-variant-ligatures: none;
+		font-feature-settings: "calt" 0;
+	}
+
+	/* In a sentence, machine text is a tinted pill; it may break anywhere rather than push the
+	   page sideways on a phone. In a table, which scrolls, it keeps whole. */
+	:not(pre) > code {
+		padding: 0.14em 0.4em;
+		border-radius: var(--r-sm);
+		background: color-mix(in oklab, var(--accent) 10%, transparent);
+		font-size: 0.85em;
+		overflow-wrap: anywhere;
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
+	}
+
+	a > code {
+		color: inherit;
+	}
+
+	table code {
+		overflow-wrap: normal;
+	}
+
+	/* A name that is a link, or a heading, is set in the accent colour without the pill. */
+	a > code:only-child,
+	h1 code,
+	h2 code,
+	h3 code,
+	h4 code {
+		padding: 0;
+		background: none;
+	}
+
+	h1 code,
+	h2 code,
+	h3 code,
+	h4 code {
+		color: var(--accent);
+		font-size: 0.9em;
+		font-weight: 650;
+		letter-spacing: -0.02em;
+	}
+
+	/* A block of machine text: the Dracula surface, scrolling sideways inside itself. */
+	pre {
+		margin-bottom: 1.5rem;
+		padding: 1rem 1.15rem;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		font-size: var(--fs-code);
+		line-height: 1.7;
+		tab-size: 2;
+		overflow-x: auto;
+		scrollbar-width: thin;
+		scrollbar-color: var(--line-2) transparent;
+		box-shadow: var(--shadow-md);
+		forced-color-adjust: none;
+	}
+
+	pre code {
+		font-size: 1em;
+	}
+
+	.proof-hash {
+		color: var(--proof);
+	}
+
+	.verified {
+		color: var(--verified);
+	}
+
+	.failed {
+		color: var(--fail);
+	}
 }
 
-body {
-	margin: 0;
-	background: var(--paper);
-	color: var(--ink);
-	font: 400 1.125rem / 1.55 var(--serif);
-	font-optical-sizing: auto;
-	font-kerning: normal;
-	text-rendering: optimizeLegibility;
-}
-
-/* Layout ------------------------------------------------------------------------------------- */
-
-.wrap {
-	padding-inline: var(--margin) 16px;
-}
-
-@media (min-width: 700px) {
+@layer layout {
 	.wrap {
-		padding-inline-end: 3rem;
+		width: 100%;
+		max-width: var(--page);
+		margin-inline: auto;
+		padding-inline: var(--gutter);
 	}
-}
 
-/* A row of prose with a figure beside it: the hero, each step, the demo. */
-.row {
-	display: grid;
-	gap: 24px;
-	align-items: start;
-	max-width: var(--wide);
-}
-
-@media (min-width: 1100px) {
-	.row {
-		grid-template-columns: minmax(28rem, var(--prose)) minmax(22rem, var(--figure));
-		column-gap: var(--gap);
+	.skip {
+		position: absolute;
+		left: 1rem;
+		top: -6rem;
+		z-index: 20;
+		padding: 0.5rem 0.9rem;
+		border-radius: var(--r-md);
+		background: var(--accent);
+		color: var(--accent-ink);
+		font-weight: 600;
+		text-decoration: none;
 	}
-}
-
-.row > * {
-	min-width: 0;
-}
-
-.measure {
-	max-width: var(--prose);
-}
-
-/* Type --------------------------------------------------------------------------------------- */
-
-h1,
-h2,
-h3,
-h4 {
-	font-weight: 600;
-	text-wrap: balance;
-}
-
-h1 {
-	overflow-wrap: anywhere;
-	font-size: clamp(1.8rem, 1.3rem + 1.6vw, 2.25rem);
-	line-height: 1.15;
-	margin: 0 0 16px;
-}
-
-h2 {
-	font-size: 1.6rem;
-	line-height: 1.25;
-	margin: 72px 0 16px;
-}
-
-h3 {
-	font-size: 1.25rem;
-	line-height: 1.3;
-	margin: 40px 0 8px;
-}
-
-h4 {
-	font-size: 1.125rem;
-	margin: 32px 0 8px;
-}
-
-p,
-ul,
-ol,
-dl {
-	margin: 0 0 16px;
-}
-
-ul,
-ol {
-	padding-left: 1.4em;
-}
-
-li + li {
-	margin-top: 4px;
-}
-
-strong {
-	font-weight: 600;
-}
-
-.lead {
-	font-size: 1.25rem;
-	line-height: 1.5;
-}
-
-.small,
-small {
-	font-size: 0.9rem;
-	color: var(--ink-2);
-}
-
-a {
-	color: inherit;
-	text-decoration-line: underline;
-	text-decoration-thickness: 1px;
-	text-underline-offset: 0.18em;
-	text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
-}
-
-a:hover {
-	text-decoration-color: currentColor;
-}
-
-:focus-visible {
-	outline: 2px solid var(--ink);
-	outline-offset: 2px;
-}
-
-/* Machine text ------------------------------------------------------------------------------- */
-
-code,
-pre,
-kbd,
-samp {
-	font-family: var(--mono);
-	font-size: 0.92em;
-	font-variant-ligatures: none;
-	/* Go Mono is set in one weight; a bold heading or term keeps it upright and regular. */
-	font-weight: 400;
-	font-synthesis: none;
-}
-
-pre code,
-pre kbd {
-	font-size: 1em;
-}
-
-/* Inline machine text may break anywhere rather than push the page sideways on a phone; in a
-   table, which scrolls, it keeps whole. */
-:not(pre) > code {
-	overflow-wrap: anywhere;
-}
-
-table code {
-	overflow-wrap: normal;
-}
-
-pre {
-	margin: 0 0 24px;
-	padding: 12px 0 4px;
-	border-top: 1px solid var(--rule);
-	line-height: 1.45;
-	overflow-x: auto;
-	tab-size: 2;
-}
-
-h1 code,
-h2 code,
-h3 code {
-	font-size: 0.86em;
-}
-
-/* Figures: a caption naming the resource, a rule, then the artefact. */
-.fig {
-	margin: 0;
-	min-width: 0;
-}
-
-.fig > figcaption {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
-	gap: 4px 16px;
-	padding-bottom: 6px;
-	border-bottom: 1px solid var(--rule);
-	color: var(--ink-2);
-	font-size: 0.9rem;
-}
-
-.fig > figcaption code {
-	color: var(--ink);
-}
-
-.fig > figcaption a {
-	text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
-}
-
-.fig pre {
-	border-top: 0;
-	margin-bottom: 0;
-}
-
-.fig.code {
-	max-width: var(--wide);
-	margin: 0 0 24px;
-}
-
-.fig.code pre + pre {
-	margin-top: 12px;
-}
-
-.fig .after {
-	margin: 8px 0 0;
-	font-size: 0.95rem;
-}
-
-/* A signed note: one line per span, signature lines wrapped with a hanging indent. */
-.note .ln {
-	display: block;
-	min-height: 1lh;
-}
-
-.note .sig {
-	white-space: pre-wrap;
-	word-break: break-all;
-	padding-left: 2ch;
-	text-indent: -2ch;
-}
-
-.proof-hash {
-	color: var(--proof);
-}
-
-.verified {
-	color: var(--verified);
-}
-
-.failed {
-	color: var(--fail);
-}
-
-/* The home page. */
-.hero {
-	margin-top: 16px;
-}
-
-/* The hero's checkpoint is set as large as its figure allows a root hash (44 characters of Go
-   Mono, 0.6em each) to fit on one line, up to 1.2rem. */
-.hero-fig {
-	container-type: inline-size;
-}
-
-.hero-note {
-	font-size: min(1.2rem, 100cqi / 27.5);
-}
-
-.install {
-	margin: 24px 0 8px;
-	font-size: 1.05rem;
-}
-
-.steps {
-	list-style: none;
-	margin: 24px 0 0;
-	padding: 0;
-	counter-reset: step;
-}
-
-.steps > li {
-	counter-increment: step;
-	margin: 0 0 32px;
-}
-
-.steps > li > p strong::before {
-	content: counter(step) ". ";
-}
-
-/* Tables ------------------------------------------------------------------------------------- */
-
-.table-wrap {
-	overflow-x: auto;
-	margin: 0 0 24px;
-	max-width: var(--wide);
-}
-
-table {
-	border-collapse: collapse;
-	font-size: 0.95rem;
-	line-height: 1.45;
-}
-
-th,
-td {
-	text-align: left;
-	vertical-align: top;
-	padding: 6px 20px 6px 0;
-	border-bottom: 1px solid var(--rule);
-}
-
-th {
-	font-weight: 600;
-}
-
-thead th {
-	border-bottom-color: var(--ink-2);
-}
-
-/* Header and footer -------------------------------------------------------------------------- */
-
-.skip {
-	position: absolute;
-	left: 16px;
-	top: -100px;
-	background: var(--paper);
-	padding: 8px 12px;
-}
-
-.skip:focus {
-	top: 8px;
-}
-
-.site-header {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 8px 32px;
-	max-width: var(--wide);
-	padding-block: 24px;
-}
-
-.wordmark {
-	font-size: 1.25rem;
-	font-weight: 600;
-	text-decoration: none;
-}
-
-.site-header nav ul {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px 24px;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.site-header nav li + li {
-	margin-top: 0;
-}
-
-.site-header nav a {
-	text-decoration: none;
-}
-
-.site-header nav a:hover,
-.site-header nav a[aria-current] {
-	text-decoration: underline;
-	text-decoration-thickness: 1px;
-	text-underline-offset: 0.3em;
-}
-
-main {
-	display: block;
-	padding-bottom: 32px;
-}
-
-.site-footer {
-	margin-top: 72px;
-	padding-block: 24px 32px;
-	max-width: var(--wide);
-	color: var(--ink-2);
-	font-size: 0.9rem;
-}
-
-.site-footer p {
-	margin: 0 0 8px;
-	max-width: var(--prose);
-}
-
-.site-footer nav ul {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px 20px;
-	margin: 0 0 8px;
-	padding: 0;
-	list-style: none;
-}
-
-.site-footer nav li + li {
-	margin-top: 0;
-}
-
-/* Documents: prose at reading measure, machine text and tables as wide as the page. -------- */
-
-.doc {
-	max-width: var(--wide);
-}
-
-.doc > :is(p, ul, ol, dl, h1, h2, h3, h4, blockquote, .lead),
-.doc .prose > :is(p, ul, ol, dl, h2, h3, h4, blockquote) {
-	max-width: var(--prose);
-}
-
-.toc {
-	margin: 0 0 24px;
-}
-
-.toc p {
-	max-width: var(--prose);
-	margin: 16px 0 0;
-	font-size: 0.95rem;
-	color: var(--ink-2);
-}
-
-nav.toc a {
-	color: var(--ink);
-}
-
-.doc blockquote {
-	margin: 0 0 16px;
-	padding: 0;
-	color: var(--ink-2);
-}
-
-.doc blockquote p {
-	margin: 0;
-}
-
-.pager {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
-	gap: 16px 48px;
-	max-width: var(--prose);
-	margin-top: 72px;
-}
-
-nav.pager a {
-	display: block;
-	max-width: 18rem;
-}
-
-.pager .next {
-	margin-left: auto;
-	text-align: right;
-}
-
-.pager span {
-	display: block;
-	color: var(--ink-2);
-	font-size: 0.9rem;
-}
-
-.edit {
-	margin-top: 48px;
-	font-size: 0.9rem;
-	color: var(--ink-2);
-}
-
-/* Description lists of names: an API index, the examples. */
-.index dt {
-	font-weight: 600;
-	margin-top: 16px;
-}
-
-.index dd {
-	margin: 2px 0 0;
-	max-width: var(--prose);
-}
-
-/* An API index sets each name beside its summary on a wide screen, as pkg.go.dev does. */
-@media (min-width: 1100px) {
-	.doc > .index.api {
-		max-width: var(--wide);
+
+	.skip:focus {
+		top: 0.5rem;
+	}
+
+	/* Header: the wordmark, the sections, the repository. One row; on a phone the sections move
+	   to a second row, and the header scrolls away with the page. */
+	.site-header {
+		z-index: 10;
+		border-bottom: 1px solid color-mix(in oklab, var(--line) 75%, transparent);
+		background: color-mix(in oklab, var(--bg) 82%, transparent);
+	}
+
+	.site-header .bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 1.5rem;
+		min-height: var(--header);
+		padding-block: 0.5rem;
+	}
+
+	.brand {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		color: var(--text);
+		font-size: 1.08rem;
+		font-weight: 700;
+		letter-spacing: -0.02em;
+		text-decoration: none;
+	}
+
+	.mark {
+		width: 1.5rem;
+		height: 1.5rem;
+		flex: none;
+	}
+
+	.mark .a {
+		fill: var(--accent);
+	}
+
+	.mark .p {
+		fill: var(--pink);
+	}
+
+	.mark .c {
+		fill: var(--cyan);
+	}
+
+	.mark .e {
+		fill: none;
+		stroke: var(--line-2);
+	}
+
+	.site-nav {
+		order: 3;
+		flex: 1 0 100%;
+	}
+
+	.site-nav ul {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		margin: 0 -0.6rem;
+		padding: 0;
+		list-style: none;
+	}
+
+	.site-nav :where(li) + li {
+		margin-top: 0;
+	}
+
+	.site-nav a,
+	.repo-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-height: 2.25rem;
+		padding: 0.3rem 0.6rem;
+		border-radius: var(--r-md);
+		color: var(--text-2);
+		font-size: var(--fs-sm);
+		font-weight: 500;
+		text-decoration: none;
+	}
+
+	.site-nav a:hover,
+	.repo-link:hover {
+		color: var(--text);
+		background: color-mix(in oklab, var(--accent) 8%, transparent);
+	}
+
+	.site-nav a[aria-current] {
+		color: var(--accent);
+		background: color-mix(in oklab, var(--accent) 10%, transparent);
+	}
+
+	.repo-link {
+		order: 2;
+		margin-inline-start: auto;
+		border: 1px solid var(--line-2);
+		background: var(--surface);
+		color: var(--text);
+	}
+
+	.repo-link svg {
+		width: 1.1rem;
+		height: 1.1rem;
+		fill: currentColor;
+	}
+
+	/* On the narrowest phones the four sections still share one row. */
+	@media (max-width: 23.99em) {
+		.site-nav ul {
+			margin-inline: -0.3rem;
+		}
+
+		.site-nav a {
+			padding-inline: 0.3rem;
+			font-size: 0.8125rem;
+		}
+	}
+
+	@media (min-width: 44em) {
+		.site-header {
+			position: sticky;
+			top: 0;
+			-webkit-backdrop-filter: saturate(1.6) blur(14px);
+			backdrop-filter: saturate(1.6) blur(14px);
+		}
+
+		.site-header .bar {
+			flex-wrap: nowrap;
+		}
+
+		.site-nav {
+			order: 0;
+			flex: 1;
+		}
+
+		.site-nav ul {
+			justify-content: flex-start;
+			margin: 0;
+		}
+	}
+
+	/* Footer: what the project is and is not, where it lives, and what this build was made from. */
+	.site-footer {
+		margin-top: 4rem;
+		border-top: 1px solid var(--line);
+		background: var(--bg-2);
+		color: var(--text-2);
+		font-size: var(--fs-sm);
+	}
+
+	.site-footer .cols {
 		display: grid;
-		grid-template-columns: minmax(12rem, 20rem) minmax(0, var(--prose));
-		gap: 10px var(--gap);
+		gap: 2rem 3rem;
+		padding-block: 3rem 2rem;
 	}
 
-	.index.api dt,
+	.site-footer .about p {
+		max-width: 30rem;
+		margin: 0.75rem 0 0;
+	}
+
+	.site-footer .label {
+		margin: 0 0 0.6rem;
+		color: var(--text);
+		font-size: var(--fs-xs);
+		font-weight: 650;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.site-footer ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.site-footer :where(li) + li {
+		margin-top: 0.4rem;
+	}
+
+	.site-footer a {
+		color: inherit;
+	}
+
+	.site-footer a:hover {
+		color: var(--accent);
+	}
+
+	.site-footer .provenance {
+		margin: 0;
+		padding-block: 1.25rem 2rem;
+		border-top: 1px solid var(--line);
+		font-size: var(--fs-xs);
+	}
+
+	@media (min-width: 44em) {
+		.site-footer .cols {
+			grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+		}
+	}
+
+	/* Documents ------------------------------------------------------------------------------ */
+
+	.doc-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 3rem;
+		padding-block: 2.5rem 1rem;
+	}
+
+	.doc {
+		position: relative;
+		width: 100%;
+		max-width: var(--measure);
+		min-width: 0;
+		margin-inline: auto;
+	}
+
+	@media (min-width: 64em) {
+		.doc-layout.has-side {
+			grid-template-columns: var(--side) minmax(0, 1fr);
+		}
+
+		.has-side > .doc {
+			grid-column: 2;
+			grid-row: 1;
+			margin-inline: 0;
+		}
+
+		/* A page that is mostly a table or a list uses the column; its sentences keep the measure. */
+		.has-side > .doc.wide {
+			max-width: none;
+		}
+
+		.doc.wide > :is(p, h1) {
+			max-width: var(--measure);
+		}
+
+		.has-side > .side {
+			grid-column: 1;
+			grid-row: 1;
+		}
+	}
+
+	/* With room to spare, the contents list leaves the text and follows it down the right. */
+	@media (min-width: 80em) {
+		.doc-layout.has-toc {
+			grid-template-columns: minmax(0, 1fr) minmax(0, var(--measure)) var(--rail) minmax(0, 1fr);
+		}
+
+		.has-toc > .doc {
+			grid-column: 2;
+		}
+
+		.doc-layout.has-toc.has-side {
+			grid-template-columns: var(--side) minmax(0, 1fr) var(--rail);
+		}
+	}
+}
+
+@layer components {
+	/* Buttons and button-like links. */
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		min-height: 2.75rem;
+		padding: 0.55rem 1.15rem;
+		border: 1px solid transparent;
+		border-radius: var(--r-md);
+		font: 600 var(--fs-sm) / 1.2 var(--sans);
+		text-decoration: none;
+		cursor: pointer;
+	}
+
+	.btn.primary {
+		background: var(--accent);
+		color: var(--accent-ink);
+		box-shadow: 0 8px 22px -8px color-mix(in oklab, var(--accent) 70%, transparent);
+	}
+
+	.btn.primary:hover {
+		background: color-mix(in oklab, var(--accent) 86%, var(--text));
+	}
+
+	.btn.quiet {
+		border-color: var(--line-2);
+		background: var(--surface);
+		color: var(--text);
+	}
+
+	.btn.quiet:hover {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.btn svg {
+		width: 1.1rem;
+		height: 1.1rem;
+		fill: currentColor;
+	}
+
+	/* Figures: an artefact of a log on the machine surface, under a bar that names it. */
+	.fig {
+		min-width: 0;
+		margin-bottom: 1.5rem;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		overflow: hidden;
+		box-shadow: var(--shadow-md);
+		forced-color-adjust: none;
+	}
+
+	.fig > figcaption {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.2rem 1rem;
+		padding: 0.55rem 1.15rem;
+		border-bottom: 1px solid var(--line);
+		background: var(--bg);
+		color: var(--text-2);
+		font-size: var(--fs-xs);
+	}
+
+	.fig > :where(figcaption) code {
+		padding: 0;
+		background: none;
+		color: var(--text);
+		font-size: 1em;
+	}
+
+	.fig > :where(figcaption) a {
+		color: inherit;
+	}
+
+	.fig pre {
+		margin: 0;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+	}
+
+	.fig.code pre + pre {
+		border-top: 1px dashed var(--line);
+	}
+
+	.fig .after {
+		margin: 0;
+		padding: 0.7rem 1.15rem;
+		border-top: 1px solid var(--line);
+		font-size: var(--fs-sm);
+	}
+
+	/* A signed note: one line per span, long lines wrapped with a hanging indent. With labels,
+	   each line is named in a column of its own, which a selection skips: copying the note
+	   copies exactly the note. */
+	.note {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+
+	.note .ln {
+		display: block;
+		min-height: 1lh;
+	}
+
+	.note .sig {
+		padding-inline-start: 2ch;
+		text-indent: -2ch;
+		word-break: break-all;
+	}
+
+	.note.labelled .ln {
+		display: grid;
+		grid-template-columns: 5.6rem minmax(0, 1fr);
+		column-gap: 0.75rem;
+	}
+
+	.note.labelled .sig {
+		padding-inline-start: 0;
+		text-indent: 0;
+		word-break: normal;
+	}
+
+	/* A value too long for its line breaks at the edge, as a terminal would break it. */
+	.note.labelled .v {
+		word-break: break-all;
+	}
+
+	/* Too narrow for two columns, each name sits above its line. */
+	@container (max-width: 26rem) {
+		.note.labelled .ln {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.note.labelled .ln:not(:first-child, .gap) {
+			margin-top: 0.35rem;
+		}
+	}
+
+	.note .lbl {
+		color: var(--text-3);
+		font-family: var(--sans);
+		font-size: 0.92em;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	.note [data-label="root hash"] .v {
+		color: var(--cyan);
+	}
+
+	.note .sig .v {
+		color: var(--text-2);
+	}
+
+	/* Tables: a rounded surface that scrolls sideways inside itself. */
+	.table-wrap {
+		margin-bottom: 1.5rem;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		box-shadow: var(--shadow-sm);
+		overflow-x: auto;
+		scrollbar-width: thin;
+	}
+
+	table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--fs-sm);
+		line-height: 1.5;
+	}
+
+	/* A table of three columns or more keeps a width its cells can be read at, and scrolls. */
+	table:has(th:nth-child(3)) {
+		min-width: 34rem;
+	}
+
+	table:has(th:nth-child(5)) {
+		min-width: 44rem;
+	}
+
+	th,
+	td {
+		padding: 0.6rem 0.95rem;
+		border-bottom: 1px solid var(--line);
+		text-align: left;
+		vertical-align: top;
+	}
+
+	th {
+		font-weight: 600;
+	}
+
+	thead th {
+		background: var(--bg-2);
+		color: var(--text-2);
+		font-size: var(--fs-xs);
+		letter-spacing: 0.02em;
+		white-space: nowrap;
+	}
+
+	tbody tr:last-child > * {
+		border-bottom: 0;
+	}
+
+	tbody tr:hover {
+		background: color-mix(in oklab, var(--accent) 4%, transparent);
+	}
+
+	/* Documents: the trail, the title, the lead, then the text. */
+	.crumbs {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.15rem 0.5rem;
+		margin: 0 0 0.9rem;
+		padding: 0;
+		list-style: none;
+		color: var(--text-3);
+		font-size: var(--fs-sm);
+		font-weight: 500;
+	}
+
+	.crumbs :where(li) + li {
+		margin-top: 0;
+	}
+
+	.crumbs span {
+		margin-inline-end: 0.4rem;
+		color: var(--line-2);
+	}
+
+	.crumbs a {
+		color: var(--accent);
+		text-decoration: none;
+	}
+
+	.crumbs a:hover {
+		text-decoration: underline;
+	}
+
+	.doc h2 {
+		margin-top: 3rem;
+		padding-top: 2rem;
+		border-top: 1px solid var(--line);
+	}
+
+	.doc .lead + .lead,
+	.doc .lead + p {
+		margin-top: -0.25rem;
+	}
+
+	.doc blockquote {
+		margin-bottom: 1rem;
+		padding: 0.75rem 1rem;
+		border-inline-start: 3px solid var(--accent);
+		border-radius: 0 var(--r-md) var(--r-md) 0;
+		background: color-mix(in oklab, var(--accent) 6%, transparent);
+		color: var(--text-2);
+	}
+
+	.doc blockquote > :last-child {
+		margin-bottom: 0;
+	}
+
+	.doc hr {
+		margin: 2.5rem 0;
+		border: 0;
+		border-top: 1px solid var(--line);
+	}
+
+	.doc img {
+		max-width: 100%;
+		height: auto;
+	}
+
+	/* The contents of a page: a box under the lead, or a rail on the right of a wide window. */
+	.toc {
+		margin: 1.5rem 0;
+		padding: 0.9rem 1.1rem;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		font-size: var(--fs-sm);
+	}
+
+	.toc .label,
+	.side .label {
+		margin: 0 0 0.5rem;
+		color: var(--text-3);
+		font-size: var(--fs-xs);
+		font-weight: 650;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.toc ol {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		columns: 2 14rem;
+		column-gap: 1.5rem;
+	}
+
+	.toc li {
+		break-inside: avoid;
+	}
+
+	.toc li + li {
+		margin-top: 0;
+	}
+
+	.toc a {
+		display: block;
+		padding-block: 0.2rem;
+		color: var(--text-2);
+		text-decoration: none;
+	}
+
+	.toc a:hover {
+		color: var(--accent);
+	}
+
+	@media (min-width: 80em) {
+		.toc {
+			position: absolute;
+			inset-block: 0;
+			inset-inline-start: calc(100% + 3rem);
+			width: var(--rail);
+			margin: 0;
+			padding: 0;
+			border: 0;
+			background: none;
+		}
+
+		.toc > div {
+			position: sticky;
+			top: calc(var(--header) + 1.75rem);
+			max-height: calc(100dvh - var(--header) - 3.5rem);
+			overflow-y: auto;
+			scrollbar-width: thin;
+		}
+
+		.toc ol {
+			columns: auto;
+			border-inline-start: 1px solid var(--line);
+		}
+
+		.toc a {
+			margin-inline-start: -1px;
+			padding: 0.25rem 0 0.25rem 0.9rem;
+			border-inline-start: 1px solid transparent;
+		}
+
+		.toc a:hover {
+			border-inline-start-color: var(--accent);
+		}
+	}
+
+	/* The pages of a section: a column beside the text, or a box after it on a narrow window. */
+	.side {
+		padding: 1.1rem 1.25rem;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		font-size: var(--fs-sm);
+	}
+
+	.side .label:not(:first-child) {
+		margin-top: 1.4rem;
+	}
+
+	.side ul {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		border-inline-start: 1px solid var(--line);
+	}
+
+	.side li + li {
+		margin-top: 0;
+	}
+
+	.side a {
+		display: block;
+		margin-inline-start: -1px;
+		padding: 0.32rem 0.8rem;
+		border-inline-start: 2px solid transparent;
+		border-radius: 0 var(--r-sm) var(--r-sm) 0;
+		color: var(--text-2);
+		line-height: 1.4;
+		text-decoration: none;
+	}
+
+	.side a:hover {
+		color: var(--text);
+		background: color-mix(in oklab, var(--accent) 6%, transparent);
+	}
+
+	.side a[aria-current="page"] {
+		border-inline-start-color: var(--accent);
+		background: color-mix(in oklab, var(--accent) 9%, transparent);
+		color: var(--accent);
+		font-weight: 600;
+	}
+
+	/* An import specifier breaks after a slash, never inside a name. */
+	.side code {
+		padding: 0;
+		background: none;
+		font-size: 0.92em;
+		overflow-wrap: normal;
+	}
+
+	.side .top {
+		border: 0;
+		margin-bottom: 0.25rem;
+	}
+
+	.side :where(.top) a {
+		border-radius: var(--r-sm);
+		color: var(--text);
+		font-weight: 600;
+	}
+
+	@media (min-width: 64em) {
+		.side {
+			position: sticky;
+			top: calc(var(--header) + 1.75rem);
+			align-self: start;
+			max-height: calc(100dvh - var(--header) - 3.5rem);
+			padding: 0 0.5rem 0 0;
+			border: 0;
+			border-radius: 0;
+			background: none;
+			overflow-y: auto;
+			scrollbar-width: thin;
+		}
+	}
+
+	.edit {
+		margin: 3rem 0 0;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--line);
+		color: var(--text-2);
+		font-size: var(--fs-sm);
+	}
+
+	.pager {
+		display: grid;
+		gap: 1rem;
+		margin-top: 2.5rem;
+	}
+
+	@container (min-width: 30rem) {
+		.pager {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.pager .next {
+			grid-column: 2;
+		}
+	}
+
+	.pager a {
+		display: block;
+		padding: 0.85rem 1.1rem;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		color: var(--text);
+		font-weight: 600;
+		line-height: 1.35;
+		text-decoration: none;
+		box-shadow: var(--shadow-sm);
+	}
+
+	.pager a:hover {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.pager .next {
+		text-align: end;
+	}
+
+	.pager span {
+		display: block;
+		margin-bottom: 0.15rem;
+		color: var(--text-3);
+		font-size: var(--fs-xs);
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+	}
+
+	/* Description lists of names: the guides, the examples, CI's jobs. */
+	.index {
+		display: grid;
+		gap: 0.75rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.index > div {
+		padding: 0.9rem 1.1rem;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		box-shadow: var(--shadow-sm);
+	}
+
+	.index dt {
+		font-weight: 650;
+	}
+
+	.index dd {
+		margin-top: 0.2rem;
+		color: var(--text-2);
+		font-size: var(--fs-sm);
+	}
+
+	.index dt a {
+		text-decoration: none;
+	}
+
+	.index dt a:hover {
+		text-decoration: underline;
+	}
+
+	/* An API index sets each name beside its summary where there is room, as pkg.go.dev does. */
+	.index.api {
+		gap: 0;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		box-shadow: var(--shadow-sm);
+		overflow: hidden;
+	}
+
+	.index.api > div {
+		display: grid;
+		gap: 0.15rem 1.5rem;
+		padding: 0.7rem 1.1rem;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+		scroll-margin-top: calc(var(--header) + 1.25rem);
+	}
+
+	.index.api > div + div {
+		border-top: 1px solid var(--line);
+	}
+
+	.index.api > div:target {
+		background: color-mix(in oklab, var(--accent) 8%, transparent);
+	}
+
+	.index.api dt {
+		font-weight: 500;
+	}
+
+	.index.api dt code {
+		padding: 0;
+		background: none;
+		color: var(--accent);
+		font-size: 0.9em;
+		font-weight: 600;
+	}
+
 	.index.api dd {
 		margin: 0;
 	}
-}
 
-.note .k {
-	color: var(--ink-2);
+	@container (min-width: 38rem) {
+		.index:not(.api) {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.index.api > div {
+			grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+		}
+	}
+
+	@container (min-width: 56rem) {
+		.index:not(.api) {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+
+	.doc {
+		container-type: inline-size;
+	}
 }

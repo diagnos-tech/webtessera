@@ -20,6 +20,7 @@
 
 import sitemap from "@astrojs/sitemap";
 import { defineConfig } from "astro/config";
+import { codeTheme, codeTransformers } from "./src/lib/code.ts";
 import { siteUrl } from "./src/lib/url.ts";
 
 const url = new URL(siteUrl());
@@ -34,8 +35,8 @@ export default defineConfig({
 	build: { format: "directory" },
 	integrations: [sitemap({ filter: (page) => !/\/(og|404)\//.test(new URL(page).pathname) })],
 	markdown: {
-		// Code is set in the text colour, with comments in the secondary one (styles/base.css).
-		shikiConfig: { theme: "css-variables" },
+		// Code is set in Dracula, on its own dark surface in both colour schemes (lib/code.ts).
+		shikiConfig: { theme: codeTheme, transformers: codeTransformers },
 	},
 	devToolbar: { enabled: false },
 	vite: {

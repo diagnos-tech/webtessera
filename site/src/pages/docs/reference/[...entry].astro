@@ -91,10 +91,10 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z]+/g, "-");
 				<h2 id={slug(g.heading)}>{g.heading}</h2>
 				<dl class="index api">
 					{g.names.map((n) => (
-						<>
-							<dt id={n.name}><code>{n.name}</code></dt>
+						<div id={n.name}>
+							<dt><code>{n.name}</code></dt>
 							<dd set:html={n.summary === "" ? "No doc comment." : inline(n.summary)} />
-						</>
+						</div>
 					))}
 				</dl>
 			</>

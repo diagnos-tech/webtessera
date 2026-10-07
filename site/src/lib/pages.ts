@@ -13,13 +13,15 @@
 // limitations under the License.
 
 // The site's pages: the titles and descriptions of the hand-written ones, the order the docs
-// are read in, and the list of every page with its title and description, which the social
-// images are drawn from.
+// are read in, the pages each section lists beside its text, and the list of every page with
+// its title and description, which the social images are drawn from.
 
 import { getCollection } from "astro:content";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { EntryPoint } from "../data/entrypoints.ts";
+import { guidesIndex } from "../data/examples.ts";
+import { requireTable } from "../data/tables.ts";
 import type { Link } from "../layouts/Doc.astro";
 import { describe, plainText } from "./markdown.ts";
 import { guideSlug } from "./routes.ts";
@@ -105,6 +107,82 @@ export async function docsSequence(): Promise<Link[]> {
 		{ path: "docs/concepts/", title: meta.concepts.title },
 		{ path: "docs/reference/", title: meta.reference.title },
 	];
+}
+
+/** useCaseGuides are the guides of the first table of docs/guides/README.md, one per use case, in its order. */
+export function useCaseGuides(root: string): string[] {
+	const index = readFileSync(join(root, guidesIndex.file), "utf8");
+	return requireTable(index, guidesIndex.file, guidesIndex.heading)
+		.map(([guide = ""]) => /\(([\w.-]+)\.md\)/.exec(guide)?.[1] ?? "")
+		.filter((id) => id !== "");
+}
+
+/** NavGroup is a titled list of pages in a section's navigation; code sets their names as machine text. */
+export interface NavGroup {
+	readonly label: string;
+	readonly links: readonly Link[];
+	readonly code?: boolean;
+}
+
+/** SectionNav is the navigation of a section of the site: its front page, then its pages in groups. */
+export interface SectionNav {
+	readonly label: string;
+	readonly top: Link;
+	readonly groups: readonly NavGroup[];
+}
+
+/**
+ * sectionNav returns the navigation shown beside the page at `path`: the guides, the concepts
+ * and the reference for a page of the docs, every entry point for a page of the reference,
+ * every example for a page of the examples, and nothing for any other page.
+ */
+export async function sectionNav(path: string): Promise<SectionNav | undefined> {
+	const d = await getSiteData();
+	if (path.startsWith("docs/reference/") && path !== "docs/reference/") {
+		return {
+			label: meta.reference.title,
+			top: { path: "docs/reference/", title: meta.reference.title },
+			groups: [
+				{
+					label: "Entry points",
+					links: d.entryPoints.map((e) => ({
+						path: `docs/reference/${referenceSlug(e.specifier)}/`,
+						title: e.specifier,
+					})),
+					code: true,
+				},
+			],
+		};
+	}
+	if (path.startsWith("docs/")) {
+		const guides = (await docsSequence()).filter((l) => l.path !== "docs/concepts/" && l.path !== "docs/reference/");
+		const useCases = new Set(useCaseGuides(d.root).map((id) => `docs/${id}/`));
+		return {
+			label: meta.docs.title,
+			top: { path: "docs/", title: meta.docs.title },
+			groups: [
+				{ label: "Topics", links: guides.filter((l) => !useCases.has(l.path)) },
+				{ label: "Use cases", links: guides.filter((l) => useCases.has(l.path)) },
+				{
+					label: "Background",
+					links: [
+						{ path: "docs/concepts/", title: meta.concepts.title },
+						{ path: "docs/reference/", title: meta.reference.title },
+					],
+				},
+			],
+		};
+	}
+	if (path.startsWith("examples/")) {
+		return {
+			label: meta.examples.title,
+			top: { path: "examples/", title: meta.examples.title },
+			groups: [
+				{ label: "Applications", links: d.examples.map((x) => ({ path: `examples/${x.dir}/`, title: x.title })) },
+			],
+		};
+	}
+	return undefined;
 }
 
 /** neighbours returns the pages before and after a path in a sequence. */

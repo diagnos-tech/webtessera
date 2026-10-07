@@ -13,4 +13,4 @@
 // limitations under the License.
 
 /** listed is how many of the newest entries the demo lists, in its static view and live. */
-export const listed = 5;
+export const listed = 8;

@@ -1,309 +1,578 @@
 /*
- * The log's artefacts as the home page draws them (tiles and audit paths, from src/shared) and
- * the live demo's controls. Motion only answers the reader: a new leaf's cell fills, a new
- * checkpoint is marked, a tampered proof turns --fail. None of it runs under reduced motion.
+ * The live demo: a window on the machine surface, ringed with the brand gradient. Entries on the
+ * left, each a field; beside them what the verifier says, and the proof it checked; below, the
+ * signed checkpoint and the tiles. On a narrow window they stack in that order, and the verdict
+ * stays in view at the bottom while the entries above it are edited. Motion only answers the
+ * reader: a new leaf's cell fills, a new checkpoint flashes. None of it runs under reduced motion.
  */
 
-/* A tile: 16 × 16 cells, one per hash, toned by the hash; empty cells are hashes still to come. */
-.tile-grid {
-	--cell: 10px;
-	display: grid;
-	grid-template-columns: repeat(16, var(--cell));
-	gap: 2px;
-	padding-top: 12px;
-	width: max-content;
-}
+@layer reset, base, layout, components;
 
-.tile-grid .c {
-	width: var(--cell);
-	height: var(--cell);
-}
-
-.c.e {
-	border: 1px solid var(--rule);
-}
-
-.c.s0 {
-	background: var(--t0);
-}
-
-.c.s1 {
-	background: var(--t1);
-}
-
-.c.s2 {
-	background: var(--t2);
-}
-
-.c.s3 {
-	background: var(--t3);
-}
-
-.c.s4 {
-	background: var(--t4);
-}
-
-.c.s5 {
-	background: var(--t5);
-}
-
-.c.s6 {
-	background: var(--t6);
-}
-
-.c.s7 {
-	background: var(--t7);
-}
-
-.c.hit {
-	outline: 2px solid var(--ink);
-	outline-offset: 1px;
-}
-
-.c.rng {
-	outline: 2px solid var(--proof);
-	outline-offset: 0;
-}
-
-.tile-row {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 24px;
-	align-items: flex-end;
-}
-
-.tile-row + .tile-row {
-	margin-top: 16px;
-}
-
-.tile-more {
-	margin: 0;
-	font-size: 0.9rem;
-	color: var(--ink-2);
-}
-
-/* An audit path, from the recomputed root down to the entry: the root, the proof's hashes in the
-   colour of proof material, each with the subtree it stands for, then the entry's leaf hash. */
-.proof {
-	list-style: none;
-	margin: 0;
-	padding: 12px 0 0;
-	font-size: 0.95rem;
-	line-height: 1.45;
-}
-
-.proof .row {
-	display: grid;
-	grid-template-columns: 9em 6.5em minmax(0, 1fr);
-	gap: 0 12px;
-	align-items: baseline;
-	margin: 0;
-	padding: 1px 0;
-}
-
-@media (max-width: 480px) {
-	.proof .row {
-		grid-template-columns: 8em 6.5em;
+@layer components {
+	.demo-frame {
+		position: relative;
+		isolation: isolate;
+		padding: 1px;
+		border-radius: calc(var(--r-xl) + 1px);
+		background: var(--brand);
 	}
 
-	.proof .verdict,
-	.proof .data {
-		grid-column: 1 / -1;
-	}
-}
-
-.proof .k {
-	color: var(--ink-2);
-}
-
-.proof .sib,
-.proof .sib .k {
-	color: var(--proof);
-}
-
-.proof .ok,
-.proof .verdict.ok {
-	color: var(--verified);
-}
-
-.proof .bad,
-.proof .verdict.bad {
-	color: var(--fail);
-}
-
-.proof .data {
-	font-family: var(--mono);
-	font-size: 0.92em;
-	overflow-wrap: anywhere;
-}
-
-/* The live demo. */
-.demo {
-	margin-top: 24px;
-}
-
-.demo h3 {
-	font-size: 1rem;
-	margin: 24px 0 4px;
-}
-
-.demo-form label {
-	display: block;
-	font-size: 0.95rem;
-	margin-bottom: 4px;
-}
-
-.demo-form .field {
-	display: flex;
-	gap: 8px;
-}
-
-.demo-form input[type="text"],
-.demo-form input:not([type]) {
-	flex: 1;
-	min-width: 0;
-	font: inherit;
-	font-family: var(--mono);
-	font-size: 0.95rem;
-	padding: 6px 8px;
-	color: var(--ink);
-	background: var(--paper);
-	border: 1px solid var(--ink-2);
-	border-radius: 3px;
-}
-
-.demo button {
-	font: inherit;
-	font-size: 0.95rem;
-	padding: 6px 12px;
-	color: var(--ink);
-	background: var(--paper);
-	border: 1px solid var(--ink-2);
-	border-radius: 3px;
-	cursor: pointer;
-}
-
-.demo button:disabled,
-.demo input:disabled {
-	cursor: default;
-	opacity: 0.55;
-}
-
-.demo-form .actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	margin-top: 8px;
-}
-
-.demo .status {
-	margin: 16px 0 0;
-	font-size: 0.95rem;
-	color: var(--ink-2);
-	min-height: 2lh;
-}
-
-.demo .status.bad {
-	color: var(--fail);
-}
-
-.entries {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-	font-size: 0.9rem;
-}
-
-.entries li {
-	display: flex;
-	gap: 12px;
-	align-items: baseline;
-	margin: 0;
-	padding: 2px 0;
-}
-
-.entries .ix {
-	min-width: 4ch;
-	color: var(--ink-2);
-	font-variant-numeric: tabular-nums;
-}
-
-.entries .tx {
-	flex: 1;
-	min-width: 0;
-	font-family: var(--mono);
-	font-size: 0.95em;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.entries li.sel .tx {
-	text-decoration: underline;
-	text-decoration-thickness: 1px;
-	text-underline-offset: 0.2em;
-}
-
-.demo .entries .link-btn {
-	padding: 0;
-	border: 0;
-	background: none;
-	text-decoration: underline;
-	text-decoration-thickness: 1px;
-	text-underline-offset: 0.18em;
-	font-size: 0.9rem;
-}
-
-.demo .tiles {
-	margin-top: 16px;
-}
-
-.demo-main {
-	display: grid;
-	gap: 24px;
-}
-
-.tamper {
-	font-size: 0.9rem;
-	color: var(--ink);
-	cursor: pointer;
-}
-
-.verdict-line {
-	margin: 12px 0 0;
-	font-size: 0.95rem;
-}
-
-.verdict-line.ok strong {
-	color: var(--verified);
-}
-
-.verdict-line.bad,
-.verdict-line.bad strong {
-	color: var(--fail);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-	.tile-grid .c.new {
-		animation: fill 220ms ease-out;
+	.demo-frame::before {
+		content: "";
+		position: absolute;
+		inset: 1.5rem 2rem -0.5rem;
+		z-index: -1;
+		border-radius: inherit;
+		background: var(--brand);
+		filter: blur(48px);
+		opacity: 0.4;
 	}
 
-	.note {
-		transition: color 250ms ease-out;
+	.demo {
+		border-radius: var(--r-xl);
+		font-size: var(--fs-sm);
+		forced-color-adjust: none;
 	}
 
-	.note.flash {
-		color: var(--verified);
-		transition: none;
+	.demo h3 {
+		margin: 0;
+		font-size: var(--fs-sm);
+		font-weight: 650;
+		letter-spacing: 0;
 	}
 
-	.proof .row {
-		transition: color 150ms ease-out;
+	.demo p {
+		margin: 0;
 	}
-}
 
-@keyframes fill {
-	from {
+	/* The window's bar: whether the log is live, its origin, and starting over. */
+	.demo-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem 1rem;
+		min-height: 3.25rem;
+		padding: 0.5rem 1rem;
+		border-bottom: 1px solid var(--line);
+		border-radius: var(--r-xl) var(--r-xl) 0 0;
+		background: var(--bg);
+	}
+
+	.demo-mode {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
+		font-weight: 600;
+	}
+
+	.demo-mode .dot {
+		width: 0.6rem;
+		height: 0.6rem;
+		border-radius: 50%;
+		background: var(--text-3);
+	}
+
+	.demo[data-live] .dot {
+		background: var(--verified);
+		box-shadow: 0 0 0 0.25rem color-mix(in oklab, var(--verified) 22%, transparent);
+	}
+
+	.demo-origin {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		color: var(--text-2);
+		text-align: center;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.demo-origin code {
+		padding: 0;
+		background: none;
+		font-size: 0.92em;
+	}
+
+	/* Controls. */
+	.demo button {
+		min-height: 2.5rem;
+		padding: 0.4rem 0.9rem;
+		border: 1px solid var(--line-2);
+		border-radius: var(--r-md);
+		background: color-mix(in oklab, var(--text) 7%, transparent);
+		color: var(--text);
+		font-size: var(--fs-sm);
+		font-weight: 550;
+		cursor: pointer;
+	}
+
+	.demo button:hover:not(:disabled) {
+		border-color: var(--accent);
+		background: color-mix(in oklab, var(--accent) 16%, transparent);
+	}
+
+	.demo button.primary {
+		border-color: transparent;
+		background: var(--accent);
+		color: var(--accent-ink);
+		font-weight: 650;
+	}
+
+	.demo button.primary:hover:not(:disabled) {
+		background: color-mix(in oklab, var(--accent) 84%, white);
+	}
+
+	.demo button:disabled,
+	.demo input:disabled {
+		cursor: default;
+		opacity: 0.55;
+	}
+
+	.demo-body {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1rem;
+		padding: 1rem;
+	}
+
+	.demo-form label {
+		display: block;
+		margin-bottom: 0.35rem;
+		font-weight: 600;
+	}
+
+	.demo-form .field {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.demo-form input {
+		flex: 1;
+		min-width: 0;
+		min-height: 2.5rem;
+		padding: 0.4rem 0.75rem;
+		border: 1px solid var(--edge);
+		border-radius: var(--r-md);
+		background: var(--bg);
+		color: var(--text);
+		font-family: var(--mono);
+		font-size: var(--fs-code);
+	}
+
+	.demo-form input::placeholder {
+		color: var(--text-3);
+		opacity: 1;
+	}
+
+	.demo-form .actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+	}
+
+	/* The entries: index, contents, the start of the leaf hash. Live, the contents are a field. */
+	.list-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0 0.6rem 0.4rem;
+		color: var(--text-2);
+		font-size: var(--fs-xs);
+	}
+
+	.demo .list-head h3 {
+		color: var(--text);
+	}
+
+	.entries {
+		margin: 0;
+		padding: 0;
+		border: 1px solid var(--line);
+		border-radius: var(--r-md);
+		background: var(--bg);
+		list-style: none;
+		overflow: hidden;
+	}
+
+	.entries li {
+		display: grid;
+		grid-template-columns: 2.1rem minmax(0, 1fr) auto auto;
+		align-items: center;
+		gap: 0 0.5rem;
+		min-height: 2.3rem;
+		margin: 0;
+		padding: 0 0.6rem;
+		border-inline-start: 3px solid transparent;
+	}
+
+	.entries li + li {
+		border-top: 1px solid color-mix(in oklab, var(--line) 60%, transparent);
+	}
+
+	.entries li.gap {
+		min-height: 0.6rem;
+		background:
+			repeating-linear-gradient(90deg, color-mix(in oklab, var(--text) 16%, transparent) 0 3px, transparent 3px 8px)
+			center / 100% 1px no-repeat;
+	}
+
+	.entries .ix {
+		color: var(--text-3);
+		font-family: var(--mono);
+		font-size: var(--fs-xs);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.entries .tx {
+		min-width: 0;
+		padding: 0 0.4rem;
+		overflow: hidden;
+		font-family: var(--mono);
+		font-size: var(--fs-code);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* A field is told from text by its dashed edge, which has the contrast a control's edge needs. */
+	.entries input.tx {
+		width: 100%;
+		height: 1.7rem;
+		border: 0;
+		border-bottom: 1px dashed var(--edge);
+		border-radius: var(--r-sm) var(--r-sm) 0 0;
 		background: transparent;
+		color: var(--text);
+		cursor: text;
+	}
+
+	.entries input.tx:hover {
+		background: color-mix(in oklab, var(--text) 6%, transparent);
+	}
+
+	.entries input.tx:focus-visible {
+		outline-offset: 1px;
+		border-bottom-color: transparent;
+		border-radius: var(--r-sm);
+		background: var(--surface);
+	}
+
+	.entries li.bad input.tx {
+		border-bottom-color: var(--fail);
+	}
+
+	.entries .lh {
+		max-width: 8ch;
+		padding: 0;
+		overflow: hidden;
+		background: none;
+		color: var(--text-2);
+		font-size: var(--fs-xs);
+		white-space: nowrap;
+	}
+
+	.entries .undo {
+		min-height: 1.75rem;
+		padding: 0.1rem 0.55rem;
+		border-color: color-mix(in oklab, var(--fail) 55%, transparent);
+		background: transparent;
+		color: var(--fail);
+		font-size: var(--fs-xs);
+	}
+
+	.entries li.sel {
+		border-inline-start-color: var(--accent);
+		background: color-mix(in oklab, var(--accent) 12%, transparent);
+	}
+
+	.entries li.sel .ix {
+		color: var(--accent);
+	}
+
+	.entries li.bad {
+		border-inline-start-color: var(--fail);
+		background: color-mix(in oklab, var(--fail) 13%, transparent);
+	}
+
+	.entries li.bad .lh,
+	.entries li.bad .ix {
+		color: var(--fail);
+	}
+
+	.list-foot {
+		padding: 0.5rem 0.6rem 0;
+		color: var(--text-2);
+		font-size: var(--fs-xs);
+	}
+
+	/* What the verifier says. */
+	.demo-status {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.1rem 0.85rem;
+		align-items: start;
+		align-content: center;
+		padding: 0.9rem 1rem;
+		border: 1px solid color-mix(in oklab, var(--tone) 45%, transparent);
+		border-radius: var(--r-lg);
+		background: color-mix(in oklab, var(--tone) 12%, var(--surface));
+		--tone: var(--verified);
+	}
+
+	.demo-status[data-state="bad"],
+	.demo-status[data-state="error"] {
+		--tone: var(--fail);
+	}
+
+	.demo-status[data-state="busy"] {
+		--tone: var(--accent);
+	}
+
+	.demo-status .sign {
+		grid-row: span 2;
+		display: grid;
+		place-items: center;
+		width: 2.25rem;
+		height: 2.25rem;
+		border-radius: 50%;
+		background: var(--tone);
+	}
+
+	/* The sign is a tick, a cross or a dot, drawn with borders: the title beside it says the same. */
+	.demo-status .sign::before {
+		content: "";
+		width: 0.55rem;
+		height: 1rem;
+		margin-top: -0.2rem;
+		border: solid var(--accent-ink);
+		border-width: 0 0.2rem 0.2rem 0;
+		rotate: 45deg;
+	}
+
+	.demo-status:is([data-state="bad"], [data-state="error"]) .sign::before {
+		width: 1.2rem;
+		height: 1.2rem;
+		margin: 0;
+		border: 0;
+		background:
+			linear-gradient(var(--accent-ink), var(--accent-ink)) center / 100% 0.2rem no-repeat,
+			linear-gradient(var(--accent-ink), var(--accent-ink)) center / 0.2rem 100% no-repeat;
+	}
+
+	.demo-status[data-state="busy"] .sign::before {
+		width: 0.6rem;
+		height: 0.6rem;
+		margin: 0;
+		border: 0;
+		border-radius: 50%;
+		background: var(--accent-ink);
+		rotate: none;
+	}
+
+	.demo-status .title {
+		color: var(--tone);
+		font-size: var(--fs-md);
+		font-weight: 700;
+		line-height: 1.3;
+	}
+
+	.demo-status .detail {
+		grid-column: 2;
+		color: var(--text);
+		line-height: 1.5;
+	}
+
+	/* The three artefacts: the proof, the checkpoint, the tiles. */
+	.demo-panel {
+		min-width: 0;
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--bg);
+		container-type: inline-size;
+	}
+
+	.panel-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.2rem 1rem;
+		padding: 0.6rem 1rem;
+		border-bottom: 1px solid var(--line);
+		color: var(--text-2);
+		font-size: var(--fs-xs);
+	}
+
+	.demo .panel-head h3 {
+		color: var(--text);
+	}
+
+	.panel-head code {
+		padding: 0;
+		background: none;
+		font-size: 1em;
+	}
+
+	.demo-panel pre {
+		margin: 0;
+		padding: 0.85rem 1rem;
+		border: 0;
+		border-radius: 0 0 var(--r-lg) var(--r-lg);
+		background: none;
+		box-shadow: none;
+	}
+
+	.verdict-line {
+		padding: 0.85rem 1rem 0;
+		line-height: 1.5;
+	}
+
+	.verdict-line.ok strong {
+		color: var(--verified);
+	}
+
+	.verdict-line.bad strong {
+		color: var(--fail);
+	}
+
+	.demo .proof,
+	.demo .roots {
+		padding-inline: 1rem;
+	}
+
+	.tiles-body {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		gap: 1rem 1.5rem;
+		padding: 0.85rem 1rem 1rem;
+	}
+
+	.tiles-note {
+		flex: 1 1 14rem;
+		color: var(--text-2);
+		font-size: var(--fs-xs);
+		line-height: 1.6;
+	}
+
+	.demo .tiles,
+	.demo .tile-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: 1rem;
+	}
+
+	.demo .tile-row + .tile-row {
+		margin-top: 0;
+	}
+
+	.demo .tile {
+		border: 0;
+		border-radius: 0;
+		background: none;
+		box-shadow: none;
+		overflow: visible;
+	}
+
+	.demo .tile > figcaption {
+		padding: 0 0 0.45rem;
+		border: 0;
+		background: none;
+	}
+
+	.demo .tile-grid {
+		--cell: 0.62rem;
+		padding: 0;
+	}
+
+	@container (min-width: 24rem) {
+		.entries .lh {
+			max-width: none;
+		}
+	}
+
+	.demo-entries {
+		container-type: inline-size;
+	}
+
+	@media (max-width: 43.99em) {
+		.demo-origin {
+			visibility: hidden;
+		}
+
+		.demo-body {
+			padding: 0.75rem;
+		}
+	}
+
+	/* Wide: adding and the entries on the left, the verdict and the proof beside them, the
+	   checkpoint and the tiles below. */
+	@media (min-width: 62em) {
+		.demo-body {
+			grid-template-columns: minmax(0, 6fr) minmax(0, 7fr);
+			grid-template-areas:
+				"form status"
+				"entries proof"
+				"note tiles";
+			gap: 1.25rem;
+			padding: 1.25rem;
+		}
+
+		.demo-form {
+			grid-area: form;
+		}
+
+		.demo-entries {
+			grid-area: entries;
+		}
+
+		.demo-status {
+			grid-area: status;
+		}
+
+		.demo-proof {
+			grid-area: proof;
+		}
+
+		.demo-note {
+			grid-area: note;
+		}
+
+		.demo-tiles {
+			grid-area: tiles;
+		}
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.tile-grid .c.new {
+			animation: fill 260ms ease-out;
+		}
+
+		.note {
+			transition: color 250ms ease-out;
+		}
+
+		.note.flash {
+			color: var(--verified);
+			transition: none;
+		}
+
+		.demo-status {
+			transition:
+				background-color 180ms ease-out,
+				border-color 180ms ease-out;
+		}
+
+		.entries li {
+			transition: background-color 150ms ease-out;
+		}
+	}
+
+	@keyframes fill {
+		from {
+			scale: 0.2;
+			opacity: 0;
+		}
 	}
 }

@@ -14,13 +14,17 @@
 // limitations under the License.
 
 // The live demo, the site's only island. Without JavaScript it shows the log the build
-// created, drawn by the same renderers as the live one; its script loads src/demo/ when the
-// demo nears the viewport, starts a log in the tab and takes over the same markup.
+// created, drawn by the same renderers as the live one: its newest entries with their leaf
+// hashes, the newest entry's inclusion proof, the signed checkpoint and the tile. The page
+// that shows it loads src/demo/main.ts when the demo nears the viewport (pages/index.astro);
+// the script starts a log in the tab and takes over the same markup.
 
 import type { SampleLog } from "../data/sample-log.ts";
 import { listed } from "../demo/listed.ts";
+import { count } from "../lib/words.ts";
 import { renderNoteBody } from "../shared/note.ts";
 import { renderEntries, renderInclusion, renderTiles } from "../shared/panels.ts";
+import { TileWidth } from "../shared/tiles.ts";
 
 interface Props {
 	sample: SampleLog;
@@ -29,85 +33,86 @@ interface Props {
 
 const { sample, origin } = Astro.props;
 const entries = sample.entries.map((text, i) => ({ index: BigInt(i), text })).slice(-listed);
-const selected = sample.inclusion.index;
+const selected = sample.newest.index;
+const total = sample.entries.length;
 ---
 
-<div class="demo row" data-demo data-origin={origin} data-seed={JSON.stringify(sample.entries)}>
-	<div class="demo-side">
+<div class="demo-frame">
+<div class="demo machine" data-demo data-origin={origin} data-seed={JSON.stringify(sample.entries)}>
+	<div class="demo-bar">
+		<p class="demo-mode"><span class="dot" aria-hidden="true"></span><span data-demo-mode>Built with this page</span></p>
+		<p class="demo-origin"><code translate="no" data-demo-origin>{origin}</code></p>
+		<button type="button" class="js-only" data-demo-reset disabled>Reset</button>
+	</div>
+	<div class="demo-body">
 		<form class="demo-form js-only" data-demo-form>
-			<label for="demo-entry">New entry</label>
+			<label for="demo-entry">Add an entry</label>
 			<div class="field">
 				<input
 					id="demo-entry"
 					name="entry"
 					maxlength="200"
 					autocomplete="off"
+					autocapitalize="off"
 					spellcheck="false"
 					placeholder="hello, transparency"
 					required
 					disabled
 				/>
-				<button type="submit" disabled>Append</button>
+				<button type="submit" class="primary" disabled>Append</button>
 			</div>
 			<div class="actions">
-				<button type="button" data-demo-add disabled>Add 10 entries</button>
+				<button type="button" data-demo-add disabled>Add 10 sample entries</button>
 				<button type="button" data-demo-fill disabled>Fill the tile</button>
 			</div>
 		</form>
-		<p class="status" role="status" aria-live="polite" data-demo-status>
-			This is the log the page was built with. <span class="js-only">The live log starts as you scroll to it.</span>
-		</p>
-		<noscript><p class="status">The live log needs JavaScript.</p></noscript>
-		<div class="tiles" data-demo-tiles set:html={renderTiles(sample.tiles, selected).value} />
-		<h3>Latest entries</h3>
-		<ol class="entries" data-demo-entries set:html={renderEntries(entries, selected).value} />
-	</div>
-	<div class="demo-main">
-		<figure class="fig">
-			<figcaption><code>GET /checkpoint</code><span data-demo-note-meta>signed at build time</span></figcaption>
-			<pre class="note" data-demo-note set:html={renderNoteBody(sample.note).value} />
-		</figure>
-		<figure class="fig">
-			<figcaption>
-				<code>inclusionProof</code>
-				<label class="tamper js-only"><input type="checkbox" data-demo-tamper disabled /> Tamper with the entry</label>
-			</figcaption>
-			<div data-demo-proof set:html={renderInclusion(sample.inclusion, false).value} />
-		</figure>
+		<div class="demo-status" data-demo-status data-state="static" role="status" aria-live="polite">
+			<span class="sign" aria-hidden="true"></span>
+			<p class="title" data-demo-status-title>Verified while this page was built</p>
+			<p class="detail" data-demo-status-detail>
+				This is the log the page was built with.
+				<span class="js-only">The live log starts as you scroll to it.</span>
+				<noscript>The live log needs JavaScript.</noscript>
+			</p>
+		</div>
+		<section class="demo-entries" aria-labelledby="demo-entries-title">
+			<div class="list-head">
+				<h3 id="demo-entries-title">Entries</h3>
+				<span>Leaf hash</span>
+			</div>
+			<ol class="entries" data-demo-entries set:html={renderEntries(entries, { selected }).value} />
+			<p class="list-foot" data-demo-count>
+				{total > listed ? `The newest ${listed} of ${count(total, "entry", "entries")}.` : `All ${count(total, "entry", "entries")}.`}
+			</p>
+		</section>
+		<section class="demo-panel demo-proof" aria-labelledby="demo-proof-title">
+			<div class="panel-head">
+				<h3 id="demo-proof-title">Inclusion proof</h3>
+				<code>verifyInclusion</code>
+			</div>
+			<div data-demo-proof set:html={renderInclusion(sample.newest, false).value} />
+		</section>
+		<section class="demo-panel demo-note" aria-labelledby="demo-note-title">
+			<div class="panel-head">
+				<h3 id="demo-note-title">Signed checkpoint</h3>
+				<span data-demo-note-meta>signed at build time</span>
+			</div>
+			<pre class="note labelled" data-demo-note translate="no" set:html={renderNoteBody(sample.note, true).value} />
+		</section>
+		<section class="demo-panel demo-tiles" aria-labelledby="demo-tiles-title">
+			<div class="panel-head">
+				<h3 id="demo-tiles-title">Tiles</h3>
+				<span>one cell per hash</span>
+			</div>
+			<div class="tiles-body">
+				<div class="tiles" data-demo-tiles set:html={renderTiles(sample.tiles, selected).value} />
+				<p class="tiles-note">
+					The tree is stored in tiles of {TileWidth} hashes, drawn here as one cell each and toned by the hash. The
+					outlined cell is the entry whose proof is shown. A full tile never changes again, so any static host or CDN
+					can serve it, and its own hash becomes a cell one level up.
+				</p>
+			</div>
+		</section>
 	</div>
 </div>
-
-<script>
-	// Loads the demo when it nears the viewport, or as soon as the reader points at it or
-	// tabs into it. Until then the page has no other script.
-	const root = document.querySelector<HTMLElement>("[data-demo]");
-	if (root !== null) {
-		let started = false;
-		const observer = new IntersectionObserver(
-			(entries) => {
-				if (entries.some((e) => e.isIntersecting)) {
-					start();
-				}
-			},
-			{ rootMargin: "320px 0px" },
-		);
-		const start = () => {
-			if (started) {
-				return;
-			}
-			started = true;
-			observer.disconnect();
-			import("../demo/main.ts")
-				.then((demo) => demo.start(root))
-				.catch((err: unknown) => {
-					const status = root.querySelector("[data-demo-status]");
-					if (status !== null) {
-						status.textContent = `The live log could not start: ${String(err)}`;
-					}
-				});
-		};
-		observer.observe(root);
-		root.addEventListener("pointerenter", start, { once: true });
-		root.addEventListener("focusin", start, { once: true });
-	}
-</script>
+</div>
