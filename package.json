@@ -115,12 +115,12 @@
     "@vitest/browser": "4.1.11",
     "@vitest/browser-playwright": "4.1.11",
     "aws4fetch": "1.0.20",
-    "esbuild": "0.28.1",
+    "esbuild": "0.28.2",
     "fake-indexeddb": "6.2.5",
-    "playwright": "1.56.1",
+    "playwright": "1.63.0",
     "typescript": "5.9.3",
     "vitest": "4.1.11",
-    "wrangler": "4.124.0"
+    "wrangler": "4.147.0"
   },
   "trustedDependencies": [
     "esbuild",
