@@ -18,7 +18,7 @@
     "@astrojs/check": "0.9.10",
     "@astrojs/sitemap": "3.7.4",
     "@types/node": "22.20.5",
-    "astro": "7.3.6",
+    "astro": "7.3.8",
     "astro-og-canvas": "0.13.2",
     "canvaskit-wasm": "0.42.0",
     "typescript": "5.9.3"
