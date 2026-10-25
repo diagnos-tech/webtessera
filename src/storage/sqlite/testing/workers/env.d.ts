@@ -21,6 +21,8 @@ declare global {
 		interface Env {
 			readonly SQLITE_OBJECT: DurableObjectNamespace<SqliteTestObject>;
 			readonly DB: D1Database;
+			/** The bucket webtessera/mirror's R2 sink is tested against (src/mirror/r2_workers_test.ts). */
+			readonly BUCKET: R2Bucket;
 		}
 	}
 }

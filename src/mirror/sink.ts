@@ -22,6 +22,7 @@ import { partialOrFullResource } from "../internal/fetcher/fallback.ts";
 import { ErrNotExist, wrapError } from "../internal/gostd/errors.ts";
 import { quote } from "../internal/gostd/strconv.ts";
 import type { Source, Target } from "./mirror.ts";
+import { R2Sink } from "./r2.ts";
 import { S3Sink } from "./s3.ts";
 
 /**
@@ -38,6 +39,8 @@ export type SinkObject = Uint8Array | ArrayBuffer | { arrayBuffer(): Promise<Arr
  *     so a mirror can land in exactly the storage a log is served from;
  *   - an S3-compatible bucket through {@link newS3Sink} (AWS S3, Cloudflare R2, Google Cloud
  *     Storage, Backblaze B2, MinIO, Ceph, ...);
+ *   - a Cloudflare Workers R2 binding through {@link newR2Sink}, which adds the metadata,
+ *     immutability and checkpoint ordering of a published log to the bare binding;
  *   - object-storage bindings whose `put(key, bytes)` and `get(key)` have these shapes,
  *     such as a Cloudflare Workers R2 bucket binding, or a thin wrapper around any other
  *     SDK's.
@@ -65,8 +68,8 @@ export interface SinkTargetOptions {
 	 * prefix is prepended to every key, to keep several logs in one bucket or store:
 	 * `logs/a/` puts the checkpoint at `logs/a/checkpoint`. Defaults to "".
 	 *
-	 * A sink from newS3Sink takes the prefix itself, so that it still sees each key as a
-	 * tlog-tiles path and stores it with the matching metadata and conditional write. A
+	 * A sink from newS3Sink or newR2Sink takes the prefix itself, so that it still sees each
+	 * key as a tlog-tiles path and stores it with the matching metadata and conditional write. A
 	 * sink of your own that derives anything from the key should be given the prefix the
 	 * same way, rather than here.
 	 */
@@ -84,7 +87,7 @@ export interface SinkTargetOptions {
  */
 export function newSinkTarget(sink: Sink, options: SinkTargetOptions = {}): SinkTarget {
 	const prefix = options.prefix ?? "";
-	if (sink instanceof S3Sink && prefix !== "") {
+	if ((sink instanceof S3Sink || sink instanceof R2Sink) && prefix !== "") {
 		return new SinkTarget(sink._withPrefix(prefix), "");
 	}
 	return new SinkTarget(sink, prefix);

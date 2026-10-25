@@ -54,8 +54,12 @@
  *     Signature Version 4, storing each object with the `Content-Type` and `Cache-Control`
  *     tlog-tiles prescribes so that the bucket can be served publicly as it is;
  *   - any webtessera `ObjectStore` (memory, IndexedDB, SQLite, Durable Object storage);
- *   - object-storage bindings with the same shape, such as a Cloudflare Workers R2 binding,
- *     or a two-line wrapper around another SDK.
+ *   - {@link newR2Sink}: a Cloudflare Workers R2 binding, storing each object with the same
+ *     metadata, creating tiles and bundles without ever overwriting them, and never replacing
+ *     the checkpoint with one for a smaller tree, so that overlapping runs cannot publish an
+ *     older checkpoint over a newer one;
+ *   - object-storage bindings with the same shape, such as a bare R2 binding, or a two-line
+ *     wrapper around another SDK.
  *
  * {@link newSinkTarget} adapts a Sink into the mirror's {@link Target}, under an optional key
  * prefix; the result can also be read back, as a fetcher for `webtessera/fsck`.
@@ -65,6 +69,15 @@
 
 export { MaxResourceBytes, newSourceFetch, type SourceFetchOptions } from "./fetch.ts";
 export { Mirror, type MirrorProgress, type Source, type Target } from "./mirror.ts";
+export {
+	newR2Sink,
+	type R2BucketLike,
+	type R2ObjectBodyLike,
+	type R2ObjectLike,
+	type R2PutOptionsLike,
+	R2Sink,
+	type R2SinkOptions,
+} from "./r2.ts";
 export { isRecoverable, RetryError, unrecoverable } from "./retry.ts";
 export { newS3Sink, S3Error, S3Sink, type S3SinkOptions } from "./s3.ts";
 export { type AwsCredentials, type SignedV4, type SignV4Input, signV4 } from "./sigv4.ts";

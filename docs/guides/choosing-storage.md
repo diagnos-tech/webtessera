@@ -24,6 +24,7 @@ again.
 | Durable Object | Cloudflare Workers | durable | the one instance (local locking) | a log at the edge |
 | Your own ObjectStore | anywhere | yours to decide | yours to guarantee | anything else |
 | S3-compatible bucket | via `newS3Sink` | durable | — (a mirror target, not a live log) | publishing, mirroring, committing |
+| R2 bucket, from a Worker | via `newR2Sink` | durable | — (a mirror target, not a live log) | publishing a log a Worker writes |
 
 Each section names the safe API option and the ported API call for that storage.
 

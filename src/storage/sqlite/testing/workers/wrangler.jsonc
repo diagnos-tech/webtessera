@@ -1,6 +1,6 @@
 {
-  // Wrangler configuration for the workerd test harness of the SQLite backend only; it
-  // is not a deployable example (see examples/ for those).
+  // Wrangler configuration for the workerd test harness of the SQLite backend and of the
+  // other workerd-only suites; it is not a deployable example (see examples/ for those).
   //
   // nodejs_compat is here only because @cloudflare/vitest-pool-workers requires it to run
   // Vitest itself. The library does not need it.
@@ -14,5 +14,7 @@
   // The class is SQLite-backed: only those have the SQL API the backend runs on.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SqliteTestObject"] }],
   // One D1 database, shared by every test; each store keeps its log in a namespace of its own.
-  "d1_databases": [{ "binding": "DB", "database_name": "webtessera-test", "database_id": "webtessera-test" }]
+  "d1_databases": [{ "binding": "DB", "database_name": "webtessera-test", "database_id": "webtessera-test" }],
+  // One R2 bucket, for the R2 sink of webtessera/mirror; each test writes under a prefix of its own.
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "webtessera-test" }]
 }

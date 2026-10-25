@@ -127,9 +127,24 @@ sink, which is anything with `put(key, bytes)`, plus `get(key)` to resume:
   tlog-tiles gives, so the bucket can be served as a static log. It sends tiles and bundles with
   `If-None-Match: *`, so a service that honors the header refuses to overwrite one with different
   bytes.
+- **`newR2Sink`** writes through a Cloudflare Worker's own R2 binding, with the same metadata. It
+  creates tiles and bundles without ever overwriting them, accepting one already there only if it
+  holds the same bytes, and it replaces the checkpoint by compare-and-swap, never with one for a
+  smaller tree: two runs that overlap, such as a retried queue message next to a cron job, cannot
+  publish an older checkpoint over a newer one. Serve the bucket with a custom domain, and it is the
+  log's read API.
 - **Any `ObjectStore`** is a sink as it is.
-- **Bindings with the same shape**, such as a Cloudflare Workers R2 binding, or a short wrapper
-  around another SDK.
+- **Bindings with the same shape**, such as a bare R2 binding (without the metadata and the
+  ordering above), or a short wrapper around another SDK.
+
+To publish a log your Worker writes (on D1, say) to the bucket a custom domain serves:
+
+```ts
+import { Mirror, newR2Sink, newSinkTarget } from "webtessera/mirror";
+
+const target = newSinkTarget(newR2Sink(env.LOGS), { prefix: "audit/v1/" });
+await new Mirror({ source: log.reader, target, numWorkers: 4 }).run();
+```
 
 `newSinkTarget(sink, { prefix })` mirrors under a key prefix. The result also reads the copy back, as
 a `webtessera/fsck` fetcher, which is how you check a copy that `Mirror` made.

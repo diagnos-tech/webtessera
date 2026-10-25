@@ -124,7 +124,11 @@ divergence is recorded in an ADR under `docs/decisions/`, and every upstream fil
   checkpoint, that the checkpoint extends what was mirrored before, and every tile and bundle against it,
   before writing anything. Targets are any `ObjectStore`, any store with a `put` method, or a bucket on a
   service that speaks the S3 API, such as AWS S3, Cloudflare R2 or MinIO (`newS3Sink`), signed with AWS
-  Signature Version 4 on `@noble/hashes`, with no SDK; CI runs the S3 tests against MinIO.
+  Signature Version 4 on `@noble/hashes`, with no SDK; CI runs the S3 tests against MinIO. From a
+  Cloudflare Worker, `newR2Sink(env.BUCKET)` publishes through the Worker's own R2 binding, with the same
+  metadata, tiles and bundles created and never overwritten, and a checkpoint that only ever grows:
+  replaced by compare-and-swap on its entity tag, and never by one for a smaller tree, so overlapping
+  mirror runs cannot publish an older checkpoint over a newer one (ADR-0248).
 - **Test helpers**: `webtessera/testonly` provides `newTestLog`, a ready-made log on the memory driver with
   its own signing key, for testing code built on webtessera, as Tessera's `testonly` package does for Go.
 - **Documentation and project tooling**: contributor guide, `PORTING.md` (the fidelity rules), ADRs, the porting map, `docs/compatibility.md`, `docs/RELEASING.md`, a
